@@ -1,0 +1,709 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container" style="max-width: 860px; padding-bottom: 80px;">
+  <div class="card border-0 bg-surface shadow-sm" style="border-radius: 18px;">
+    <div class="card-body p-4 p-md-5 text-white verify-card">
+      <div class="d-flex align-items-center gap-3 mb-3 verify-header">
+        <div class="rounded-circle bg-primary bg-opacity-10 p-3 text-primary d-flex align-items-center justify-content-center verify-icon" style="width: 56px; height: 56px;">
+          <i class="fas fa-shield-heart fa-lg"></i>
+        </div>
+        <div>
+          <h1 class="h4 fw-bold mb-1">Verificación de identidad</h1>
+          <p class="text-secondary mb-0">Queremos mantener este espacio seguro para mujeres reales.</p>
+        </div>
+      </div>
+
+      <div class="alert alert-info border-0" style="background: rgba(124, 58, 237, 0.12); color: #e9d5ff;">
+        Tu video y tu información <strong>no serán usados con otro fin</strong>. Solo los revisaremos para confirmar
+        tu identidad y mantener un espacio seguro para mujeres. Los videos se eliminan después de la revisión.
+      </div>
+
+      {% if status == 'verified' %}
+      <div class="alert alert-success border-0">Tu cuenta ya está verificada ✅</div>
+      {% elif status == 'pending' %}
+      <div class="alert alert-warning border-0">
+        Tu solicitud está en revisión. Te notificaremos cuando esté lista.
+      </div>
+      {% else %}
+      <div class="verify-flow">
+        <div class="verify-progress" role="tablist" aria-label="Progreso de verificación">
+          <button type="button" class="verify-progress-step is-active" data-step-indicator="1" aria-current="step">
+            <span class="verify-progress-step__num">1</span>
+            <span class="verify-progress-step__text">Correo</span>
+          </button>
+          <button type="button" class="verify-progress-step" data-step-indicator="2">
+            <span class="verify-progress-step__num">2</span>
+            <span class="verify-progress-step__text">Video</span>
+          </button>
+        </div>
+
+        <section class="verify-step-panel is-active" data-step="1" aria-live="polite">
+          <div class="verify-panel-header">
+            <h5 class="fw-bold text-white mb-1">Paso 1 · Verifica tu correo</h5>
+            <p class="text-secondary small mb-0">Te enviaremos un código para confirmar tu identidad.</p>
+          </div>
+          <div class="verify-panel-body">
+            <div class="mb-3">
+              <label class="form-label text-secondary">Correo de tu cuenta</label>
+              <input type="email" class="form-control bg-surface border-0 text-white" id="verifyEmailInput" readonly placeholder="tu-correo@ejemplo.com" value="{{ current_user.email }}">
+            </div>
+            <button class="btn btn-primary w-100" id="sendOtpBtn">Enviar código</button>
+            <div class="mt-3">
+              <label class="form-label text-secondary">Código</label>
+              <input type="text" class="form-control bg-surface border-0 text-white" id="verifyOtpInput" placeholder="123456">
+            </div>
+            <div class="verify-btn-row mt-3">
+              <button class="btn btn-outline-light" id="confirmOtpBtn">Verificar código</button>
+              <button class="btn btn-primary" id="verifyNextBtn" disabled>Continuar</button>
+            </div>
+            <div class="small text-secondary mt-2" id="verifyOtpStatus"></div>
+          </div>
+        </section>
+
+        <section class="verify-step-panel" data-step="2" hidden>
+          <div class="verify-panel-header">
+            <h5 class="fw-bold text-white mb-1">Paso 2 · Video de verificación</h5>
+            <p class="text-secondary small mb-0">Graba un video corto y repite esta frase:</p>
+          </div>
+          <div class="verify-panel-body">
+            <p class="text-secondary small mb-2">Grábate diciendo esta frase:</p>
+            <div class="verify-phrase">
+              {{ verification.liveness_phrase if verification else 'Violeta 42' }}
+            </div>
+            <div class="verify-instructions">
+              <p class="text-secondary small mb-2">Di en voz alta la frase mostrada arriba y sigue estas indicaciones:</p>
+              <ul>
+                <li>Coloca tu rostro completo dentro del cuadro.</li>
+                <li>Busca buena iluminación y evita sombras fuertes.</li>
+                <li>No uses filtros ni lentes oscuros.</li>
+                <li>Habla claro y mantén el video entre 5 y 10 segundos.</li>
+              </ul>
+            </div>
+            <div class="verify-video-preview bg-black rounded mb-3" style="aspect-ratio: 16/9; overflow: hidden;">
+              <video id="verifyVideoPreview" playsinline muted style="width: 100%; height: 100%; object-fit: cover;"></video>
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-light w-100" id="startRecordBtn">Iniciar grabación</button>
+              <button class="btn btn-outline-light w-100 d-none" id="stopRecordBtn">Detener</button>
+            </div>
+            <div class="d-flex gap-2 mt-2">
+              <button class="btn btn-outline-light w-100 d-none" id="retakeRecordBtn">Repetir</button>
+              <button class="btn btn-primary w-100 verify-cta-btn" id="uploadVideoBtn" disabled>Subir video</button>
+            </div>
+            <div class="small text-secondary mt-2">Duración recomendada: 5–10 segundos.</div>
+            <div class="small text-secondary mt-2" id="verifyVideoStatus"></div>
+          </div>
+          <div class="verify-actions verify-actions--single">
+            <button class="btn btn-primary w-100 verify-cta-btn" id="submitVerificationBtn">Enviar a revisión</button>
+          </div>
+          <div class="small text-secondary mt-2" id="verifySubmitStatus"></div>
+        </section>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+
+<style>
+  #sendOtpBtn.is-cooldown {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+
+  .verify-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .verify-progress {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .verify-progress-step {
+    flex: 1 1 160px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(19, 17, 28, 0.5);
+    color: var(--text-secondary, #c4c4c4);
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+
+  .verify-progress-step__num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 0.85rem;
+  }
+
+  .verify-progress-step.is-active {
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.75), rgba(76, 29, 149, 0.85));
+    color: #fff;
+    border-color: rgba(124, 58, 237, 0.45);
+    box-shadow: 0 12px 30px rgba(124, 58, 237, 0.25);
+  }
+
+  .verify-progress-step.is-active .verify-progress-step__num {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .verify-step-panel {
+    background: rgba(19, 17, 28, 0.6);
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .verify-panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .verify-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .verify-actions--split {
+    flex-direction: row;
+    gap: 0.75rem;
+  }
+
+  .verify-actions--split .btn {
+    flex: 1 1 50%;
+  }
+
+  .verify-phrase {
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    background: rgba(124, 58, 237, 0.12);
+    color: #fff;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.75rem;
+  }
+
+  @media (max-width: 768px) {
+    .verify-actions--split {
+      flex-direction: column;
+    }
+  }
+
+  #verifyVideoPreview {
+    transform: scaleX(-1);
+    transform-origin: center;
+  }
+
+  #verifyVideoPreview::-webkit-media-controls-enclosure,
+  #verifyVideoPreview::-webkit-media-controls-panel,
+  #verifyVideoPreview::-webkit-media-controls {
+    transform: scaleX(-1);
+  }
+
+
+  .verify-instructions {
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .verify-instructions ul {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: #d4d4d8;
+    font-size: 0.85rem;
+  }
+
+  .verify-instructions li {
+    margin-bottom: 0.35rem;
+  }
+
+
+  .verify-card {
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: radial-gradient(circle at top left, rgba(124, 58, 237, 0.16), rgba(19, 17, 28, 0.9) 55%);
+  }
+
+  .verify-header h1 {
+    letter-spacing: -0.02em;
+  }
+
+  .verify-icon {
+    box-shadow: 0 10px 20px rgba(124, 58, 237, 0.25);
+  }
+
+  .verify-progress-step {
+    cursor: pointer;
+  }
+
+  .verify-progress-step:hover {
+    border-color: rgba(124, 58, 237, 0.4);
+    color: #fff;
+  }
+
+  .verify-step-panel {
+    box-shadow: 0 18px 40px rgba(7, 5, 20, 0.35);
+  }
+
+  .verify-panel-header {
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .verify-cta-btn {
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    box-shadow: 0 12px 24px rgba(124, 58, 237, 0.3);
+  }
+
+  .verify-actions--single {
+    margin-top: 0.5rem;
+  }
+
+  .verify-video-preview {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.4);
+  }
+
+  .verify-instructions ul {
+    list-style: none;
+  }
+
+  .verify-instructions li {
+    position: relative;
+    padding-left: 1.1rem;
+  }
+
+  .verify-instructions li::before {
+    content: '•';
+    position: absolute;
+    left: 0;
+    color: rgba(124, 58, 237, 0.8);
+  }
+
+
+  .verify-step-panel--email .verify-panel-body {
+    align-items: flex-start;
+  }
+
+  @media (max-width: 576px) {
+    .verify-step-panel--email .btn {
+      max-width: none;
+    }
+    .verify-step-panel--email .verify-actions {
+      align-items: stretch;
+    }
+  }
+
+
+  .verify-btn-row {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .verify-btn-row .btn {
+    flex: 1 1 0;
+  }
+
+  @media (max-width: 576px) {
+    .verify-btn-row {
+      flex-direction: column;
+    }
+  }
+
+</style>
+
+<script>
+  const verifyEmailInput = document.getElementById('verifyEmailInput');
+  const verifyOtpInput = document.getElementById('verifyOtpInput');
+  const sendOtpBtn = document.getElementById('sendOtpBtn');
+  const confirmOtpBtn = document.getElementById('confirmOtpBtn');
+  const uploadVideoBtn = document.getElementById('uploadVideoBtn');
+  const startRecordBtn = document.getElementById('startRecordBtn');
+  const stopRecordBtn = document.getElementById('stopRecordBtn');
+  const retakeRecordBtn = document.getElementById('retakeRecordBtn');
+  const verifyVideoPreview = document.getElementById('verifyVideoPreview');
+    const submitVerificationBtn = document.getElementById('submitVerificationBtn');
+  const verifyNextBtn = document.getElementById('verifyNextBtn');
+  const stepPanels = document.querySelectorAll('.verify-step-panel');
+  const stepIndicators = document.querySelectorAll('.verify-progress-step');
+
+  let mediaStream = null;
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let recordedBlob = null;
+  let recordedUrl = null;
+  let previewStream = null;
+  let stopEnableTimer = null;
+  let autoStopTimer = null;
+
+  let otpVerified = false;
+  let currentStep = 1;
+
+  function setStep(step) {
+    currentStep = step;
+    stepPanels.forEach((panel) => {
+      const panelStep = Number(panel.getAttribute('data-step'));
+      const isActive = panelStep === step;
+      panel.classList.toggle('is-active', isActive);
+      if (isActive) {
+        panel.removeAttribute('hidden');
+      } else {
+        panel.setAttribute('hidden', '');
+      }
+    });
+    stepIndicators.forEach((indicator) => {
+      const indicatorStep = Number(indicator.getAttribute('data-step-indicator'));
+      const isActive = indicatorStep === step;
+      indicator.classList.toggle('is-active', isActive);
+      if (isActive) {
+        indicator.setAttribute('aria-current', 'step');
+      } else {
+        indicator.removeAttribute('aria-current');
+      }
+    });
+    if (step === 2) {
+      startPreviewStream();
+    } else {
+      stopPreviewStream();
+      stopMediaStream();
+    }
+  }
+
+  stepIndicators.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = Number(btn.getAttribute('data-step-indicator'));
+      if (target === 2 && !otpVerified) {
+        setStatus(otpStatus, 'Primero verifica tu correo.');
+        return;
+      }
+      setStep(target);
+    });
+  });
+
+  setStep(1);
+
+  if (verifyNextBtn) {
+    verifyNextBtn.addEventListener('click', () => {
+      if (!otpVerified) {
+        setStatus(otpStatus, 'Primero verifica tu correo.');
+        return;
+      }
+      setStep(2);
+    });
+  }
+
+  const otpStatus = document.getElementById('verifyOtpStatus');
+  const videoStatus = document.getElementById('verifyVideoStatus');
+  const submitStatus = document.getElementById('verifySubmitStatus');
+
+  function setStatus(el, msg) {
+    if (el) el.textContent = msg || '';
+  }
+
+  let otpCooldownUntil = 0;
+  let otpCooldownTimer = null;
+
+  function showOtpCooldownWarning(secondsLeft) {
+    if (Number.isFinite(secondsLeft) && secondsLeft > 0) {
+      alert(`Espera ${secondsLeft}s para volver a enviar el código.`);
+    }
+  }
+
+  function updateOtpCooldownUI() {
+    if (!sendOtpBtn) return;
+    const now = Date.now();
+    const remainingMs = otpCooldownUntil - now;
+    if (remainingMs <= 0) {
+      otpCooldownUntil = 0;
+      sendOtpBtn.classList.remove('is-cooldown');
+      sendOtpBtn.removeAttribute('aria-disabled');
+      sendOtpBtn.textContent = 'Enviar código';
+      if (otpCooldownTimer) {
+        clearInterval(otpCooldownTimer);
+        otpCooldownTimer = null;
+      }
+      return;
+    }
+    const remainingSec = Math.ceil(remainingMs / 1000);
+    sendOtpBtn.classList.add('is-cooldown');
+    sendOtpBtn.setAttribute('aria-disabled', 'true');
+    sendOtpBtn.textContent = `Reenviar en ${remainingSec}s`;
+  }
+
+  function startOtpCooldown(seconds = 30) {
+    otpCooldownUntil = Date.now() + (seconds * 1000);
+    updateOtpCooldownUI();
+    if (otpCooldownTimer) clearInterval(otpCooldownTimer);
+    otpCooldownTimer = setInterval(updateOtpCooldownUI, 500);
+  }
+
+  if (sendOtpBtn) {
+    sendOtpBtn.addEventListener('click', async () => {
+      const now = Date.now();
+      if (otpCooldownUntil && now < otpCooldownUntil) {
+        const remaining = Math.ceil((otpCooldownUntil - now) / 1000);
+        showOtpCooldownWarning(remaining);
+        return;
+      }
+      setStatus(otpStatus, '');
+      const email = verifyEmailInput ? verifyEmailInput.value.trim() : '';
+      if (!email) { setStatus(otpStatus, 'Ingresa tu correo'); return; }
+      try {
+        const res = await fetch('/api/verify/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setStatus(otpStatus, data.error || 'No se pudo enviar el código');
+          return;
+        }
+        const debugCode = data.debug_code ? ` (código: ${data.debug_code})` : '';
+        setStatus(otpStatus, `Código enviado a tu correo, checa tu bandeja de spam.${debugCode}`);
+        startOtpCooldown(30);
+      } catch (err) {
+        setStatus(otpStatus, 'No se pudo enviar el código. Revisa tu conexión.');
+      }
+    });
+  }
+
+  if (confirmOtpBtn) {
+    confirmOtpBtn.addEventListener('click', async () => {
+      setStatus(otpStatus, '');
+      const code = verifyOtpInput ? verifyOtpInput.value.trim() : '';
+      const res = await fetch('/api/verify/confirm-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+        body: JSON.stringify({ code })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStatus(otpStatus, data.error || 'Código inválido');
+        return;
+      }
+      otpVerified = true;
+      if (verifyNextBtn) verifyNextBtn.disabled = false;
+      setStatus(otpStatus, data.message || 'Correo verificado');
+    });
+  }
+
+  async function startPreviewStream() {
+    if (!verifyVideoPreview || previewStream || mediaStream) return;
+    try {
+      previewStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      verifyVideoPreview.srcObject = previewStream;
+      verifyVideoPreview.muted = true;
+      verifyVideoPreview.controls = false;
+      verifyVideoPreview.play().catch(() => {});
+    } catch (err) {
+      setStatus(videoStatus, 'No se pudo acceder a la cámara.');
+      stopPreviewStream();
+    }
+  }
+
+  function stopPreviewStream() {
+    if (previewStream) {
+      previewStream.getTracks().forEach(t => t.stop());
+      previewStream = null;
+    }
+    if (verifyVideoPreview && !recordedUrl) {
+      verifyVideoPreview.srcObject = null;
+      verifyVideoPreview.src = '';
+      verifyVideoPreview.controls = false;
+    }
+  }
+
+  function stopMediaStream() {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(t => t.stop());
+      mediaStream = null;
+    }
+  }
+
+  async function startRecording() {
+    setStatus(videoStatus, '');
+    if (previewStream) {
+      stopPreviewStream();
+    }
+    if (stopEnableTimer) {
+      clearTimeout(stopEnableTimer);
+      stopEnableTimer = null;
+    }
+    if (autoStopTimer) {
+      clearTimeout(autoStopTimer);
+      autoStopTimer = null;
+    }
+    recordedChunks = [];
+    recordedBlob = null;
+    if (recordedUrl) {
+      URL.revokeObjectURL(recordedUrl);
+      recordedUrl = null;
+    }
+    try {
+      mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      if (verifyVideoPreview) {
+        verifyVideoPreview.srcObject = mediaStream;
+        verifyVideoPreview.muted = true;
+        verifyVideoPreview.controls = false;
+        verifyVideoPreview.play().catch(() => {});
+      }
+      const options = {};
+      if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+        options.mimeType = 'video/webm;codecs=vp8,opus';
+      } else if (MediaRecorder.isTypeSupported('video/webm')) {
+        options.mimeType = 'video/webm';
+      }
+      mediaRecorder = new MediaRecorder(mediaStream, options);
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+      };
+      mediaRecorder.onstop = () => {
+        const mime = mediaRecorder.mimeType || 'video/webm';
+        recordedBlob = new Blob(recordedChunks, { type: mime });
+        if (verifyVideoPreview) {
+          verifyVideoPreview.srcObject = null;
+          recordedUrl = URL.createObjectURL(recordedBlob);
+          verifyVideoPreview.src = recordedUrl;
+          verifyVideoPreview.controls = true;
+          verifyVideoPreview.muted = false;
+          verifyVideoPreview.play().catch(() => {});
+        }
+        stopMediaStream();
+        if (uploadVideoBtn) uploadVideoBtn.disabled = false;
+        if (retakeRecordBtn) retakeRecordBtn.classList.remove('d-none');
+      };
+      mediaRecorder.start();
+      if (startRecordBtn) startRecordBtn.classList.add('d-none');
+      if (stopRecordBtn) {
+        stopRecordBtn.classList.remove('d-none');
+        stopRecordBtn.disabled = true;
+      }
+      if (uploadVideoBtn) uploadVideoBtn.disabled = true;
+      stopEnableTimer = setTimeout(() => {
+        if (stopRecordBtn) stopRecordBtn.disabled = false;
+      }, 5000);
+      autoStopTimer = setTimeout(() => {
+        stopRecording();
+      }, 30000);
+    } catch (err) {
+      setStatus(videoStatus, 'No se pudo acceder a la cámara.');
+      stopMediaStream();
+    }
+  }
+
+  function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    if (stopEnableTimer) {
+      clearTimeout(stopEnableTimer);
+      stopEnableTimer = null;
+    }
+    if (autoStopTimer) {
+      clearTimeout(autoStopTimer);
+      autoStopTimer = null;
+    }
+    if (stopRecordBtn) {
+      stopRecordBtn.classList.add('d-none');
+      stopRecordBtn.disabled = false;
+    }
+    if (startRecordBtn) startRecordBtn.classList.remove('d-none');
+  }
+
+  function resetRecording() {
+    stopMediaStream();
+    if (stopEnableTimer) {
+      clearTimeout(stopEnableTimer);
+      stopEnableTimer = null;
+    }
+    if (autoStopTimer) {
+      clearTimeout(autoStopTimer);
+      autoStopTimer = null;
+    }
+    recordedChunks = [];
+    recordedBlob = null;
+    if (recordedUrl) {
+      URL.revokeObjectURL(recordedUrl);
+      recordedUrl = null;
+    }
+    if (verifyVideoPreview) {
+      verifyVideoPreview.srcObject = null;
+      verifyVideoPreview.src = '';
+      verifyVideoPreview.controls = false;
+    }
+    if (uploadVideoBtn) uploadVideoBtn.disabled = true;
+    if (retakeRecordBtn) retakeRecordBtn.classList.add('d-none');
+  }
+
+  if (startRecordBtn) startRecordBtn.addEventListener('click', startRecording);
+  if (stopRecordBtn) stopRecordBtn.addEventListener('click', stopRecording);
+  if (retakeRecordBtn) retakeRecordBtn.addEventListener('click', resetRecording);
+
+  if (uploadVideoBtn) {
+    uploadVideoBtn.addEventListener('click', async () => {
+      setStatus(videoStatus, '');
+      if (!recordedBlob) {
+        setStatus(videoStatus, 'Primero graba un video.');
+        return;
+      }
+      const formData = new FormData();
+      const type = recordedBlob.type || 'video/webm';
+      let ext = 'webm';
+      if (type.includes('mp4')) ext = 'mp4';
+      if (type.includes('quicktime')) ext = 'mov';
+      formData.append('video', recordedBlob, `verificacion.${ext}`);
+      const res = await fetch('/api/verify/upload-video', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': '{{ csrf_token() }}' },
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStatus(videoStatus, data.error || 'No se pudo subir el video');
+        return;
+      }
+      setStatus(videoStatus, data.message || 'Video cargado');
+    });
+  }
+
+  if (submitVerificationBtn) {
+    submitVerificationBtn.addEventListener('click', async () => {
+      setStatus(submitStatus, '');
+      const res = await fetch('/api/verify/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStatus(submitStatus, data.error || 'No se pudo enviar');
+        return;
+      }
+      setStatus(submitStatus, data.message || 'Solicitud enviada');
+      setTimeout(() => window.location.reload(), 1200);
+    });
+  }
+</script>
+{% endblock %}

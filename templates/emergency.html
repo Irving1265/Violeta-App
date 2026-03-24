@@ -1,0 +1,296 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0 px-md-4 pb-5">
+  <div class="card border-0 mb-4 overflow-hidden position-relative shadow-sm" style="border-radius: var(--radius-lg);">
+    <div class="card-body p-4 p-md-5 text-white" style="background: linear-gradient(135deg, #330000 0%, #7f1d1d 50%, #b91c1c 100%);">
+      <div class="position-relative z-2">
+        <h1 class="fw-bold mb-2">Emergencia</h1>
+        <p class="text-white-50 mb-0">
+          Mantén presionado 5 segundos para activar el protocolo y llamar al <strong>911</strong>
+          (temporalmente se marcará <strong>{{ emergency_number }}</strong>).
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 bg-surface shadow-sm emergency-card">
+    <div class="card-body p-4 p-md-5 text-white">
+      <div class="emergency-meta mb-4">
+        <div class="emergency-meta-item">
+          <i class="fas fa-user-shield"></i>
+          <span>Contactos configurados: <strong>{{ contacts_count }}</strong></span>
+        </div>
+        <div class="emergency-meta-item">
+          <i class="fas fa-location-dot"></i>
+          <span>Tu ubicación se adjuntará automáticamente en el aviso.</span>
+        </div>
+      </div>
+
+      <div class="emergency-center">
+        <button id="emergencyHoldBtn" type="button" class="emergency-hold-btn">
+          <span class="emergency-hold-btn__number">911</span>
+          <span class="emergency-hold-btn__hint">Mantén presionado 5 segundos</span>
+          <span class="emergency-hold-btn__countdown" id="holdCountdown">5</span>
+        </button>
+
+        <div class="emergency-progress mt-3">
+          <div class="emergency-progress__bar" id="holdProgressBar"></div>
+        </div>
+      </div>
+
+      <div class="small text-secondary mt-3 text-center" id="emergencyStatus">
+        Presiona y mantén el botón para iniciar la cuenta regresiva.
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .emergency-card {
+    border-radius: var(--radius-lg);
+  }
+
+  .emergency-meta {
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .emergency-meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+  }
+
+  .emergency-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .emergency-hold-btn {
+    width: min(84vw, 360px);
+    height: min(84vw, 360px);
+    border: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 20%, #ef4444 0%, #dc2626 42%, #991b1b 100%);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    box-shadow: 0 22px 40px rgba(220, 38, 38, 0.32);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    -webkit-touch-callout: none;
+  }
+
+  .emergency-hold-btn:hover {
+    transform: translateY(-2px);
+  }
+
+  .emergency-hold-btn.is-holding {
+    transform: scale(0.985);
+    filter: saturate(1.15);
+    box-shadow: 0 10px 22px rgba(220, 38, 38, 0.45);
+  }
+
+  .emergency-hold-btn.is-activated {
+    opacity: 0.88;
+    pointer-events: none;
+  }
+
+  .emergency-hold-btn__number {
+    font-size: clamp(3rem, 8vw, 5rem);
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+  }
+
+  .emergency-hold-btn__hint {
+    font-size: 0.95rem;
+    opacity: 0.9;
+    max-width: 72%;
+    text-align: center;
+  }
+
+  .emergency-hold-btn__countdown {
+    margin-top: 0.4rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    font-weight: 800;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .emergency-progress {
+    width: min(84vw, 360px);
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+
+  .emergency-progress__bar {
+    width: 0%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #ef4444 0%, #fca5a5 100%);
+    transition: width 0.08s linear;
+  }
+</style>
+
+<script>
+  const EMERGENCY_NUMBER = {{ emergency_number|tojson }};
+  const HOLD_SECONDS = 5;
+  const HOLD_MS = HOLD_SECONDS * 1000;
+
+  const holdBtn = document.getElementById('emergencyHoldBtn');
+  const countdownEl = document.getElementById('holdCountdown');
+  const progressBarEl = document.getElementById('holdProgressBar');
+  const statusEl = document.getElementById('emergencyStatus');
+
+  let holdInterval = null;
+  let holdStartedAt = 0;
+  let triggered = false;
+  let lastSecondDrawn = HOLD_SECONDS;
+
+  function setStatus(text, tone = 'secondary') {
+    if (!statusEl) return;
+    statusEl.classList.remove('text-secondary', 'text-success', 'text-warning', 'text-danger');
+    statusEl.classList.add(`text-${tone}`);
+    statusEl.textContent = text;
+  }
+
+  function resetHoldVisual() {
+    lastSecondDrawn = HOLD_SECONDS;
+    if (countdownEl) countdownEl.textContent = String(HOLD_SECONDS);
+    if (progressBarEl) progressBarEl.style.width = '0%';
+  }
+
+  function stopHold(resetVisual = true) {
+    if (holdInterval) {
+      clearInterval(holdInterval);
+      holdInterval = null;
+    }
+    if (holdBtn) holdBtn.classList.remove('is-holding');
+    if (resetVisual && !triggered) {
+      resetHoldVisual();
+      setStatus('Presiona y mantén el botón para iniciar la cuenta regresiva.', 'secondary');
+    }
+  }
+
+  function getCurrentLocation() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve({ lat: null, lng: null });
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve({ lat: null, lng: null }),
+        { enableHighAccuracy: true, timeout: 9000, maximumAge: 0 }
+      );
+    });
+  }
+
+  async function triggerEmergency() {
+    if (triggered) return;
+    triggered = true;
+    stopHold(false);
+    holdBtn.classList.add('is-activated');
+    holdBtn.disabled = true;
+    setStatus('Activando protocolo de emergencia...', 'warning');
+
+    let payload = { lat: null, lng: null };
+    try {
+      payload = await getCurrentLocation();
+    } catch (_) {
+      payload = { lat: null, lng: null };
+    }
+
+    try {
+      const response = await fetch('/api/safety/emergency/trigger', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        setStatus(data.error || 'No se pudo registrar la alerta. Iniciando llamada de todas formas.', 'danger');
+      } else {
+        const contactsTotal = Number(data.contacts_total || 0);
+        const contactsNotified = Number(data.contacts_notified || 0);
+        if (contactsTotal > 0 && contactsNotified > 0) {
+          setStatus(`Alerta enviada a ${contactsNotified} contacto(s). Iniciando llamada...`, 'success');
+        } else if (contactsTotal > 0) {
+          setStatus(`Alerta registrada. Contactos configurados: ${contactsTotal}. Iniciando llamada...`, 'warning');
+        } else {
+          setStatus('Alerta registrada. No hay contactos configurados. Iniciando llamada...', 'warning');
+        }
+      }
+    } catch (e) {
+      setStatus('No se pudo contactar al servidor. Iniciando llamada de emergencia...', 'danger');
+    }
+
+    setTimeout(() => {
+      window.location.href = `tel:${EMERGENCY_NUMBER}`;
+    }, 850);
+  }
+
+  function beginHold(ev) {
+    if (triggered || holdInterval) return;
+    ev.preventDefault();
+    holdStartedAt = Date.now();
+    holdBtn.classList.add('is-holding');
+    setStatus('Mantén presionado... soltando se cancela.', 'warning');
+    resetHoldVisual();
+
+    holdInterval = setInterval(() => {
+      const elapsed = Date.now() - holdStartedAt;
+      const remainingMs = Math.max(0, HOLD_MS - elapsed);
+      const progress = Math.min(100, (elapsed / HOLD_MS) * 100);
+      if (progressBarEl) progressBarEl.style.width = `${progress}%`;
+
+      const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
+      if (remainingSec !== lastSecondDrawn) {
+        lastSecondDrawn = remainingSec;
+        if (countdownEl) countdownEl.textContent = String(remainingSec);
+      }
+
+      if (remainingMs <= 0) {
+        triggerEmergency();
+      }
+    }, 60);
+  }
+
+  function cancelHold(ev) {
+    if (ev) ev.preventDefault();
+    if (!holdInterval || triggered) return;
+    stopHold(true);
+  }
+
+  if (holdBtn) {
+    holdBtn.addEventListener('pointerdown', beginHold);
+    holdBtn.addEventListener('pointerup', cancelHold);
+    holdBtn.addEventListener('pointerleave', cancelHold);
+    holdBtn.addEventListener('pointercancel', cancelHold);
+
+    holdBtn.addEventListener('touchstart', beginHold, { passive: false });
+    holdBtn.addEventListener('touchend', cancelHold, { passive: false });
+    holdBtn.addEventListener('touchcancel', cancelHold, { passive: false });
+  }
+</script>
+{% endblock %}

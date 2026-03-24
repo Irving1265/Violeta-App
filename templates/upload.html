@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Subir Imagen</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <style>
+        #map {
+            height: 400px; /* Ajusta la altura del mapa */
+        }
+    </style>
+</head>
+<body>
+    <h1>Subir Imagen</h1>
+    <form id="upload-form" method="POST" action="/upload">
+        <!-- Otros campos del formulario -->
+        <input type="hidden" id="latitude" name="latitude">
+        <input type="hidden" id="longitude" name="longitude">
+        <button type="submit">Subir</button>
+    </form>
+
+    <!-- Contenedor del mapa -->
+    <div id="map"></div>
+
+    <script>
+        const mexicoBounds = L.latLngBounds([14.3, -118.8], [32.9, -86.5]);
+        function applyMapLimits(map) {
+            const sz = map.getSize ? map.getSize() : null;
+            if (!sz || sz.x < 120 || sz.y < 120) return false;
+            const fitZoom = map.getBoundsZoom(mexicoBounds, false, L.point(10, 10));
+            const minZoom = Math.max(4, Number.isFinite(fitZoom) ? Math.floor(fitZoom) : 4);
+            map.setMinZoom(minZoom);
+            map.options.minZoom = minZoom;
+            if (map.getZoom() < minZoom) {
+                map.setZoom(minZoom, { animate: false });
+            }
+            map.setMaxBounds(mexicoBounds.pad(0.02));
+            map.options.maxBoundsViscosity = 1.0;
+            return true;
+        }
+
+        // Inicializa el mapa
+        const map = L.map('map').setView([23.6345, -102.5528], 5);
+        map.whenReady(() => {
+            let retries = 0;
+            const applyWithRetry = () => {
+                if (!applyMapLimits(map) && retries < 20) {
+                    retries += 1;
+                    setTimeout(applyWithRetry, 120);
+                }
+            };
+            applyWithRetry();
+        });
+        map.on('resize', () => applyMapLimits(map));
+
+        // Carga el mapa base
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+        }).addTo(map);
+
+        // Captura la ubicación al hacer clic en el mapa
+        map.on('click', function(e) {
+            const lat = e.latlng.lat;
+            const lng = e.latlng.lng;
+
+            // Actualiza los campos ocultos con las coordenadas
+            document.getElementById('latitude').value = lat;
+            document.getElementById('longitude').value = lng;
+
+            // Centra el mapa en las coordenadas y agrega un marcador
+            map.setView([lat, lng], 13);
+            L.marker([lat, lng]).addTo(map)
+                .bindPopup('Ubicación: ' + lat + ', ' + lng)
+                .openPopup();
+        });
+    </script>
+</body>
+</html>

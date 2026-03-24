@@ -1,0 +1,30 @@
+{
+  "name": "violeta-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Contenedor movil de Violeta para iOS y Android usando Capacitor.",
+  "scripts": {
+    "doctor": "node scripts/doctor.mjs",
+    "build:web": "node scripts/build-fallback.mjs",
+    "cap:add:ios": "npm run build:web && npx cap add ios",
+    "cap:add:android": "npm run build:web && npx cap add android",
+    "cap:sync": "npm run build:web && npx cap sync",
+    "cap:open:ios": "npx cap open ios",
+    "cap:open:android": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/browser": "^8.0.0",
+    "@capacitor/camera": "^8.0.0",
+    "@capacitor/core": "^8.2.0",
+    "@capacitor/geolocation": "^8.0.0",
+    "@capacitor/push-notifications": "^8.0.0",
+    "dotenv": "^17.2.2"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.2.0",
+    "@capacitor/cli": "^8.2.0",
+    "@capacitor/ios": "^8.2.0",
+    "typescript": "^6.0.2"
+  }
+}

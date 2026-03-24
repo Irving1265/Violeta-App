@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIOLETA</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>
+    /* --- CSS CRÍTICO PARA EL LAYOUT --- */
+    html, body {
+      margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background-color: #1a1a2e;
+    }
+    .landing-page { height: 100vh; width: 100vw; overflow: hidden; }
+    /* Define la estructura de dos columnas */
+    .landing-split { display: flex; height: 100%; width: 100%; flex-direction: row; }
+    
+    /* Columna izquierda (Login) */
+    .landing-auth {
+      width: 450px; min-width: 350px; flex-shrink: 0; height: 100%; overflow-y: auto;
+      background-color: #1a1a2e; display: flex; align-items: center; justify-content: center;
+      position: relative; z-index: 10; box-shadow: 5px 0 15px rgba(0,0,0,0.3);
+    }
+    .auth-container { width: 100%; max-width: 400px; padding: 20px; }
+    
+    /* Columna derecha (Contenedor del mapa) */
+    .landing-map-section { flex-grow: 1; height: 100%; position: relative; }
+    
+    /* El Mapa en sí - Fuerza a ocupar todo el espacio */
+    #landingMap.full-map {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100% !important; z-index: 1;
+    }
+    
+    /* Gradiente oscuro sobre el mapa para que los controles resalten */
+    .map-overlay-gradient {
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        background: linear-gradient(to right, #1a1a2e 10%, rgba(26,26,46,0.5) 40%, rgba(26,26,46,0.2) 100%);
+        pointer-events: none; z-index: 2;
+    }
+
+    /* --- ESTILOS PARA LOS CONTROLES DEL MAPA --- */
+    .map-controls-overlay {
+        position: absolute; top: 30px; right: 30px; z-index: 1000;
+    }
+    .violet-btn-grid {
+        display: flex; gap: 12px; background: rgba(30, 30, 45, 0.85); backdrop-filter: blur(15px);
+        padding: 15px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    .violet-big-btn {
+        background: rgba(255, 255, 255, 0.05); border: 1px solid transparent; color: rgba(255, 255, 255, 0.6);
+        padding: 15px 20px; border-radius: 12px; cursor: pointer; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; min-width: 90px; height: 80px; transition: all 0.3s ease;
+    }
+    .violet-big-btn i { font-size: 1.6rem; margin-bottom: 8px; transition: transform 0.3s ease; }
+    .violet-big-btn span { font-size: 0.85rem; font-weight: 500; letter-spacing: 0.5px; }
+    .violet-big-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; transform: translateY(-2px); }
+    .violet-big-btn:hover i { transform: scale(1.1); }
+    .violet-big-btn.active {
+        background: rgba(138, 43, 226, 0.25); border-color: rgba(138, 43, 226, 0.5); color: white; box-shadow: 0 5px 15px rgba(138, 43, 226, 0.3);
+    }
+    
+    /* Estilos básicos heredados */
+    .glass-panel { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 15px; padding: 20px; color: white; }
+    .brand-title { color: white; } .brand-subtitle { color: #aaa; }
+
+  </style>
+</head>
+
+<body>
+  <div class="landing-page">
+    <div class="landing-split">
+      <div class="landing-auth">
+        <div class="auth-container">
+          <div class="brand-section">
+            <h1 class="brand-title">VIOLETA</h1>
+            <p class="brand-subtitle">Conectando tu ciudad</p>
+          </div>
+
+          <div class="auth-card glass-panel">
+            <div class="auth-header">
+              <img class="avatar-ilu" src="{{ url_for('static', filename='uploads/avatar.png') }}" alt="Avatar" style="max-width: 100px; display: block; margin: 0 auto;">
+              <h2 style="text-align: center;">Bienvenido</h2>
+            </div>
+
+            <form method="POST" action="{{ url_for('login') }}" class="auth-form">
+              {{ form.hidden_tag() }}
+              <input type="hidden" name="from_landing" value="1">
+
+              <div class="form-group" style="margin-bottom: 20px;">
+                <div class="input-icon-wrapper" style="position: relative; background: rgba(255,255,255,0.08); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                  <i class="fas fa-user input-icon" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #aaa; font-size: 1.1rem; z-index: 2;"></i>
+                  <input type="text" name="login" class="violet-input" placeholder="Usuario o Email" required style="width: 100%; background: none; border: none; outline: none; color: white; padding: 14px 15px 14px 45px; font-size: 1rem; border-radius: 12px;">
+                </div>
+                {% if form.username.errors %}
+                <div class="violet-error">{% for e in form.username.errors %}<small style="color: #ff4d4d;">{{ e }}</small>{% endfor %}</div>
+                {% endif %}
+              </div>
+
+              <div class="form-group" style="margin-bottom: 20px;">
+                 <div class="input-icon-wrapper" style="position: relative; background: rgba(255,255,255,0.08); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                  <i class="fas fa-lock input-icon" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #aaa; font-size: 1.1rem; z-index: 2;"></i>
+                  {{ form.password(class='violet-input', placeholder='Contraseña', id='password', required=True, style='width: 100%; background: none; border: none; outline: none; color: white; padding: 14px 45px 14px 45px; font-size: 1rem; border-radius: 12px;') }}
+                  <button type="button" class="pwd-toggle" aria-label="Mostrar/ocultar contraseña" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #aaa; cursor: pointer; z-index: 2; font-size: 1.1rem;">
+                    <i class="fa-regular fa-eye"></i>
+                  </button>
+                </div>
+                {% if form.password.errors %}
+                <div class="violet-error">{% for e in form.password.errors %}<small style="color: #ff4d4d;">{{ e }}</small>{% endfor %}</div>
+                {% endif %}
+              </div>
+
+              {% if auth_error %}
+              <div class="violet-error text-center mb-3"><small style="color: #ff4d4d;">{{ auth_error }}</small></div>
+              {% endif %}
+
+              <div class="form-options" style="display: flex; justify-content: space-between; margin-bottom: 20px; color: #aaa; font-size: 0.9rem;">
+                <label class="remember-me" style="display: flex; align-items: center;">
+                  <input type="checkbox" name="remember" value="1" checked style="margin-right: 5px;">
+                  <span>Recordarme</span>
+                </label>
+                <a class="link-muted" href="{{ url_for('forgot_password') }}" style="color: #aaa; text-decoration: none;">¿Olvidaste tu contraseña?</a>
+              </div>
+
+              <button type="submit" class="violet-btn-primary btn-lg w-100" style="width: 100%; padding: 12px; border-radius: 8px; border: none; background: #8a2be2; color: white; font-size: 1rem; cursor: pointer;">Iniciar Sesión</button>
+            </form>
+
+            <div class="auth-footer" style="text-align: center; margin-top: 20px; color: #aaa;">
+              <p style="margin-bottom: 10px;">¿No tienes cuenta?</p>
+              <a class="btn-outline-sm" href="{{ url_for('register') }}" style="color: white; text-decoration: none; border: 1px solid rgba(255,255,255,0.2); padding: 5px 15px; border-radius: 15px;">Crear cuenta nueva</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="landing-map-section">
+        <div id="landingMap" class="full-map"></div>
+        <div class="map-overlay-gradient"></div>
+        <div class="map-controls-overlay">
+          <div class="violet-btn-grid">
+            <button class="violet-big-btn active" data-cat="">
+                <i class="fa-solid fa-layer-group"></i><span>Todos</span>
+            </button>
+            <button class="violet-big-btn" data-cat="Poca iluminación">
+                <i class="fa-regular fa-lightbulb"></i><span>Iluminación</span>
+            </button>
+            <button class="violet-big-btn" data-cat="Banquetas en mal estado">
+                <i class="fa-solid fa-shoe-prints"></i><span>Banquetas</span>
+            </button>
+            <button class="violet-big-btn" data-cat="Zonas inseguras">
+                <i class="fa-solid fa-shield-halved"></i><span>Seguridad</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    (function () {
+      const center = [25.6866, -100.3161];
+      const map = L.map('landingMap', { attributionControl: false, zoomControl: false }).setView(center, 13);
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+      function resizeMap() { map.invalidateSize(); }
+      setTimeout(resizeMap, 100); setTimeout(resizeMap, 500); window.addEventListener('resize', resizeMap);
+
+      // --- LÓGICA DE HOTSPOTS ---
+      function colorForCount(c) { if (c >= 10) return '#d90429'; if (c >= 5) return '#f77f00'; if (c >= 2) return '#ffba08'; return '#3a86ff'; }
+      function sizeForCount(c) { return Math.min(60, 12 + c * 6); }
+
+      let mapLayers = [];
+      function clearLayers() { mapLayers.forEach(l => map.removeLayer(l)); mapLayers = []; }
+      
+      function loadHotspots(category) {
+        clearLayers();
+        const url = `/api/hotspots?lat=${center[0]}&lng=${center[1]}&radius_km=8&precision=3` + (category ? `&category=${encodeURIComponent(category)}` : '');
+        fetch(url)
+          .then(r => { if (!r.ok) throw new Error('API Not found'); return r.json(); })
+          .then(data => {
+            (data.hotspots || []).forEach(h => {
+              const color = colorForCount(h.count);
+              const circle = L.circleMarker([h.lat, h.lng], { radius: sizeForCount(h.count) / 2.5, color: color, weight: 2, fillColor: color, fillOpacity: 0.4 }).addTo(map);
+              circle.bindTooltip(`<b>${h.count}</b> reportes`, { permanent: false, direction: 'top', className: 'violet-tooltip' });
+              mapLayers.push(circle);
+            });
+          })
+          .catch(e => console.log("Info: API de hotspots no disponible.", e.message));
+      }
+      loadHotspots('');
+
+      // --- LÓGICA DE FILTROS ---
+      document.querySelectorAll('.violet-big-btn[data-cat]').forEach(btn => {
+        btn.addEventListener('click', function () {
+          document.querySelectorAll('.violet-big-btn[data-cat]').forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+          loadHotspots(this.dataset.cat || '');
+        });
+      });
+
+      // --- LÓGICA DE LOGIN (Validación y mostrar contraseña) ---
+      const form = document.querySelector('.auth-form');
+      if (form) {
+        const inputs = form.querySelectorAll('.violet-input');
+        function showErr(input, msg) {
+          const group = input.closest('.form-group'); group.classList.add('has-error');
+          let err = group.querySelector('.violet-error.client');
+          if (!err) { err = document.createElement('div'); err.className = 'violet-error client'; err.style.color = '#ff4d4d'; err.style.fontSize = '0.8rem'; group.appendChild(err); }
+          err.innerHTML = '<small>' + msg + '</small>'; input.classList.add('error');
+        }
+        function clearErr(input) {
+          const group = input.closest('.form-group'); const err = group.querySelector('.violet-error.client');
+          if (err) err.remove(); input.classList.remove('error');
+          if (!group.querySelector('.violet-error.client')) { group.classList.remove('has-error'); }
+        }
+        function validate(input) {
+          const v = (input.value || '').trim(); const id = input.id || input.name || '';
+          if (input.hasAttribute('required') && !v) { showErr(input, 'Campo requerido'); return false; }
+          if (id === 'password' && v.length < 6) { showErr(input, 'Mínimo 6 caracteres'); return false; }
+          clearErr(input); return true;
+        }
+        inputs.forEach(i => {
+          i.addEventListener('blur', () => validate(i));
+          i.addEventListener('input', () => { if (i.classList.contains('error')) validate(i); });
+        });
+        form.addEventListener('submit', function (e) {
+          let ok = true; inputs.forEach(i => { ok = validate(i) && ok; });
+          if (!ok) { e.preventDefault(); return; }
+          const btn = form.querySelector('button[type="submit"]');
+          if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span>Ingresando...'; }
+        });
+        const eye = form.querySelector('.pwd-toggle');
+        const pwd = form.querySelector('#password');
+        if (eye && pwd) {
+          eye.addEventListener('click', function () {
+            const isText = pwd.getAttribute('type') === 'text';
+            pwd.setAttribute('type', isText ? 'password' : 'text');
+            this.innerHTML = isText ? '<i class="fa-regular fa-eye"></i>' : '<i class="fa-regular fa-eye-slash"></i>';
+          });
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

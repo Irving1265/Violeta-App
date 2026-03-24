@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Form</title>
+</head>
+<body>
+    <h1>Form Debug Test</h1>
+    
+    <form method="POST" action="/upload" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="test">
+        <input type="hidden" name="latitude" value="25.623008">
+        <input type="hidden" name="longitude" value="-100.290842">
+        <input type="hidden" name="city" value="Monterrey">
+        <input type="hidden" name="country" value="México">
+        <input type="hidden" name="location_name" value="Test Location">
+        <input type="text" name="caption" value="Test Caption">
+        <input type="file" name="image" accept="image/*" required>
+        <button type="submit">Submit Test</button>
+    </form>
+    
+    <script>
+        document.querySelector('form').addEventListener('submit', function(e) {
+            console.log('Form about to submit');
+            const formData = new FormData(this);
+            for (let [key, value] of formData.entries()) {
+                console.log(key, '=', value);
+            }
+        });
+    </script>
+</body>
+</html>

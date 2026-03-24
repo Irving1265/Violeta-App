@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+.runner-venv/
+el/
+entorno/
+crea/
+
+# Env and secrets
+.env
+.env.*
+!.env.example
+
+# Databases and runtime state
+instance/*.db
+instance/*.sqlite
+instance/*.backup.db
+.server.pid
+*.log
+server-*.log
+server.log
+.server.log
+
+# User generated content and caches
+static/uploads/
+instance/overpass_*.json
+instance/overpass_transit_cache.json
+instance/regioruta_geocode_cache.json
+exports/
+
+# macOS / editors
+.DS_Store
+.vscode/
+
+# Mobile
+mobile/node_modules/
+mobile/.npm-cache/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/app/build/
+mobile/ios/App/Pods/
+mobile/ios/App/App/public/
+mobile/ios/App/DerivedData/
+mobile/www/runtime-config.json

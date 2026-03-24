@@ -1,0 +1,102 @@
+<section class="pc-step" data-step-panel="1" aria-labelledby="postStepPhotoTitle">
+    <header class="pc-step-header">
+        <span class="pc-step-header__badge">1</span>
+        <div class="pc-step-header__text">
+            <h3 id="postStepPhotoTitle" class="pc-step-header__title">Selecciona tu foto</h3>
+            <p class="pc-step-header__subtitle" id="postStepPhotoHelp">
+                {% if current_user.is_authenticated and current_user.username == 'admin' %}
+                Arrastra tu foto o haz clic para subirla. JPG/PNG, máximo 10 MB.
+                {% else %}
+                Toma una foto en el momento con la cámara. JPG/PNG, máximo 10 MB.
+                {% endif %}
+            </p>
+        </div>
+    </header>
+
+    <div class="pc-step-panel">
+        {% if current_user.is_authenticated and current_user.username == 'admin' %}
+        <div class="pc-photo-mode-toggle" id="pcPhotoModeToggle" role="tablist" aria-label="Modo de foto">
+            <button type="button" class="pc-photo-mode-btn is-active" data-mode="upload" role="tab" aria-selected="true">
+                Subir foto
+            </button>
+            <button type="button" class="pc-photo-mode-btn" data-mode="camera" role="tab" aria-selected="false">
+                Tomar foto
+            </button>
+        </div>
+        {% endif %}
+
+        {% if current_user.is_authenticated and current_user.username == 'admin' %}
+        <input type="file"
+               id="pcFileInput"
+               accept="image/jpeg,image/png"
+               hidden>
+        {% else %}
+        <input type="file"
+               id="pcFileInput"
+               accept="image/jpeg,image/png"
+               hidden>
+        {% endif %}
+
+        <div class="pc-upload-dropzone"
+             id="pcDropzone"
+             role="button"
+             tabindex="0"
+             aria-describedby="postStepPhotoHelp postStepPhotoErrors"
+             {% if not (current_user.is_authenticated and current_user.username == 'admin') %}hidden{% endif %}>
+            {% if current_user.is_authenticated and current_user.username == 'admin' %}
+            <div class="pc-upload-dropzone__icon" aria-hidden="true">
+                <i class="fas fa-cloud-upload-alt"></i>
+            </div>
+            <div class="pc-upload-dropzone__text">
+                <strong>Arrastra tu foto aquí</strong>
+                <span>o haz clic para seleccionar</span>
+            </div>
+            <p class="pc-upload-dropzone__meta">JPG · PNG · hasta 10 MB</p>
+            {% endif %}
+        </div>
+
+        <div class="pc-camera-panel" id="pcCameraPanel" {% if current_user.is_authenticated and current_user.username == 'admin' %}hidden{% endif %}>
+            <div class="pc-camera-preview">
+                <video id="pcCameraVideo" playsinline autoplay muted></video>
+                <canvas id="pcCameraCanvas" hidden></canvas>
+                <div class="pc-camera-placeholder" id="pcCameraPlaceholder">
+                    <i class="fas fa-camera"></i>
+                    <span>Activa la cámara para continuar</span>
+                </div>
+            </div>
+            <div class="pc-camera-actions">
+                <button type="button" class="btn btn--secondary" id="pcCameraStartBtn">
+                    Activar cámara
+                </button>
+                <button type="button" class="btn btn--primary" id="pcCameraCaptureBtn" disabled>
+                    Tomar foto
+                </button>
+                <button type="button" class="btn btn--ghost" id="pcCameraRetakeBtn" hidden>
+                    Repetir
+                </button>
+            </div>
+            <p class="pc-camera-help" id="pcCameraHelp">
+                La foto debe tomarse en el momento. No se permiten archivos guardados.
+            </p>
+        </div>
+
+        <div class="pc-photo-preview-card" id="pcPhotoPreviewCard" hidden>
+            <div class="pc-photo-preview-card__image" id="pcPhotoPreviewImageWrapper">
+                <img src="" alt="Vista previa de la foto" id="pcPreviewImage">
+            </div>
+            <div class="pc-photo-preview-card__info">
+                <p class="pc-photo-preview-card__label">Vista previa</p>
+                <p id="pcPreviewFileName" class="pc-photo-preview-card__name">Ninguna imagen seleccionada</p>
+                <span id="pcPreviewFileSize" class="pc-photo-preview-card__size"></span>
+            </div>
+            <div class="pc-photo-preview-card__actions">
+                <button type="button" class="btn btn--secondary" id="pcChangePhotoBtn">Cambiar foto</button>
+            </div>
+            <div class="pc-photo-preview-card__progress" id="pcUploadProgress" hidden>
+                <div class="pc-photo-preview-card__progress-bar" id="pcUploadProgressBar"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="pc-step__errors" id="postStepPhotoErrors" role="alert" aria-live="assertive"></div>
+</section>

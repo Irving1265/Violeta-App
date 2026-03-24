@@ -1,0 +1,127 @@
+<section class="pc-step" data-step-panel="2" aria-labelledby="postStepCaptionTitle" hidden>
+    <header class="pc-step-header">
+        <span class="pc-step-header__badge">2</span>
+        <div class="pc-step-header__text">
+            <h3 id="postStepCaptionTitle" class="pc-step-header__title">Detalles</h3>
+            <p class="pc-step-header__subtitle">
+                Agrega una descripción y selecciona las categorías.
+            </p>
+        </div>
+    </header>
+
+    <div class="pc-step-panel">
+        <div class="pc-mini-preview" aria-hidden="true">
+            <div class="pc-mini-preview__image" id="pcCaptionPreviewWrapper">
+                <img src="" alt="" id="pcCaptionPreviewImg">
+            </div>
+            <span class="pc-mini-preview__label">Preview</span>
+        </div>
+
+        <div class="pc-grid pc-grid--responsive">
+            <div class="pc-grid__column">
+                <div class="form-group">
+                    <label for="pcCaptionInput">Descripción</label>
+                    <div class="form-textarea">
+                        <textarea id="pcCaptionInput" name="caption" rows="4" maxlength="500"
+                            aria-describedby="pcCaptionHelp pcCaptionCount"
+                            placeholder="¿Qué está pasando en esta foto?"></textarea>
+                        <span id="pcCaptionCount" class="form-counter">0 / 500</span>
+                    </div>
+                    <p id="pcCaptionHelp" class="form-help">La descripción aparece junto a tu foto.</p>
+                </div>
+
+                <div class="form-group">
+                    <label>Categorías <span class="form-required">*</span></label>
+                    <p class="form-help">Selecciona al menos una categoría.</p>
+
+                    <div class="pc-categories-grid">
+                        <label class="pc-category-option">
+                            <input type="checkbox" name="categories" value="Poca iluminación">
+                            <span class="pc-category-option__content">
+                                <i class="fas fa-lightbulb"></i>
+                                <span>Poca iluminación</span>
+                            </span>
+                        </label>
+
+                        <label class="pc-category-option">
+                            <input type="checkbox" name="categories" value="Banquetas en mal estado">
+                            <span class="pc-category-option__content">
+                                <i class="fas fa-road"></i>
+                                <span>Banquetas en mal estado</span>
+                            </span>
+                        </label>
+
+                        <label class="pc-category-option">
+                            <input type="checkbox" name="categories" value="Zonas inseguras">
+                            <span class="pc-category-option__content">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <span>Zonas inseguras</span>
+                            </span>
+                        </label>
+
+                        <label class="pc-category-option">
+                            <input type="checkbox" name="categories" value="Baldios">
+                            <span class="pc-category-option__content">
+                                <i class="fas fa-tree"></i>
+                                <span>Baldíos</span>
+                            </span>
+                        </label>
+                    </div>
+                    <p id="pcCategoriesError" class="form-error" role="alert"></p>
+                </div>
+
+                <div class="form-group pc-interaction-panel">
+                    <label>Interacción en tu publicación</label>
+                    <p class="form-help">Controla quién puede interactuar con este post.</p>
+                    <div class="pc-location-switches">
+                        <label class="pc-switch">
+                            <input type="checkbox" id="pcAllowLikes" checked>
+                            <span class="pc-switch__slider" aria-hidden="true"></span>
+                            <span class="pc-switch__label">Permitir likes</span>
+                        </label>
+                        <label class="pc-switch">
+                            <input type="checkbox" id="pcAllowComments" checked>
+                            <span class="pc-switch__slider" aria-hidden="true"></span>
+                            <span class="pc-switch__label">Permitir comentarios</span>
+                        </label>
+                    </div>
+                </div>
+
+                {% if current_user.is_authenticated and current_user.username == 'admin' %}
+                <div class="form-group pc-publish-panel">
+                    <label>Publicación</label>
+                    <p class="form-help">Elige cuándo se hará pública la publicación.</p>
+                    <div class="pc-publish-options">
+                        <label class="pc-publish-option">
+                            <input type="radio" name="pcPublishMode" value="now" checked>
+                            <span>Publicar ahora</span>
+                        </label>
+                        <label class="pc-publish-option">
+                            <input type="radio" name="pcPublishMode" value="delay">
+                            <span>Publicar en 15 min</span>
+                        </label>
+                        <label class="pc-publish-option">
+                            <input type="radio" name="pcPublishMode" value="schedule">
+                            <span>Programar fecha y hora</span>
+                        </label>
+                    </div>
+                    <div class="pc-publish-schedule" id="pcPublishAtWrap" hidden>
+                        <label for="pcPublishAt">Fecha y hora</label>
+                        <input type="datetime-local" id="pcPublishAt" class="pc-input">
+                    </div>
+                    <p id="pcPublishError" class="form-error" role="alert"></p>
+                </div>
+                {% endif %}
+            </div>
+
+            <aside class="pc-grid__column pc-preview-card" aria-label="Vista previa">
+                <div class="pc-preview-card__image" id="pcInlinePreviewWrapper">
+                    <img src="" alt="" id="pcInlinePreviewImage">
+                </div>
+                <div class="pc-preview-card__caption">
+                    <p id="pcPreviewCaptionText" class="pc-preview-card__text muted">Aquí verás tu descripción.</p>
+                </div>
+            </aside>
+        </div>
+    </div>
+</section>

@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="container px-0">
+  <!-- Profile Header -->
+  <div class="profile-header">
+    <div class="profile-cover"></div>
+    <div class="profile-info">
+      <img
+        src="{{ url_for('uploaded_file', filename=user.profile_pic) if user.profile_pic and user.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
+        class="profile-avatar-lg" alt="Profile"
+        onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
+
+      <div class="profile-details">
+        <h2 class="mb-1">@{{ user.username }}{% if user.username == 'admin' %}<span class="admin-badge admin-badge--profile" title="Admin verificado" aria-label="Admin verificado"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}</h2>
+        {% if user.bio %}
+        <p class="mb-2">{{ user.bio }}</p>
+        {% endif %}
+
+        <div class="d-flex flex-column flex-md-row gap-2 mt-3 profile-actions">
+          {% if current_user.is_authenticated and user.id == current_user.id %}
+          <a href="{{ url_for('edit_profile') }}" class="btn btn-secondary btn-sm">
+            <i class="fas fa-edit"></i> Editar perfil
+          </a>
+          <a href="{{ url_for('safety_center') }}" class="btn btn-outline-light btn-sm">
+            <i class="fas fa-shield-heart"></i> Centro de seguridad
+          </a>
+          {% endif %}
+          <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm mobile-only w-100">
+            <i class="fas fa-sign-out-alt"></i> Cerrar sesión
+          </a>
+        </div>
+      </div>
+
+      <div class="profile-stats">
+        <div class="stat-item">
+          <span class="stat-value">{{ report_count }}</span>
+          <span class="stat-label">Reportes</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">{{ total_likes }}</span>
+          <span class="stat-label">Likes</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">{{ total_comments }}</span>
+          <span class="stat-label">Comentarios</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Content Tabs (Optional, for now just Grid) -->
+  <div class="d-flex align-items-center justify-content-between mb-3 px-2">
+    <h3 class="h5 mb-0">Publicaciones</h3>
+    
+  </div>
+
+  <!-- Grid -->
+  {% if posts %}
+  <div class="profile-grid">
+    {% for p in posts %}
+    <div class="grid-item {% if p.is_pending %}is-pending{% endif %}">
+      {% if current_user.is_authenticated and user.id == current_user.id and p.can_delete %}
+      <form class="grid-delete-form" method="post" action="{{ url_for('delete_post', post_id=p.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="grid-delete-btn" title="Eliminar publicación"
+          onclick="event.stopPropagation();">
+          <i class="fas fa-trash"></i>
+        </button>
+      </form>
+      {% endif %}
+      <a href="{{ url_for('post_detail', post_id=p.id) }}">
+        <img src="{{ url_for('uploaded_file', filename=p.image_filename) }}" alt="Post">
+        {% if p.is_pending %}
+        <div class="grid-pending-overlay">
+          <span>En proceso de publicación</span>
+        </div>
+        {% else %}
+        <div class="grid-overlay">
+          <span><i class="fas fa-heart"></i> {{ p.get_likes_count() }}</span>
+          <span><i class="fas fa-comment"></i> {{ p.get_comments_count() }}</span>
+        </div>
+        {% endif %}
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-5 text-muted">
+    <i class="fas fa-camera fa-3x mb-3"></i>
+    <p>Aún no hay publicaciones.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

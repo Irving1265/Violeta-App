@@ -1,0 +1,7667 @@
+[
+  {
+    "key": "regioruta_290287755",
+    "id_ruta": "REGIORUTA_D_290287755",
+    "nombre": "Regio Ruta D: Obispado - Macroplaza - Fundidora",
+    "tipo": "bus",
+    "ref": "REG",
+    "operator": "Regio Ruta",
+    "color": "#ef4444",
+    "fuente": "Moovit (Regio Ruta) - lista pública de paradas",
+    "linea": [
+      [
+        25.670603,
+        -100.309062
+      ],
+      [
+        25.673397,
+        -100.30852
+      ],
+      [
+        25.675377,
+        -100.307714
+      ],
+      [
+        25.675116,
+        -100.305222
+      ],
+      [
+        25.674876,
+        -100.303052
+      ],
+      [
+        25.674379,
+        -100.29851
+      ],
+      [
+        25.676434,
+        -100.297749
+      ],
+      [
+        25.67766,
+        -100.297591
+      ],
+      [
+        25.677515,
+        -100.294915
+      ],
+      [
+        25.677183,
+        -100.291919
+      ],
+      [
+        25.677961,
+        -100.290345
+      ],
+      [
+        25.678302,
+        -100.293402
+      ],
+      [
+        25.678809,
+        -100.297187
+      ],
+      [
+        25.677091,
+        -100.297946
+      ],
+      [
+        25.674592,
+        -100.298312
+      ],
+      [
+        25.6734,
+        -100.298467
+      ],
+      [
+        25.673362,
+        -100.300977
+      ],
+      [
+        25.673528,
+        -100.302884
+      ],
+      [
+        25.673727,
+        -100.305172
+      ],
+      [
+        25.673865,
+        -100.306707
+      ],
+      [
+        25.673649,
+        -100.309712
+      ],
+      [
+        25.671094,
+        -100.310102
+      ],
+      [
+        25.668017,
+        -100.310723
+      ],
+      [
+        25.668265,
+        -100.312738
+      ],
+      [
+        25.668588,
+        -100.314961
+      ],
+      [
+        25.668813,
+        -100.317201
+      ],
+      [
+        25.669057,
+        -100.319074
+      ],
+      [
+        25.669493,
+        -100.321024
+      ],
+      [
+        25.669847,
+        -100.322815
+      ],
+      [
+        25.670293,
+        -100.325513
+      ],
+      [
+        25.670747,
+        -100.328148
+      ],
+      [
+        25.671139,
+        -100.330366
+      ],
+      [
+        25.67154,
+        -100.332787
+      ],
+      [
+        25.671966,
+        -100.335458
+      ],
+      [
+        25.672214,
+        -100.337111
+      ],
+      [
+        25.672871,
+        -100.339593
+      ],
+      [
+        25.674116,
+        -100.340541
+      ],
+      [
+        25.675917,
+        -100.342237
+      ],
+      [
+        25.677917,
+        -100.343621
+      ],
+      [
+        25.678989,
+        -100.345837
+      ],
+      [
+        25.678763,
+        -100.348974
+      ],
+      [
+        25.677021,
+        -100.350715
+      ],
+      [
+        25.67523,
+        -100.350439
+      ],
+      [
+        25.673835,
+        -100.348417
+      ],
+      [
+        25.67312,
+        -100.34621
+      ],
+      [
+        25.672481,
+        -100.344218
+      ],
+      [
+        25.671647,
+        -100.341629
+      ],
+      [
+        25.672535,
+        -100.340369
+      ],
+      [
+        25.67395,
+        -100.339923
+      ],
+      [
+        25.673559,
+        -100.337603
+      ],
+      [
+        25.672106,
+        -100.335789
+      ],
+      [
+        25.67031,
+        -100.336155
+      ],
+      [
+        25.670116,
+        -100.334171
+      ],
+      [
+        25.670146,
+        -100.330937
+      ],
+      [
+        25.669952,
+        -100.32865
+      ],
+      [
+        25.669642,
+        -100.327417
+      ],
+      [
+        25.667801,
+        -100.325126
+      ],
+      [
+        25.667054,
+        -100.321277
+      ],
+      [
+        25.6665,
+        -100.317672
+      ],
+      [
+        25.665845,
+        -100.313866
+      ],
+      [
+        25.665014,
+        -100.310228
+      ]
+    ],
+    "paradas": [
+      {
+        "nombre": "Juan Zuazua (Macroplaza de Monterrey)",
+        "lat": 25.670603,
+        "lng": -100.309062,
+        "orden": 1
+      },
+      {
+        "nombre": "Juan Zuazua Sn_C",
+        "lat": 25.673397,
+        "lng": -100.30852,
+        "orden": 2
+      },
+      {
+        "nombre": "Aramberri (Juan Zuazua - José María Coss)",
+        "lat": 25.675377,
+        "lng": -100.307714,
+        "orden": 3
+      },
+      {
+        "nombre": "Aramberri (Manuel Doblado - Diego de Montemayor)",
+        "lat": 25.675116,
+        "lng": -100.305222,
+        "orden": 4
+      },
+      {
+        "nombre": "Aramberri (Diego de Montemayor - Rafael Platón Sánchez)",
+        "lat": 25.674876,
+        "lng": -100.303052,
+        "orden": 5
+      },
+      {
+        "nombre": "Aramberri (Héroes Del 47 - Félix U. Gómez)",
+        "lat": 25.674379,
+        "lng": -100.29851,
+        "orden": 6
+      },
+      {
+        "nombre": "Av. Félix Uresti Gómez Sur - Nte-Diagonal Peñoles",
+        "lat": 25.676434,
+        "lng": -100.297749,
+        "orden": 7
+      },
+      {
+        "nombre": "Av. Félix Uresti Gómez Sur - Nte-Santiago Tapia",
+        "lat": 25.67766,
+        "lng": -100.297591,
+        "orden": 8
+      },
+      {
+        "nombre": "Adolfo Prieto (Vicente Suárez - Juan Escutia)",
+        "lat": 25.677515,
+        "lng": -100.294915,
+        "orden": 9
+      },
+      {
+        "nombre": "Adolfo Prieto (Edificio Treviño)",
+        "lat": 25.677183,
+        "lng": -100.291919,
+        "orden": 10
+      },
+      {
+        "nombre": "Isaac Garza Ote - Pte-Francisco Márquez",
+        "lat": 25.677961,
+        "lng": -100.290345,
+        "orden": 11
+      },
+      {
+        "nombre": "Isaac Garza (Juan de La Barrera - Batallón de San Blas)",
+        "lat": 25.678302,
+        "lng": -100.293402,
+        "orden": 12
+      },
+      {
+        "nombre": "Isaac Garza (Estación Colonia Obrera)",
+        "lat": 25.678809,
+        "lng": -100.297187,
+        "orden": 13
+      },
+      {
+        "nombre": "Félix U. Gómez (Santiago Tapia - Manuel M. Del Llano)",
+        "lat": 25.677091,
+        "lng": -100.297946,
+        "orden": 14
+      },
+      {
+        "nombre": "Félix U. Gómez (Ruperto Martínez - Aramberri)",
+        "lat": 25.674592,
+        "lng": -100.298312,
+        "orden": 15
+      },
+      {
+        "nombre": "Avenida Félix U. Gómez Norte 240",
+        "lat": 25.6734,
+        "lng": -100.298467,
+        "orden": 16
+      },
+      {
+        "nombre": "Calle Washington 1309",
+        "lat": 25.673362,
+        "lng": -100.300977,
+        "orden": 17
+      },
+      {
+        "nombre": "Washington (Álvaro Obregón - Rafael Platón Sánchez)",
+        "lat": 25.673528,
+        "lng": -100.302884,
+        "orden": 18
+      },
+      {
+        "nombre": "Washington (R. Platón Sánchez - Diego de Montemayor)",
+        "lat": 25.673727,
+        "lng": -100.305172,
+        "orden": 19
+      },
+      {
+        "nombre": "Washington (Diego de Montemayor - Mariano Arista)",
+        "lat": 25.673865,
+        "lng": -100.306707,
+        "orden": 20
+      },
+      {
+        "nombre": "Ignacio Zaragoza (Parroquia Del Sagrado Corazón de Jesús)",
+        "lat": 25.673649,
+        "lng": -100.309712,
+        "orden": 21
+      },
+      {
+        "nombre": "Eje Metropolitano 21 62",
+        "lat": 25.671094,
+        "lng": -100.310102,
+        "orden": 22
+      },
+      {
+        "nombre": "Ignacio Zaragoza (Estación General I. Zaragoza)",
+        "lat": 25.668017,
+        "lng": -100.310723,
+        "orden": 23
+      },
+      {
+        "nombre": "Fray Servando Padre Mier 427",
+        "lat": 25.668265,
+        "lng": -100.312738,
+        "orden": 24
+      },
+      {
+        "nombre": "Fray Servando Teresa de Mier (Estación Padre Mier)",
+        "lat": 25.668588,
+        "lng": -100.314961,
+        "orden": 25
+      },
+      {
+        "nombre": "Padre Mier (Benito Juárez - José Garibaldi)",
+        "lat": 25.668813,
+        "lng": -100.317201,
+        "orden": 26
+      },
+      {
+        "nombre": "Padre Mier (José Garibaldi - Cuauhtémoc)",
+        "lat": 25.669057,
+        "lng": -100.319074,
+        "orden": 27
+      },
+      {
+        "nombre": "Padre Mier (Pino Suárez - Ignacio López Rayón)",
+        "lat": 25.669493,
+        "lng": -100.321024,
+        "orden": 28
+      },
+      {
+        "nombre": "Padre Mier (Ignacio López Rayón - Juan Aldama)",
+        "lat": 25.669847,
+        "lng": -100.322815,
+        "orden": 29
+      },
+      {
+        "nombre": "Padre Mier (Parque La Purísima)",
+        "lat": 25.670293,
+        "lng": -100.325513,
+        "orden": 30
+      },
+      {
+        "nombre": "Padre Mier (Porfirio Díaz - Ignacio L. Vallarta)",
+        "lat": 25.670747,
+        "lng": -100.328148,
+        "orden": 31
+      },
+      {
+        "nombre": "Padre Mier (Rhin - América)",
+        "lat": 25.671139,
+        "lng": -100.330366,
+        "orden": 32
+      },
+      {
+        "nombre": "América",
+        "lat": 25.67154,
+        "lng": -100.332787,
+        "orden": 33
+      },
+      {
+        "nombre": "Padre Mier 1444",
+        "lat": 25.671966,
+        "lng": -100.335458,
+        "orden": 34
+      },
+      {
+        "nombre": "Santos Degollado X Padre Mier",
+        "lat": 25.672214,
+        "lng": -100.337111,
+        "orden": 35
+      },
+      {
+        "nombre": "Calle Capitán Aguilar 669-633",
+        "lat": 25.672871,
+        "lng": -100.339593,
+        "orden": 36
+      },
+      {
+        "nombre": "Calle Mariano Matamoros 601",
+        "lat": 25.674116,
+        "lng": -100.340541,
+        "orden": 37
+      },
+      {
+        "nombre": "5 de Mayo 1922",
+        "lat": 25.675917,
+        "lng": -100.342237,
+        "orden": 38
+      },
+      {
+        "nombre": "Calle Mariano Matamoros 2186",
+        "lat": 25.677917,
+        "lng": -100.343621,
+        "orden": 39
+      },
+      {
+        "nombre": "Licenciado José Benítez 2275",
+        "lat": 25.678989,
+        "lng": -100.345837,
+        "orden": 40
+      },
+      {
+        "nombre": "Eje Metropolitano 24 2393",
+        "lat": 25.678763,
+        "lng": -100.348974,
+        "orden": 41
+      },
+      {
+        "nombre": "Licenciado José Benítez 2531",
+        "lat": 25.677021,
+        "lng": -100.350715,
+        "orden": 42
+      },
+      {
+        "nombre": "Licenciado José Benítez 2720",
+        "lat": 25.67523,
+        "lng": -100.350439,
+        "orden": 43
+      },
+      {
+        "nombre": "Belisario Domínguez 2570",
+        "lat": 25.673835,
+        "lng": -100.348417,
+        "orden": 44
+      },
+      {
+        "nombre": "Cerro Del Topo 852",
+        "lat": 25.67312,
+        "lng": -100.34621,
+        "orden": 45
+      },
+      {
+        "nombre": "Belisario Domínguez 2202",
+        "lat": 25.672481,
+        "lng": -100.344218,
+        "orden": 46
+      },
+      {
+        "nombre": "Belisario Domínguez 2439",
+        "lat": 25.671647,
+        "lng": -100.341629,
+        "orden": 47
+      },
+      {
+        "nombre": "Licenciado José Benítez 167",
+        "lat": 25.672535,
+        "lng": -100.340369,
+        "orden": 48
+      },
+      {
+        "nombre": "Calle Capitán Aguilar 606",
+        "lat": 25.67395,
+        "lng": -100.339923,
+        "orden": 49
+      },
+      {
+        "nombre": "Calle Mariano Matamoros 1523",
+        "lat": 25.673559,
+        "lng": -100.337603,
+        "orden": 50
+      },
+      {
+        "nombre": "Fray Servando Padre Mier 1523",
+        "lat": 25.672106,
+        "lng": -100.335789,
+        "orden": 51
+      },
+      {
+        "nombre": "Miguel Hidalgo Y Costilla 765",
+        "lat": 25.67031,
+        "lng": -100.336155,
+        "orden": 52
+      },
+      {
+        "nombre": "Miguel Hidalgo (Edificio Citica)",
+        "lat": 25.670116,
+        "lng": -100.334171,
+        "orden": 53
+      },
+      {
+        "nombre": "Miguel Hidalgo (Martín de Zavala - América)",
+        "lat": 25.670146,
+        "lng": -100.330937,
+        "orden": 54
+      },
+      {
+        "nombre": "Miguel Hidalgo (Mirador - Ignacio L. Vallarta)",
+        "lat": 25.669952,
+        "lng": -100.32865,
+        "orden": 55
+      },
+      {
+        "nombre": "Miguel Hidalgo (Ignacio L. Vallarta - Porfirio Díaz)",
+        "lat": 25.669642,
+        "lng": -100.327417,
+        "orden": 56
+      },
+      {
+        "nombre": "Ocampo X Serafín Peña",
+        "lat": 25.667801,
+        "lng": -100.325126,
+        "orden": 57
+      },
+      {
+        "nombre": "Melchor Ocampo 757",
+        "lat": 25.667054,
+        "lng": -100.321277,
+        "orden": 58
+      },
+      {
+        "nombre": "Melchor Ocampo (Cuauhtémoc - José Garibaldi)",
+        "lat": 25.6665,
+        "lng": -100.317672,
+        "orden": 59
+      },
+      {
+        "nombre": "Melchor Ocampo (Benito Juárez - Emilio Carranza)",
+        "lat": 25.665845,
+        "lng": -100.313866,
+        "orden": 60
+      },
+      {
+        "nombre": "Juan Zuazua (Museo de Arte Contemporáneo)",
+        "lat": 25.665014,
+        "lng": -100.310228,
+        "orden": 61
+      }
+    ],
+    "moovit_url": "https://moovitapp.com/index/es-419/transporte_p%C3%BAblico-line-reg-Monterrey-3081-3778826-290287755-0"
+  },
+  {
+    "key": "regioruta_296973235",
+    "id_ruta": "REGIORUTA_C_296973235",
+    "nombre": "Regio Ruta C: Fomerrey 35 – Gloria Mendiola - San Bernabé",
+    "tipo": "bus",
+    "ref": "REG",
+    "operator": "Regio Ruta",
+    "color": "#3b82f6",
+    "fuente": "Moovit (Regio Ruta) - lista pública de paradas",
+    "linea": [
+      [
+        25.785129,
+        -100.388958
+      ],
+      [
+        25.787129,
+        -100.383702
+      ],
+      [
+        25.786388,
+        -100.379654
+      ],
+      [
+        25.784444,
+        -100.379016
+      ],
+      [
+        25.784696,
+        -100.378089
+      ],
+      [
+        25.783355,
+        -100.3758
+      ],
+      [
+        25.781583,
+        -100.374974
+      ],
+      [
+        25.779776,
+        -100.374143
+      ],
+      [
+        25.777619,
+        -100.369415
+      ],
+      [
+        25.77438,
+        -100.367075
+      ],
+      [
+        25.772169,
+        -100.366825
+      ],
+      [
+        25.77066,
+        -100.369569
+      ],
+      [
+        25.768605,
+        -100.368118
+      ],
+      [
+        25.767429,
+        -100.366823
+      ],
+      [
+        25.765888,
+        -100.364982
+      ],
+      [
+        25.763694,
+        -100.362559
+      ],
+      [
+        25.762126,
+        -100.360732
+      ],
+      [
+        25.760011,
+        -100.35835
+      ],
+      [
+        25.758567,
+        -100.356649
+      ],
+      [
+        25.756343,
+        -100.356954
+      ],
+      [
+        25.754903,
+        -100.354424
+      ],
+      [
+        25.75349,
+        -100.352684
+      ],
+      [
+        25.751171,
+        -100.350784
+      ],
+      [
+        25.750144,
+        -100.353129
+      ],
+      [
+        25.750072,
+        -100.354765
+      ],
+      [
+        25.748721,
+        -100.354997
+      ],
+      [
+        25.747401,
+        -100.354714
+      ],
+      [
+        25.746657,
+        -100.35642
+      ],
+      [
+        25.745241,
+        -100.358131
+      ],
+      [
+        25.746419,
+        -100.359366
+      ],
+      [
+        25.748376,
+        -100.361479
+      ],
+      [
+        25.749647,
+        -100.359842
+      ],
+      [
+        25.749836,
+        -100.357561
+      ],
+      [
+        25.750002,
+        -100.355004
+      ],
+      [
+        25.749943,
+        -100.352685
+      ],
+      [
+        25.750472,
+        -100.35143
+      ],
+      [
+        25.751876,
+        -100.351251
+      ],
+      [
+        25.753403,
+        -100.352493
+      ],
+      [
+        25.754556,
+        -100.353506
+      ],
+      [
+        25.755465,
+        -100.355194
+      ],
+      [
+        25.75836,
+        -100.356545
+      ],
+      [
+        25.760034,
+        -100.357963
+      ],
+      [
+        25.761284,
+        -100.35938
+      ],
+      [
+        25.762859,
+        -100.35979
+      ],
+      [
+        25.765445,
+        -100.358129
+      ],
+      [
+        25.766276,
+        -100.358932
+      ],
+      [
+        25.767736,
+        -100.360386
+      ],
+      [
+        25.769669,
+        -100.3623
+      ],
+      [
+        25.772296,
+        -100.363841
+      ],
+      [
+        25.773006,
+        -100.364761
+      ],
+      [
+        25.776307,
+        -100.366871
+      ],
+      [
+        25.779739,
+        -100.369253
+      ],
+      [
+        25.782989,
+        -100.37162
+      ],
+      [
+        25.785188,
+        -100.373177
+      ],
+      [
+        25.78724,
+        -100.374345
+      ],
+      [
+        25.785908,
+        -100.37664
+      ],
+      [
+        25.788872,
+        -100.378185
+      ],
+      [
+        25.791318,
+        -100.379294
+      ],
+      [
+        25.792569,
+        -100.380892
+      ],
+      [
+        25.79117,
+        -100.382286
+      ],
+      [
+        25.788279,
+        -100.380322
+      ],
+      [
+        25.787301,
+        -100.383508
+      ],
+      [
+        25.785129,
+        -100.388958
+      ]
+    ],
+    "paradas": [
+      {
+        "nombre": "Ocaso-Frente A Francio",
+        "lat": 25.785129,
+        "lng": -100.388958,
+        "orden": 1
+      },
+      {
+        "nombre": "Avenida Parque Lineal 12",
+        "lat": 25.787129,
+        "lng": -100.383702,
+        "orden": 2
+      },
+      {
+        "nombre": "Julio A. Roca (Ocaso - Atardecer)",
+        "lat": 25.786388,
+        "lng": -100.379654,
+        "orden": 3
+      },
+      {
+        "nombre": "Julio A. Roca (Aurora)",
+        "lat": 25.784444,
+        "lng": -100.379016,
+        "orden": 4
+      },
+      {
+        "nombre": "Huelga de Cananea",
+        "lat": 25.784696,
+        "lng": -100.378089,
+        "orden": 5
+      },
+      {
+        "nombre": "Camino Real (Ruteros - 1.º de Mayo)",
+        "lat": 25.783355,
+        "lng": -100.3758,
+        "orden": 6
+      },
+      {
+        "nombre": "Camino Real (1.º de Mayo - Hermanos Serdán)",
+        "lat": 25.781583,
+        "lng": -100.374974,
+        "orden": 7
+      },
+      {
+        "nombre": "Camino Real (Hermanos Serdán - Hnos. Flores Magón)",
+        "lat": 25.779776,
+        "lng": -100.374143,
+        "orden": 8
+      },
+      {
+        "nombre": "Unidad Obrera 1252",
+        "lat": 25.777619,
+        "lng": -100.369415,
+        "orden": 9
+      },
+      {
+        "nombre": "Unidad Obrera-Juan Sarabia",
+        "lat": 25.77438,
+        "lng": -100.367075,
+        "orden": 10
+      },
+      {
+        "nombre": "Martin Torres 5227",
+        "lat": 25.772169,
+        "lng": -100.366825,
+        "orden": 11
+      },
+      {
+        "nombre": "Dólar 9400",
+        "lat": 25.77066,
+        "lng": -100.369569,
+        "orden": 12
+      },
+      {
+        "nombre": "Camino Real (Claros - Apolo)",
+        "lat": 25.768605,
+        "lng": -100.368118,
+        "orden": 13
+      },
+      {
+        "nombre": "Avenida Camino Real 10300",
+        "lat": 25.767429,
+        "lng": -100.366823,
+        "orden": 14
+      },
+      {
+        "nombre": "Camino Real (Cordillera - Peñón)",
+        "lat": 25.765888,
+        "lng": -100.364982,
+        "orden": 15
+      },
+      {
+        "nombre": "Avenida Camino Real 9304",
+        "lat": 25.763694,
+        "lng": -100.362559,
+        "orden": 16
+      },
+      {
+        "nombre": "Camino Real (Fomento Ejidal - Trabajo)",
+        "lat": 25.762126,
+        "lng": -100.360732,
+        "orden": 17
+      },
+      {
+        "nombre": "Avenida Camino Real 6900",
+        "lat": 25.760011,
+        "lng": -100.35835,
+        "orden": 18
+      },
+      {
+        "nombre": "Camino Real (Juan Domingo Perón - Bartolomé Mitre)",
+        "lat": 25.758567,
+        "lng": -100.356649,
+        "orden": 19
+      },
+      {
+        "nombre": "Calle Julio A. Roca 8608",
+        "lat": 25.756343,
+        "lng": -100.356954,
+        "orden": 20
+      },
+      {
+        "nombre": "Julio A. Roca (Bernardino Rivaldivia - Manuel Belgrano)",
+        "lat": 25.754903,
+        "lng": -100.354424,
+        "orden": 21
+      },
+      {
+        "nombre": "Calle Julio A. Roca 8103",
+        "lat": 25.75349,
+        "lng": -100.352684,
+        "orden": 22
+      },
+      {
+        "nombre": "Julio A. Roca (A. Orozco - Luis Echeverría)",
+        "lat": 25.751171,
+        "lng": -100.350784,
+        "orden": 23
+      },
+      {
+        "nombre": "Julio Camelo (Rodolfo Fierro - Felipe Ángeles)",
+        "lat": 25.750144,
+        "lng": -100.353129,
+        "orden": 24
+      },
+      {
+        "nombre": "Julio Camelo (Juan Dosal - Avenida de La República)",
+        "lat": 25.750072,
+        "lng": -100.354765,
+        "orden": 25
+      },
+      {
+        "nombre": "Raúl Caballero (Julio Camelo - Raúl Caballero)",
+        "lat": 25.748721,
+        "lng": -100.354997,
+        "orden": 26
+      },
+      {
+        "nombre": "Calle Licenciado Augusto Gómez Villanueva 7704",
+        "lat": 25.747401,
+        "lng": -100.354714,
+        "orden": 27
+      },
+      {
+        "nombre": "Calle Licenciado Augusto Gómez Villanueva 701b",
+        "lat": 25.746657,
+        "lng": -100.35642,
+        "orden": 28
+      },
+      {
+        "nombre": "Calle Licenciado Augusto Gómez Villanueva 102-S\"Moflesscorpion\"",
+        "lat": 25.745241,
+        "lng": -100.358131,
+        "orden": 29
+      },
+      {
+        "nombre": "Aztlán (Augusto Gómez Villanueva - Ángel Martínez)",
+        "lat": 25.746419,
+        "lng": -100.359366,
+        "orden": 30
+      },
+      {
+        "nombre": "Aztlán (Estación San Bernabé)",
+        "lat": 25.748376,
+        "lng": -100.361479,
+        "orden": 31
+      },
+      {
+        "nombre": "Calle Licenciado Julio Camelo 607",
+        "lat": 25.749647,
+        "lng": -100.359842,
+        "orden": 32
+      },
+      {
+        "nombre": "Calle Licenciado Julio Camelo 729",
+        "lat": 25.749836,
+        "lng": -100.357561,
+        "orden": 33
+      },
+      {
+        "nombre": "Calle Licenciado Julio Camelo 626",
+        "lat": 25.750002,
+        "lng": -100.355004,
+        "orden": 34
+      },
+      {
+        "nombre": "Julio Camelo (Raúl Caballero - Luis Echeverría)",
+        "lat": 25.749943,
+        "lng": -100.352685,
+        "orden": 35
+      },
+      {
+        "nombre": "Calle Luis Echeverría 7913",
+        "lat": 25.750472,
+        "lng": -100.35143,
+        "orden": 36
+      },
+      {
+        "nombre": "Julio A. Roca (Lino Segura - Antonio Garate)",
+        "lat": 25.751876,
+        "lng": -100.351251,
+        "orden": 37
+      },
+      {
+        "nombre": "Julio A. Roca (Copra - Mandioca)",
+        "lat": 25.753403,
+        "lng": -100.352493,
+        "orden": 38
+      },
+      {
+        "nombre": "Julio A. Roca (Madera - Cártamo)",
+        "lat": 25.754556,
+        "lng": -100.353506,
+        "orden": 39
+      },
+      {
+        "nombre": "Bernardino Rivadavia 8467",
+        "lat": 25.755465,
+        "lng": -100.355194,
+        "orden": 40
+      },
+      {
+        "nombre": "Avenida Camino Real 8700",
+        "lat": 25.75836,
+        "lng": -100.356545,
+        "orden": 41
+      },
+      {
+        "nombre": "Camino Real (Juan Domingo Perón - Nicolás de Avellaneda)",
+        "lat": 25.760034,
+        "lng": -100.357963,
+        "orden": 42
+      },
+      {
+        "nombre": "Camino Real (Nicolás de Avellaneda - Espiga)",
+        "lat": 25.761284,
+        "lng": -100.35938,
+        "orden": 43
+      },
+      {
+        "nombre": "Calle Del Trabajo 4203",
+        "lat": 25.762859,
+        "lng": -100.35979,
+        "orden": 44
+      },
+      {
+        "nombre": "Federal 9129",
+        "lat": 25.765445,
+        "lng": -100.358129,
+        "orden": 45
+      },
+      {
+        "nombre": "Derecho de Huelga 9133",
+        "lat": 25.766276,
+        "lng": -100.358932,
+        "orden": 46
+      },
+      {
+        "nombre": "Derecho de Huelga",
+        "lat": 25.767736,
+        "lng": -100.360386,
+        "orden": 47
+      },
+      {
+        "nombre": "Derecho de Huelga 9622",
+        "lat": 25.769669,
+        "lng": -100.3623,
+        "orden": 48
+      },
+      {
+        "nombre": "Derecho de Huelga",
+        "lat": 25.772296,
+        "lng": -100.363841,
+        "orden": 49
+      },
+      {
+        "nombre": "Derecho de Huelga 5334",
+        "lat": 25.773006,
+        "lng": -100.364761,
+        "orden": 50
+      },
+      {
+        "nombre": "Licenciado Alfonso Santos Palomo 5340",
+        "lat": 25.776307,
+        "lng": -100.366871,
+        "orden": 51
+      },
+      {
+        "nombre": "Derecho de Huelga 1385",
+        "lat": 25.779739,
+        "lng": -100.369253,
+        "orden": 52
+      },
+      {
+        "nombre": "Derecho de Huelga 1565",
+        "lat": 25.782989,
+        "lng": -100.37162,
+        "orden": 53
+      },
+      {
+        "nombre": "Derecho de Huelga 1721",
+        "lat": 25.785188,
+        "lng": -100.373177,
+        "orden": 54
+      },
+      {
+        "nombre": "Calle Casa Del Obrero Mundial 5338",
+        "lat": 25.78724,
+        "lng": -100.374345,
+        "orden": 55
+      },
+      {
+        "nombre": "Calle Casa Del Obrero Mundial 5111",
+        "lat": 25.785908,
+        "lng": -100.37664,
+        "orden": 56
+      },
+      {
+        "nombre": "Enrique Rangel M. (Carpinteros - Rafael Quintero)",
+        "lat": 25.788872,
+        "lng": -100.378185,
+        "orden": 57
+      },
+      {
+        "nombre": "Enrique Rangel M. (Colonos - Burócratas)",
+        "lat": 25.791318,
+        "lng": -100.379294,
+        "orden": 58
+      },
+      {
+        "nombre": "Uniones (Sector Popular - Taxistas)",
+        "lat": 25.792569,
+        "lng": -100.380892,
+        "orden": 59
+      },
+      {
+        "nombre": "Calle Privada de Los Profesionistas 5298",
+        "lat": 25.79117,
+        "lng": -100.382286,
+        "orden": 60
+      },
+      {
+        "nombre": "Julio A. Roca (2 de Mayo - Pastizal)",
+        "lat": 25.788279,
+        "lng": -100.380322,
+        "orden": 61
+      },
+      {
+        "nombre": "Pastizal (Canal de Aztlán - Industria)",
+        "lat": 25.787301,
+        "lng": -100.383508,
+        "orden": 62
+      },
+      {
+        "nombre": "Ocaso-Frente A Francio",
+        "lat": 25.785129,
+        "lng": -100.388958,
+        "orden": 63
+      }
+    ],
+    "moovit_url": "https://moovitapp.com/index/es-419/transporte_p%C3%BAblico-line-reg-Monterrey-3081-3778826-296973235-0"
+  },
+  {
+    "key": "regioruta_297159025",
+    "id_ruta": "REGIORUTA_E_297159025",
+    "nombre": "Regio Ruta E: Félix U. Gómez - Fundidora - Moderna",
+    "tipo": "bus",
+    "ref": "REG",
+    "operator": "Regio Ruta",
+    "color": "#a855f7",
+    "fuente": "Moovit (Regio Ruta) - lista pública de paradas",
+    "linea": [
+      [
+        25.70269,
+        -100.28245
+      ],
+      [
+        25.702005,
+        -100.279519
+      ],
+      [
+        25.699767,
+        -100.279565
+      ],
+      [
+        25.697111,
+        -100.279641
+      ],
+      [
+        25.695367,
+        -100.279681
+      ],
+      [
+        25.693866,
+        -100.280218
+      ],
+      [
+        25.692541,
+        -100.281612
+      ],
+      [
+        25.691021,
+        -100.282315
+      ],
+      [
+        25.688744,
+        -100.282367
+      ],
+      [
+        25.688768,
+        -100.285131
+      ],
+      [
+        25.688242,
+        -100.287462
+      ],
+      [
+        25.686863,
+        -100.287446
+      ],
+      [
+        25.684015,
+        -100.287404
+      ],
+      [
+        25.683854,
+        -100.289355
+      ],
+      [
+        25.683974,
+        -100.29468
+      ],
+      [
+        25.684707,
+        -100.297177
+      ],
+      [
+        25.683136,
+        -100.297653
+      ],
+      [
+        25.681314,
+        -100.297553
+      ],
+      [
+        25.68027,
+        -100.294426
+      ],
+      [
+        25.677654,
+        -100.294787
+      ],
+      [
+        25.677183,
+        -100.291919
+      ],
+      [
+        25.679316,
+        -100.289625
+      ],
+      [
+        25.682049,
+        -100.287615
+      ],
+      [
+        25.682904,
+        -100.285225
+      ],
+      [
+        25.683831,
+        -100.287228
+      ],
+      [
+        25.685707,
+        -100.287256
+      ],
+      [
+        25.68797,
+        -100.287315
+      ],
+      [
+        25.690129,
+        -100.287308
+      ],
+      [
+        25.692855,
+        -100.287267
+      ],
+      [
+        25.695111,
+        -100.287242
+      ],
+      [
+        25.697031,
+        -100.287218
+      ],
+      [
+        25.699655,
+        -100.287158
+      ],
+      [
+        25.70186,
+        -100.287124
+      ],
+      [
+        25.702741,
+        -100.28486
+      ],
+      [
+        25.70269,
+        -100.28245
+      ]
+    ],
+    "paradas": [
+      {
+        "nombre": "Rosa 3062",
+        "lat": 25.70269,
+        "lng": -100.28245,
+        "orden": 1
+      },
+      {
+        "nombre": "Granada 2020",
+        "lat": 25.702005,
+        "lng": -100.279519,
+        "orden": 2
+      },
+      {
+        "nombre": "Calle Libertad 3323",
+        "lat": 25.699767,
+        "lng": -100.279565,
+        "orden": 3
+      },
+      {
+        "nombre": "Granada 2602",
+        "lat": 25.697111,
+        "lng": -100.279641,
+        "orden": 4
+      },
+      {
+        "nombre": "Granada 2400",
+        "lat": 25.695367,
+        "lng": -100.279681,
+        "orden": 5
+      },
+      {
+        "nombre": "20 de Octubre 2380",
+        "lat": 25.693866,
+        "lng": -100.280218,
+        "orden": 6
+      },
+      {
+        "nombre": "Maclovio Herrera 3119",
+        "lat": 25.692541,
+        "lng": -100.281612,
+        "orden": 7
+      },
+      {
+        "nombre": "Prisciliano Elizondo 3189",
+        "lat": 25.691021,
+        "lng": -100.282315,
+        "orden": 8
+      },
+      {
+        "nombre": "Prisciliano Elizondo 1802",
+        "lat": 25.688744,
+        "lng": -100.282367,
+        "orden": 9
+      },
+      {
+        "nombre": "Calle Nueva Rosita 1863",
+        "lat": 25.688768,
+        "lng": -100.285131,
+        "orden": 10
+      },
+      {
+        "nombre": "Pablo A. de La Garza (Luis Gonzaga Urbina - Rafael Nájera)",
+        "lat": 25.688242,
+        "lng": -100.287462,
+        "orden": 11
+      },
+      {
+        "nombre": "Pablo A. de La Garza (José Santos Chocano - Jesús M. Garza)",
+        "lat": 25.686863,
+        "lng": -100.287446,
+        "orden": 12
+      },
+      {
+        "nombre": "Pablo A. de La Garza (Estación Parque Fundidora)",
+        "lat": 25.684015,
+        "lng": -100.287404,
+        "orden": 13
+      },
+      {
+        "nombre": "Cristóbal Colón (Mártires de Chicago - Cananea)",
+        "lat": 25.683854,
+        "lng": -100.289355,
+        "orden": 14
+      },
+      {
+        "nombre": "Cristóbal Colón (Juan Escutia - Vicente Suárez)",
+        "lat": 25.683974,
+        "lng": -100.29468,
+        "orden": 15
+      },
+      {
+        "nombre": "Ramón Treviño (Estación Félix U. Gómez)",
+        "lat": 25.684707,
+        "lng": -100.297177,
+        "orden": 16
+      },
+      {
+        "nombre": "Reforma (Félix U. Gómez - Joaquín Garza Leal)",
+        "lat": 25.683136,
+        "lng": -100.297653,
+        "orden": 17
+      },
+      {
+        "nombre": "José María Arteaga (Joaquín Garza Leal - Félix U. Gómez)",
+        "lat": 25.681314,
+        "lng": -100.297553,
+        "orden": 18
+      },
+      {
+        "nombre": "Calle Juan Escutia 802",
+        "lat": 25.68027,
+        "lng": -100.294426,
+        "orden": 19
+      },
+      {
+        "nombre": "Adolfo Prieto 2026",
+        "lat": 25.677654,
+        "lng": -100.294787,
+        "orden": 20
+      },
+      {
+        "nombre": "Adolfo Prieto (Edificio Treviño)",
+        "lat": 25.677183,
+        "lng": -100.291919,
+        "orden": 21
+      },
+      {
+        "nombre": "Fundidora (Acceso 2 de Parque Fundidora)",
+        "lat": 25.679316,
+        "lng": -100.289625,
+        "orden": 22
+      },
+      {
+        "nombre": "Francisco I. Madero (Arena Monterrey)",
+        "lat": 25.682049,
+        "lng": -100.287615,
+        "orden": 23
+      },
+      {
+        "nombre": "Nueva Rosita (Francisco I. Madero - Reforma)",
+        "lat": 25.682904,
+        "lng": -100.285225,
+        "orden": 24
+      },
+      {
+        "nombre": "Cristóbal Colón (Fabriles - Pablo A. de La Garza)",
+        "lat": 25.683831,
+        "lng": -100.287228,
+        "orden": 25
+      },
+      {
+        "nombre": "Constituyentes Del 57 2788",
+        "lat": 25.685707,
+        "lng": -100.287256,
+        "orden": 26
+      },
+      {
+        "nombre": "Calle Pablo A. de La Garza 1625",
+        "lat": 25.68797,
+        "lng": -100.287315,
+        "orden": 27
+      },
+      {
+        "nombre": "Calle Pablo A. de La Garza 1917 B",
+        "lat": 25.690129,
+        "lng": -100.287308,
+        "orden": 28
+      },
+      {
+        "nombre": "Calle Vía A Tampico 2712",
+        "lat": 25.692855,
+        "lng": -100.287267,
+        "orden": 29
+      },
+      {
+        "nombre": "Calle Magnolia 2602",
+        "lat": 25.695111,
+        "lng": -100.287242,
+        "orden": 30
+      },
+      {
+        "nombre": "Mirto 2600",
+        "lat": 25.697031,
+        "lng": -100.287218,
+        "orden": 31
+      },
+      {
+        "nombre": "Calle Pablo A. de La Garza 1019",
+        "lat": 25.699655,
+        "lng": -100.287158,
+        "orden": 32
+      },
+      {
+        "nombre": "Calle Violeta 2612",
+        "lat": 25.70186,
+        "lng": -100.287124,
+        "orden": 33
+      },
+      {
+        "nombre": "Rosa 2906",
+        "lat": 25.702741,
+        "lng": -100.28486,
+        "orden": 34
+      },
+      {
+        "nombre": "Rosa 3062",
+        "lat": 25.70269,
+        "lng": -100.28245,
+        "orden": 35
+      }
+    ],
+    "moovit_url": "https://moovitapp.com/index/es-419/transporte_p%C3%BAblico-line-reg-Monterrey-3081-3778826-297159025-0"
+  },
+  {
+    "key": "regioruta_301160627",
+    "id_ruta": "REGIORUTA_A_301160627",
+    "nombre": "Regio Ruta A: Macroplaza – La Rioja",
+    "tipo": "bus",
+    "ref": "REG",
+    "operator": "Regio Ruta",
+    "color": "#22c55e",
+    "fuente": "Moovit (Regio Ruta) - lista pública de paradas",
+    "linea": [
+      [
+        25.667628,
+        -100.309496
+      ],
+      [
+        25.666092,
+        -100.311068
+      ],
+      [
+        25.660264,
+        -100.312463
+      ],
+      [
+        25.658038,
+        -100.312003
+      ],
+      [
+        25.657531,
+        -100.30909
+      ],
+      [
+        25.656992,
+        -100.306161
+      ],
+      [
+        25.656019,
+        -100.305292
+      ],
+      [
+        25.653544,
+        -100.305852
+      ],
+      [
+        25.651728,
+        -100.306233
+      ],
+      [
+        25.648202,
+        -100.307039
+      ],
+      [
+        25.644041,
+        -100.303199
+      ],
+      [
+        25.641221,
+        -100.304919
+      ],
+      [
+        25.638521,
+        -100.308288
+      ],
+      [
+        25.637746,
+        -100.309547
+      ],
+      [
+        25.63816,
+        -100.311636
+      ],
+      [
+        25.640063,
+        -100.315697
+      ],
+      [
+        25.637142,
+        -100.311074
+      ],
+      [
+        25.635071,
+        -100.308108
+      ],
+      [
+        25.633774,
+        -100.305553
+      ],
+      [
+        25.631475,
+        -100.301928
+      ],
+      [
+        25.629974,
+        -100.299617
+      ],
+      [
+        25.627652,
+        -100.296105
+      ],
+      [
+        25.625602,
+        -100.293024
+      ],
+      [
+        25.624846,
+        -100.291877
+      ],
+      [
+        25.622751,
+        -100.28856
+      ],
+      [
+        25.620855,
+        -100.285696
+      ],
+      [
+        25.618482,
+        -100.281874
+      ],
+      [
+        25.616127,
+        -100.278217
+      ],
+      [
+        25.61458,
+        -100.275732
+      ],
+      [
+        25.611824,
+        -100.271216
+      ],
+      [
+        25.60915,
+        -100.270418
+      ],
+      [
+        25.606529,
+        -100.269132
+      ],
+      [
+        25.604654,
+        -100.268061
+      ],
+      [
+        25.590978,
+        -100.260394
+      ],
+      [
+        25.586777,
+        -100.258139
+      ],
+      [
+        25.584752,
+        -100.256755
+      ],
+      [
+        25.579015,
+        -100.250079
+      ],
+      [
+        25.580356,
+        -100.246083
+      ],
+      [
+        25.574967,
+        -100.242406
+      ],
+      [
+        25.576208,
+        -100.245763
+      ],
+      [
+        25.578681,
+        -100.248817
+      ],
+      [
+        25.58587,
+        -100.256911
+      ],
+      [
+        25.589473,
+        -100.259176
+      ],
+      [
+        25.600753,
+        -100.265164
+      ],
+      [
+        25.604492,
+        -100.267308
+      ],
+      [
+        25.608572,
+        -100.269594
+      ],
+      [
+        25.614347,
+        -100.274087
+      ],
+      [
+        25.616511,
+        -100.277519
+      ],
+      [
+        25.618822,
+        -100.281018
+      ],
+      [
+        25.620608,
+        -100.283777
+      ],
+      [
+        25.621635,
+        -100.285408
+      ],
+      [
+        25.622628,
+        -100.287072
+      ],
+      [
+        25.625257,
+        -100.291148
+      ],
+      [
+        25.626407,
+        -100.292898
+      ],
+      [
+        25.627744,
+        -100.295084
+      ],
+      [
+        25.629996,
+        -100.298637
+      ],
+      [
+        25.631105,
+        -100.30033
+      ],
+      [
+        25.632766,
+        -100.302922
+      ],
+      [
+        25.634095,
+        -100.305198
+      ],
+      [
+        25.636853,
+        -100.309618
+      ],
+      [
+        25.638777,
+        -100.307582
+      ],
+      [
+        25.640779,
+        -100.305041
+      ],
+      [
+        25.642735,
+        -100.302805
+      ],
+      [
+        25.644997,
+        -100.303637
+      ],
+      [
+        25.647813,
+        -100.305294
+      ],
+      [
+        25.651208,
+        -100.305208
+      ],
+      [
+        25.653404,
+        -100.304685
+      ],
+      [
+        25.657717,
+        -100.304694
+      ],
+      [
+        25.658452,
+        -100.308574
+      ],
+      [
+        25.659678,
+        -100.311481
+      ],
+      [
+        25.665023,
+        -100.310216
+      ],
+      [
+        25.667628,
+        -100.309496
+      ]
+    ],
+    "paradas": [
+      {
+        "nombre": "General Juan Zuazua X Padre Mier",
+        "lat": 25.667628,
+        "lng": -100.309496,
+        "orden": 1
+      },
+      {
+        "nombre": "Ignacio Zaragoza Sn-S",
+        "lat": 25.666092,
+        "lng": -100.311068,
+        "orden": 2
+      },
+      {
+        "nombre": "San Luis Potosí (16 de Septiembre - 5 de Febrero)",
+        "lat": 25.660264,
+        "lng": -100.312463,
+        "orden": 3
+      },
+      {
+        "nombre": "Libertad (San Luis Potosí - Nuevo León)",
+        "lat": 25.658038,
+        "lng": -100.312003,
+        "orden": 4
+      },
+      {
+        "nombre": "Libertad (Coahuila - Baja California)",
+        "lat": 25.657531,
+        "lng": -100.30909,
+        "orden": 5
+      },
+      {
+        "nombre": "Libertad (Durango - Michoacán)",
+        "lat": 25.656992,
+        "lng": -100.306161,
+        "orden": 6
+      },
+      {
+        "nombre": "Hilario Martinez, 1221",
+        "lat": 25.656019,
+        "lng": -100.305292,
+        "orden": 7
+      },
+      {
+        "nombre": "Hilario Martínez (Nueva Independencia - Lago de Pátzcuaro)",
+        "lat": 25.653544,
+        "lng": -100.305852,
+        "orden": 8
+      },
+      {
+        "nombre": "Hilario Martínez (Lago de Chapala - Laguna de Tamiahua)",
+        "lat": 25.651728,
+        "lng": -100.306233,
+        "orden": 9
+      },
+      {
+        "nombre": "Hilario Martínez (Bernabé de Las Casas - Alfredo Garza Ríos)",
+        "lat": 25.648202,
+        "lng": -100.307039,
+        "orden": 10
+      },
+      {
+        "nombre": "Calle Santos Cantú Salinas, 620",
+        "lat": 25.644041,
+        "lng": -100.303199,
+        "orden": 11
+      },
+      {
+        "nombre": "Río Nazas 308",
+        "lat": 25.641221,
+        "lng": -100.304919,
+        "orden": 12
+      },
+      {
+        "nombre": "Río Nazas, 1281",
+        "lat": 25.638521,
+        "lng": -100.308288,
+        "orden": 13
+      },
+      {
+        "nombre": "Paseo Virginia, 129",
+        "lat": 25.637746,
+        "lng": -100.309547,
+        "orden": 14
+      },
+      {
+        "nombre": "Calle Paseo María Elena, 101",
+        "lat": 25.63816,
+        "lng": -100.311636,
+        "orden": 15
+      },
+      {
+        "nombre": "Lazaro Cardenas, Galerias V Oriente",
+        "lat": 25.640063,
+        "lng": -100.315697,
+        "orden": 16
+      },
+      {
+        "nombre": "Avenida Lázaro Cárdenas 1528",
+        "lat": 25.637142,
+        "lng": -100.311074,
+        "orden": 17
+      },
+      {
+        "nombre": "Avenida Lázaro Cárdenas 129",
+        "lat": 25.635071,
+        "lng": -100.308108,
+        "orden": 18
+      },
+      {
+        "nombre": "Avenida Lázaro Cárdenas 500",
+        "lat": 25.633774,
+        "lng": -100.305553,
+        "orden": 19
+      },
+      {
+        "nombre": "Lázaro Cárdenas 2262",
+        "lat": 25.631475,
+        "lng": -100.301928,
+        "orden": 20
+      },
+      {
+        "nombre": "Avenida Lázaro Cárdenas, Sn-C Benavides",
+        "lat": 25.629974,
+        "lng": -100.299617,
+        "orden": 21
+      },
+      {
+        "nombre": "Sendero Sur, 2964b",
+        "lat": 25.627652,
+        "lng": -100.296105,
+        "orden": 22
+      },
+      {
+        "nombre": "Lázaro Cárdenas 2760",
+        "lat": 25.625602,
+        "lng": -100.293024,
+        "orden": 23
+      },
+      {
+        "nombre": "Avenida Lázaro Cárdenas, 2670",
+        "lat": 25.624846,
+        "lng": -100.291877,
+        "orden": 24
+      },
+      {
+        "nombre": "Avenida Lázaro Cárdenas 3698",
+        "lat": 25.622751,
+        "lng": -100.28856,
+        "orden": 25
+      },
+      {
+        "nombre": "Avenida Lázaro Cárdenas 3836 A",
+        "lat": 25.620855,
+        "lng": -100.285696,
+        "orden": 26
+      },
+      {
+        "nombre": "Lázaro Cárdenas 4206",
+        "lat": 25.618482,
+        "lng": -100.281874,
+        "orden": 27
+      },
+      {
+        "nombre": "Lázaro Cárdenas",
+        "lat": 25.616127,
+        "lng": -100.278217,
+        "orden": 28
+      },
+      {
+        "nombre": "Avenida Lázaro Cárdenas 4265",
+        "lat": 25.61458,
+        "lng": -100.275732,
+        "orden": 29
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Secundaria Lázaro Cárdenas)",
+        "lat": 25.611824,
+        "lng": -100.271216,
+        "orden": 30
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Bonifacio Salinas - Pablo Quiroga)",
+        "lat": 25.60915,
+        "lng": -100.270418,
+        "orden": 31
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Col. Ciudad Satélite)",
+        "lat": 25.606529,
+        "lng": -100.269132,
+        "orden": 32
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Paseo de Misterios - Salto Del Agua)",
+        "lat": 25.604654,
+        "lng": -100.268061,
+        "orden": 33
+      },
+      {
+        "nombre": "Carretera Nacional",
+        "lat": 25.590978,
+        "lng": -100.260394,
+        "orden": 34
+      },
+      {
+        "nombre": "Carretera Nacional, Sn-C\"Elektra\"",
+        "lat": 25.586777,
+        "lng": -100.258139,
+        "orden": 35
+      },
+      {
+        "nombre": "Avenida Valle Alto 8061",
+        "lat": 25.584752,
+        "lng": -100.256755,
+        "orden": 36
+      },
+      {
+        "nombre": "Carretera Federal 85 298",
+        "lat": 25.579015,
+        "lng": -100.250079,
+        "orden": 37
+      },
+      {
+        "nombre": "Avenida La Rioja 666",
+        "lat": 25.580356,
+        "lng": -100.246083,
+        "orden": 38
+      },
+      {
+        "nombre": "Avenida La Rioja 103",
+        "lat": 25.574967,
+        "lng": -100.242406,
+        "orden": 39
+      },
+      {
+        "nombre": "Otro Carretera Nacional, 473",
+        "lat": 25.576208,
+        "lng": -100.245763,
+        "orden": 40
+      },
+      {
+        "nombre": "La Rioja",
+        "lat": 25.578681,
+        "lng": -100.248817,
+        "orden": 41
+      },
+      {
+        "nombre": "Parabús (Soriana Híper Estanzuela)",
+        "lat": 25.58587,
+        "lng": -100.256911,
+        "orden": 42
+      },
+      {
+        "nombre": "Carretera Nacional",
+        "lat": 25.589473,
+        "lng": -100.259176,
+        "orden": 43
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Lago Erie - Lago Erie)",
+        "lat": 25.600753,
+        "lng": -100.265164,
+        "orden": 44
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Hacienda Coyoacán - Cortijo)",
+        "lat": 25.604492,
+        "lng": -100.267308,
+        "orden": 45
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Paseo de Las Fuentes - Paseo de Las Fuentes)",
+        "lat": 25.608572,
+        "lng": -100.269594,
+        "orden": 46
+      },
+      {
+        "nombre": "Lázaro Cárdenas 4529",
+        "lat": 25.614347,
+        "lng": -100.274087,
+        "orden": 47
+      },
+      {
+        "nombre": "Avenida Lázaro Cárdenas, 12",
+        "lat": 25.616511,
+        "lng": -100.277519,
+        "orden": 48
+      },
+      {
+        "nombre": "Lázaro Cárdenas 4233",
+        "lat": 25.618822,
+        "lng": -100.281018,
+        "orden": 49
+      },
+      {
+        "nombre": "Lázaro Cárdenas 13b",
+        "lat": 25.620608,
+        "lng": -100.283777,
+        "orden": 50
+      },
+      {
+        "nombre": "Lázaro Cárdenas - Blvd. Acapulco",
+        "lat": 25.621635,
+        "lng": -100.285408,
+        "orden": 51
+      },
+      {
+        "nombre": "Avenida Lázaro Cárdenas, 3809",
+        "lat": 25.622628,
+        "lng": -100.287072,
+        "orden": 52
+      },
+      {
+        "nombre": "Avenida Lázaro Cárdenas 5804-S",
+        "lat": 25.625257,
+        "lng": -100.291148,
+        "orden": 53
+      },
+      {
+        "nombre": "Lázaro Cárdenas 2957",
+        "lat": 25.626407,
+        "lng": -100.292898,
+        "orden": 54
+      },
+      {
+        "nombre": "Lázaro Cárdenas 2800",
+        "lat": 25.627744,
+        "lng": -100.295084,
+        "orden": 55
+      },
+      {
+        "nombre": "Lázaro Cárdenas",
+        "lat": 25.629996,
+        "lng": -100.298637,
+        "orden": 56
+      },
+      {
+        "nombre": "Clínica 36 de Imss",
+        "lat": 25.631105,
+        "lng": -100.30033,
+        "orden": 57
+      },
+      {
+        "nombre": "Avenida Lázaro Cárdenas, 3937",
+        "lat": 25.632766,
+        "lng": -100.302922,
+        "orden": 58
+      },
+      {
+        "nombre": "Eje Metropolitano 410",
+        "lat": 25.634095,
+        "lng": -100.305198,
+        "orden": 59
+      },
+      {
+        "nombre": "Avenida Lázaro Cárdenas 1709",
+        "lat": 25.636853,
+        "lng": -100.309618,
+        "orden": 60
+      },
+      {
+        "nombre": "Río Nazas 1262",
+        "lat": 25.638777,
+        "lng": -100.307582,
+        "orden": 61
+      },
+      {
+        "nombre": "Río Nazas 324",
+        "lat": 25.640779,
+        "lng": -100.305041,
+        "orden": 62
+      },
+      {
+        "nombre": "Calle Santos Cantú Salinas",
+        "lat": 25.642735,
+        "lng": -100.302805,
+        "orden": 63
+      },
+      {
+        "nombre": "Calle Santos Cantú Salinas, 452",
+        "lat": 25.644997,
+        "lng": -100.303637,
+        "orden": 64
+      },
+      {
+        "nombre": "Calle Santos Cantú Salinas",
+        "lat": 25.647813,
+        "lng": -100.305294,
+        "orden": 65
+      },
+      {
+        "nombre": "Sinaloa",
+        "lat": 25.651208,
+        "lng": -100.305208,
+        "orden": 66
+      },
+      {
+        "nombre": "Sinaloa, 1519",
+        "lat": 25.653404,
+        "lng": -100.304685,
+        "orden": 67
+      },
+      {
+        "nombre": "2 de Abril (Sinaloa - Hilario Martínez)",
+        "lat": 25.657717,
+        "lng": -100.304694,
+        "orden": 68
+      },
+      {
+        "nombre": "2 de Abril (Chihuahua - Baja California)",
+        "lat": 25.658452,
+        "lng": -100.308574,
+        "orden": 69
+      },
+      {
+        "nombre": "Nuevo León (2 de Abril - 5 de Febrero)",
+        "lat": 25.659678,
+        "lng": -100.311481,
+        "orden": 70
+      },
+      {
+        "nombre": "Juan Zuazua (Museo de Arte Contemporáneo)",
+        "lat": 25.665023,
+        "lng": -100.310216,
+        "orden": 71
+      },
+      {
+        "nombre": "General Juan Zuazua X Padre Mier",
+        "lat": 25.667628,
+        "lng": -100.309496,
+        "orden": 72
+      }
+    ],
+    "moovit_url": "https://moovitapp.com/index/es-419/transporte_p%C3%BAblico-line-reg-Monterrey-3081-3778826-301160627-0"
+  },
+  {
+    "key": "regioruta_308529244",
+    "id_ruta": "REGIORUTA_A_308529244",
+    "nombre": "Regio Ruta A: Macroplaza - Mederos - La Rioja",
+    "tipo": "bus",
+    "ref": "REG",
+    "operator": "Regio Ruta",
+    "color": "#22c55e",
+    "fuente": "Moovit (Regio Ruta) - lista pública de paradas",
+    "linea": [
+      [
+        25.667627,
+        -100.309523
+      ],
+      [
+        25.666094,
+        -100.311045
+      ],
+      [
+        25.660241,
+        -100.312463
+      ],
+      [
+        25.658059,
+        -100.312081
+      ],
+      [
+        25.657537,
+        -100.30909
+      ],
+      [
+        25.656999,
+        -100.306167
+      ],
+      [
+        25.655262,
+        -100.305465
+      ],
+      [
+        25.65354,
+        -100.305845
+      ],
+      [
+        25.651703,
+        -100.306232
+      ],
+      [
+        25.648816,
+        -100.306885
+      ],
+      [
+        25.64741,
+        -100.306
+      ],
+      [
+        25.644858,
+        -100.303675
+      ],
+      [
+        25.642762,
+        -100.302891
+      ],
+      [
+        25.64147,
+        -100.304584
+      ],
+      [
+        25.640243,
+        -100.305979
+      ],
+      [
+        25.639133,
+        -100.307371
+      ],
+      [
+        25.637772,
+        -100.309446
+      ],
+      [
+        25.638179,
+        -100.311674
+      ],
+      [
+        25.639937,
+        -100.315481
+      ],
+      [
+        25.637132,
+        -100.311076
+      ],
+      [
+        25.635125,
+        -100.3081
+      ],
+      [
+        25.633795,
+        -100.305572
+      ],
+      [
+        25.631414,
+        -100.301819
+      ],
+      [
+        25.629993,
+        -100.299628
+      ],
+      [
+        25.627865,
+        -100.296317
+      ],
+      [
+        25.625974,
+        -100.293561
+      ],
+      [
+        25.624932,
+        -100.29191
+      ],
+      [
+        25.622754,
+        -100.288554
+      ],
+      [
+        25.621052,
+        -100.285832
+      ],
+      [
+        25.618839,
+        -100.282439
+      ],
+      [
+        25.618062,
+        -100.281175
+      ],
+      [
+        25.616868,
+        -100.279304
+      ],
+      [
+        25.614425,
+        -100.275945
+      ],
+      [
+        25.614102,
+        -100.279366
+      ],
+      [
+        25.614039,
+        -100.290029
+      ],
+      [
+        25.613988,
+        -100.281683
+      ],
+      [
+        25.613928,
+        -100.279541
+      ],
+      [
+        25.61422,
+        -100.277312
+      ],
+      [
+        25.611829,
+        -100.271221
+      ],
+      [
+        25.608899,
+        -100.270289
+      ],
+      [
+        25.606531,
+        -100.269125
+      ],
+      [
+        25.604664,
+        -100.268053
+      ],
+      [
+        25.60106,
+        -100.266058
+      ],
+      [
+        25.590155,
+        -100.259901
+      ],
+      [
+        25.586803,
+        -100.258145
+      ],
+      [
+        25.584704,
+        -100.256671
+      ],
+      [
+        25.579023,
+        -100.250087
+      ],
+      [
+        25.577785,
+        -100.248337
+      ],
+      [
+        25.580383,
+        -100.246276
+      ],
+      [
+        25.577108,
+        -100.243709
+      ],
+      [
+        25.574913,
+        -100.24229
+      ],
+      [
+        25.57621,
+        -100.245762
+      ],
+      [
+        25.578622,
+        -100.248731
+      ],
+      [
+        25.585921,
+        -100.256996
+      ],
+      [
+        25.588464,
+        -100.258456
+      ],
+      [
+        25.60079,
+        -100.265188
+      ],
+      [
+        25.60222,
+        -100.266122
+      ],
+      [
+        25.604482,
+        -100.267312
+      ],
+      [
+        25.60659,
+        -100.268504
+      ],
+      [
+        25.608569,
+        -100.269601
+      ],
+      [
+        25.614649,
+        -100.274618
+      ],
+      [
+        25.616221,
+        -100.277045
+      ],
+      [
+        25.617286,
+        -100.278714
+      ],
+      [
+        25.618795,
+        -100.28104
+      ],
+      [
+        25.620176,
+        -100.28321
+      ],
+      [
+        25.62143,
+        -100.285157
+      ],
+      [
+        25.622636,
+        -100.28705
+      ],
+      [
+        25.62344,
+        -100.288308
+      ],
+      [
+        25.625014,
+        -100.290788
+      ],
+      [
+        25.626141,
+        -100.292553
+      ],
+      [
+        25.627364,
+        -100.294467
+      ],
+      [
+        25.628124,
+        -100.295671
+      ],
+      [
+        25.629374,
+        -100.297666
+      ],
+      [
+        25.631097,
+        -100.300345
+      ],
+      [
+        25.632654,
+        -100.302768
+      ],
+      [
+        25.634088,
+        -100.305192
+      ],
+      [
+        25.635235,
+        -100.307636
+      ],
+      [
+        25.636845,
+        -100.309624
+      ],
+      [
+        25.638787,
+        -100.307597
+      ],
+      [
+        25.639913,
+        -100.306105
+      ],
+      [
+        25.641166,
+        -100.304675
+      ],
+      [
+        25.642281,
+        -100.303087
+      ],
+      [
+        25.644051,
+        -100.303073
+      ],
+      [
+        25.6482,
+        -100.305572
+      ],
+      [
+        25.649512,
+        -100.306624
+      ],
+      [
+        25.651286,
+        -100.305213
+      ],
+      [
+        25.652998,
+        -100.304818
+      ],
+      [
+        25.655572,
+        -100.304238
+      ],
+      [
+        25.657339,
+        -100.303857
+      ],
+      [
+        25.65807,
+        -100.30658
+      ],
+      [
+        25.658605,
+        -100.309462
+      ],
+      [
+        25.659691,
+        -100.311491
+      ],
+      [
+        25.665014,
+        -100.310228
+      ],
+      [
+        25.667627,
+        -100.309523
+      ]
+    ],
+    "paradas": [
+      {
+        "nombre": "Padre Mier (José María Coss - Juan Zuazua)",
+        "lat": 25.667627,
+        "lng": -100.309523,
+        "orden": 1
+      },
+      {
+        "nombre": "Ignacio Zaragoza (Museo Metropolitano de Monterrey)",
+        "lat": 25.666094,
+        "lng": -100.311045,
+        "orden": 2
+      },
+      {
+        "nombre": "San Luis Potosí (16 de Septiembre - 5 de Febrero)",
+        "lat": 25.660241,
+        "lng": -100.312463,
+        "orden": 3
+      },
+      {
+        "nombre": "Libertad (San Luis Potosí - Nuevo León)",
+        "lat": 25.658059,
+        "lng": -100.312081,
+        "orden": 4
+      },
+      {
+        "nombre": "Libertad (Coahuila - Baja California)",
+        "lat": 25.657537,
+        "lng": -100.30909,
+        "orden": 5
+      },
+      {
+        "nombre": "Libertad (Durango - Michoacán)",
+        "lat": 25.656999,
+        "lng": -100.306167,
+        "orden": 6
+      },
+      {
+        "nombre": "Hilario Martínez (Juan Pablo II - Tepeyac)",
+        "lat": 25.655262,
+        "lng": -100.305465,
+        "orden": 7
+      },
+      {
+        "nombre": "Hilario Martínez (Nueva Independencia - Lago de Pátzcuaro)",
+        "lat": 25.65354,
+        "lng": -100.305845,
+        "orden": 8
+      },
+      {
+        "nombre": "Hilario Martínez (Lago de Chapala - Laguna de Tamiahua)",
+        "lat": 25.651703,
+        "lng": -100.306232,
+        "orden": 9
+      },
+      {
+        "nombre": "Hilario Martínez (Durango - Bernabé de Las Casas)",
+        "lat": 25.648816,
+        "lng": -100.306885,
+        "orden": 10
+      },
+      {
+        "nombre": "Alfredo Garza Ríos (Hilario Martínez - Cristóbal Pérez)",
+        "lat": 25.64741,
+        "lng": -100.306,
+        "orden": 11
+      },
+      {
+        "nombre": "Santos Cantú Salinas (Departamentos La Vista)",
+        "lat": 25.644858,
+        "lng": -100.303675,
+        "orden": 12
+      },
+      {
+        "nombre": "Santos Cantú Salinas (Altamira - Río Nazas)",
+        "lat": 25.642762,
+        "lng": -100.302891,
+        "orden": 13
+      },
+      {
+        "nombre": "Río Nazas (Niño Artillero - Pípila)",
+        "lat": 25.64147,
+        "lng": -100.304584,
+        "orden": 14
+      },
+      {
+        "nombre": "Río Nazas (San Salvador - Guadalupe Victoria)",
+        "lat": 25.640243,
+        "lng": -100.305979,
+        "orden": 15
+      },
+      {
+        "nombre": "Río Nazas (Enrique Herrera - P.° María Guadalupe)",
+        "lat": 25.639133,
+        "lng": -100.307371,
+        "orden": 16
+      },
+      {
+        "nombre": "Río Nazas (P.° de La Esperanza - Paseo Virginia)",
+        "lat": 25.637772,
+        "lng": -100.309446,
+        "orden": 17
+      },
+      {
+        "nombre": "Lázaro Cárdenas (P.° María Del Carmen - Paseo Llavale)",
+        "lat": 25.638179,
+        "lng": -100.311674,
+        "orden": 18
+      },
+      {
+        "nombre": "Av. Lázaro Cárdenas Pte - Ote-Frente A Valle Oriente",
+        "lat": 25.639937,
+        "lng": -100.315481,
+        "orden": 19
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Adolfo Laubner - Río Nazas)",
+        "lat": 25.637132,
+        "lng": -100.311076,
+        "orden": 20
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Vinkel Office Park)",
+        "lat": 25.635125,
+        "lng": -100.3081,
+        "orden": 21
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Maguey - Paseo Del Acueducto)",
+        "lat": 25.633795,
+        "lng": -100.305572,
+        "orden": 22
+      },
+      {
+        "nombre": "Av. Lázaro Cárdenas-Av. Alfonso Reyes",
+        "lat": 25.631414,
+        "lng": -100.301819,
+        "orden": 23
+      },
+      {
+        "nombre": "Av. Lázaro Cárdenas Pte - Ote-Camino Al Mirador",
+        "lat": 25.629993,
+        "lng": -100.299628,
+        "orden": 24
+      },
+      {
+        "nombre": "Av. Lázaro Cárdenas Pte - Ote-Fte. Soriana Hiper Las Torres",
+        "lat": 25.627865,
+        "lng": -100.296317,
+        "orden": 25
+      },
+      {
+        "nombre": "Av. Lázaro Cárdenas-Cerro de La Silla",
+        "lat": 25.625974,
+        "lng": -100.293561,
+        "orden": 26
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Cerro Del Obispado - Cerro Del Mercado)",
+        "lat": 25.624932,
+        "lng": -100.29191,
+        "orden": 27
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Parque Del Gusanito)",
+        "lat": 25.622754,
+        "lng": -100.288554,
+        "orden": 28
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Plaza Acapulco)",
+        "lat": 25.621052,
+        "lng": -100.285832,
+        "orden": 29
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Plaza Mirador)",
+        "lat": 25.618839,
+        "lng": -100.282439,
+        "orden": 30
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Montecarlo - Reims)",
+        "lat": 25.618062,
+        "lng": -100.281175,
+        "orden": 31
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Reims - Zúrich)",
+        "lat": 25.616868,
+        "lng": -100.279304,
+        "orden": 32
+      },
+      {
+        "nombre": "Mederos (Caseta de Vigilancia)",
+        "lat": 25.614425,
+        "lng": -100.275945,
+        "orden": 33
+      },
+      {
+        "nombre": "Mederos (Banorte)",
+        "lat": 25.614102,
+        "lng": -100.279366,
+        "orden": 34
+      },
+      {
+        "nombre": "Mederos (Facultad de Ciencias de La Comunicación)",
+        "lat": 25.614039,
+        "lng": -100.290029,
+        "orden": 35
+      },
+      {
+        "nombre": "Mederos (Facultad de Ciencias Políticas)",
+        "lat": 25.613988,
+        "lng": -100.281683,
+        "orden": 36
+      },
+      {
+        "nombre": "Mederos (Facultad de Artes Visuales)",
+        "lat": 25.613928,
+        "lng": -100.279541,
+        "orden": 37
+      },
+      {
+        "nombre": "Mederos (Facultad de Economía)",
+        "lat": 25.61422,
+        "lng": -100.277312,
+        "orden": 38
+      },
+      {
+        "nombre": "Av. Eugenio Garza Sada Nte - Sur-60m Antes de General Aarón Sáenz",
+        "lat": 25.611829,
+        "lng": -100.271221,
+        "orden": 39
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Bonifacio Salinas - Pablo Quiroga)",
+        "lat": 25.608899,
+        "lng": -100.270289,
+        "orden": 40
+      },
+      {
+        "nombre": "Av. Eugenio Garza Sada-Paseo de Los Misterios",
+        "lat": 25.606531,
+        "lng": -100.269125,
+        "orden": 41
+      },
+      {
+        "nombre": "Av. Eugenio Garza Sada-Salto Del Agua",
+        "lat": 25.604664,
+        "lng": -100.268053,
+        "orden": 42
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Plaza de Vizcaínas - Paseo San Francisco)",
+        "lat": 25.60106,
+        "lng": -100.266058,
+        "orden": 43
+      },
+      {
+        "nombre": "Av. Eugenio Garza Sada-Pasando Priv. Valle de La Estanzuela",
+        "lat": 25.590155,
+        "lng": -100.259901,
+        "orden": 44
+      },
+      {
+        "nombre": "Av. Eugenio Garza Sada Nte - Sur-Heb Valle Alto",
+        "lat": 25.586803,
+        "lng": -100.258145,
+        "orden": 45
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Camino A Valle Alto - Héctor G. González)",
+        "lat": 25.584704,
+        "lng": -100.256671,
+        "orden": 46
+      },
+      {
+        "nombre": "Carretera Nacional (Costco Carretera Nacional)",
+        "lat": 25.579023,
+        "lng": -100.250087,
+        "orden": 47
+      },
+      {
+        "nombre": "Carretera Nacional (Plaza Pueblo Serena)",
+        "lat": 25.577785,
+        "lng": -100.248337,
+        "orden": 48
+      },
+      {
+        "nombre": "La Rioja (Fracc. Villas La Rioja)",
+        "lat": 25.580383,
+        "lng": -100.246276,
+        "orden": 49
+      },
+      {
+        "nombre": "La Rioja (Plaza Esfera)",
+        "lat": 25.577108,
+        "lng": -100.243709,
+        "orden": 50
+      },
+      {
+        "nombre": "La Rioja (La Rioja - Cervera Del Río)",
+        "lat": 25.574913,
+        "lng": -100.24229,
+        "orden": 51
+      },
+      {
+        "nombre": "Carretera Nacional (Plaza Esfera)",
+        "lat": 25.57621,
+        "lng": -100.245762,
+        "orden": 52
+      },
+      {
+        "nombre": "Carretera Nacional (Plaza Paseo La Rioja)",
+        "lat": 25.578622,
+        "lng": -100.248731,
+        "orden": 53
+      },
+      {
+        "nombre": "Eugenio Garza Sada (La Estanzuela - Peñón)",
+        "lat": 25.585921,
+        "lng": -100.256996,
+        "orden": 54
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Hospital Christus Muguerza)",
+        "lat": 25.588464,
+        "lng": -100.258456,
+        "orden": 55
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Parque Lago Erie)",
+        "lat": 25.60079,
+        "lng": -100.265188,
+        "orden": 56
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Lago Zumpango - Lago Catemaco)",
+        "lat": 25.60222,
+        "lng": -100.266122,
+        "orden": 57
+      },
+      {
+        "nombre": "Av. Eugenio Garza Sada-Salto Del Agua",
+        "lat": 25.604482,
+        "lng": -100.267312,
+        "orden": 58
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Cortijo - Camino de Los Álamos)",
+        "lat": 25.60659,
+        "lng": -100.268504,
+        "orden": 59
+      },
+      {
+        "nombre": "Av. Eugenio Garza Sada-Paseo de Las Fuentes",
+        "lat": 25.608569,
+        "lng": -100.269601,
+        "orden": 60
+      },
+      {
+        "nombre": "Av. Lázaro Cárdenas Ote - Pte-Pasando Av. Paseo de La Reforma",
+        "lat": 25.614649,
+        "lng": -100.274618,
+        "orden": 61
+      },
+      {
+        "nombre": "Av. Lázaro Cárdenas Ote - Pte-Pasando Topolobampo",
+        "lat": 25.616221,
+        "lng": -100.277045,
+        "orden": 62
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Plaza Brisas)",
+        "lat": 25.617286,
+        "lng": -100.278714,
+        "orden": 63
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Preescolar Sertoma Las Brisas)",
+        "lat": 25.618795,
+        "lng": -100.28104,
+        "orden": 64
+      },
+      {
+        "nombre": "Av. Lázaro Cárdenas Ote - Pte-Puerto San Lucas",
+        "lat": 25.620176,
+        "lng": -100.28321,
+        "orden": 65
+      },
+      {
+        "nombre": "Av. Lazaro Cardenas Ote - Pte-Av. Acapulco",
+        "lat": 25.62143,
+        "lng": -100.285157,
+        "orden": 66
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Puerto Arista - Puerto Alvarado)",
+        "lat": 25.622636,
+        "lng": -100.28705,
+        "orden": 67
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Dif Cree)",
+        "lat": 25.62344,
+        "lng": -100.288308,
+        "orden": 68
+      },
+      {
+        "nombre": "Av. Lázaro Cárdenas Ote - Pte-Paseo Del Márquez",
+        "lat": 25.625014,
+        "lng": -100.290788,
+        "orden": 69
+      },
+      {
+        "nombre": "Av. Lázaro Cárdenas-Márquez Del Huajuco",
+        "lat": 25.626141,
+        "lng": -100.292553,
+        "orden": 70
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Márquez Del Huajuco - Sendero Sur)",
+        "lat": 25.627364,
+        "lng": -100.294467,
+        "orden": 71
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Estacionamiento de Soriana Las Torres)",
+        "lat": 25.628124,
+        "lng": -100.295671,
+        "orden": 72
+      },
+      {
+        "nombre": "Av. Lázaro Cárdenas-Frente A the Home Depot",
+        "lat": 25.629374,
+        "lng": -100.297666,
+        "orden": 73
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Clínica 36)",
+        "lat": 25.631097,
+        "lng": -100.300345,
+        "orden": 74
+      },
+      {
+        "nombre": "Av. Lázaro Cárdenas Ote - Pte-Pasando Brasil",
+        "lat": 25.632654,
+        "lng": -100.302768,
+        "orden": 75
+      },
+      {
+        "nombre": "Lateral Av. Lázaro Cárdenas Ote - Pte-Paseo Del Acueducto",
+        "lat": 25.634088,
+        "lng": -100.305192,
+        "orden": 76
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Paseo Del Acueducto - Cempasúchil)",
+        "lat": 25.635235,
+        "lng": -100.307636,
+        "orden": 77
+      },
+      {
+        "nombre": "Av. Lázaro Cárdenas Ote - Pte-Antes de  Río Nazas",
+        "lat": 25.636845,
+        "lng": -100.309624,
+        "orden": 78
+      },
+      {
+        "nombre": "Río Nazas (Lázaro Cárdenas - Alfombrilla)",
+        "lat": 25.638787,
+        "lng": -100.307597,
+        "orden": 79
+      },
+      {
+        "nombre": "Río Nazas (Alfombrilla - Guadalupe Victoria)",
+        "lat": 25.639913,
+        "lng": -100.306105,
+        "orden": 80
+      },
+      {
+        "nombre": "Río Nazas (San Salvador - Pípila)",
+        "lat": 25.641166,
+        "lng": -100.304675,
+        "orden": 81
+      },
+      {
+        "nombre": "Río Nazas (Niño Artillero - Santos Cantú Salinas)",
+        "lat": 25.642281,
+        "lng": -100.303087,
+        "orden": 82
+      },
+      {
+        "nombre": "Santos Cantú Salinas (Andador - Diana Artemisa)",
+        "lat": 25.644051,
+        "lng": -100.303073,
+        "orden": 83
+      },
+      {
+        "nombre": "Bernabé de Las Casas (Alfredo Garza Ríos - Blas de La Garza)",
+        "lat": 25.6482,
+        "lng": -100.305572,
+        "orden": 84
+      },
+      {
+        "nombre": "Hilario Martínez (María Curie - Juana de Arco)",
+        "lat": 25.649512,
+        "lng": -100.306624,
+        "orden": 85
+      },
+      {
+        "nombre": "Sinaloa (Laguna Del Carmen - Laguna de Tamiahua)",
+        "lat": 25.651286,
+        "lng": -100.305213,
+        "orden": 86
+      },
+      {
+        "nombre": "Sinaloa (Lago de Chapala - Lago de Pátzcuaro)",
+        "lat": 25.652998,
+        "lng": -100.304818,
+        "orden": 87
+      },
+      {
+        "nombre": "Sinaloa (Tepeyac - Juan Pablo II)",
+        "lat": 25.655572,
+        "lng": -100.304238,
+        "orden": 88
+      },
+      {
+        "nombre": "Sinaloa (Libertad - 2 de Abril)",
+        "lat": 25.657339,
+        "lng": -100.303857,
+        "orden": 89
+      },
+      {
+        "nombre": "2 de Abril (Michoacán - Durango)",
+        "lat": 25.65807,
+        "lng": -100.30658,
+        "orden": 90
+      },
+      {
+        "nombre": "2 de Abril (Baja California - Coahuila)",
+        "lat": 25.658605,
+        "lng": -100.309462,
+        "orden": 91
+      },
+      {
+        "nombre": "Nuevo León (2 de Abril - 5 de Febrero)",
+        "lat": 25.659691,
+        "lng": -100.311491,
+        "orden": 92
+      },
+      {
+        "nombre": "Juan Zuazua (Museo de Arte Contemporáneo)",
+        "lat": 25.665014,
+        "lng": -100.310228,
+        "orden": 93
+      },
+      {
+        "nombre": "Padre Mier (José María Coss - Juan Zuazua)",
+        "lat": 25.667627,
+        "lng": -100.309523,
+        "orden": 94
+      }
+    ],
+    "moovit_url": "https://moovitapp.com/index/es-419/transporte_p%C3%BAblico-line-reg-Monterrey-3081-3778826-308529244-0"
+  },
+  {
+    "key": "regioruta_308529247",
+    "id_ruta": "REGIORUTA_C_308529247",
+    "nombre": "Regio Ruta C: Fomerrey 35 - Gloria Mendiola - San Bernabé",
+    "tipo": "bus",
+    "ref": "REG",
+    "operator": "Regio Ruta",
+    "color": "#3b82f6",
+    "fuente": "Moovit (Regio Ruta) - lista pública de paradas",
+    "linea": [
+      [
+        25.784932,
+        -100.387774
+      ],
+      [
+        25.787156,
+        -100.383799
+      ],
+      [
+        25.786388,
+        -100.379654
+      ],
+      [
+        25.784444,
+        -100.379016
+      ],
+      [
+        25.784696,
+        -100.378089
+      ],
+      [
+        25.783355,
+        -100.3758
+      ],
+      [
+        25.781583,
+        -100.374974
+      ],
+      [
+        25.779776,
+        -100.374143
+      ],
+      [
+        25.777619,
+        -100.369415
+      ],
+      [
+        25.77438,
+        -100.367075
+      ],
+      [
+        25.772169,
+        -100.366825
+      ],
+      [
+        25.77066,
+        -100.369569
+      ],
+      [
+        25.768605,
+        -100.368118
+      ],
+      [
+        25.767429,
+        -100.366823
+      ],
+      [
+        25.765888,
+        -100.364982
+      ],
+      [
+        25.763694,
+        -100.362559
+      ],
+      [
+        25.762126,
+        -100.360732
+      ],
+      [
+        25.760011,
+        -100.35835
+      ],
+      [
+        25.758567,
+        -100.356649
+      ],
+      [
+        25.756343,
+        -100.356954
+      ],
+      [
+        25.754903,
+        -100.354424
+      ],
+      [
+        25.75349,
+        -100.352684
+      ],
+      [
+        25.751171,
+        -100.350784
+      ],
+      [
+        25.750144,
+        -100.353129
+      ],
+      [
+        25.750072,
+        -100.354765
+      ],
+      [
+        25.748721,
+        -100.354997
+      ],
+      [
+        25.747401,
+        -100.354714
+      ],
+      [
+        25.746657,
+        -100.35642
+      ],
+      [
+        25.745241,
+        -100.358131
+      ],
+      [
+        25.746419,
+        -100.359366
+      ],
+      [
+        25.748376,
+        -100.361479
+      ],
+      [
+        25.749647,
+        -100.359842
+      ],
+      [
+        25.749836,
+        -100.357561
+      ],
+      [
+        25.750002,
+        -100.355004
+      ],
+      [
+        25.749943,
+        -100.352685
+      ],
+      [
+        25.750472,
+        -100.35143
+      ],
+      [
+        25.751876,
+        -100.351251
+      ],
+      [
+        25.753403,
+        -100.352493
+      ],
+      [
+        25.754556,
+        -100.353506
+      ],
+      [
+        25.755465,
+        -100.355194
+      ],
+      [
+        25.75836,
+        -100.356545
+      ],
+      [
+        25.760034,
+        -100.357963
+      ],
+      [
+        25.761284,
+        -100.35938
+      ],
+      [
+        25.762859,
+        -100.35979
+      ],
+      [
+        25.765445,
+        -100.358129
+      ],
+      [
+        25.766276,
+        -100.358932
+      ],
+      [
+        25.767736,
+        -100.360386
+      ],
+      [
+        25.769669,
+        -100.3623
+      ],
+      [
+        25.772296,
+        -100.363841
+      ],
+      [
+        25.773006,
+        -100.364761
+      ],
+      [
+        25.776307,
+        -100.366871
+      ],
+      [
+        25.779739,
+        -100.369253
+      ],
+      [
+        25.782989,
+        -100.37162
+      ],
+      [
+        25.785188,
+        -100.373177
+      ],
+      [
+        25.78724,
+        -100.374345
+      ],
+      [
+        25.785908,
+        -100.37664
+      ],
+      [
+        25.788872,
+        -100.378185
+      ],
+      [
+        25.791318,
+        -100.379294
+      ],
+      [
+        25.792569,
+        -100.380892
+      ],
+      [
+        25.79117,
+        -100.382286
+      ],
+      [
+        25.788279,
+        -100.380322
+      ],
+      [
+        25.787301,
+        -100.383508
+      ],
+      [
+        25.784932,
+        -100.387774
+      ]
+    ],
+    "paradas": [
+      {
+        "nombre": "Ocaso (Preparatoria Pablo Livas)",
+        "lat": 25.784932,
+        "lng": -100.387774,
+        "orden": 1
+      },
+      {
+        "nombre": "Pastizal (Luis Donaldo Colosio - Canal de Aztlán)",
+        "lat": 25.787156,
+        "lng": -100.383799,
+        "orden": 2
+      },
+      {
+        "nombre": "Julio A. Roca (Ocaso - Atardecer)",
+        "lat": 25.786388,
+        "lng": -100.379654,
+        "orden": 3
+      },
+      {
+        "nombre": "Julio A. Roca (Aurora)",
+        "lat": 25.784444,
+        "lng": -100.379016,
+        "orden": 4
+      },
+      {
+        "nombre": "Huelga de Cananea",
+        "lat": 25.784696,
+        "lng": -100.378089,
+        "orden": 5
+      },
+      {
+        "nombre": "Camino Real (Ruteros - 1.º de Mayo)",
+        "lat": 25.783355,
+        "lng": -100.3758,
+        "orden": 6
+      },
+      {
+        "nombre": "Camino Real (1.º de Mayo - Hermanos Serdán)",
+        "lat": 25.781583,
+        "lng": -100.374974,
+        "orden": 7
+      },
+      {
+        "nombre": "Camino Real (Hermanos Serdán - Hnos. Flores Magón)",
+        "lat": 25.779776,
+        "lng": -100.374143,
+        "orden": 8
+      },
+      {
+        "nombre": "Unidad Obrera 1252",
+        "lat": 25.777619,
+        "lng": -100.369415,
+        "orden": 9
+      },
+      {
+        "nombre": "Unidad Obrera-Juan Sarabia",
+        "lat": 25.77438,
+        "lng": -100.367075,
+        "orden": 10
+      },
+      {
+        "nombre": "Martin Torres 5227",
+        "lat": 25.772169,
+        "lng": -100.366825,
+        "orden": 11
+      },
+      {
+        "nombre": "Dólar 9400",
+        "lat": 25.77066,
+        "lng": -100.369569,
+        "orden": 12
+      },
+      {
+        "nombre": "Camino Real (Claros - Apolo)",
+        "lat": 25.768605,
+        "lng": -100.368118,
+        "orden": 13
+      },
+      {
+        "nombre": "Avenida Camino Real 10300",
+        "lat": 25.767429,
+        "lng": -100.366823,
+        "orden": 14
+      },
+      {
+        "nombre": "Camino Real (Cordillera - Peñón)",
+        "lat": 25.765888,
+        "lng": -100.364982,
+        "orden": 15
+      },
+      {
+        "nombre": "Avenida Camino Real 9304",
+        "lat": 25.763694,
+        "lng": -100.362559,
+        "orden": 16
+      },
+      {
+        "nombre": "Camino Real (Fomento Ejidal - Trabajo)",
+        "lat": 25.762126,
+        "lng": -100.360732,
+        "orden": 17
+      },
+      {
+        "nombre": "Avenida Camino Real 6900",
+        "lat": 25.760011,
+        "lng": -100.35835,
+        "orden": 18
+      },
+      {
+        "nombre": "Camino Real (Juan Domingo Perón - Bartolomé Mitre)",
+        "lat": 25.758567,
+        "lng": -100.356649,
+        "orden": 19
+      },
+      {
+        "nombre": "Calle Julio A. Roca 8608",
+        "lat": 25.756343,
+        "lng": -100.356954,
+        "orden": 20
+      },
+      {
+        "nombre": "Julio A. Roca (Bernardino Rivaldivia - Manuel Belgrano)",
+        "lat": 25.754903,
+        "lng": -100.354424,
+        "orden": 21
+      },
+      {
+        "nombre": "Calle Julio A. Roca 8103",
+        "lat": 25.75349,
+        "lng": -100.352684,
+        "orden": 22
+      },
+      {
+        "nombre": "Julio A. Roca (A. Orozco - Luis Echeverría)",
+        "lat": 25.751171,
+        "lng": -100.350784,
+        "orden": 23
+      },
+      {
+        "nombre": "Julio Camelo (Rodolfo Fierro - Felipe Ángeles)",
+        "lat": 25.750144,
+        "lng": -100.353129,
+        "orden": 24
+      },
+      {
+        "nombre": "Julio Camelo (Juan Dosal - Avenida de La República)",
+        "lat": 25.750072,
+        "lng": -100.354765,
+        "orden": 25
+      },
+      {
+        "nombre": "Raúl Caballero (Julio Camelo - Raúl Caballero)",
+        "lat": 25.748721,
+        "lng": -100.354997,
+        "orden": 26
+      },
+      {
+        "nombre": "Calle Licenciado Augusto Gómez Villanueva 7704",
+        "lat": 25.747401,
+        "lng": -100.354714,
+        "orden": 27
+      },
+      {
+        "nombre": "Calle Licenciado Augusto Gómez Villanueva 701b",
+        "lat": 25.746657,
+        "lng": -100.35642,
+        "orden": 28
+      },
+      {
+        "nombre": "Calle Licenciado Augusto Gómez Villanueva 102-S\"Moflesscorpion\"",
+        "lat": 25.745241,
+        "lng": -100.358131,
+        "orden": 29
+      },
+      {
+        "nombre": "Aztlán (Augusto Gómez Villanueva - Ángel Martínez)",
+        "lat": 25.746419,
+        "lng": -100.359366,
+        "orden": 30
+      },
+      {
+        "nombre": "Aztlán (Estación San Bernabé)",
+        "lat": 25.748376,
+        "lng": -100.361479,
+        "orden": 31
+      },
+      {
+        "nombre": "Calle Licenciado Julio Camelo 607",
+        "lat": 25.749647,
+        "lng": -100.359842,
+        "orden": 32
+      },
+      {
+        "nombre": "Calle Licenciado Julio Camelo 729",
+        "lat": 25.749836,
+        "lng": -100.357561,
+        "orden": 33
+      },
+      {
+        "nombre": "Calle Licenciado Julio Camelo 626",
+        "lat": 25.750002,
+        "lng": -100.355004,
+        "orden": 34
+      },
+      {
+        "nombre": "Julio Camelo (Raúl Caballero - Luis Echeverría)",
+        "lat": 25.749943,
+        "lng": -100.352685,
+        "orden": 35
+      },
+      {
+        "nombre": "Calle Luis Echeverría 7913",
+        "lat": 25.750472,
+        "lng": -100.35143,
+        "orden": 36
+      },
+      {
+        "nombre": "Julio A. Roca (Lino Segura - Antonio Garate)",
+        "lat": 25.751876,
+        "lng": -100.351251,
+        "orden": 37
+      },
+      {
+        "nombre": "Julio A. Roca (Copra - Mandioca)",
+        "lat": 25.753403,
+        "lng": -100.352493,
+        "orden": 38
+      },
+      {
+        "nombre": "Julio A. Roca (Madera - Cártamo)",
+        "lat": 25.754556,
+        "lng": -100.353506,
+        "orden": 39
+      },
+      {
+        "nombre": "Bernardino Rivadavia 8467",
+        "lat": 25.755465,
+        "lng": -100.355194,
+        "orden": 40
+      },
+      {
+        "nombre": "Avenida Camino Real 8700",
+        "lat": 25.75836,
+        "lng": -100.356545,
+        "orden": 41
+      },
+      {
+        "nombre": "Camino Real (Juan Domingo Perón - Nicolás de Avellaneda)",
+        "lat": 25.760034,
+        "lng": -100.357963,
+        "orden": 42
+      },
+      {
+        "nombre": "Camino Real (Nicolás de Avellaneda - Espiga)",
+        "lat": 25.761284,
+        "lng": -100.35938,
+        "orden": 43
+      },
+      {
+        "nombre": "Calle Del Trabajo 4203",
+        "lat": 25.762859,
+        "lng": -100.35979,
+        "orden": 44
+      },
+      {
+        "nombre": "Federal 9129",
+        "lat": 25.765445,
+        "lng": -100.358129,
+        "orden": 45
+      },
+      {
+        "nombre": "Derecho de Huelga 9133",
+        "lat": 25.766276,
+        "lng": -100.358932,
+        "orden": 46
+      },
+      {
+        "nombre": "Derecho de Huelga",
+        "lat": 25.767736,
+        "lng": -100.360386,
+        "orden": 47
+      },
+      {
+        "nombre": "Derecho de Huelga 9622",
+        "lat": 25.769669,
+        "lng": -100.3623,
+        "orden": 48
+      },
+      {
+        "nombre": "Derecho de Huelga",
+        "lat": 25.772296,
+        "lng": -100.363841,
+        "orden": 49
+      },
+      {
+        "nombre": "Derecho de Huelga 5334",
+        "lat": 25.773006,
+        "lng": -100.364761,
+        "orden": 50
+      },
+      {
+        "nombre": "Licenciado Alfonso Santos Palomo 5340",
+        "lat": 25.776307,
+        "lng": -100.366871,
+        "orden": 51
+      },
+      {
+        "nombre": "Derecho de Huelga 1385",
+        "lat": 25.779739,
+        "lng": -100.369253,
+        "orden": 52
+      },
+      {
+        "nombre": "Derecho de Huelga 1565",
+        "lat": 25.782989,
+        "lng": -100.37162,
+        "orden": 53
+      },
+      {
+        "nombre": "Derecho de Huelga 1721",
+        "lat": 25.785188,
+        "lng": -100.373177,
+        "orden": 54
+      },
+      {
+        "nombre": "Calle Casa Del Obrero Mundial 5338",
+        "lat": 25.78724,
+        "lng": -100.374345,
+        "orden": 55
+      },
+      {
+        "nombre": "Calle Casa Del Obrero Mundial 5111",
+        "lat": 25.785908,
+        "lng": -100.37664,
+        "orden": 56
+      },
+      {
+        "nombre": "Enrique Rangel M. (Carpinteros - Rafael Quintero)",
+        "lat": 25.788872,
+        "lng": -100.378185,
+        "orden": 57
+      },
+      {
+        "nombre": "Enrique Rangel M. (Colonos - Burócratas)",
+        "lat": 25.791318,
+        "lng": -100.379294,
+        "orden": 58
+      },
+      {
+        "nombre": "Uniones (Sector Popular - Taxistas)",
+        "lat": 25.792569,
+        "lng": -100.380892,
+        "orden": 59
+      },
+      {
+        "nombre": "Calle Privada de Los Profesionistas 5298",
+        "lat": 25.79117,
+        "lng": -100.382286,
+        "orden": 60
+      },
+      {
+        "nombre": "Julio A. Roca (2 de Mayo - Pastizal)",
+        "lat": 25.788279,
+        "lng": -100.380322,
+        "orden": 61
+      },
+      {
+        "nombre": "Pastizal (Canal de Aztlán - Industria)",
+        "lat": 25.787301,
+        "lng": -100.383508,
+        "orden": 62
+      },
+      {
+        "nombre": "Ocaso (Preparatoria Pablo Livas)",
+        "lat": 25.784932,
+        "lng": -100.387774,
+        "orden": 63
+      }
+    ],
+    "moovit_url": "https://moovitapp.com/index/es-419/transporte_p%C3%BAblico-line-reg-Monterrey-3081-3778826-308529247-0"
+  },
+  {
+    "key": "regioruta_308529248",
+    "id_ruta": "REGIORUTA_B_308529248",
+    "nombre": "Regio Ruta B: La Alianza - Plutarco Elías Calles - Valle Verde",
+    "tipo": "bus",
+    "ref": "REG",
+    "operator": "Regio Ruta",
+    "color": "#f59e0b",
+    "fuente": "Moovit (Regio Ruta) - lista pública de paradas",
+    "linea": [
+      [
+        25.785129,
+        -100.388958
+      ],
+      [
+        25.785039,
+        -100.392514
+      ],
+      [
+        25.786607,
+        -100.395845
+      ],
+      [
+        25.787653,
+        -100.398901
+      ],
+      [
+        25.787785,
+        -100.401782
+      ],
+      [
+        25.788025,
+        -100.404812
+      ],
+      [
+        25.78785,
+        -100.407454
+      ],
+      [
+        25.785846,
+        -100.41114
+      ],
+      [
+        25.784904,
+        -100.411086
+      ],
+      [
+        25.780481,
+        -100.412324
+      ],
+      [
+        25.779364,
+        -100.412805
+      ],
+      [
+        25.777224,
+        -100.413989
+      ],
+      [
+        25.776267,
+        -100.409834
+      ],
+      [
+        25.775226,
+        -100.408371
+      ],
+      [
+        25.773726,
+        -100.406006
+      ],
+      [
+        25.776869,
+        -100.403584
+      ],
+      [
+        25.778684,
+        -100.402418
+      ],
+      [
+        25.781224,
+        -100.400843
+      ],
+      [
+        25.782958,
+        -100.399613
+      ],
+      [
+        25.785431,
+        -100.398055
+      ],
+      [
+        25.786487,
+        -100.396173
+      ],
+      [
+        25.785283,
+        -100.394418
+      ],
+      [
+        25.78509,
+        -100.390883
+      ],
+      [
+        25.784782,
+        -100.387157
+      ],
+      [
+        25.783113,
+        -100.386456
+      ],
+      [
+        25.781134,
+        -100.386266
+      ],
+      [
+        25.779486,
+        -100.386307
+      ],
+      [
+        25.777225,
+        -100.384754
+      ],
+      [
+        25.775932,
+        -100.383007
+      ],
+      [
+        25.774394,
+        -100.38119
+      ],
+      [
+        25.772327,
+        -100.379437
+      ],
+      [
+        25.770386,
+        -100.377925
+      ],
+      [
+        25.768683,
+        -100.380827
+      ],
+      [
+        25.768457,
+        -100.382435
+      ],
+      [
+        25.768675,
+        -100.384208
+      ],
+      [
+        25.765463,
+        -100.384011
+      ],
+      [
+        25.762053,
+        -100.38314
+      ],
+      [
+        25.759535,
+        -100.386637
+      ],
+      [
+        25.756158,
+        -100.38562
+      ],
+      [
+        25.754055,
+        -100.384348
+      ],
+      [
+        25.751593,
+        -100.382935
+      ],
+      [
+        25.750265,
+        -100.384222
+      ],
+      [
+        25.749496,
+        -100.386252
+      ],
+      [
+        25.751452,
+        -100.388889
+      ],
+      [
+        25.753466,
+        -100.391597
+      ],
+      [
+        25.753881,
+        -100.393264
+      ],
+      [
+        25.752331,
+        -100.392551
+      ],
+      [
+        25.748901,
+        -100.390081
+      ],
+      [
+        25.746787,
+        -100.388711
+      ],
+      [
+        25.744487,
+        -100.390897
+      ],
+      [
+        25.743661,
+        -100.392
+      ],
+      [
+        25.741941,
+        -100.39363
+      ],
+      [
+        25.739557,
+        -100.395586
+      ],
+      [
+        25.735749,
+        -100.398218
+      ],
+      [
+        25.73533,
+        -100.394905
+      ],
+      [
+        25.736389,
+        -100.392502
+      ],
+      [
+        25.735062,
+        -100.390688
+      ],
+      [
+        25.734306,
+        -100.388719
+      ],
+      [
+        25.733071,
+        -100.387148
+      ],
+      [
+        25.73516,
+        -100.384858
+      ],
+      [
+        25.732983,
+        -100.382154
+      ],
+      [
+        25.731518,
+        -100.380797
+      ],
+      [
+        25.72942,
+        -100.378313
+      ],
+      [
+        25.730057,
+        -100.376529
+      ],
+      [
+        25.731919,
+        -100.374224
+      ],
+      [
+        25.7323,
+        -100.372824
+      ],
+      [
+        25.748946,
+        -100.386743
+      ],
+      [
+        25.749486,
+        -100.384708
+      ],
+      [
+        25.750918,
+        -100.383357
+      ],
+      [
+        25.753912,
+        -100.384085
+      ],
+      [
+        25.756007,
+        -100.385387
+      ],
+      [
+        25.75753,
+        -100.386282
+      ],
+      [
+        25.758729,
+        -100.387447
+      ],
+      [
+        25.760785,
+        -100.384159
+      ],
+      [
+        25.763049,
+        -100.383323
+      ],
+      [
+        25.764328,
+        -100.383629
+      ],
+      [
+        25.768015,
+        -100.384689
+      ],
+      [
+        25.767819,
+        -100.383236
+      ],
+      [
+        25.768542,
+        -100.380975
+      ],
+      [
+        25.770117,
+        -100.377823
+      ],
+      [
+        25.772043,
+        -100.379059
+      ],
+      [
+        25.773648,
+        -100.380409
+      ],
+      [
+        25.77609,
+        -100.382759
+      ],
+      [
+        25.777099,
+        -100.384121
+      ],
+      [
+        25.778049,
+        -100.385446
+      ],
+      [
+        25.780992,
+        -100.386009
+      ],
+      [
+        25.782425,
+        -100.3861
+      ],
+      [
+        25.785129,
+        -100.388958
+      ]
+    ],
+    "paradas": [
+      {
+        "nombre": "Ocaso-Frente A Francio",
+        "lat": 25.785129,
+        "lng": -100.388958,
+        "orden": 1
+      },
+      {
+        "nombre": "Calle Canal Medular 507",
+        "lat": 25.785039,
+        "lng": -100.392514,
+        "orden": 2
+      },
+      {
+        "nombre": "Calle Ocaso 132",
+        "lat": 25.786607,
+        "lng": -100.395845,
+        "orden": 3
+      },
+      {
+        "nombre": "Av. Portal de Los Valles-Las Torres",
+        "lat": 25.787653,
+        "lng": -100.398901,
+        "orden": 4
+      },
+      {
+        "nombre": "Avenida Portales de Los Valles Mz7 Lt30",
+        "lat": 25.787785,
+        "lng": -100.401782,
+        "orden": 5
+      },
+      {
+        "nombre": "Portal de Los Valles (Privadas Del Sur - Bacteriólogos)",
+        "lat": 25.788025,
+        "lng": -100.404812,
+        "orden": 6
+      },
+      {
+        "nombre": "Avenida Portales de Los Valles 816",
+        "lat": 25.78785,
+        "lng": -100.407454,
+        "orden": 7
+      },
+      {
+        "nombre": "Av. San Bernabe X Villas Del Carmen",
+        "lat": 25.785846,
+        "lng": -100.41114,
+        "orden": 8
+      },
+      {
+        "nombre": "Avenida San Bernabé 903",
+        "lat": 25.784904,
+        "lng": -100.411086,
+        "orden": 9
+      },
+      {
+        "nombre": "San Bernabé (Nutriólogos - Traileros)",
+        "lat": 25.780481,
+        "lng": -100.412324,
+        "orden": 10
+      },
+      {
+        "nombre": "San Bernabé (Ingenieros - Agrónomos)",
+        "lat": 25.779364,
+        "lng": -100.412805,
+        "orden": 11
+      },
+      {
+        "nombre": "Avenida San Bernabé 1005",
+        "lat": 25.777224,
+        "lng": -100.413989,
+        "orden": 12
+      },
+      {
+        "nombre": "Colorines Mz2 Lt26",
+        "lat": 25.776267,
+        "lng": -100.409834,
+        "orden": 13
+      },
+      {
+        "nombre": "Tramoyistas 330",
+        "lat": 25.775226,
+        "lng": -100.408371,
+        "orden": 14
+      },
+      {
+        "nombre": "Tramoyistas 100",
+        "lat": 25.773726,
+        "lng": -100.406006,
+        "orden": 15
+      },
+      {
+        "nombre": "Cerrada Santa Rosalía 241",
+        "lat": 25.776869,
+        "lng": -100.403584,
+        "orden": 16
+      },
+      {
+        "nombre": "Av. Camino Del Pastizal-Roble",
+        "lat": 25.778684,
+        "lng": -100.402418,
+        "orden": 17
+      },
+      {
+        "nombre": "Camino Del Pastizal (Eucalipto - Cabezada)",
+        "lat": 25.781224,
+        "lng": -100.400843,
+        "orden": 18
+      },
+      {
+        "nombre": "Parque Taraumara 101",
+        "lat": 25.782958,
+        "lng": -100.399613,
+        "orden": 19
+      },
+      {
+        "nombre": "Avenida Camino Del Pastizal 2505f",
+        "lat": 25.785431,
+        "lng": -100.398055,
+        "orden": 20
+      },
+      {
+        "nombre": "Calle Ocaso 128",
+        "lat": 25.786487,
+        "lng": -100.396173,
+        "orden": 21
+      },
+      {
+        "nombre": "Ocaso-Av. de Los Astros",
+        "lat": 25.785283,
+        "lng": -100.394418,
+        "orden": 22
+      },
+      {
+        "nombre": "Calle Ocaso 1102",
+        "lat": 25.78509,
+        "lng": -100.390883,
+        "orden": 23
+      },
+      {
+        "nombre": "Calle Ocaso 40",
+        "lat": 25.784782,
+        "lng": -100.387157,
+        "orden": 24
+      },
+      {
+        "nombre": "Luis Donaldo Colosio (Ocaso - Niobio)",
+        "lat": 25.783113,
+        "lng": -100.386456,
+        "orden": 25
+      },
+      {
+        "nombre": "Luis Donaldo Colosio (Niobio - Antimonio)",
+        "lat": 25.781134,
+        "lng": -100.386266,
+        "orden": 26
+      },
+      {
+        "nombre": "Luis Donaldo Colosio (Bodega Aurrera Solidaridad)",
+        "lat": 25.779486,
+        "lng": -100.386307,
+        "orden": 27
+      },
+      {
+        "nombre": "Cabezada (S-Mart Solidaridad)",
+        "lat": 25.777225,
+        "lng": -100.384754,
+        "orden": 28
+      },
+      {
+        "nombre": "Cabezada (Plaza Paseo La Quinta)",
+        "lat": 25.775932,
+        "lng": -100.383007,
+        "orden": 29
+      },
+      {
+        "nombre": "Cabezada (Calle J - Plumbago)",
+        "lat": 25.774394,
+        "lng": -100.38119,
+        "orden": 30
+      },
+      {
+        "nombre": "Cabezada (Nepenta - Marco)",
+        "lat": 25.772327,
+        "lng": -100.379437,
+        "orden": 31
+      },
+      {
+        "nombre": "Cabezada (Caveto - Lumbreras)",
+        "lat": 25.770386,
+        "lng": -100.377925,
+        "orden": 32
+      },
+      {
+        "nombre": "La Bica 9618",
+        "lat": 25.768683,
+        "lng": -100.380827,
+        "orden": 33
+      },
+      {
+        "nombre": "Heno 515",
+        "lat": 25.768457,
+        "lng": -100.382435,
+        "orden": 34
+      },
+      {
+        "nombre": "Calle Tejado 9667",
+        "lat": 25.768675,
+        "lng": -100.384208,
+        "orden": 35
+      },
+      {
+        "nombre": "Farolillo (Acónito - Drosera)",
+        "lat": 25.765463,
+        "lng": -100.384011,
+        "orden": 36
+      },
+      {
+        "nombre": "Farolillo (Nelumbio - Aztlán)",
+        "lat": 25.762053,
+        "lng": -100.38314,
+        "orden": 37
+      },
+      {
+        "nombre": "Aztlán (Arianto - Arveja)",
+        "lat": 25.759535,
+        "lng": -100.386637,
+        "orden": 38
+      },
+      {
+        "nombre": "No Reelección (Unicornio - Ballena)",
+        "lat": 25.756158,
+        "lng": -100.38562,
+        "orden": 39
+      },
+      {
+        "nombre": "No Reelección (Ballena - Pez Tambor)",
+        "lat": 25.754055,
+        "lng": -100.384348,
+        "orden": 40
+      },
+      {
+        "nombre": "No Reelección (Pulpo - Celso Cepeda)",
+        "lat": 25.751593,
+        "lng": -100.382935,
+        "orden": 41
+      },
+      {
+        "nombre": "Banco de Fomento X Celso Cepeda",
+        "lat": 25.750265,
+        "lng": -100.384222,
+        "orden": 42
+      },
+      {
+        "nombre": "Calle Ejército Nacional 6829",
+        "lat": 25.749496,
+        "lng": -100.386252,
+        "orden": 43
+      },
+      {
+        "nombre": "Calle Ejército Nacional 7152",
+        "lat": 25.751452,
+        "lng": -100.388889,
+        "orden": 44
+      },
+      {
+        "nombre": "Ejército Nacional 7425",
+        "lat": 25.753466,
+        "lng": -100.391597,
+        "orden": 45
+      },
+      {
+        "nombre": "Mina Voladora 7571",
+        "lat": 25.753881,
+        "lng": -100.393264,
+        "orden": 46
+      },
+      {
+        "nombre": "Abraham Lincoln (Estación Plutarco Elías Calles)",
+        "lat": 25.752331,
+        "lng": -100.392551,
+        "orden": 47
+      },
+      {
+        "nombre": "Avenida Abraham Lincoln 7058",
+        "lat": 25.748901,
+        "lng": -100.390081,
+        "orden": 48
+      },
+      {
+        "nombre": "Adolfo Ruíz Cortines (Ruíz Cortines - Pedro Infante)",
+        "lat": 25.746787,
+        "lng": -100.388711,
+        "orden": 49
+      },
+      {
+        "nombre": "Avenida Pedro Infante",
+        "lat": 25.744487,
+        "lng": -100.390897,
+        "orden": 50
+      },
+      {
+        "nombre": "Agualeguas 6601",
+        "lat": 25.743661,
+        "lng": -100.392,
+        "orden": 51
+      },
+      {
+        "nombre": "Pedro Infante 5705",
+        "lat": 25.741941,
+        "lng": -100.39363,
+        "orden": 52
+      },
+      {
+        "nombre": "Avenida Pedro Infante 5847",
+        "lat": 25.739557,
+        "lng": -100.395586,
+        "orden": 53
+      },
+      {
+        "nombre": "Calle Oporto 5976",
+        "lat": 25.735749,
+        "lng": -100.398218,
+        "orden": 54
+      },
+      {
+        "nombre": "Hacienda de La Soledad (Hacienda El Sereno - Hacienda Del Toro)",
+        "lat": 25.73533,
+        "lng": -100.394905,
+        "orden": 55
+      },
+      {
+        "nombre": "Hacienda El Refugio (Hacienda de La Soledad - Hacienda Santa Martha)",
+        "lat": 25.736389,
+        "lng": -100.392502,
+        "orden": 56
+      },
+      {
+        "nombre": "Hacienda El Refugio (Hacienda San Martín - Hacienda San Nicolás)",
+        "lat": 25.735062,
+        "lng": -100.390688,
+        "orden": 57
+      },
+      {
+        "nombre": "Hacienda El Refugio (Misión San Andrés - Hacienda El Molino)",
+        "lat": 25.734306,
+        "lng": -100.388719,
+        "orden": 58
+      },
+      {
+        "nombre": "Hacienda El Molino 105",
+        "lat": 25.733071,
+        "lng": -100.387148,
+        "orden": 59
+      },
+      {
+        "nombre": "Seguridad Social (Criptón - Comisión Tripartita)",
+        "lat": 25.73516,
+        "lng": -100.384858,
+        "orden": 60
+      },
+      {
+        "nombre": "Comisión Tripartita (Titanio - Uranio)",
+        "lat": 25.732983,
+        "lng": -100.382154,
+        "orden": 61
+      },
+      {
+        "nombre": "Comisión Tripartita (Uranio - Yocasta)",
+        "lat": 25.731518,
+        "lng": -100.380797,
+        "orden": 62
+      },
+      {
+        "nombre": "Abedul (Menelao - Coéforas)",
+        "lat": 25.72942,
+        "lng": -100.378313,
+        "orden": 63
+      },
+      {
+        "nombre": "Nogal (Azalea - Azucena)",
+        "lat": 25.730057,
+        "lng": -100.376529,
+        "orden": 64
+      },
+      {
+        "nombre": "Nogal (Huizache - Adolfo Ruíz Cortines)",
+        "lat": 25.731919,
+        "lng": -100.374224,
+        "orden": 65
+      },
+      {
+        "nombre": "Agami 5381a",
+        "lat": 25.7323,
+        "lng": -100.372824,
+        "orden": 66
+      },
+      {
+        "nombre": "Mina Voladora 6806",
+        "lat": 25.748946,
+        "lng": -100.386743,
+        "orden": 67
+      },
+      {
+        "nombre": "Calle Celso Cepeda 5135",
+        "lat": 25.749486,
+        "lng": -100.384708,
+        "orden": 68
+      },
+      {
+        "nombre": "Calle Celso Cepeda",
+        "lat": 25.750918,
+        "lng": -100.383357,
+        "orden": 69
+      },
+      {
+        "nombre": "Pez Tambor 6639",
+        "lat": 25.753912,
+        "lng": -100.384085,
+        "orden": 70
+      },
+      {
+        "nombre": "Avenida No Reelección 9164",
+        "lat": 25.756007,
+        "lng": -100.385387,
+        "orden": 71
+      },
+      {
+        "nombre": "Avenida No Reelección 9248",
+        "lat": 25.75753,
+        "lng": -100.386282,
+        "orden": 72
+      },
+      {
+        "nombre": "Avenida Solidaridad 6590",
+        "lat": 25.758729,
+        "lng": -100.387447,
+        "orden": 73
+      },
+      {
+        "nombre": "Aztlán (Pirámide - Equilátero)",
+        "lat": 25.760785,
+        "lng": -100.384159,
+        "orden": 74
+      },
+      {
+        "nombre": "Farolillo (Ravenala - Brezo)",
+        "lat": 25.763049,
+        "lng": -100.383323,
+        "orden": 75
+      },
+      {
+        "nombre": "Farolillo (Parroquia Cristo Evangelizador)",
+        "lat": 25.764328,
+        "lng": -100.383629,
+        "orden": 76
+      },
+      {
+        "nombre": "Farolillo (Rafia - Nepenta)",
+        "lat": 25.768015,
+        "lng": -100.384689,
+        "orden": 77
+      },
+      {
+        "nombre": "Heno 533",
+        "lat": 25.767819,
+        "lng": -100.383236,
+        "orden": 78
+      },
+      {
+        "nombre": "La Bica 9618",
+        "lat": 25.768542,
+        "lng": -100.380975,
+        "orden": 79
+      },
+      {
+        "nombre": "Lumbrera 400",
+        "lat": 25.770117,
+        "lng": -100.377823,
+        "orden": 80
+      },
+      {
+        "nombre": "Cabezada (Caveto - Marco)",
+        "lat": 25.772043,
+        "lng": -100.379059,
+        "orden": 81
+      },
+      {
+        "nombre": "Cabezada (Nepenta - Cenizo)",
+        "lat": 25.773648,
+        "lng": -100.380409,
+        "orden": 82
+      },
+      {
+        "nombre": "Cabezada (Calpulli - Cempoala)",
+        "lat": 25.77609,
+        "lng": -100.382759,
+        "orden": 83
+      },
+      {
+        "nombre": "Cabezada (Cempoala - Palmín)",
+        "lat": 25.777099,
+        "lng": -100.384121,
+        "orden": 84
+      },
+      {
+        "nombre": "Cabezada (Rutherford - Luis Donaldo Colosio Murrieta)",
+        "lat": 25.778049,
+        "lng": -100.385446,
+        "orden": 85
+      },
+      {
+        "nombre": "Luis Donaldo Colosio (Zepelín - Orto)",
+        "lat": 25.780992,
+        "lng": -100.386009,
+        "orden": 86
+      },
+      {
+        "nombre": "Luis Donaldo Colosio (Orto - Inventi)",
+        "lat": 25.782425,
+        "lng": -100.3861,
+        "orden": 87
+      },
+      {
+        "nombre": "Ocaso-Frente A Francio",
+        "lat": 25.785129,
+        "lng": -100.388958,
+        "orden": 88
+      }
+    ],
+    "moovit_url": "https://moovitapp.com/index/es-419/transporte_p%C3%BAblico-line-reg-Monterrey-3081-3778826-308529248-0"
+  },
+  {
+    "key": "regioruta_313851141",
+    "id_ruta": "REGIORUTA_E_313851141",
+    "nombre": "Regio Ruta E: Macroplaza - Félix U. Gómez - Moderna",
+    "tipo": "bus",
+    "ref": "REG",
+    "operator": "Regio Ruta",
+    "color": "#a855f7",
+    "fuente": "Moovit (Regio Ruta) - lista pública de paradas",
+    "linea": [
+      [
+        25.70269,
+        -100.28245
+      ],
+      [
+        25.702005,
+        -100.279519
+      ],
+      [
+        25.699767,
+        -100.279565
+      ],
+      [
+        25.697111,
+        -100.279641
+      ],
+      [
+        25.695367,
+        -100.279681
+      ],
+      [
+        25.693866,
+        -100.280218
+      ],
+      [
+        25.692541,
+        -100.281612
+      ],
+      [
+        25.691021,
+        -100.282315
+      ],
+      [
+        25.688744,
+        -100.282367
+      ],
+      [
+        25.688768,
+        -100.285131
+      ],
+      [
+        25.688242,
+        -100.287462
+      ],
+      [
+        25.686863,
+        -100.287446
+      ],
+      [
+        25.684015,
+        -100.287404
+      ],
+      [
+        25.683854,
+        -100.289355
+      ],
+      [
+        25.683974,
+        -100.29468
+      ],
+      [
+        25.684707,
+        -100.297177
+      ],
+      [
+        25.683136,
+        -100.297653
+      ],
+      [
+        25.683501,
+        -100.300649
+      ],
+      [
+        25.68388,
+        -100.304406
+      ],
+      [
+        25.684291,
+        -100.308143
+      ],
+      [
+        25.684601,
+        -100.311068
+      ],
+      [
+        25.684212,
+        -100.313424
+      ],
+      [
+        25.68157,
+        -100.313764
+      ],
+      [
+        25.678128,
+        -100.314212
+      ],
+      [
+        25.677194,
+        -100.314346
+      ],
+      [
+        25.673873,
+        -100.314818
+      ],
+      [
+        25.671616,
+        -100.31513
+      ],
+      [
+        25.668891,
+        -100.31549
+      ],
+      [
+        25.667278,
+        -100.315686
+      ],
+      [
+        25.665845,
+        -100.313866
+      ],
+      [
+        25.665014,
+        -100.310228
+      ],
+      [
+        25.667826,
+        -100.310513
+      ],
+      [
+        25.668265,
+        -100.312738
+      ],
+      [
+        25.668588,
+        -100.314961
+      ],
+      [
+        25.671094,
+        -100.315016
+      ],
+      [
+        25.673393,
+        -100.314724
+      ],
+      [
+        25.676661,
+        -100.314232
+      ],
+      [
+        25.679489,
+        -100.313847
+      ],
+      [
+        25.681157,
+        -100.310557
+      ],
+      [
+        25.680664,
+        -100.306065
+      ],
+      [
+        25.680355,
+        -100.303275
+      ],
+      [
+        25.680002,
+        -100.300375
+      ],
+      [
+        25.679773,
+        -100.298498
+      ],
+      [
+        25.677654,
+        -100.294787
+      ],
+      [
+        25.677183,
+        -100.291919
+      ],
+      [
+        25.679316,
+        -100.289625
+      ],
+      [
+        25.682049,
+        -100.287615
+      ],
+      [
+        25.682904,
+        -100.285225
+      ],
+      [
+        25.683806,
+        -100.28721
+      ],
+      [
+        25.685707,
+        -100.287256
+      ],
+      [
+        25.68797,
+        -100.287315
+      ],
+      [
+        25.690129,
+        -100.287308
+      ],
+      [
+        25.692855,
+        -100.287267
+      ],
+      [
+        25.695111,
+        -100.287242
+      ],
+      [
+        25.697031,
+        -100.287218
+      ],
+      [
+        25.699655,
+        -100.287158
+      ],
+      [
+        25.70186,
+        -100.287124
+      ],
+      [
+        25.702741,
+        -100.28486
+      ],
+      [
+        25.70269,
+        -100.28245
+      ]
+    ],
+    "paradas": [
+      {
+        "nombre": "Rosa 3062",
+        "lat": 25.70269,
+        "lng": -100.28245,
+        "orden": 1
+      },
+      {
+        "nombre": "Granada 2020",
+        "lat": 25.702005,
+        "lng": -100.279519,
+        "orden": 2
+      },
+      {
+        "nombre": "Calle Libertad 3323",
+        "lat": 25.699767,
+        "lng": -100.279565,
+        "orden": 3
+      },
+      {
+        "nombre": "Granada 2602",
+        "lat": 25.697111,
+        "lng": -100.279641,
+        "orden": 4
+      },
+      {
+        "nombre": "Granada 2400",
+        "lat": 25.695367,
+        "lng": -100.279681,
+        "orden": 5
+      },
+      {
+        "nombre": "20 de Octubre 2380",
+        "lat": 25.693866,
+        "lng": -100.280218,
+        "orden": 6
+      },
+      {
+        "nombre": "Maclovio Herrera 3119",
+        "lat": 25.692541,
+        "lng": -100.281612,
+        "orden": 7
+      },
+      {
+        "nombre": "Prisciliano Elizondo 3189",
+        "lat": 25.691021,
+        "lng": -100.282315,
+        "orden": 8
+      },
+      {
+        "nombre": "Prisciliano Elizondo 1802",
+        "lat": 25.688744,
+        "lng": -100.282367,
+        "orden": 9
+      },
+      {
+        "nombre": "Calle Nueva Rosita 1863",
+        "lat": 25.688768,
+        "lng": -100.285131,
+        "orden": 10
+      },
+      {
+        "nombre": "Pablo A. de La Garza (Luis Gonzaga Urbina - Rafael Nájera)",
+        "lat": 25.688242,
+        "lng": -100.287462,
+        "orden": 11
+      },
+      {
+        "nombre": "Pablo A. de La Garza (José Santos Chocano - Jesús M. Garza)",
+        "lat": 25.686863,
+        "lng": -100.287446,
+        "orden": 12
+      },
+      {
+        "nombre": "Pablo A. de La Garza (Estación Parque Fundidora)",
+        "lat": 25.684015,
+        "lng": -100.287404,
+        "orden": 13
+      },
+      {
+        "nombre": "Cristóbal Colón (Mártires de Chicago - Cananea)",
+        "lat": 25.683854,
+        "lng": -100.289355,
+        "orden": 14
+      },
+      {
+        "nombre": "Cristóbal Colón (Juan Escutia - Vicente Suárez)",
+        "lat": 25.683974,
+        "lng": -100.29468,
+        "orden": 15
+      },
+      {
+        "nombre": "Ramón Treviño (Estación Félix U. Gómez)",
+        "lat": 25.684707,
+        "lng": -100.297177,
+        "orden": 16
+      },
+      {
+        "nombre": "Reforma (Félix U. Gómez - Joaquín Garza Leal)",
+        "lat": 25.683136,
+        "lng": -100.297653,
+        "orden": 17
+      },
+      {
+        "nombre": "Reforma (Héroes Del 47 - Álvaro Obregón)",
+        "lat": 25.683501,
+        "lng": -100.300649,
+        "orden": 18
+      },
+      {
+        "nombre": "Reforma (Diego de Montemayor - Manuel Doblado)",
+        "lat": 25.68388,
+        "lng": -100.304406,
+        "orden": 19
+      },
+      {
+        "nombre": "Reforma (Juan Zuazua - Ignacio Zaragoza)",
+        "lat": 25.684291,
+        "lng": -100.308143,
+        "orden": 20
+      },
+      {
+        "nombre": "Reforma (Emilio Carranza - Hermenegildo Galeana)",
+        "lat": 25.684601,
+        "lng": -100.311068,
+        "orden": 21
+      },
+      {
+        "nombre": "Benito Juárez (Reforma - Francisco I. Madero)",
+        "lat": 25.684212,
+        "lng": -100.313424,
+        "orden": 22
+      },
+      {
+        "nombre": "Benito Juárez (Carlos Salazar - Jerónimo Treviño)",
+        "lat": 25.68157,
+        "lng": -100.313764,
+        "orden": 23
+      },
+      {
+        "nombre": "Benito Juárez (Manuel M. Del Llano - Albino Espinosa)",
+        "lat": 25.678128,
+        "lng": -100.314212,
+        "orden": 24
+      },
+      {
+        "nombre": "Benito Juárez (Albino Espinosa - Ruperto Martínez)",
+        "lat": 25.677194,
+        "lng": -100.314346,
+        "orden": 25
+      },
+      {
+        "nombre": "Benito Juárez (Washington - 5 de Mayo)",
+        "lat": 25.673873,
+        "lng": -100.314818,
+        "orden": 26
+      },
+      {
+        "nombre": "Benito Juárez (15 de Mayo - Juan Ignacio Ramón)",
+        "lat": 25.671616,
+        "lng": -100.31513,
+        "orden": 27
+      },
+      {
+        "nombre": "Benito Juárez (Estación Padre Mier)",
+        "lat": 25.668891,
+        "lng": -100.31549,
+        "orden": 28
+      },
+      {
+        "nombre": "Benito Juárez (Plaza de La Tecnología)",
+        "lat": 25.667278,
+        "lng": -100.315686,
+        "orden": 29
+      },
+      {
+        "nombre": "Melchor Ocampo (Benito Juárez - Emilio Carranza)",
+        "lat": 25.665845,
+        "lng": -100.313866,
+        "orden": 30
+      },
+      {
+        "nombre": "Juan Zuazua (Museo de Arte Contemporáneo)",
+        "lat": 25.665014,
+        "lng": -100.310228,
+        "orden": 31
+      },
+      {
+        "nombre": "Padre Mier (Estación General I. Zaragoza)",
+        "lat": 25.667826,
+        "lng": -100.310513,
+        "orden": 32
+      },
+      {
+        "nombre": "Fray Servando Padre Mier 427",
+        "lat": 25.668265,
+        "lng": -100.312738,
+        "orden": 33
+      },
+      {
+        "nombre": "Fray Servando Teresa de Mier (Estación Padre Mier)",
+        "lat": 25.668588,
+        "lng": -100.314961,
+        "orden": 34
+      },
+      {
+        "nombre": "Benito Juárez (Ignacio Allende - Juan Ignacio Ramón)",
+        "lat": 25.671094,
+        "lng": -100.315016,
+        "orden": 35
+      },
+      {
+        "nombre": "Benito Juárez (15 de Mayo - 5 de Mayo)",
+        "lat": 25.673393,
+        "lng": -100.314724,
+        "orden": 36
+      },
+      {
+        "nombre": "Benito Juárez (Mercado Juárez)",
+        "lat": 25.676661,
+        "lng": -100.314232,
+        "orden": 37
+      },
+      {
+        "nombre": "Benito Juárez (Manuel M. Del Llano - Santiago Tapia)",
+        "lat": 25.679489,
+        "lng": -100.313847,
+        "orden": 38
+      },
+      {
+        "nombre": "Jerónimo Treviño - Plaza de Los Enamorados",
+        "lat": 25.681157,
+        "lng": -100.310557,
+        "orden": 39
+      },
+      {
+        "nombre": "Jerónimo Treviño - Plaza Del Chorro",
+        "lat": 25.680664,
+        "lng": -100.306065,
+        "orden": 40
+      },
+      {
+        "nombre": "Jerónimo Treviño - Luis Carvajal",
+        "lat": 25.680355,
+        "lng": -100.303275,
+        "orden": 41
+      },
+      {
+        "nombre": "Jerónimo Treviño - Julián Villarreal",
+        "lat": 25.680002,
+        "lng": -100.300375,
+        "orden": 42
+      },
+      {
+        "nombre": "Jerónimo Treviño - Metro Colonia Obrera",
+        "lat": 25.679773,
+        "lng": -100.298498,
+        "orden": 43
+      },
+      {
+        "nombre": "Adolfo Prieto 2026",
+        "lat": 25.677654,
+        "lng": -100.294787,
+        "orden": 44
+      },
+      {
+        "nombre": "Adolfo Prieto (Edificio Treviño)",
+        "lat": 25.677183,
+        "lng": -100.291919,
+        "orden": 45
+      },
+      {
+        "nombre": "Fundidora (Acceso 2 de Parque Fundidora)",
+        "lat": 25.679316,
+        "lng": -100.289625,
+        "orden": 46
+      },
+      {
+        "nombre": "Francisco I. Madero (Arena Monterrey)",
+        "lat": 25.682049,
+        "lng": -100.287615,
+        "orden": 47
+      },
+      {
+        "nombre": "Nueva Rosita (Francisco I. Madero - Reforma)",
+        "lat": 25.682904,
+        "lng": -100.285225,
+        "orden": 48
+      },
+      {
+        "nombre": "Av. Cristóbal Colón Ote - Pte-Pablo A. de La Garza",
+        "lat": 25.683806,
+        "lng": -100.28721,
+        "orden": 49
+      },
+      {
+        "nombre": "Constituyentes Del 57 2788",
+        "lat": 25.685707,
+        "lng": -100.287256,
+        "orden": 50
+      },
+      {
+        "nombre": "Calle Pablo A. de La Garza 1625",
+        "lat": 25.68797,
+        "lng": -100.287315,
+        "orden": 51
+      },
+      {
+        "nombre": "Calle Pablo A. de La Garza 1917 B",
+        "lat": 25.690129,
+        "lng": -100.287308,
+        "orden": 52
+      },
+      {
+        "nombre": "Calle Vía A Tampico 2712",
+        "lat": 25.692855,
+        "lng": -100.287267,
+        "orden": 53
+      },
+      {
+        "nombre": "Calle Magnolia 2602",
+        "lat": 25.695111,
+        "lng": -100.287242,
+        "orden": 54
+      },
+      {
+        "nombre": "Mirto 2600",
+        "lat": 25.697031,
+        "lng": -100.287218,
+        "orden": 55
+      },
+      {
+        "nombre": "Calle Pablo A. de La Garza 1019",
+        "lat": 25.699655,
+        "lng": -100.287158,
+        "orden": 56
+      },
+      {
+        "nombre": "Calle Violeta 2612",
+        "lat": 25.70186,
+        "lng": -100.287124,
+        "orden": 57
+      },
+      {
+        "nombre": "Rosa 2906",
+        "lat": 25.702741,
+        "lng": -100.28486,
+        "orden": 58
+      },
+      {
+        "nombre": "Rosa 3062",
+        "lat": 25.70269,
+        "lng": -100.28245,
+        "orden": 59
+      }
+    ],
+    "moovit_url": "https://moovitapp.com/index/es-419/transporte_p%C3%BAblico-line-reg-Monterrey-3081-3778826-313851141-0"
+  },
+  {
+    "key": "regioruta_314894788",
+    "id_ruta": "REGIORUTA_G_314894788",
+    "nombre": "Regio Ruta G: Macroplaza - Sierra Ventana - San Ángel",
+    "tipo": "bus",
+    "ref": "REG",
+    "operator": "Regio Ruta",
+    "color": "#06b6d4",
+    "fuente": "Moovit (Regio Ruta) - lista pública de paradas",
+    "linea": [
+      [
+        25.666094,
+        -100.311045
+      ],
+      [
+        25.661531,
+        -100.308246
+      ],
+      [
+        25.661266,
+        -100.304233
+      ],
+      [
+        25.660722,
+        -100.301378
+      ],
+      [
+        25.66038,
+        -100.299487
+      ],
+      [
+        25.657524,
+        -100.296361
+      ],
+      [
+        25.656236,
+        -100.295626
+      ],
+      [
+        25.651884,
+        -100.29292
+      ],
+      [
+        25.647878,
+        -100.290393
+      ],
+      [
+        25.64559,
+        -100.288877
+      ],
+      [
+        25.643114,
+        -100.287296
+      ],
+      [
+        25.641363,
+        -100.286211
+      ],
+      [
+        25.639487,
+        -100.285116
+      ],
+      [
+        25.635812,
+        -100.28929
+      ],
+      [
+        25.632003,
+        -100.284867
+      ],
+      [
+        25.629417,
+        -100.28196
+      ],
+      [
+        25.627352,
+        -100.279561
+      ],
+      [
+        25.62709,
+        -100.278968
+      ],
+      [
+        25.625823,
+        -100.272003
+      ],
+      [
+        25.620983,
+        -100.268018
+      ],
+      [
+        25.619074,
+        -100.267687
+      ],
+      [
+        25.617033,
+        -100.267338
+      ],
+      [
+        25.617445,
+        -100.266114
+      ],
+      [
+        25.618964,
+        -100.267452
+      ],
+      [
+        25.620695,
+        -100.26786
+      ],
+      [
+        25.624919,
+        -100.271097
+      ],
+      [
+        25.627105,
+        -100.27609
+      ],
+      [
+        25.627036,
+        -100.277383
+      ],
+      [
+        25.632481,
+        -100.285146
+      ],
+      [
+        25.636298,
+        -100.289547
+      ],
+      [
+        25.638777,
+        -100.285036
+      ],
+      [
+        25.639976,
+        -100.284931
+      ],
+      [
+        25.642041,
+        -100.28634
+      ],
+      [
+        25.64432,
+        -100.287773
+      ],
+      [
+        25.647799,
+        -100.289875
+      ],
+      [
+        25.650988,
+        -100.291891
+      ],
+      [
+        25.65411,
+        -100.293903
+      ],
+      [
+        25.655545,
+        -100.29472
+      ],
+      [
+        25.656633,
+        -100.295412
+      ],
+      [
+        25.659083,
+        -100.296787
+      ],
+      [
+        25.661055,
+        -100.297038
+      ],
+      [
+        25.662382,
+        -100.297063
+      ],
+      [
+        25.665529,
+        -100.29715
+      ],
+      [
+        25.670409,
+        -100.298476
+      ],
+      [
+        25.671723,
+        -100.298291
+      ],
+      [
+        25.671293,
+        -100.298797
+      ],
+      [
+        25.666674,
+        -100.304441
+      ],
+      [
+        25.667171,
+        -100.307268
+      ]
+    ],
+    "paradas": [
+      {
+        "nombre": "Ignacio Zaragoza (Museo Metropolitano de Monterrey)",
+        "lat": 25.666094,
+        "lng": -100.311045,
+        "orden": 1
+      },
+      {
+        "nombre": "Morones Prieto (Coahuila - Baja California)",
+        "lat": 25.661531,
+        "lng": -100.308246,
+        "orden": 2
+      },
+      {
+        "nombre": "Ayutla (Michoacán - Hilario Martínez)",
+        "lat": 25.661266,
+        "lng": -100.304233,
+        "orden": 3
+      },
+      {
+        "nombre": "Ayutla (Sonora - Chiapas)",
+        "lat": 25.660722,
+        "lng": -100.301378,
+        "orden": 4
+      },
+      {
+        "nombre": "Ayutla (Tepic - Quintana Roo)",
+        "lat": 25.66038,
+        "lng": -100.299487,
+        "orden": 5
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Mallorca - Palestina)",
+        "lat": 25.657524,
+        "lng": -100.296361,
+        "orden": 6
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Palestina - 2 de Abril)",
+        "lat": 25.656236,
+        "lng": -100.295626,
+        "orden": 7
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Físicos - Estado)",
+        "lat": 25.651884,
+        "lng": -100.29292,
+        "orden": 8
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Bachilleres - Luis Elizondo)",
+        "lat": 25.647878,
+        "lng": -100.290393,
+        "orden": 9
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Buenos Aires - Rosario)",
+        "lat": 25.64559,
+        "lng": -100.288877,
+        "orden": 10
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Quito - Arroyo Seco)",
+        "lat": 25.643114,
+        "lng": -100.287296,
+        "orden": 11
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Sierra Papagayos - Sierra Fraile)",
+        "lat": 25.641363,
+        "lng": -100.286211,
+        "orden": 12
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Flor de Lis - Alfonso Reyes)",
+        "lat": 25.639487,
+        "lng": -100.285116,
+        "orden": 13
+      },
+      {
+        "nombre": "Antiguo Camino A Villa de Santiago 3505",
+        "lat": 25.635812,
+        "lng": -100.28929,
+        "orden": 14
+      },
+      {
+        "nombre": "Antiguo Camino A Villa de Santiago 3702",
+        "lat": 25.632003,
+        "lng": -100.284867,
+        "orden": 15
+      },
+      {
+        "nombre": "Antiguo Camino A Villa de Santiago 3953",
+        "lat": 25.629417,
+        "lng": -100.28196,
+        "orden": 16
+      },
+      {
+        "nombre": "Antiguo Camino A Villa de Santiago, 1029",
+        "lat": 25.627352,
+        "lng": -100.279561,
+        "orden": 17
+      },
+      {
+        "nombre": "Sendero Sur 1028",
+        "lat": 25.62709,
+        "lng": -100.278968,
+        "orden": 18
+      },
+      {
+        "nombre": "Abraham Lincoln (Colonia Contry La Silla)",
+        "lat": 25.625823,
+        "lng": -100.272003,
+        "orden": 19
+      },
+      {
+        "nombre": "San Ángel (Abraham Lincoln - Valle Hermoso)",
+        "lat": 25.620983,
+        "lng": -100.268018,
+        "orden": 20
+      },
+      {
+        "nombre": "San Ángel (Valle Alto - Valle Redondo)",
+        "lat": 25.619074,
+        "lng": -100.267687,
+        "orden": 21
+      },
+      {
+        "nombre": "San Ángel (Independencia - Valle Verde)",
+        "lat": 25.617033,
+        "lng": -100.267338,
+        "orden": 22
+      },
+      {
+        "nombre": "Adolfo López Mateos (Valle Verde - Segunda Privada Valle Verde)",
+        "lat": 25.617445,
+        "lng": -100.266114,
+        "orden": 23
+      },
+      {
+        "nombre": "Valle Redondo (Adolfo López Mateos - San Ángel)",
+        "lat": 25.618964,
+        "lng": -100.267452,
+        "orden": 24
+      },
+      {
+        "nombre": "San Ángel (Valle Alto - Valle Hermoso)",
+        "lat": 25.620695,
+        "lng": -100.26786,
+        "orden": 25
+      },
+      {
+        "nombre": "Abraham Lincoln (Paseo de Las Américas - Juan Gutenberg)",
+        "lat": 25.624919,
+        "lng": -100.271097,
+        "orden": 26
+      },
+      {
+        "nombre": "Sendero Sur (Revolución - Halley)",
+        "lat": 25.627105,
+        "lng": -100.27609,
+        "orden": 27
+      },
+      {
+        "nombre": "Sierra de La Marta 4164-S\"Vulcanizado",
+        "lat": 25.627036,
+        "lng": -100.277383,
+        "orden": 28
+      },
+      {
+        "nombre": "Antiguo Camino A Villa de Santiago 3700",
+        "lat": 25.632481,
+        "lng": -100.285146,
+        "orden": 29
+      },
+      {
+        "nombre": "Anillo Periferico",
+        "lat": 25.636298,
+        "lng": -100.289547,
+        "orden": 30
+      },
+      {
+        "nombre": "Alfonso Reyes (Plaza Regia)",
+        "lat": 25.638777,
+        "lng": -100.285036,
+        "orden": 31
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Plaza Contry)",
+        "lat": 25.639976,
+        "lng": -100.284931,
+        "orden": 32
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Plaza Urban Village)",
+        "lat": 25.642041,
+        "lng": -100.28634,
+        "orden": 33
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Hamburgo - Sevilla)",
+        "lat": 25.64432,
+        "lng": -100.287773,
+        "orden": 34
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Pabellón Tec)",
+        "lat": 25.647799,
+        "lng": -100.289875,
+        "orden": 35
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Tecnológico de Monterrey)",
+        "lat": 25.650988,
+        "lng": -100.291891,
+        "orden": 36
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Plaza Paseo Tec)",
+        "lat": 25.65411,
+        "lng": -100.293903,
+        "orden": 37
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Pirineos - 2 de Abril)",
+        "lat": 25.655545,
+        "lng": -100.29472,
+        "orden": 38
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Diagonal - Palestina)",
+        "lat": 25.656633,
+        "lng": -100.295412,
+        "orden": 39
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Atenas - Junco de La Vega)",
+        "lat": 25.659083,
+        "lng": -100.296787,
+        "orden": 40
+      },
+      {
+        "nombre": "Eugenio Garza Sada (Soriana Garza Sada)",
+        "lat": 25.661055,
+        "lng": -100.297038,
+        "orden": 41
+      },
+      {
+        "nombre": "Eugenio Garza Sada (José Alvarado - Pedro Martínez)",
+        "lat": 25.662382,
+        "lng": -100.297063,
+        "orden": 42
+      },
+      {
+        "nombre": "Eugenio Garza Sada (José María Morelos - Juventino Rosas)",
+        "lat": 25.665529,
+        "lng": -100.29715,
+        "orden": 43
+      },
+      {
+        "nombre": "Félix U. Gómez (Hospital de Ginecología)",
+        "lat": 25.670409,
+        "lng": -100.298476,
+        "orden": 44
+      },
+      {
+        "nombre": "Félix U. Gómez (Hospital General de Zona  No. 33)",
+        "lat": 25.671723,
+        "lng": -100.298291,
+        "orden": 45
+      },
+      {
+        "nombre": "Félix U. Gómez (Estación Santa Lucía)",
+        "lat": 25.671293,
+        "lng": -100.298797,
+        "orden": 46
+      },
+      {
+        "nombre": "Padre Mier - Francisco Naranjo",
+        "lat": 25.666674,
+        "lng": -100.304441,
+        "orden": 47
+      },
+      {
+        "nombre": "Padre Mier - Diego de Montemayor",
+        "lat": 25.667171,
+        "lng": -100.307268,
+        "orden": 48
+      }
+    ],
+    "moovit_url": "https://moovitapp.com/index/es-419/transporte_p%C3%BAblico-line-reg-Monterrey-3081-3778826-314894788-0"
+  },
+  {
+    "key": "regioruta_316116311",
+    "id_ruta": "REGIORUTA_G_316116311",
+    "nombre": "Regio Ruta G: Cedros - H. Universitario - Obispado",
+    "tipo": "bus",
+    "ref": "REG",
+    "operator": "Regio Ruta",
+    "color": "#06b6d4",
+    "fuente": "Moovit (Regio Ruta) - lista pública de paradas",
+    "linea": [
+      [
+        25.724897,
+        -100.374023
+      ],
+      [
+        25.723446,
+        -100.372539
+      ],
+      [
+        25.720106,
+        -100.37118
+      ],
+      [
+        25.71648,
+        -100.373078
+      ],
+      [
+        25.7146,
+        -100.373106
+      ],
+      [
+        25.71198,
+        -100.372476
+      ],
+      [
+        25.710261,
+        -100.370881
+      ],
+      [
+        25.708504,
+        -100.369262
+      ],
+      [
+        25.707975,
+        -100.3668
+      ],
+      [
+        25.706103,
+        -100.367081
+      ],
+      [
+        25.703624,
+        -100.364831
+      ],
+      [
+        25.70256,
+        -100.36387
+      ],
+      [
+        25.70092,
+        -100.361127
+      ],
+      [
+        25.700041,
+        -100.359099
+      ],
+      [
+        25.699285,
+        -100.357306
+      ],
+      [
+        25.697522,
+        -100.35724
+      ],
+      [
+        25.695777,
+        -100.357259
+      ],
+      [
+        25.69241,
+        -100.356011
+      ],
+      [
+        25.690959,
+        -100.354585
+      ],
+      [
+        25.689057,
+        -100.352704
+      ],
+      [
+        25.687812,
+        -100.34994
+      ],
+      [
+        25.687599,
+        -100.348233
+      ],
+      [
+        25.687308,
+        -100.345516
+      ],
+      [
+        25.68481,
+        -100.345132
+      ],
+      [
+        25.683282,
+        -100.34542
+      ],
+      [
+        25.681901,
+        -100.345673
+      ],
+      [
+        25.679822,
+        -100.346097
+      ],
+      [
+        25.682201,
+        -100.345385
+      ],
+      [
+        25.683784,
+        -100.345084
+      ],
+      [
+        25.686341,
+        -100.344784
+      ],
+      [
+        25.687637,
+        -100.346038
+      ],
+      [
+        25.687827,
+        -100.347799
+      ],
+      [
+        25.688083,
+        -100.350314
+      ],
+      [
+        25.689816,
+        -100.353312
+      ],
+      [
+        25.691228,
+        -100.354698
+      ],
+      [
+        25.694007,
+        -100.35646
+      ],
+      [
+        25.695476,
+        -100.35707
+      ],
+      [
+        25.698853,
+        -100.356645
+      ],
+      [
+        25.700117,
+        -100.359023
+      ],
+      [
+        25.700929,
+        -100.36091
+      ],
+      [
+        25.70266,
+        -100.363734
+      ],
+      [
+        25.705505,
+        -100.366278
+      ],
+      [
+        25.708726,
+        -100.366416
+      ],
+      [
+        25.708629,
+        -100.368689
+      ],
+      [
+        25.711916,
+        -100.372245
+      ],
+      [
+        25.71382,
+        -100.372999
+      ],
+      [
+        25.716699,
+        -100.372941
+      ],
+      [
+        25.722399,
+        -100.374113
+      ],
+      [
+        25.724503,
+        -100.374816
+      ],
+      [
+        25.725998,
+        -100.376225
+      ],
+      [
+        25.728351,
+        -100.378381
+      ],
+      [
+        25.726453,
+        -100.375449
+      ],
+      [
+        25.724897,
+        -100.374023
+      ]
+    ],
+    "paradas": [
+      {
+        "nombre": "Abedul (Almendra - Las Palmas)",
+        "lat": 25.724897,
+        "lng": -100.374023,
+        "orden": 1
+      },
+      {
+        "nombre": "San Juan de Los Lagos (Andador Del Recinto - Payande)",
+        "lat": 25.723446,
+        "lng": -100.372539,
+        "orden": 2
+      },
+      {
+        "nombre": "San Juan de Los Lagos (Ceiba - Juan José Hinojosa)",
+        "lat": 25.720106,
+        "lng": -100.37118,
+        "orden": 3
+      },
+      {
+        "nombre": "Zapopan (San José - Alerce)",
+        "lat": 25.71648,
+        "lng": -100.373078,
+        "orden": 4
+      },
+      {
+        "nombre": "Zapopan (Edificios Torres de Las Cumbres)",
+        "lat": 25.7146,
+        "lng": -100.373106,
+        "orden": 5
+      },
+      {
+        "nombre": "Burócratas (Lagos de Moreno - Paseo La Montaña)",
+        "lat": 25.71198,
+        "lng": -100.372476,
+        "orden": 6
+      },
+      {
+        "nombre": "Burócratas (Paseo La Montaña - Paso)",
+        "lat": 25.710261,
+        "lng": -100.370881,
+        "orden": 7
+      },
+      {
+        "nombre": "Burócratas (Paso - P.° de La Cordillera)",
+        "lat": 25.708504,
+        "lng": -100.369262,
+        "orden": 8
+      },
+      {
+        "nombre": "Estatuto Jurídico (Raúl Rangel Frías - Carlos de Velasco)",
+        "lat": 25.707975,
+        "lng": -100.3668,
+        "orden": 9
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Trigésima Segunda Avenida - Trigésima Avenida)",
+        "lat": 25.706103,
+        "lng": -100.367081,
+        "orden": 10
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Paseo de San Ángel - Paseo de Churubusco)",
+        "lat": 25.703624,
+        "lng": -100.364831,
+        "orden": 11
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Vigésima Avenida - Décima Octava Avenida)",
+        "lat": 25.70256,
+        "lng": -100.36387,
+        "orden": 12
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Paseo de Los Insurgentes - Décima Cuarta Avenida)",
+        "lat": 25.70092,
+        "lng": -100.361127,
+        "orden": 13
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Décima Avenida - Octava Avenida)",
+        "lat": 25.700041,
+        "lng": -100.359099,
+        "orden": 14
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Octava Avenida - Enrique C. Livas)",
+        "lat": 25.699285,
+        "lng": -100.357306,
+        "orden": 15
+      },
+      {
+        "nombre": "Enrique C. Livas (Novena Avenida - Paseo de Los Leones)",
+        "lat": 25.697522,
+        "lng": -100.35724,
+        "orden": 16
+      },
+      {
+        "nombre": "Enrique C. Livas (Séptima Avenida - Tercera Avenida)",
+        "lat": 25.695777,
+        "lng": -100.357259,
+        "orden": 17
+      },
+      {
+        "nombre": "Enrique C. Livas (Jamaica - Guayana Inglesa)",
+        "lat": 25.69241,
+        "lng": -100.356011,
+        "orden": 18
+      },
+      {
+        "nombre": "Enrique C. Livas (Canadá - Guayana Holandesa)",
+        "lat": 25.690959,
+        "lng": -100.354585,
+        "orden": 19
+      },
+      {
+        "nombre": "Enrique C. Livas (Paraguay - Argentina)",
+        "lat": 25.689057,
+        "lng": -100.352704,
+        "orden": 20
+      },
+      {
+        "nombre": "Francisco I. Madero (Gonzalitos - Venecia)",
+        "lat": 25.687812,
+        "lng": -100.34994,
+        "orden": 21
+      },
+      {
+        "nombre": "Francisco I. Madero (Rotonda de Francisco I. Madero)",
+        "lat": 25.687599,
+        "lng": -100.348233,
+        "orden": 22
+      },
+      {
+        "nombre": "Francisco I. Madero (Guadalajara - Simón Bolívar)",
+        "lat": 25.687308,
+        "lng": -100.345516,
+        "orden": 23
+      },
+      {
+        "nombre": "Simón Bolívar (Guadalajara - Pablo González Garza)",
+        "lat": 25.68481,
+        "lng": -100.345132,
+        "orden": 24
+      },
+      {
+        "nombre": "Simón Bolívar (Pablo González Garza - Joseph A. Robertson)",
+        "lat": 25.683282,
+        "lng": -100.34542,
+        "orden": 25
+      },
+      {
+        "nombre": "Simón Bolívar (Daniel Zambrano - Ángel Martínez Villarreal)",
+        "lat": 25.681901,
+        "lng": -100.345673,
+        "orden": 26
+      },
+      {
+        "nombre": "Avenida Simón Bolívar 624",
+        "lat": 25.679822,
+        "lng": -100.346097,
+        "orden": 27
+      },
+      {
+        "nombre": "Simón Bolívar (Ángel Martínez Villarreal - Daniel Zambrano)",
+        "lat": 25.682201,
+        "lng": -100.345385,
+        "orden": 28
+      },
+      {
+        "nombre": "Simón Bolívar (Joseph A. Robertson - Pablo González Garza)",
+        "lat": 25.683784,
+        "lng": -100.345084,
+        "orden": 29
+      },
+      {
+        "nombre": "Simón Bolívar (Pablo González Garza - Sayula)",
+        "lat": 25.686341,
+        "lng": -100.344784,
+        "orden": 30
+      },
+      {
+        "nombre": "Francisco I. Madero (Simón Bolívar - Eduardo Aguirre Pequeño)",
+        "lat": 25.687637,
+        "lng": -100.346038,
+        "orden": 31
+      },
+      {
+        "nombre": "Francisco I. Madero (Facultad de Medicina)",
+        "lat": 25.687827,
+        "lng": -100.347799,
+        "orden": 32
+      },
+      {
+        "nombre": "Francisco I. Madero (Hospital Universitario)",
+        "lat": 25.688083,
+        "lng": -100.350314,
+        "orden": 33
+      },
+      {
+        "nombre": "Enrique C. Livas (Guatemala - Costa Rica)",
+        "lat": 25.689816,
+        "lng": -100.353312,
+        "orden": 34
+      },
+      {
+        "nombre": "Enrique C. Livas (Guayana Holandesa - Canadá)",
+        "lat": 25.691228,
+        "lng": -100.354698,
+        "orden": 35
+      },
+      {
+        "nombre": "Enrique C. Livas (Estados Unidos - Terranova)",
+        "lat": 25.694007,
+        "lng": -100.35646,
+        "orden": 36
+      },
+      {
+        "nombre": "Enrique C. Livas (Tercera Avenida - Quinta Avenida)",
+        "lat": 25.695476,
+        "lng": -100.35707,
+        "orden": 37
+      },
+      {
+        "nombre": "Enrique C. Livas (Undécima Avenida - Lázaro Cárdenas)",
+        "lat": 25.698853,
+        "lng": -100.356645,
+        "orden": 38
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Mina - Ocampo)",
+        "lat": 25.700117,
+        "lng": -100.359023,
+        "orden": 39
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Guerrero - Galeana)",
+        "lat": 25.700929,
+        "lng": -100.36091,
+        "orden": 40
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Josefa Ortiz de Dom. - Josefa Ortiz de Dom.)",
+        "lat": 25.70266,
+        "lng": -100.363734,
+        "orden": 41
+      },
+      {
+        "nombre": "Lázaro Cárdenas (Andador 19 - Adolfo López Mateos)",
+        "lat": 25.705505,
+        "lng": -100.366278,
+        "orden": 42
+      },
+      {
+        "nombre": "Estatuto Jurídico (Carlos de Velasco - Gobernadores)",
+        "lat": 25.708726,
+        "lng": -100.366416,
+        "orden": 43
+      },
+      {
+        "nombre": "Gobernadores (Manuel Santa María - Arturo B. de La Garza)",
+        "lat": 25.708629,
+        "lng": -100.368689,
+        "orden": 44
+      },
+      {
+        "nombre": "Burócratas (Joaquín García - Manuel Gómez Castro)",
+        "lat": 25.711916,
+        "lng": -100.372245,
+        "orden": 45
+      },
+      {
+        "nombre": "Zapopan (Los Altos - Ocotlán)",
+        "lat": 25.71382,
+        "lng": -100.372999,
+        "orden": 46
+      },
+      {
+        "nombre": "Zapopan (Alerce - San José)",
+        "lat": 25.716699,
+        "lng": -100.372941,
+        "orden": 47
+      },
+      {
+        "nombre": "Zapopan (Haya - Ombú)",
+        "lat": 25.722399,
+        "lng": -100.374113,
+        "orden": 48
+      },
+      {
+        "nombre": "Zapopan (Andador Del Imán - Las Palmas)",
+        "lat": 25.724503,
+        "lng": -100.374816,
+        "orden": 49
+      },
+      {
+        "nombre": "Zapopan (Almendra - Chopo)",
+        "lat": 25.725998,
+        "lng": -100.376225,
+        "orden": 50
+      },
+      {
+        "nombre": "Zapopan (Olmo - Nogal)",
+        "lat": 25.728351,
+        "lng": -100.378381,
+        "orden": 51
+      },
+      {
+        "nombre": "Abedul (Sabino - Chopo)",
+        "lat": 25.726453,
+        "lng": -100.375449,
+        "orden": 52
+      },
+      {
+        "nombre": "Abedul (Almendra - Las Palmas)",
+        "lat": 25.724897,
+        "lng": -100.374023,
+        "orden": 53
+      }
+    ],
+    "moovit_url": "https://moovitapp.com/index/es-419/transporte_p%C3%BAblico-line-reg-Monterrey-3081-3778826-316116311-0"
+  },
+  {
+    "key": "regioruta_322052054",
+    "id_ruta": "REGIORUTA_B_322052054",
+    "nombre": "Regio Ruta B: La Alianza - Talleres - Valle Verde",
+    "tipo": "bus",
+    "ref": "REG",
+    "operator": "Regio Ruta",
+    "color": "#f59e0b",
+    "fuente": "Moovit (Regio Ruta) - lista pública de paradas",
+    "linea": [
+      [
+        25.784932,
+        -100.387774
+      ],
+      [
+        25.784923,
+        -100.39251
+      ],
+      [
+        25.786501,
+        -100.395869
+      ],
+      [
+        25.787644,
+        -100.398571
+      ],
+      [
+        25.787748,
+        -100.401782
+      ],
+      [
+        25.788025,
+        -100.404862
+      ],
+      [
+        25.787815,
+        -100.407455
+      ],
+      [
+        25.786524,
+        -100.411017
+      ],
+      [
+        25.784952,
+        -100.411064
+      ],
+      [
+        25.780923,
+        -100.412237
+      ],
+      [
+        25.779105,
+        -100.413022
+      ],
+      [
+        25.77725,
+        -100.413909
+      ],
+      [
+        25.776297,
+        -100.409845
+      ],
+      [
+        25.774861,
+        -100.407808
+      ],
+      [
+        25.773783,
+        -100.406034
+      ],
+      [
+        25.776832,
+        -100.403665
+      ],
+      [
+        25.77868,
+        -100.40247
+      ],
+      [
+        25.78123,
+        -100.40085
+      ],
+      [
+        25.782955,
+        -100.399709
+      ],
+      [
+        25.785447,
+        -100.398146
+      ],
+      [
+        25.786563,
+        -100.396174
+      ],
+      [
+        25.78536,
+        -100.394462
+      ],
+      [
+        25.785158,
+        -100.390899
+      ],
+      [
+        25.784786,
+        -100.387155
+      ],
+      [
+        25.783113,
+        -100.386456
+      ],
+      [
+        25.781134,
+        -100.386266
+      ],
+      [
+        25.779486,
+        -100.386307
+      ],
+      [
+        25.777233,
+        -100.384748
+      ],
+      [
+        25.776267,
+        -100.383419
+      ],
+      [
+        25.774401,
+        -100.381182
+      ],
+      [
+        25.77197,
+        -100.379122
+      ],
+      [
+        25.770392,
+        -100.37792
+      ],
+      [
+        25.768855,
+        -100.378885
+      ],
+      [
+        25.76684,
+        -100.38161
+      ],
+      [
+        25.767748,
+        -100.382991
+      ],
+      [
+        25.768634,
+        -100.384187
+      ],
+      [
+        25.765463,
+        -100.384011
+      ],
+      [
+        25.762053,
+        -100.38314
+      ],
+      [
+        25.763086,
+        -100.38042
+      ],
+      [
+        25.76429,
+        -100.378051
+      ],
+      [
+        25.763932,
+        -100.374796
+      ],
+      [
+        25.762722,
+        -100.372404
+      ],
+      [
+        25.761176,
+        -100.370189
+      ],
+      [
+        25.759816,
+        -100.369226
+      ],
+      [
+        25.758508,
+        -100.371405
+      ],
+      [
+        25.757295,
+        -100.373338
+      ],
+      [
+        25.756299,
+        -100.374958
+      ],
+      [
+        25.755478,
+        -100.377071
+      ],
+      [
+        25.754724,
+        -100.379026
+      ],
+      [
+        25.754376,
+        -100.38125
+      ],
+      [
+        25.752382,
+        -100.382094
+      ],
+      [
+        25.749791,
+        -100.384637
+      ],
+      [
+        25.750117,
+        -100.387117
+      ],
+      [
+        25.751754,
+        -100.389335
+      ],
+      [
+        25.75343,
+        -100.391608
+      ],
+      [
+        25.753607,
+        -100.393306
+      ],
+      [
+        25.752331,
+        -100.392551
+      ],
+      [
+        25.748927,
+        -100.390033
+      ],
+      [
+        25.746793,
+        -100.388697
+      ],
+      [
+        25.74473,
+        -100.39055
+      ],
+      [
+        25.743654,
+        -100.39194
+      ],
+      [
+        25.742199,
+        -100.393323
+      ],
+      [
+        25.739929,
+        -100.39532
+      ],
+      [
+        25.735522,
+        -100.398465
+      ],
+      [
+        25.734337,
+        -100.395781
+      ],
+      [
+        25.735978,
+        -100.394461
+      ],
+      [
+        25.736414,
+        -100.39253
+      ],
+      [
+        25.735054,
+        -100.390643
+      ],
+      [
+        25.734305,
+        -100.388691
+      ],
+      [
+        25.733087,
+        -100.387146
+      ],
+      [
+        25.735162,
+        -100.384866
+      ],
+      [
+        25.732992,
+        -100.382147
+      ],
+      [
+        25.730761,
+        -100.380064
+      ],
+      [
+        25.72942,
+        -100.378313
+      ],
+      [
+        25.730057,
+        -100.376529
+      ],
+      [
+        25.731919,
+        -100.374224
+      ],
+      [
+        25.730721,
+        -100.371206
+      ],
+      [
+        25.733586,
+        -100.3732
+      ],
+      [
+        25.735925,
+        -100.37527
+      ],
+      [
+        25.73851,
+        -100.37761
+      ],
+      [
+        25.74059,
+        -100.379435
+      ],
+      [
+        25.745228,
+        -100.383562
+      ],
+      [
+        25.748991,
+        -100.386774
+      ],
+      [
+        25.74949,
+        -100.384789
+      ],
+      [
+        25.751051,
+        -100.383362
+      ],
+      [
+        25.752104,
+        -100.382115
+      ],
+      [
+        25.754103,
+        -100.381313
+      ],
+      [
+        25.755238,
+        -100.380133
+      ],
+      [
+        25.755922,
+        -100.378292
+      ],
+      [
+        25.756172,
+        -100.375043
+      ],
+      [
+        25.757171,
+        -100.373377
+      ],
+      [
+        25.758275,
+        -100.371621
+      ],
+      [
+        25.76024,
+        -100.369233
+      ],
+      [
+        25.761714,
+        -100.370386
+      ],
+      [
+        25.76267,
+        -100.371842
+      ],
+      [
+        25.76395,
+        -100.374382
+      ],
+      [
+        25.764353,
+        -100.378521
+      ],
+      [
+        25.763584,
+        -100.380056
+      ],
+      [
+        25.76203,
+        -100.382563
+      ],
+      [
+        25.763047,
+        -100.383323
+      ],
+      [
+        25.765228,
+        -100.383852
+      ],
+      [
+        25.768015,
+        -100.384689
+      ],
+      [
+        25.767841,
+        -100.383234
+      ],
+      [
+        25.766759,
+        -100.381909
+      ],
+      [
+        25.768578,
+        -100.379096
+      ],
+      [
+        25.770477,
+        -100.377868
+      ],
+      [
+        25.77205,
+        -100.379071
+      ],
+      [
+        25.773668,
+        -100.380435
+      ],
+      [
+        25.776088,
+        -100.382766
+      ],
+      [
+        25.777094,
+        -100.384124
+      ],
+      [
+        25.778045,
+        -100.38545
+      ],
+      [
+        25.780992,
+        -100.386009
+      ],
+      [
+        25.782425,
+        -100.3861
+      ],
+      [
+        25.784932,
+        -100.387774
+      ]
+    ],
+    "paradas": [
+      {
+        "nombre": "Ocaso (Preparatoria Pablo Livas)",
+        "lat": 25.784932,
+        "lng": -100.387774,
+        "orden": 1
+      },
+      {
+        "nombre": "Ocaso (Camino de La Pradera - Canal Medular)",
+        "lat": 25.784923,
+        "lng": -100.39251,
+        "orden": 2
+      },
+      {
+        "nombre": "Ocaso (Parque Nevado - Parque Quetzalli)",
+        "lat": 25.786501,
+        "lng": -100.395869,
+        "orden": 3
+      },
+      {
+        "nombre": "Portal de Los Valles (Arboledas - Colorado)",
+        "lat": 25.787644,
+        "lng": -100.398571,
+        "orden": 4
+      },
+      {
+        "nombre": "Portal de Los Valles (Ortopedistas - Ginecologistas)",
+        "lat": 25.787748,
+        "lng": -100.401782,
+        "orden": 5
+      },
+      {
+        "nombre": "Portal de Los Valles (Privadas Del Sur - Bacteriólogos)",
+        "lat": 25.788025,
+        "lng": -100.404862,
+        "orden": 6
+      },
+      {
+        "nombre": "Portal de Los Valles (Antiguos Ejidatarios - Álvaro Reyes)",
+        "lat": 25.787815,
+        "lng": -100.407455,
+        "orden": 7
+      },
+      {
+        "nombre": "San Bernabé (Guayabo - Dibujantes)",
+        "lat": 25.786524,
+        "lng": -100.411017,
+        "orden": 8
+      },
+      {
+        "nombre": "San Bernabé (Dibujantes - Mezquite)",
+        "lat": 25.784952,
+        "lng": -100.411064,
+        "orden": 9
+      },
+      {
+        "nombre": "San Bernabé (Parque Villas de San Sebastián)",
+        "lat": 25.780923,
+        "lng": -100.412237,
+        "orden": 10
+      },
+      {
+        "nombre": "San Bernabé (Agrónomos - Licenciados)",
+        "lat": 25.779105,
+        "lng": -100.413022,
+        "orden": 11
+      },
+      {
+        "nombre": "San Bernabé (Obreros - Ebanistas)",
+        "lat": 25.77725,
+        "lng": -100.413909,
+        "orden": 12
+      },
+      {
+        "nombre": "Colorines (Álamo - Antiguos Ejidatarios)",
+        "lat": 25.776297,
+        "lng": -100.409845,
+        "orden": 13
+      },
+      {
+        "nombre": "Tramoyistas (Antiguos Ejidatarios - Luna)",
+        "lat": 25.774861,
+        "lng": -100.407808,
+        "orden": 14
+      },
+      {
+        "nombre": "Tramoyistas (Doctores - Camino Del Pastizal)",
+        "lat": 25.773783,
+        "lng": -100.406034,
+        "orden": 15
+      },
+      {
+        "nombre": "Camino Del Pastizal (Plaza Obreros - Campo)",
+        "lat": 25.776832,
+        "lng": -100.403665,
+        "orden": 16
+      },
+      {
+        "nombre": "Camino Del Pastizal (Nogal - Roble)",
+        "lat": 25.77868,
+        "lng": -100.40247,
+        "orden": 17
+      },
+      {
+        "nombre": "Camino Del Pastizal (Eucalipto - Cabezada)",
+        "lat": 25.78123,
+        "lng": -100.40085,
+        "orden": 18
+      },
+      {
+        "nombre": "Camino Del Pastizal (Parque Tepehuaje - Parque Tarahumara)",
+        "lat": 25.782955,
+        "lng": -100.399709,
+        "orden": 19
+      },
+      {
+        "nombre": "Camino Del Pastizal (Parque Cora - Parque Tlacota)",
+        "lat": 25.785447,
+        "lng": -100.398146,
+        "orden": 20
+      },
+      {
+        "nombre": "Ocaso (Camino Del Pastizal - Parque Quetzalli)",
+        "lat": 25.786563,
+        "lng": -100.396174,
+        "orden": 21
+      },
+      {
+        "nombre": "Ocaso (Parque El Sabinal - Astros)",
+        "lat": 25.78536,
+        "lng": -100.394462,
+        "orden": 22
+      },
+      {
+        "nombre": "Ocaso (Bajío - Camino de La Pradera)",
+        "lat": 25.785158,
+        "lng": -100.390899,
+        "orden": 23
+      },
+      {
+        "nombre": "Ocaso (Nitrógeno - Luis Donaldo Colosio)",
+        "lat": 25.784786,
+        "lng": -100.387155,
+        "orden": 24
+      },
+      {
+        "nombre": "Luis Donaldo Colosio (Ocaso - Niobio)",
+        "lat": 25.783113,
+        "lng": -100.386456,
+        "orden": 25
+      },
+      {
+        "nombre": "Luis Donaldo Colosio (Niobio - Antimonio)",
+        "lat": 25.781134,
+        "lng": -100.386266,
+        "orden": 26
+      },
+      {
+        "nombre": "Luis Donaldo Colosio (Bodega Aurrera Solidaridad)",
+        "lat": 25.779486,
+        "lng": -100.386307,
+        "orden": 27
+      },
+      {
+        "nombre": "Cabezada (S-Mart Solidaridad)",
+        "lat": 25.777233,
+        "lng": -100.384748,
+        "orden": 28
+      },
+      {
+        "nombre": "Cabezada (Plaza Paseo La Quinta)",
+        "lat": 25.776267,
+        "lng": -100.383419,
+        "orden": 29
+      },
+      {
+        "nombre": "Cabezada (Calle J - Plumbago)",
+        "lat": 25.774401,
+        "lng": -100.381182,
+        "orden": 30
+      },
+      {
+        "nombre": "Cabezada (Marco - Caveto)",
+        "lat": 25.77197,
+        "lng": -100.379122,
+        "orden": 31
+      },
+      {
+        "nombre": "Cabezada (Caveto - Lumbreras)",
+        "lat": 25.770392,
+        "lng": -100.37792,
+        "orden": 32
+      },
+      {
+        "nombre": "Drosera (Montante - Cornisa)",
+        "lat": 25.768855,
+        "lng": -100.378885,
+        "orden": 33
+      },
+      {
+        "nombre": "Drosera (La Bica - Tejado)",
+        "lat": 25.76684,
+        "lng": -100.38161,
+        "orden": 34
+      },
+      {
+        "nombre": "Tejado (Tragaluz - Heno)",
+        "lat": 25.767748,
+        "lng": -100.382991,
+        "orden": 35
+      },
+      {
+        "nombre": "Tejado (Heno - Nepenta)",
+        "lat": 25.768634,
+        "lng": -100.384187,
+        "orden": 36
+      },
+      {
+        "nombre": "Farolillo (Acónito - Drosera)",
+        "lat": 25.765463,
+        "lng": -100.384011,
+        "orden": 37
+      },
+      {
+        "nombre": "Farolillo (Nelumbio - Aztlán)",
+        "lat": 25.762053,
+        "lng": -100.38314,
+        "orden": 38
+      },
+      {
+        "nombre": "Aztlán (Alboquerón - Heliotropo)",
+        "lat": 25.763086,
+        "lng": -100.38042,
+        "orden": 39
+      },
+      {
+        "nombre": "Aztlán (Las Rocas - Balanza)",
+        "lat": 25.76429,
+        "lng": -100.378051,
+        "orden": 40
+      },
+      {
+        "nombre": "Aztlán (Cabezada - Bombardeen)",
+        "lat": 25.763932,
+        "lng": -100.374796,
+        "orden": 41
+      },
+      {
+        "nombre": "Aztlán (Balanza - Huerta)",
+        "lat": 25.762722,
+        "lng": -100.372404,
+        "orden": 42
+      },
+      {
+        "nombre": "Aztlán (Piñones - Avellanas)",
+        "lat": 25.761176,
+        "lng": -100.370189,
+        "orden": 43
+      },
+      {
+        "nombre": "Aztlán (Avellanas - Esquisto)",
+        "lat": 25.759816,
+        "lng": -100.369226,
+        "orden": 44
+      },
+      {
+        "nombre": "Esquisto (Jícamas - Cocos)",
+        "lat": 25.758508,
+        "lng": -100.371405,
+        "orden": 45
+      },
+      {
+        "nombre": "Esquisto (Guayabas - Ciruelas)",
+        "lat": 25.757295,
+        "lng": -100.373338,
+        "orden": 46
+      },
+      {
+        "nombre": "Esquisto (Ciruelas - Monte Negro)",
+        "lat": 25.756299,
+        "lng": -100.374958,
+        "orden": 47
+      },
+      {
+        "nombre": "Esquisto (Ágata - Las Rocas)",
+        "lat": 25.755478,
+        "lng": -100.377071,
+        "orden": 48
+      },
+      {
+        "nombre": "Esquisto (Las Rocas - Alabastro)",
+        "lat": 25.754724,
+        "lng": -100.379026,
+        "orden": 49
+      },
+      {
+        "nombre": "Mármol (Truchas - Tiburón)",
+        "lat": 25.754376,
+        "lng": -100.38125,
+        "orden": 50
+      },
+      {
+        "nombre": "Mármol (Róbalo - Anguila)",
+        "lat": 25.752382,
+        "lng": -100.382094,
+        "orden": 51
+      },
+      {
+        "nombre": "Celso Cepeda (Banco de Fomento - Decreto Presidencial)",
+        "lat": 25.749791,
+        "lng": -100.384637,
+        "orden": 52
+      },
+      {
+        "nombre": "Ejército Nacional (8 de Agosto - Ley de Ref. Agraria)",
+        "lat": 25.750117,
+        "lng": -100.387117,
+        "orden": 53
+      },
+      {
+        "nombre": "Ejército Nacional (Part. Nal. Revoluc. - División Del Sur)",
+        "lat": 25.751754,
+        "lng": -100.389335,
+        "orden": 54
+      },
+      {
+        "nombre": "Ejército Nacional (Elías Calles Prad. - Campesinos Del Norte)",
+        "lat": 25.75343,
+        "lng": -100.391608,
+        "orden": 55
+      },
+      {
+        "nombre": "Aztlán (Mina Voladora - Abraham Lincoln)",
+        "lat": 25.753607,
+        "lng": -100.393306,
+        "orden": 56
+      },
+      {
+        "nombre": "Abraham Lincoln (Estación Plutarco Elías Calles)",
+        "lat": 25.752331,
+        "lng": -100.392551,
+        "orden": 57
+      },
+      {
+        "nombre": "Adolfo Ruiz Cortines (Abraham Lincoln - Ruiz Cortines)",
+        "lat": 25.748927,
+        "lng": -100.390033,
+        "orden": 58
+      },
+      {
+        "nombre": "Av. Ruiz Cortines-Av. Pedro Infante",
+        "lat": 25.746793,
+        "lng": -100.388697,
+        "orden": 59
+      },
+      {
+        "nombre": "Pedro Infante (Mario Moreno - Ciudad Teruel)",
+        "lat": 25.74473,
+        "lng": -100.39055,
+        "orden": 60
+      },
+      {
+        "nombre": "Pedro Infante (Hualahuises - Agualeguas)",
+        "lat": 25.743654,
+        "lng": -100.39194,
+        "orden": 61
+      },
+      {
+        "nombre": "Pedro Infante (Agualeguas - Ciudad de Palencia)",
+        "lat": 25.742199,
+        "lng": -100.393323,
+        "orden": 62
+      },
+      {
+        "nombre": "Pedro Infante (Ciudad de Olvera - Ciudad de Pamplona)",
+        "lat": 25.739929,
+        "lng": -100.39532,
+        "orden": 63
+      },
+      {
+        "nombre": "Pedro Infante (Ciudad San Sebastián - Alejandro de Rodas)",
+        "lat": 25.735522,
+        "lng": -100.398465,
+        "orden": 64
+      },
+      {
+        "nombre": "Hacienda La Soledad (Hacienda San Jacinto - Hacienda Chocolate)",
+        "lat": 25.734337,
+        "lng": -100.395781,
+        "orden": 65
+      },
+      {
+        "nombre": "Hacienda La Soledad (Hacienda Del Rebozo - Hacienda Santa Lucía)",
+        "lat": 25.735978,
+        "lng": -100.394461,
+        "orden": 66
+      },
+      {
+        "nombre": "Hacienda El Refugio (Hacienda La Soledad - Hacienda Sta. Martha)",
+        "lat": 25.736414,
+        "lng": -100.39253,
+        "orden": 67
+      },
+      {
+        "nombre": "Hacienda El Refugio (Hacienda San Martín - Hacienda San Nicolás)",
+        "lat": 25.735054,
+        "lng": -100.390643,
+        "orden": 68
+      },
+      {
+        "nombre": "Hacienda El Refugio (Hacienda San Andrés - Hacienda El Molino)",
+        "lat": 25.734305,
+        "lng": -100.388691,
+        "orden": 69
+      },
+      {
+        "nombre": "Hacienda El Molino (Parque Hacienda Mitras)",
+        "lat": 25.733087,
+        "lng": -100.387146,
+        "orden": 70
+      },
+      {
+        "nombre": "Seguridad Social (Criptón - Comisión Tripartita)",
+        "lat": 25.735162,
+        "lng": -100.384866,
+        "orden": 71
+      },
+      {
+        "nombre": "Comisión Tripartita (Titanio - Uranio)",
+        "lat": 25.732992,
+        "lng": -100.382147,
+        "orden": 72
+      },
+      {
+        "nombre": "Abedul (Yacasta - Oreste)",
+        "lat": 25.730761,
+        "lng": -100.380064,
+        "orden": 73
+      },
+      {
+        "nombre": "Abedul (Menelao - Coéforas)",
+        "lat": 25.72942,
+        "lng": -100.378313,
+        "orden": 74
+      },
+      {
+        "nombre": "Nogal (Azalea - Azucena)",
+        "lat": 25.730057,
+        "lng": -100.376529,
+        "orden": 75
+      },
+      {
+        "nombre": "Nogal (Huizache - Adolfo Ruíz Cortines)",
+        "lat": 25.731919,
+        "lng": -100.374224,
+        "orden": 76
+      },
+      {
+        "nombre": "Pingüino (Adolfo Ruiz Cortines - Abraham Lincoln)",
+        "lat": 25.730721,
+        "lng": -100.371206,
+        "orden": 77
+      },
+      {
+        "nombre": "Abraham Lincoln (Estación Valle Verde)",
+        "lat": 25.733586,
+        "lng": -100.3732,
+        "orden": 78
+      },
+      {
+        "nombre": "Abraham Lincoln (Cerceta - Pelícano)",
+        "lat": 25.735925,
+        "lng": -100.37527,
+        "orden": 79
+      },
+      {
+        "nombre": "Abraham Lincoln (Estación Cardenal)",
+        "lat": 25.73851,
+        "lng": -100.37761,
+        "orden": 80
+      },
+      {
+        "nombre": "Abraham Lincoln (Valeriana - Agua Turma)",
+        "lat": 25.74059,
+        "lng": -100.379435,
+        "orden": 81
+      },
+      {
+        "nombre": "Abraham Lincoln (Panteón Municipal Valle Verde)",
+        "lat": 25.745228,
+        "lng": -100.383562,
+        "orden": 82
+      },
+      {
+        "nombre": "Código Agrario (Abraham Lincoln - Mina Voladora)",
+        "lat": 25.748991,
+        "lng": -100.386774,
+        "orden": 83
+      },
+      {
+        "nombre": "Calle Celso Cepeda 5135",
+        "lat": 25.74949,
+        "lng": -100.384789,
+        "orden": 84
+      },
+      {
+        "nombre": "Calle Celso Cepeda",
+        "lat": 25.751051,
+        "lng": -100.383362,
+        "orden": 85
+      },
+      {
+        "nombre": "Pez Tambor 6639",
+        "lat": 25.752104,
+        "lng": -100.382115,
+        "orden": 86
+      },
+      {
+        "nombre": "No Reelección (Ballena - Pez Tambor)",
+        "lat": 25.754103,
+        "lng": -100.381313,
+        "orden": 87
+      },
+      {
+        "nombre": "Arcilla X Marmol",
+        "lat": 25.755238,
+        "lng": -100.380133,
+        "orden": 88
+      },
+      {
+        "nombre": "Mármol (Alabastro - Las Rocas)",
+        "lat": 25.755922,
+        "lng": -100.378292,
+        "orden": 89
+      },
+      {
+        "nombre": "Esquisto-Monte Negro",
+        "lat": 25.756172,
+        "lng": -100.375043,
+        "orden": 90
+      },
+      {
+        "nombre": "Melones-Melones",
+        "lat": 25.757171,
+        "lng": -100.373377,
+        "orden": 91
+      },
+      {
+        "nombre": "Esquisto-Plátanos",
+        "lat": 25.758275,
+        "lng": -100.371621,
+        "orden": 92
+      },
+      {
+        "nombre": "Av. Aztlán Sur - Nte-Pasando Esquisto",
+        "lat": 25.76024,
+        "lng": -100.369233,
+        "orden": 93
+      },
+      {
+        "nombre": "Av. Aztlán Sur - Nte-Frente A Piñones",
+        "lat": 25.761714,
+        "lng": -100.370386,
+        "orden": 94
+      },
+      {
+        "nombre": "Av. Aztlán-Apolo",
+        "lat": 25.76267,
+        "lng": -100.371842,
+        "orden": 95
+      },
+      {
+        "nombre": "Av. Solidaridad-Frente A Bombardeen",
+        "lat": 25.76395,
+        "lng": -100.374382,
+        "orden": 96
+      },
+      {
+        "nombre": "Av. Aztlán-Basamento",
+        "lat": 25.764353,
+        "lng": -100.378521,
+        "orden": 97
+      },
+      {
+        "nombre": "Av. Aztlán-Heliotropo",
+        "lat": 25.763584,
+        "lng": -100.380056,
+        "orden": 98
+      },
+      {
+        "nombre": "Calle Avenida Aztlán 677",
+        "lat": 25.76203,
+        "lng": -100.382563,
+        "orden": 99
+      },
+      {
+        "nombre": "Farolillo (Ravenala - Brezo)",
+        "lat": 25.763047,
+        "lng": -100.383323,
+        "orden": 100
+      },
+      {
+        "nombre": "Farolillo (Badián - Alboquerón)",
+        "lat": 25.765228,
+        "lng": -100.383852,
+        "orden": 101
+      },
+      {
+        "nombre": "Farolillo (Rafia - Nepenta)",
+        "lat": 25.768015,
+        "lng": -100.384689,
+        "orden": 102
+      },
+      {
+        "nombre": "Heno 533",
+        "lat": 25.767841,
+        "lng": -100.383234,
+        "orden": 103
+      },
+      {
+        "nombre": "Heno 515",
+        "lat": 25.766759,
+        "lng": -100.381909,
+        "orden": 104
+      },
+      {
+        "nombre": "La Bica 9618",
+        "lat": 25.768578,
+        "lng": -100.379096,
+        "orden": 105
+      },
+      {
+        "nombre": "Av. Cabezada-Lumbrera",
+        "lat": 25.770477,
+        "lng": -100.377868,
+        "orden": 106
+      },
+      {
+        "nombre": "Cabezada (Caveto - Marco)",
+        "lat": 25.77205,
+        "lng": -100.379071,
+        "orden": 107
+      },
+      {
+        "nombre": "Av. Cabezada-Nepenta",
+        "lat": 25.773668,
+        "lng": -100.380435,
+        "orden": 108
+      },
+      {
+        "nombre": "Av. Cabezada-Pasando Cempoala",
+        "lat": 25.776088,
+        "lng": -100.382766,
+        "orden": 109
+      },
+      {
+        "nombre": "Cabezada (Cempoala - Palmín)",
+        "lat": 25.777094,
+        "lng": -100.384124,
+        "orden": 110
+      },
+      {
+        "nombre": "Cabezada (Rutherford - Luis Donaldo Colosio)",
+        "lat": 25.778045,
+        "lng": -100.38545,
+        "orden": 111
+      },
+      {
+        "nombre": "Luis Donaldo Colosio (Zepelín - Orto)",
+        "lat": 25.780992,
+        "lng": -100.386009,
+        "orden": 112
+      },
+      {
+        "nombre": "Luis Donaldo Colosio (Orto - Inventi)",
+        "lat": 25.782425,
+        "lng": -100.3861,
+        "orden": 113
+      },
+      {
+        "nombre": "Ocaso (Preparatoria Pablo Livas)",
+        "lat": 25.784932,
+        "lng": -100.387774,
+        "orden": 114
+      }
+    ],
+    "moovit_url": "https://moovitapp.com/index/es-419/transporte_p%C3%BAblico-line-reg-Monterrey-3081-3778826-322052054-0"
+  }
+]

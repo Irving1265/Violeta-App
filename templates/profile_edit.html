@@ -1,0 +1,272 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="edit-profile-container">
+  <div class="edit-profile-card">
+    <h2 class="text-center mb-4 fw-bold" style="color: var(--text-main);">Editar Perfil</h2>
+
+    {% if error %}
+    <div class="alert alert-danger" role="alert">
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <form id="editForm" action="{{ url_for('edit_profile') }}" method="post" enctype="multipart/form-data" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" id="profile_pic_data" name="profile_pic_data" value="">
+
+      <!-- Avatar Uploader -->
+      <div class="avatar-uploader" id="avatarUploader">
+        <img id="avatarPreview"
+          src="{{ url_for('uploaded_file', filename=user.profile_pic) if user.profile_pic and user.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
+          alt="Foto de perfil"
+          onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
+        <div class="avatar-overlay">
+          <i class="fa-solid fa-camera"></i>
+        </div>
+        <input class="d-none" type="file" name="profile_pic" id="profile_pic" accept="image/*">
+      </div>
+      <div class="text-center mb-4">
+        <button type="button" class="btn btn-sm btn-outline-light" id="restoreBtn">
+          <i class="fa-solid fa-rotate-left me-1"></i> Restaurar foto original
+        </button>
+      </div>
+
+      <!-- Bio Input -->
+      <div class="mb-4">
+        <label for="bio" class="bio-label">Biografía</label>
+        <textarea class="bio-input" id="bio" name="bio" rows="4" maxlength="300"
+          placeholder="Cuéntale a la comunidad sobre ti..."
+          data-initial="{{ (user.bio or '') }}">{{ (user.bio or '') }}</textarea>
+        <div class="bio-meta">
+          <span>Máximo 300 caracteres</span>
+          <span id="bioCount">0 / 300</span>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="edit-actions">
+        <a href="{{ url_for('user_profile', username=user.username) }}" class="btn btn-outline-light px-4">Cancelar</a>
+        <button type="submit" id="saveBtn" class="violet-btn-primary px-5">Guardar Cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+
+{% endblock %}
+
+{% block modals %}
+<!-- Cropper Modal -->
+<div class="modal fade cropper-modal-dark" id="cropperModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Ajustar Foto</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0 bg-black">
+        <div class="img-container" style="height: 500px; overflow: hidden; position: relative;">
+          <img id="cropperImage" src="" alt="Imagen para recortar" style="max-width: 100%; display: block;">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-light" id="chooseNewFile">
+          <i class="fa-regular fa-image me-1"></i> Elegir otra
+        </button>
+        <button type="button" class="violet-btn-primary" id="applyCrop">Aplicar Recorte</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"
+  crossorigin="anonymous" referrerpolicy="no-referrer" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js" crossorigin="anonymous"
+  referrerpolicy="no-referrer"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const avatarUploader = document.getElementById('avatarUploader');
+    const fileInput = document.getElementById('profile_pic');
+    const avatarPreview = document.getElementById('avatarPreview');
+    const bio = document.getElementById('bio');
+    const bioCount = document.getElementById('bioCount');
+    const saveBtn = document.getElementById('saveBtn');
+    const form = document.getElementById('editForm');
+    const restoreBtn = document.getElementById('restoreBtn');
+    const chooseNewFileBtn = document.getElementById('chooseNewFile');
+    const applyCropBtn = document.getElementById('applyCrop');
+
+    let cropper = null;
+    let cropModal = new bootstrap.Modal(document.getElementById('cropperModal'));
+    const cropperImage = document.getElementById('cropperImage');
+    const initialAvatarSrc = avatarPreview.src;
+    const defaultRestoreUrl = "{{ url_for('static', filename='uploads/avatar.png') }}";
+
+    // Bio Counter
+    function updateBioCounter() {
+      const len = bio.value.length;
+      bioCount.textContent = `${len} / 300`;
+      bioCount.style.color = len > 280 ? '#ffba08' : 'var(--text-muted)';
+    }
+    bio.addEventListener('input', updateBioCounter);
+    updateBioCounter();
+
+    // File Input Trigger
+    let isPickingFile = false;
+    avatarUploader.addEventListener('click', (e) => {
+      const shouldOpen = e.target.closest('.avatar-overlay') || e.target.id === 'avatarPreview';
+      if (!shouldOpen || isPickingFile) return;
+      isPickingFile = true;
+      fileInput.click();
+    });
+    window.addEventListener('focus', () => {
+      if (isPickingFile) isPickingFile = false;
+    });
+    chooseNewFileBtn.addEventListener('click', () => {
+      cropModal.hide();
+      fileInput.click();
+    });
+
+    // File Change Handler
+    fileInput.addEventListener('change', (e) => {
+      isPickingFile = false;
+      const file = e.target.files[0];
+      if (file) {
+        handleFile(file);
+      }
+    });
+
+    // Drag and Drop
+    avatarUploader.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      avatarUploader.style.opacity = '0.7';
+    });
+    avatarUploader.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      avatarUploader.style.opacity = '1';
+    });
+    avatarUploader.addEventListener('drop', (e) => {
+      e.preventDefault();
+      avatarUploader.style.opacity = '1';
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) {
+        handleFile(file);
+      }
+    });
+
+    function handleFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        cropperImage.src = e.target.result;
+        cropModal.show();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Cropper Initialization
+    document.getElementById('cropperModal').addEventListener('shown.bs.modal', () => {
+      if (cropper) cropper.destroy();
+      cropper = new Cropper(cropperImage, {
+        aspectRatio: 1,
+        viewMode: 1,
+        dragMode: 'crop',
+        autoCropArea: 1,
+        restore: false,
+        guides: true,
+        center: true,
+        highlight: true,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        zoomable: true,
+        zoomOnWheel: true,
+        zoomOnTouch: true,
+        toggleDragModeOnDblclick: false,
+      });
+    });
+
+    document.getElementById('cropperModal').addEventListener('hidden.bs.modal', () => {
+      if (cropper) {
+        cropper.destroy();
+        cropper = null;
+      }
+      fileInput.value = ''; // Reset input
+    });
+
+    // Apply Crop
+    applyCropBtn.addEventListener('click', () => {
+      if (!cropper) return;
+
+      // 1. Proactive protection: Remove name immediately to avoid sending large file
+      fileInput.removeAttribute('name');
+
+      // 2. Disable save button during processing
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Procesando...';
+
+      const canvas = cropper.getCroppedCanvas({
+        width: 512,
+        height: 512,
+        fillColor: '#000'
+      });
+
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        avatarPreview.src = url;
+
+        // Convert blob to base64 for hidden input
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          document.getElementById('profile_pic_data').value = reader.result;
+
+          // 3. Re-enable save button
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Guardar Cambios';
+
+          // 4. Clear file input value to be double sure
+          fileInput.value = '';
+        };
+        reader.readAsDataURL(blob);
+
+        cropModal.hide();
+      });
+    });
+
+    // Restore Original
+    restoreBtn.addEventListener('click', async () => {
+      avatarPreview.src = defaultRestoreUrl;
+      fileInput.value = '';
+      const hiddenInput = document.getElementById('profile_pic_data');
+      hiddenInput.value = '';
+      // Si el usuario se arrepiente, devolvemos el name para que pueda subir archivo normal si quiere
+      fileInput.setAttribute('name', 'profile_pic');
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Guardar Cambios';
+
+      try {
+        const response = await fetch(defaultRestoreUrl, { cache: 'no-cache' });
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          hiddenInput.value = reader.result;
+        };
+        reader.readAsDataURL(blob);
+      } catch (e) {
+        // Mantener preview aunque falle el base64
+      }
+    });
+    // Protect against 'Request Entity Too Large'
+    form.addEventListener('submit', () => {
+      // Si tenemos data recortada (base64) en el input oculto, quitamos el name del input de archivo
+      // para que el navegador NO envíe el archivo original gigante al servidor.
+      // El backend usará el base64.
+      if (document.getElementById('profile_pic_data').value) {
+        fileInput.removeAttribute('name');
+      }
+    });
+  });
+</script>
+{% endblock %}

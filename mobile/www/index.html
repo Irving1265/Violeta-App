@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#1a1325" />
+    <title>Violeta Mobile</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="shell-card">
+        <div class="shell-glow" aria-hidden="true"></div>
+        <div class="shell-badge">Violeta Mobile</div>
+        <h1>Base movil lista</h1>
+        <p class="shell-copy">
+          Este build local existe para preparar iOS y Android mientras conectas la app a un backend
+          publico con HTTPS.
+        </p>
+
+        <div class="status-grid">
+          <article class="status-card">
+            <span class="status-label">Backend publico</span>
+            <strong id="backendStatus">Sin configurar</strong>
+            <small id="backendUrl">Define MOBILE_WEB_URL para cargar la app real.</small>
+          </article>
+          <article class="status-card">
+            <span class="status-label">iOS</span>
+            <strong>Listo para generar</strong>
+            <small>Acepta la licencia de Xcode y agrega la plataforma.</small>
+          </article>
+          <article class="status-card">
+            <span class="status-label">Android</span>
+            <strong>Listo para generar</strong>
+            <small>Necesitas Android Studio si quieres compilar localmente.</small>
+          </article>
+        </div>
+
+        <ol class="checklist">
+          <li>Despliega Flask en una URL HTTPS publica.</li>
+          <li>Configura <code>MOBILE_WEB_URL</code>.</li>
+          <li>Ejecuta <code>npm run cap:add:ios</code> y <code>npm run cap:sync</code>.</li>
+          <li>Abre Xcode con <code>npm run cap:open:ios</code>.</li>
+        </ol>
+
+        <div class="actions">
+          <a class="action-btn" href="../README.md">Ver guia del scaffold</a>
+          <a class="action-btn action-btn--ghost" href="../../docs/mobile-appstore.md">Ver pasos de App Store</a>
+        </div>
+      </section>
+    </main>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>

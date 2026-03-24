@@ -1,0 +1,66 @@
+<section class="pc-step" data-step-panel="3" aria-labelledby="postStepCategoriesTitle" hidden>
+    <header class="pc-step-header">
+        <span class="pc-step-header__badge">3</span>
+        <div class="pc-step-header__text">
+            <h3 id="postStepCategoriesTitle" class="pc-step-header__title">Categorías</h3>
+            <p class="pc-step-header__subtitle">
+                Selecciona al menos una categoría para tu publicación.
+            </p>
+        </div>
+    </header>
+
+    <div class="pc-step-panel">
+        <div class="pc-mini-preview" aria-hidden="true">
+            <div class="pc-mini-preview__image" id="pcCategoriesPreviewWrapper">
+                <img src="" alt="" id="pcCategoriesPreviewImg">
+            </div>
+            <span class="pc-mini-preview__label">Preview</span>
+        </div>
+
+        <div class="pc-grid pc-grid--responsive">
+            <div class="pc-grid__column">
+                <div class="form-group">
+                    <label>Categorías <span class="form-required">*</span></label>
+                    <p class="form-help">Selecciona al menos una categoría que describa tu publicación.</p>
+
+                    <div class="pc-categories-grid">
+                        <label class="pc-category-checkbox">
+                            <input type="checkbox" name="categories" value="Poca iluminación">
+                            <span class="pc-category-checkbox__checkmark" aria-hidden="true"></span>
+                            <span class="pc-category-checkbox__label">Poca iluminación</span>
+                        </label>
+
+                        <label class="pc-category-checkbox">
+                            <input type="checkbox" name="categories" value="Banquetas en mal estado">
+                            <span class="pc-category-checkbox__checkmark" aria-hidden="true"></span>
+                            <span class="pc-category-checkbox__label">Banquetas en mal estado</span>
+                        </label>
+
+                        <label class="pc-category-checkbox">
+                            <input type="checkbox" name="categories" value="Zonas inseguras">
+                            <span class="pc-category-checkbox__checkmark" aria-hidden="true"></span>
+                            <span class="pc-category-checkbox__label">Zonas inseguras</span>
+                        </label>
+
+                        <label class="pc-category-checkbox">
+                            <input type="checkbox" name="categories" value="Baldios">
+                            <span class="pc-category-checkbox__checkmark" aria-hidden="true"></span>
+                            <span class="pc-category-checkbox__label">Baldíos</span>
+                        </label>
+                    </div>
+
+                    <p id="pcCategoriesError" class="form-error" role="alert"></p>
+                </div>
+            </div>
+
+            <aside class="pc-grid__column pc-preview-card" aria-label="Vista previa">
+                <div class="pc-preview-card__image" id="pcCategoriesInlinePreviewWrapper">
+                    <img src="" alt="" id="pcCategoriesInlinePreviewImage">
+                </div>
+                <div class="pc-preview-card__caption">
+                    <p id="pcCategoriesPreviewCaptionText" class="pc-preview-card__text muted">Aquí verás tu descripción.</p>
+                </div>
+            </aside>
+        </div>
+    </div>
+</section>

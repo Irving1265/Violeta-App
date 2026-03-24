@@ -1,0 +1,11 @@
+node_modules/
+android/.gradle/
+android/app/build/
+ios/App/App/public/
+ios/App/Pods/
+ios/App/DerivedData/
+dist/
+.DS_Store
+.npm-cache/
+android/local.properties
+www/runtime-config.json

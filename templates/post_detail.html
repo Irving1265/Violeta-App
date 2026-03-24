@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="detail-container">
+  <div class="mb-3">
+    <a href="javascript:history.back()" class="btn btn-ghost ps-0">
+      <i class="fas fa-arrow-left"></i> Volver
+    </a>
+  </div>
+
+  {% include 'post_card.html' %}
+</div>
+
+{% endblock %}

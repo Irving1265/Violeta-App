@@ -1,0 +1,320 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="register-container">
+    <div class="register-card">
+        <!-- Back Button -->
+        <button class="back-btn" onclick="goBack()">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+
+        <div class="register-header">
+            <h2 class="register-title">VIOLETA</h2>
+            <p class="text-muted">Únete a nuestra comunidad</p>
+        </div>
+
+        <!-- Step Indicators -->
+        <div class="step-indicator">
+            <div class="step-dot active" id="dot1"></div>
+            <div class="step-dot" id="dot2"></div>
+            <div class="step-dot" id="dot3"></div>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} mb-4">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST" id="signupForm">
+            {{ form.hidden_tag() }}
+
+            <!-- Step 1: Email -->
+            <div class="register-step active" id="step1">
+                <h3 class="step-heading">Correo Electrónico</h3>
+                <div class="mb-4" id="emailContainer">
+                    {{ form.email(class="violet-input", placeholder="nombre@ejemplo.com", id="email") }}
+                    {% if form.email.errors %}
+                    <div class="text-danger mt-2 small">
+                        {% for error in form.email.errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <div class="violet-error" id="emailError" style="display: none;"></div>
+                </div>
+                <button type="button" class="violet-btn-primary w-100" id="continueBtn1">Continuar</button>
+
+                <div class="auth-footer mt-4">
+                    <p>¿Ya tienes cuenta? <a href="{{ url_for('login') }}" class="link-highlight">Inicia Sesión</a></p>
+                </div>
+            </div>
+
+            <!-- Step 2: Password -->
+            <div class="register-step" id="step2">
+                <h3 class="step-heading">Crear Contraseña</h3>
+                <div class="mb-3">
+                    {{ form.password(class="violet-input", placeholder="Contraseña", id="password") }}
+                    {% if form.password.errors %}
+                    <div class="text-danger mt-2 small">
+                        {% for error in form.password.errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="mb-4">
+                    {{ form.password2(class="violet-input", placeholder="Repetir Contraseña", id="password2") }}
+                    {% if form.password2.errors %}
+                    <div class="text-danger mt-2 small">
+                        {% for error in form.password2.errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="password-requirements mb-4">
+                    <ul>
+                        <li id="req-length">
+                            <i class="fa-solid fa-xmark req-icon"></i>
+                            <span>Mínimo 8 caracteres</span>
+                        </li>
+                        <li id="req-alphanumeric">
+                            <i class="fa-solid fa-xmark req-icon"></i>
+                            <span>Al menos una letra y un número</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <button type="button" class="violet-btn-primary w-100" id="continueBtn2">Continuar</button>
+            </div>
+
+            <!-- Step 3: Username -->
+            <div class="register-step" id="step3">
+                <h3 class="step-heading">Nombre de Usuario</h3>
+                <p class="text-muted text-center mb-4 small">
+                    Este será tu identificador único en la plataforma.
+                </p>
+                <div class="mb-4" id="usernameContainer">
+                    {{ form.username(class="violet-input", placeholder="@usuario", id="username") }}
+                    {% if form.username.errors %}
+                    <div class="text-danger mt-2 small">
+                        {% for error in form.username.errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <div class="violet-error" id="usernameError" style="display: none;"></div>
+                </div>
+                <button type="submit" class="violet-btn-primary w-100">Crear Cuenta</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    let currentStep = 1;
+    const totalSteps = 3;
+
+    function updateSteps() {
+        // Hide all steps
+        document.querySelectorAll('.register-step').forEach(step => {
+            step.classList.remove('active');
+        });
+        // Show current step
+        document.getElementById('step' + currentStep).classList.add('active');
+
+        // Update dots
+        document.querySelectorAll('.step-dot').forEach((dot, index) => {
+            if (index + 1 < currentStep) {
+                dot.classList.add('completed');
+                dot.classList.remove('active');
+            } else if (index + 1 === currentStep) {
+                dot.classList.add('active');
+                dot.classList.remove('completed');
+            } else {
+                dot.classList.remove('active', 'completed');
+            }
+        });
+    }
+
+    async function validateCurrentStep() {
+        const step = document.getElementById('step' + currentStep);
+        const inputs = step.querySelectorAll('input:not([type="hidden"])');
+        let valid = true;
+
+        // Clear previous errors
+        inputs.forEach(input => {
+            if (!input.value.trim()) {
+                valid = false;
+                input.classList.add('error');
+            } else {
+                input.classList.remove('error');
+            }
+        });
+
+        // Email validation for step 1
+        if (currentStep === 1) {
+            const emailInput = document.getElementById('email');
+            const emailError = document.getElementById('emailError');
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+            emailError.style.display = 'none';
+
+            if (!emailRegex.test(emailInput.value)) {
+                valid = false;
+                emailInput.classList.add('error');
+                emailError.textContent = 'Formato de correo inválido';
+                emailError.style.display = 'block';
+            } else {
+                // Check if email already exists
+                try {
+                    const response = await fetch('/api/check-email', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ email: emailInput.value })
+                    });
+
+                    const data = await response.json();
+                    if (data.exists) {
+                        valid = false;
+                        emailInput.classList.add('error');
+                        emailError.textContent = 'Este correo electrónico ya está registrado';
+                        emailError.style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error('Error checking email:', error);
+                }
+            }
+        }
+
+        // Password matching for step 2
+        if (currentStep === 2) {
+            const p1 = document.getElementById('password').value;
+            const p2 = document.getElementById('password2').value;
+
+            // Check length requirement
+            const hasLength = p1.length >= 8;
+            // Check alphanumeric requirement
+            const hasLetterAndNumber = /[a-zA-Z]/.test(p1) && /[0-9]/.test(p1);
+
+            if (!hasLength || !hasLetterAndNumber) {
+                valid = false;
+                document.getElementById('password').classList.add('error');
+            }
+
+            if (p1 !== p2) {
+                valid = false;
+                document.getElementById('password2').classList.add('error');
+            }
+        }
+
+        // Username validation for step 3
+        if (currentStep === 3) {
+            const usernameInput = document.getElementById('username');
+            const usernameError = document.getElementById('usernameError');
+
+            usernameError.style.display = 'none';
+
+            if (usernameInput.value.trim().length < 3) {
+                valid = false;
+                usernameInput.classList.add('error');
+                usernameError.textContent = 'El nombre de usuario debe tener al menos 3 caracteres';
+                usernameError.style.display = 'block';
+            } else {
+                // Check if username already exists
+                try {
+                    const response = await fetch('/api/check-username', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ username: usernameInput.value })
+                    });
+
+                    const data = await response.json();
+                    if (data.exists) {
+                        valid = false;
+                        usernameInput.classList.add('error');
+                        usernameError.textContent = 'Este nombre de usuario ya está en uso';
+                        usernameError.style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error('Error checking username:', error);
+                }
+            }
+        }
+
+        return valid;
+    }
+
+    async function nextStep() {
+        if (await validateCurrentStep()) {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateSteps();
+            }
+        }
+    }
+
+    function goBack() {
+        if (currentStep > 1) {
+            currentStep--;
+            updateSteps();
+        } else {
+            window.location.href = "{{ url_for('login') }}";
+        }
+    }
+
+    // Add event listeners for the continue buttons
+    document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('continueBtn1')?.addEventListener('click', nextStep);
+        document.getElementById('continueBtn2')?.addEventListener('click', nextStep);
+
+        // Real-time password validation
+        const passwordInput = document.getElementById('password');
+        if (passwordInput) {
+            passwordInput.addEventListener('input', function () {
+                const password = this.value;
+                const reqLength = document.getElementById('req-length');
+                const reqAlphanumeric = document.getElementById('req-alphanumeric');
+
+                // Check length requirement
+                if (password.length >= 8) {
+                    reqLength.classList.add('valid');
+                } else {
+                    reqLength.classList.remove('valid');
+                }
+
+                // Check alphanumeric requirement
+                const hasLetterAndNumber = /[a-zA-Z]/.test(password) && /[0-9]/.test(password);
+                if (hasLetterAndNumber) {
+                    reqAlphanumeric.classList.add('valid');
+                } else {
+                    reqAlphanumeric.classList.remove('valid');
+                }
+            });
+        }
+    });
+
+    // Enter key support
+    document.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (currentStep < totalSteps) {
+                nextStep();
+            } else {
+                document.getElementById('signupForm').submit();
+            }
+        }
+    });
+</script>
+{% endblock %}

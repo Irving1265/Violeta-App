@@ -1,0 +1,462 @@
+{% extends 'base.html' %}
+
+{% block styles %}
+<style>
+    .login-page {
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
+        background: var(--bg-body);
+        --fade-gradient: linear-gradient(to right, rgba(26, 26, 46, 1.00) 0%, rgba(26, 26, 46, 0.99) 1%, rgba(26, 26, 46, 0.98) 2%, rgba(26, 26, 46, 0.97) 3%, rgba(26, 26, 46, 0.96) 4%, rgba(26, 26, 46, 0.95) 5%, rgba(26, 26, 46, 0.94) 6%, rgba(26, 26, 46, 0.93) 7%, rgba(26, 26, 46, 0.92) 8%, rgba(26, 26, 46, 0.91) 9%, rgba(26, 26, 46, 0.90) 10%, rgba(26, 26, 46, 0.89) 11%, rgba(26, 26, 46, 0.88) 12%, rgba(26, 26, 46, 0.87) 13%, rgba(26, 26, 46, 0.86) 14%, rgba(26, 26, 46, 0.85) 15%, rgba(26, 26, 46, 0.84) 16%, rgba(26, 26, 46, 0.83) 17%, rgba(26, 26, 46, 0.82) 18%, rgba(26, 26, 46, 0.81) 19%, rgba(26, 26, 46, 0.80) 20%, rgba(26, 26, 46, 0.79) 21%, rgba(26, 26, 46, 0.78) 22%, rgba(26, 26, 46, 0.77) 23%, rgba(26, 26, 46, 0.76) 24%, rgba(26, 26, 46, 0.75) 25%, rgba(26, 26, 46, 0.74) 26%, rgba(26, 26, 46, 0.73) 27%, rgba(26, 26, 46, 0.72) 28%, rgba(26, 26, 46, 0.71) 29%, rgba(26, 26, 46, 0.70) 30%, rgba(26, 26, 46, 0.69) 31%, rgba(26, 26, 46, 0.68) 32%, rgba(26, 26, 46, 0.67) 33%, rgba(26, 26, 46, 0.66) 34%, rgba(26, 26, 46, 0.65) 35%, rgba(26, 26, 46, 0.64) 36%, rgba(26, 26, 46, 0.63) 37%, rgba(26, 26, 46, 0.62) 38%, rgba(26, 26, 46, 0.61) 39%, rgba(26, 26, 46, 0.60) 40%, rgba(26, 26, 46, 0.59) 41%, rgba(26, 26, 46, 0.58) 42%, rgba(26, 26, 46, 0.57) 43%, rgba(26, 26, 46, 0.56) 44%, rgba(26, 26, 46, 0.55) 45%, rgba(26, 26, 46, 0.54) 46%, rgba(26, 26, 46, 0.53) 47%, rgba(26, 26, 46, 0.52) 48%, rgba(26, 26, 46, 0.51) 49%, rgba(26, 26, 46, 0.50) 50%, rgba(26, 26, 46, 0.49) 51%, rgba(26, 26, 46, 0.48) 52%, rgba(26, 26, 46, 0.47) 53%, rgba(26, 26, 46, 0.46) 54%, rgba(26, 26, 46, 0.45) 55%, rgba(26, 26, 46, 0.44) 56%, rgba(26, 26, 46, 0.43) 57%, rgba(26, 26, 46, 0.42) 58%, rgba(26, 26, 46, 0.41) 59%, rgba(26, 26, 46, 0.40) 60%, rgba(26, 26, 46, 0.39) 61%, rgba(26, 26, 46, 0.38) 62%, rgba(26, 26, 46, 0.37) 63%, rgba(26, 26, 46, 0.36) 64%, rgba(26, 26, 46, 0.35) 65%, rgba(26, 26, 46, 0.34) 66%, rgba(26, 26, 46, 0.33) 67%, rgba(26, 26, 46, 0.32) 68%, rgba(26, 26, 46, 0.31) 69%, rgba(26, 26, 46, 0.30) 70%, rgba(26, 26, 46, 0.29) 71%, rgba(26, 26, 46, 0.28) 72%, rgba(26, 26, 46, 0.27) 73%, rgba(26, 26, 46, 0.26) 74%, rgba(26, 26, 46, 0.25) 75%, rgba(26, 26, 46, 0.24) 76%, rgba(26, 26, 46, 0.23) 77%, rgba(26, 26, 46, 0.22) 78%, rgba(26, 26, 46, 0.21) 79%, rgba(26, 26, 46, 0.20) 80%, rgba(26, 26, 46, 0.19) 81%, rgba(26, 26, 46, 0.18) 82%, rgba(26, 26, 46, 0.17) 83%, rgba(26, 26, 46, 0.16) 84%, rgba(26, 26, 46, 0.15) 85%, rgba(26, 26, 46, 0.14) 86%, rgba(26, 26, 46, 0.13) 87%, rgba(26, 26, 46, 0.12) 88%, rgba(26, 26, 46, 0.11) 89%, rgba(26, 26, 46, 0.10) 90%, rgba(26, 26, 46, 0.09) 91%, rgba(26, 26, 46, 0.08) 92%, rgba(26, 26, 46, 0.07) 93%, rgba(26, 26, 46, 0.06) 94%, rgba(26, 26, 46, 0.05) 95%, rgba(26, 26, 46, 0.04) 96%, rgba(26, 26, 46, 0.03) 97%, rgba(26, 26, 46, 0.02) 98%, rgba(26, 26, 46, 0.01) 99%, rgba(26, 26, 46, 0.00) 100%);
+    }
+
+    .login-split {
+        display: flex;
+        height: 100%;
+        width: 100%;
+    }
+
+    .login-auth {
+        width: 420px;
+        min-width: 320px;
+        height: 100%;
+        background: var(--bg-body);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1.5rem;
+        position: relative;
+        z-index: 10;
+        box-shadow: 6px 0 18px rgba(0, 0, 0, 0.25);
+    }
+
+    .login-auth::after {
+        content: none;
+    }
+
+    .login-map-section {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+        background: #1a1a2e;
+        isolation: isolate;
+    }
+
+    .login-map-section::before {
+        content: none;
+    }
+
+    #loginMap {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+    }
+
+    .map-overlay-gradient {
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 10%;
+        background: var(--fade-gradient);
+        pointer-events: none;
+        z-index: 2;
+    }
+
+    .map-controls-overlay {
+        position: absolute;
+        top: 26px;
+        right: 26px;
+        z-index: 2000;
+        pointer-events: auto;
+    }
+
+    .violet-btn-grid {
+        display: flex;
+        gap: 12px;
+        background: rgba(30, 30, 45, 0.85);
+        backdrop-filter: blur(15px);
+        padding: 14px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    .violet-big-btn {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid transparent;
+        color: rgba(255, 255, 255, 0.65);
+        padding: 14px 18px;
+        border-radius: 12px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-width: 90px;
+        height: 78px;
+        transition: all 0.3s ease;
+    }
+
+    .violet-big-btn i {
+        font-size: 1.5rem;
+        margin-bottom: 6px;
+        transition: transform 0.3s ease;
+    }
+
+    .violet-big-btn span {
+        font-size: 0.82rem;
+        font-weight: 500;
+        letter-spacing: 0.4px;
+    }
+
+    .violet-big-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .violet-big-btn:hover i {
+        transform: scale(1.08);
+    }
+
+    .violet-big-btn.active {
+        background: rgba(138, 43, 226, 0.25);
+        border-color: rgba(138, 43, 226, 0.5);
+        color: white;
+        box-shadow: 0 5px 15px rgba(138, 43, 226, 0.3);
+    }
+
+    @media (max-width: 992px) {
+        .login-split {
+            flex-direction: column;
+        }
+
+        .login-auth {
+            width: 100%;
+            height: auto;
+            box-shadow: none;
+        }
+
+        .login-map-section {
+            height: 50vh;
+        }
+
+        .map-controls-overlay {
+            top: 16px;
+            right: 16px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-page">
+    <div class="login-split">
+        <div class="login-auth">
+            <div class="auth-container">
+                <div class="brand-section">
+                    <h1 class="brand-title">VIOLETA</h1>
+                    <p class="brand-subtitle">Conectando tu ciudad</p>
+                </div>
+
+                <div class="glass-panel">
+                    <div class="auth-header">
+                        <img class="avatar-ilu" src="{{ url_for('static', filename='uploads/avatar.png') }}" alt="Avatar">
+                        <h2>Bienvenido</h2>
+                    </div>
+
+                    <form method="POST" action="{{ url_for('login') }}" class="auth-form">
+                        {{ form.hidden_tag() }}
+
+                        <div class="input-icon-wrapper">
+                            <i class="fas fa-user input-icon"></i>
+                            <input type="text" name="login" class="violet-input" placeholder="Usuario o Email" required>
+                        </div>
+
+                        <div class="input-icon-wrapper">
+                            <i class="fas fa-lock input-icon"></i>
+                            <input type="password" name="password" class="violet-input" placeholder="Contraseña" required>
+                        </div>
+
+                        <div class="form-options">
+                            <label class="remember-me">
+                                <input type="checkbox" name="remember" value="1" checked>
+                                <span>Recordarme</span>
+                            </label>
+                            <a class="link-muted" href="{{ url_for('forgot_password') }}">¿Olvidaste tu contraseña?</a>
+                        </div>
+
+                        <button type="submit" class="violet-btn-primary btn-lg w-100">Iniciar Sesión</button>
+                    </form>
+
+                    <div class="auth-footer">
+                        <p>¿No tienes cuenta?</p>
+                        <a class="btn-outline-sm" href="{{ url_for('register') }}">Crear cuenta nueva</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="login-map-section">
+            <div id="loginMap"></div>
+            <div class="map-overlay-gradient"></div>
+            <div class="map-controls-overlay">
+                <div class="violet-btn-grid">
+                    <button class="violet-big-btn active" data-cat="">
+                        <i class="fa-solid fa-layer-group"></i><span>Todos</span>
+                    </button>
+                    <button class="violet-big-btn" data-cat="Poca iluminación">
+                        <i class="fa-regular fa-lightbulb"></i><span>Iluminación</span>
+                    </button>
+                    <button class="violet-big-btn" data-cat="Banquetas en mal estado">
+                        <i class="fa-solid fa-shoe-prints"></i><span>Banquetas</span>
+                    </button>
+                    <button class="violet-big-btn" data-cat="Zonas inseguras">
+                        <i class="fa-solid fa-shield-halved"></i><span>Seguridad</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (function () {
+        const center = [25.6866, -100.3161];
+        const map = L.map('loginMap', { attributionControl: false, zoomControl: false }).setView(center, 13);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+        function resizeMap() { map.invalidateSize(); }
+        setTimeout(resizeMap, 100);
+        setTimeout(resizeMap, 500);
+        window.addEventListener('resize', resizeMap);
+
+        function colorForCount(c) { if (c >= 10) return '#d90429'; if (c >= 5) return '#f77f00'; if (c >= 2) return '#ffba08'; return '#3a86ff'; }
+        function sizeForCount(c) { return Math.min(60, 12 + c * 6); }
+        function precisionForZoom(z) {
+            if (z >= 15) return 4;   // ~11m
+            if (z >= 13) return 3;   // ~110m
+            if (z >= 11) return 2;   // ~1.1km
+            return 1;                // ~11km
+        }
+        function isMexicoOverviewZoom(z) {
+            // En zoom bajo (vista país), usar agregación global para no perder puntos.
+            return z <= 8;
+        }
+        function radiusForZoom(z) {
+            if (z >= 15) return 4;
+            if (z >= 13) return 8;
+            if (z >= 11) return 18;
+            return 35;
+        }
+        function targetRadiusFor(count, z) {
+            const base = sizeForCount(count) / 2.5;
+            if (isMexicoOverviewZoom(z)) return Math.max(7, base);
+            if (z <= 10) return Math.max(6, base);
+            return base;
+        }
+        function hotspotKey(h) {
+            return `${h.lat.toFixed(6)}|${h.lng.toFixed(6)}`;
+        }
+        function animateMarker(marker, cfg) {
+            const fromR = Number(cfg.fromR ?? marker.getRadius() ?? 1);
+            const toR = Number(cfg.toR ?? fromR);
+            const fromFill = Number(cfg.fromFill ?? 0.25);
+            const toFill = Number(cfg.toFill ?? 0.4);
+            const fromOpacity = Number(cfg.fromOpacity ?? 0.9);
+            const toOpacity = Number(cfg.toOpacity ?? 1.0);
+            const duration = Number(cfg.duration ?? 360);
+            const done = typeof cfg.done === 'function' ? cfg.done : null;
+            const start = performance.now();
+
+            function frame(now) {
+                const t = Math.min(1, (now - start) / duration);
+                const ease = 1 - Math.pow(1 - t, 3); // easeOutCubic
+                const r = fromR + (toR - fromR) * ease;
+                const fo = fromFill + (toFill - fromFill) * ease;
+                const op = fromOpacity + (toOpacity - fromOpacity) * ease;
+                marker.setRadius(r);
+                marker.setStyle({ fillOpacity: fo, opacity: op });
+                if (t < 1) {
+                    requestAnimationFrame(frame);
+                } else if (done) {
+                    done();
+                }
+            }
+            requestAnimationFrame(frame);
+        }
+
+        const hotspotsLayer = L.layerGroup().addTo(map);
+        const hotspotMarkers = new Map();
+        let activeCategory = '';
+        let latestRequestId = 0;
+        let refreshTimer = null;
+        const REFRESH_MS = 20000;
+
+        function renderHotspots(hotspots) {
+            const z = map.getZoom();
+            const seen = new Set();
+            (hotspots || []).forEach(h => {
+                const color = colorForCount(h.count);
+                const targetRadius = targetRadiusFor(h.count, z);
+                const key = hotspotKey(h);
+                seen.add(key);
+
+                const existing = hotspotMarkers.get(key);
+                if (existing) {
+                    const previousCount = existing.count || 0;
+                    existing.count = h.count;
+                    existing.marker.setLatLng([h.lat, h.lng]);
+                    existing.marker.setStyle({
+                        color: color,
+                        fillColor: color,
+                        weight: 2
+                    });
+                    existing.marker.setTooltipContent(`<b>${h.count}</b> reportes`);
+
+                    // Si sube el conteo (acumulación), marcar visualmente esa fusión.
+                    const countIncreased = h.count > previousCount;
+                    animateMarker(existing.marker, {
+                        fromR: countIncreased ? Math.max(1, existing.marker.getRadius() * 0.88) : existing.marker.getRadius(),
+                        toR: countIncreased ? targetRadius * 1.12 : targetRadius,
+                        fromFill: existing.marker.options.fillOpacity ?? 0.3,
+                        toFill: countIncreased ? 0.56 : 0.42,
+                        fromOpacity: existing.marker.options.opacity ?? 0.9,
+                        toOpacity: 1,
+                        duration: countIncreased ? 460 : 380,
+                        done: countIncreased ? () => {
+                            animateMarker(existing.marker, {
+                                fromR: existing.marker.getRadius(),
+                                toR: targetRadius,
+                                fromFill: existing.marker.options.fillOpacity ?? 0.56,
+                                toFill: 0.42,
+                                fromOpacity: existing.marker.options.opacity ?? 1,
+                                toOpacity: 1,
+                                duration: 180
+                            });
+                        } : null
+                    });
+                    return;
+                }
+
+                const circle = L.circleMarker([h.lat, h.lng], {
+                    radius: Math.max(1, targetRadius * 0.35),
+                    color: color,
+                    weight: 2,
+                    fillColor: color,
+                    fillOpacity: 0.12,
+                    opacity: 0.65
+                }).addTo(hotspotsLayer);
+                circle.bindTooltip(`<b>${h.count}</b> reportes`, {
+                    permanent: false,
+                    direction: 'top',
+                    className: 'violet-tooltip'
+                });
+                hotspotMarkers.set(key, { marker: circle, count: h.count });
+
+                animateMarker(circle, {
+                    fromR: Math.max(1, targetRadius * 0.35),
+                    toR: targetRadius,
+                    fromFill: 0.12,
+                    toFill: 0.42,
+                    fromOpacity: 0.65,
+                    toOpacity: 1,
+                    duration: 480
+                });
+            });
+
+            // Fade out markers that no longer exist after regrouping by zoom/precision.
+            for (const [key, item] of hotspotMarkers.entries()) {
+                if (seen.has(key)) continue;
+                const marker = item.marker;
+                animateMarker(marker, {
+                    fromR: marker.getRadius(),
+                    toR: Math.max(1, marker.getRadius() * 0.45),
+                    fromFill: marker.options.fillOpacity ?? 0.35,
+                    toFill: 0.02,
+                    fromOpacity: marker.options.opacity ?? 0.9,
+                    toOpacity: 0.0,
+                    duration: 220,
+                    done: () => {
+                        hotspotsLayer.removeLayer(marker);
+                        hotspotMarkers.delete(key);
+                    }
+                });
+            }
+        }
+
+        function loadHotspots(category = activeCategory, opts = {}) {
+            activeCategory = category || '';
+            const reqId = ++latestRequestId;
+            const c = map.getCenter();
+            const z = map.getZoom();
+            const overview = isMexicoOverviewZoom(z);
+            // En vista país, agrupar más (precision 1) y consultar global.
+            const precision = overview ? 1 : precisionForZoom(z);
+            const radiusKm = radiusForZoom(z);
+            const baseUrl = `/api/hotspots?precision=${encodeURIComponent(precision)}`
+                + (overview ? '' : `&lat=${encodeURIComponent(c.lat.toFixed(6))}&lng=${encodeURIComponent(c.lng.toFixed(6))}&radius_km=${encodeURIComponent(radiusKm)}`);
+            const url = baseUrl
+                + (activeCategory ? `&category=${encodeURIComponent(activeCategory)}` : '')
+                + `&_ts=${Date.now()}`;
+
+            return fetch(url, { cache: 'no-store' })
+                .then(r => { if (!r.ok) throw new Error('API Not found'); return r.json(); })
+                .then(data => {
+                    if (reqId !== latestRequestId) return;
+                    renderHotspots(data.hotspots || []);
+                })
+                .catch(e => {
+                    if (!opts.silent) {
+                        console.log("Info: API de hotspots no disponible.", e.message);
+                    }
+                });
+        }
+
+        function startAutoRefresh() {
+            if (refreshTimer) clearInterval(refreshTimer);
+            refreshTimer = setInterval(() => {
+                loadHotspots(activeCategory, { silent: true });
+            }, REFRESH_MS);
+        }
+
+        function stopAutoRefresh() {
+            if (!refreshTimer) return;
+            clearInterval(refreshTimer);
+            refreshTimer = null;
+        }
+
+        loadHotspots('');
+        startAutoRefresh();
+
+        map.on('moveend zoomend', () => {
+            loadHotspots(activeCategory, { silent: true });
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopAutoRefresh();
+            } else {
+                loadHotspots(activeCategory, { silent: true });
+                startAutoRefresh();
+            }
+        });
+
+        window.addEventListener('beforeunload', stopAutoRefresh);
+
+        document.querySelectorAll('.violet-big-btn[data-cat]').forEach(btn => {
+            btn.addEventListener('click', function () {
+                document.querySelectorAll('.violet-big-btn[data-cat]').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                loadHotspots(this.dataset.cat || '');
+            });
+        });
+    })();
+</script>
+{% endblock %}

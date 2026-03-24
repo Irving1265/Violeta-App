@@ -1,0 +1,212 @@
+<div class="card post-card" data-post-id="{{ post.id }}" data-post-date="{{ post.created_at.strftime('%Y-%m-%d') if post.created_at else '' }}">
+    {% set categories_list = post.categories | from_json if post.categories else [] %}
+    {% set safe_loc = public_location_for_post(post, current_user) %}
+    {% set country_label = safe_loc.country %}
+    {% if country_label|lower == 'mexico' %}
+    {% set country_label = 'México' %}
+    {% endif %}
+    {% set location_label = '' %}
+    {% if safe_loc.visibility == 'hidden' %}
+    {% set location_label = safe_loc.name or 'Ubicación oculta por seguridad' %}
+    {% elif safe_loc.city and country_label %}
+    {% set location_label = safe_loc.city ~ ', ' ~ country_label %}
+    {% elif safe_loc.city %}
+    {% set location_label = safe_loc.city %}
+    {% elif country_label %}
+    {% set location_label = country_label %}
+    {% elif safe_loc.name %}
+    {% set loc_text = safe_loc.name|lower %}
+    {% if ('coordenad' in loc_text) or (',' in safe_loc.name and '-' in safe_loc.name) %}
+    {% set location_label = 'Monterrey, México' %}
+    {% else %}
+    {% set location_label = safe_loc.name %}
+    {% endif %}
+    {% else %}
+    {% set location_label = 'Monterrey, México' %}
+    {% endif %}
+
+    <div class="card-header">
+        <div class="post-header-main">
+            <div class="post-author-wrap">
+                <a href="{{ url_for('user_profile', username=post.author.username) }}">
+                    <img class="avatar"
+                        src="{{ url_for('uploaded_file', filename=post.author.profile_pic) if post.author.profile_pic and post.author.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
+                        alt="avatar"
+                        onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
+                </a>
+                <div class="post-author-meta">
+                    <div class="fw-bold post-author-name-row">
+                        <a href="{{ url_for('user_profile', username=post.author.username) }}">{{ post.author.username }}</a>{% if post.author.username == 'admin' %}<span class="admin-badge" title="Admin verificado" aria-label="Admin verificado"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+                    </div>
+                    <div class="post-meta-row">
+                        <div class="small text-muted post-location">
+                            <i class="fas fa-map-marker-alt"></i> {{ location_label }}
+                        </div>
+                        {% if categories_list %}
+                        <div class="post-inline-categories">
+                            {% for category in categories_list %}
+                            {% set normalized = category|lower %}
+                            {% set cat_class = 'violet-badge--default' %}
+                            {% if 'ilumin' in normalized %}
+                            {% set cat_class = 'violet-badge--lighting' %}
+                            {% elif 'banqueta' in normalized %}
+                            {% set cat_class = 'violet-badge--sidewalk' %}
+                            {% elif 'insegur' in normalized %}
+                            {% set cat_class = 'violet-badge--unsafe' %}
+                            {% elif 'bald' in normalized %}
+                            {% set cat_class = 'violet-badge--vacant' %}
+                            {% endif %}
+                            <span class="violet-badge {{ cat_class }}">{{ category }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="post-header-actions">
+                {% if current_user.is_authenticated %}
+                <button class="btn btn-ghost p-2 report-btn" title="Reportar publicación"
+                    aria-label="Reportar publicación" onclick="openReportModal({{ post.id }})">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </button>
+                {% else %}
+                <a href="{{ url_for('login') }}" class="btn btn-ghost p-2 report-btn" title="Reportar publicación"
+                    aria-label="Reportar publicación">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </a>
+                {% endif %}
+                <button class="btn btn-ghost p-2"
+                    onclick="toggleMap({{ post.id }}, {{ '%.6f'|format(safe_loc.lat) if safe_loc.lat is not none else 'null' }}, {{ '%.6f'|format(safe_loc.lng) if safe_loc.lng is not none else 'null' }}, this)">
+                    <i class="fas fa-map-marked-alt"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flip Container for Map/Image -->
+    <div class="post-content-container" id="flip-{{ post.id }}">
+        <div class="post-image-wrapper face-front" id="img-wrapper-{{ post.id }}">
+            <img src="{{ url_for('uploaded_file', filename=post.image_filename) }}" class="post-image" alt="Post image">
+        </div>
+        <div class="post-map-wrapper face-back" id="map-wrapper-{{ post.id }}">
+            <div id="map-{{ post.id }}" style="height: 100%; width: 100%;"></div>
+        </div>
+    </div>
+
+    {% set can_like = can_user_interact_post(post, current_user, 'like') %}
+{% set can_comment = can_user_interact_post(post, current_user, 'comment') %}
+{% set likes_open = meta_allows_interaction(post, 'like') %}
+{% set comments_open = meta_allows_interaction(post, 'comment') %}
+
+<div class="post-actions d-flex align-items-center">
+    <div class="d-flex align-items-center me-2">
+        {% if current_user.is_authenticated %}
+            {% if can_like %}
+            <button class="action-btn like-btn {{ 'active' if post.is_liked_by(current_user) }}" onclick="toggleLike({{ post.id }})">
+                <i class="fas fa-heart"></i>
+            </button>
+            {% else %}
+            <button class="action-btn like-btn" type="button" disabled title="Likes desactivados por la autora">
+                <i class="fas fa-heart"></i>
+            </button>
+            {% endif %}
+        {% else %}
+            {% if likes_open %}
+            <a href="{{ url_for('login') }}" class="action-btn">
+                <i class="fas fa-heart"></i>
+            </a>
+            {% else %}
+            <button class="action-btn" type="button" disabled title="Likes desactivados por la autora">
+                <i class="fas fa-heart"></i>
+            </button>
+            {% endif %}
+        {% endif %}
+        <span class="likes-count ms-1 fw-bold">{{ post.get_likes_count() }}</span>
+    </div>
+
+    <div class="d-flex align-items-center">
+        {% if current_user.is_authenticated %}
+            {% if can_comment %}
+            <button class="action-btn comment-btn" onclick="toggleComments({{ post.id }})">
+                <i class="fas fa-comment"></i>
+            </button>
+            {% else %}
+            <button class="action-btn comment-btn" type="button" disabled title="Comentarios desactivados por la autora">
+                <i class="fas fa-comment"></i>
+            </button>
+            {% endif %}
+        {% else %}
+            {% if comments_open %}
+            <a href="{{ url_for('login') }}" class="action-btn comment-btn">
+                <i class="fas fa-comment"></i>
+            </a>
+            {% else %}
+            <button class="action-btn comment-btn" type="button" disabled title="Comentarios desactivados por la autora">
+                <i class="fas fa-comment"></i>
+            </button>
+            {% endif %}
+        {% endif %}
+        <span class="comments-count ms-1 fw-bold">{{ post.comments|length }}</span>
+    </div>
+</div>
+
+{% if not likes_open or not comments_open %}
+<div class="px-3 pb-1">
+    <div class="small text-muted">
+        <i class="fas fa-shield-alt me-1"></i>
+        Interacción limitada por la autora
+    </div>
+</div>
+{% endif %}
+
+<div class="px-3 pb-2">
+
+        {% if post.caption %}
+        <div class="mb-2">
+            <span class="fw-bold">{{ post.author.username }}</span>{% if post.author.username == 'admin' %}<span class="admin-badge admin-badge--sm" title="Admin verificado" aria-label="Admin verificado"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+            {{ post.caption }}
+        </div>
+        {% endif %}
+
+        <div class="text-muted small post-time"
+            data-timestamp="{{ post.created_at.timestamp() if post.created_at else 0 }}">
+            {{ post.created_at.strftime('%d/%m/%Y') }}
+        </div>
+    </div>
+
+    <!-- Comments Section -->
+    <div class="comments-section d-none border-top p-3" id="comments-{{ post.id }}">
+        <div class="comments-list violet-comments-list mb-3" style="max-height: 300px; overflow-y: auto; padding-right: 5px;">
+            {% for comment in post.comments %}
+            <div class="comment-item">
+                <a href="{{ url_for('user_profile', username=comment.author.username) }}">
+                    <img src="{{ url_for('uploaded_file', filename=comment.author.profile_pic) if comment.author.profile_pic and comment.author.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
+                        class="comment-avatar" alt="{{ comment.author.username }}"
+                        onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
+                </a>
+                <div class="comment-bubble">
+                    <div class="comment-header">
+                        <a href="{{ url_for('user_profile', username=comment.author.username) }}" class="comment-author">
+                            {{ comment.author.username }}{% if comment.author.username == 'admin' %}<span class="admin-badge admin-badge--xs" title="Admin verificado" aria-label="Admin verificado"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+                        </a>
+                    </div>
+                    <div class="comment-text">
+                        {{ comment.content }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% if current_user.is_authenticated and can_comment %}
+        <form class="d-flex gap-2" onsubmit="submitComment(event, {{ post.id }})">
+            <input type="text" class="form-control form-control-sm" placeholder="Añadir un comentario..." name="content"
+                required>
+            <button type="submit" class="btn btn-ghost btn-sm text-primary">Publicar</button>
+        </form>
+        {% elif current_user.is_authenticated and not can_comment %}
+        <div class="small text-muted">
+            <i class="fas fa-lock me-1"></i> Esta publicación no acepta comentarios.
+        </div>
+        {% endif %}
+    </div>
+</div>
