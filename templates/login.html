@@ -2,6 +2,51 @@
 
 {% block styles %}
 <style>
+    .password-input-wrap {
+        position: relative;
+    }
+
+    .password-input-wrap .violet-input {
+        padding-right: 3.35rem;
+    }
+
+    .password-toggle-btn {
+        position: absolute;
+        top: 50%;
+        right: 0.9rem;
+        transform: translateY(-50%);
+        border: 0;
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.92);
+        width: 2rem;
+        height: 2rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .password-input-wrap .violet-input:-webkit-autofill ~ .password-toggle-btn {
+        background: rgba(124, 58, 237, 0.10);
+        color: var(--primary-dark);
+    }
+
+    .password-toggle-btn:hover,
+    .password-toggle-btn:focus-visible {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.14);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+        outline: none;
+    }
+
+    .password-input-wrap .violet-input:-webkit-autofill ~ .password-toggle-btn:hover,
+    .password-input-wrap .violet-input:-webkit-autofill ~ .password-toggle-btn:focus-visible {
+        color: var(--primary-light);
+        background: rgba(124, 58, 237, 0.20);
+        box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.24);
+    }
+
     .login-page {
         height: 100vh;
         width: 100vw;
@@ -176,9 +221,12 @@
                             <input type="text" name="login" class="violet-input" placeholder="Usuario o Email" required>
                         </div>
 
-                        <div class="input-icon-wrapper">
+                        <div class="input-icon-wrapper password-input-wrap">
                             <i class="fas fa-lock input-icon"></i>
                             <input type="password" name="password" class="violet-input" placeholder="Contraseña" required>
+                            <button type="button" class="password-toggle-btn" data-password-toggle aria-label="Mostrar contraseña" aria-pressed="false">
+                                <i class="fas fa-eye"></i>
+                            </button>
                         </div>
 
                         <div class="form-options">
@@ -227,6 +275,21 @@
 {% block scripts %}
 <script>
     (function () {
+        document.querySelectorAll('[data-password-toggle]').forEach((toggleBtn) => {
+            const wrapper = toggleBtn.closest('.password-input-wrap');
+            const input = wrapper?.querySelector('input');
+            const icon = toggleBtn.querySelector('i');
+            if (!input || !icon) return;
+
+            toggleBtn.addEventListener('click', () => {
+                const isHidden = input.type === 'password';
+                input.type = isHidden ? 'text' : 'password';
+                icon.className = isHidden ? 'fas fa-eye-slash' : 'fas fa-eye';
+                toggleBtn.setAttribute('aria-label', isHidden ? 'Ocultar contraseña' : 'Mostrar contraseña');
+                toggleBtn.setAttribute('aria-pressed', isHidden ? 'true' : 'false');
+            });
+        });
+
         const center = [25.6866, -100.3161];
         const map = L.map('loginMap', { attributionControl: false, zoomControl: false }).setView(center, 13);
         L.control.zoom({ position: 'bottomright' }).addTo(map);

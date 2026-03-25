@@ -66,6 +66,49 @@
     .glass-panel { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 15px; padding: 20px; color: white; }
     .brand-title { color: white; } .brand-subtitle { color: #aaa; }
 
+    .password-input-wrap {
+      position: relative;
+    }
+    .password-input-wrap .violet-input {
+      padding-right: 3.35rem !important;
+    }
+    .pwd-toggle {
+      position: absolute;
+      top: 50%;
+      right: 0.9rem;
+      transform: translateY(-50%);
+      border: 0;
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.92);
+      width: 2rem;
+      height: 2rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      cursor: pointer;
+      z-index: 2;
+      font-size: 1rem;
+      transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+    }
+    .password-input-wrap .violet-input:-webkit-autofill ~ .pwd-toggle {
+      background: rgba(124, 58, 237, 0.10);
+      color: var(--primary-dark);
+    }
+    .pwd-toggle:hover,
+    .pwd-toggle:focus-visible {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.14);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+      outline: none;
+    }
+    .password-input-wrap .violet-input:-webkit-autofill ~ .pwd-toggle:hover,
+    .password-input-wrap .violet-input:-webkit-autofill ~ .pwd-toggle:focus-visible {
+      color: var(--primary-light);
+      background: rgba(124, 58, 237, 0.20);
+      box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.24);
+    }
+
   </style>
 </head>
 
@@ -100,10 +143,10 @@
               </div>
 
               <div class="form-group" style="margin-bottom: 20px;">
-                 <div class="input-icon-wrapper" style="position: relative; background: rgba(255,255,255,0.08); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                 <div class="input-icon-wrapper password-input-wrap" style="position: relative; background: rgba(255,255,255,0.08); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
                   <i class="fas fa-lock input-icon" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #aaa; font-size: 1.1rem; z-index: 2;"></i>
                   {{ form.password(class='violet-input', placeholder='Contraseña', id='password', required=True, style='width: 100%; background: none; border: none; outline: none; color: white; padding: 14px 45px 14px 45px; font-size: 1rem; border-radius: 12px;') }}
-                  <button type="button" class="pwd-toggle" aria-label="Mostrar/ocultar contraseña" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #aaa; cursor: pointer; z-index: 2; font-size: 1.1rem;">
+                  <button type="button" class="pwd-toggle" aria-label="Mostrar contraseña" aria-pressed="false">
                     <i class="fa-regular fa-eye"></i>
                   </button>
                 </div>
@@ -238,9 +281,11 @@
         const pwd = form.querySelector('#password');
         if (eye && pwd) {
           eye.addEventListener('click', function () {
-            const isText = pwd.getAttribute('type') === 'text';
-            pwd.setAttribute('type', isText ? 'password' : 'text');
-            this.innerHTML = isText ? '<i class="fa-regular fa-eye"></i>' : '<i class="fa-regular fa-eye-slash"></i>';
+            const isHidden = pwd.getAttribute('type') === 'password';
+            pwd.setAttribute('type', isHidden ? 'text' : 'password');
+            this.setAttribute('aria-pressed', isHidden ? 'true' : 'false');
+            this.setAttribute('aria-label', isHidden ? 'Ocultar contraseña' : 'Mostrar contraseña');
+            this.innerHTML = isHidden ? '<i class="fa-regular fa-eye-slash"></i>' : '<i class="fa-regular fa-eye"></i>';
           });
         }
       }

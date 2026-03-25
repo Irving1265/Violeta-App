@@ -1,5 +1,54 @@
 {% extends 'base.html' %}
 
+{% block styles %}
+<style>
+    .password-input-wrap {
+        position: relative;
+    }
+
+    .password-input-wrap .violet-input {
+        padding-right: 3.35rem;
+    }
+
+    .password-toggle-btn {
+        position: absolute;
+        top: 50%;
+        right: 0.9rem;
+        transform: translateY(-50%);
+        border: 0;
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.92);
+        width: 2rem;
+        height: 2rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .password-input-wrap .violet-input:-webkit-autofill ~ .password-toggle-btn {
+        background: rgba(124, 58, 237, 0.10);
+        color: var(--primary-dark);
+    }
+
+    .password-toggle-btn:hover,
+    .password-toggle-btn:focus-visible {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.14);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+        outline: none;
+    }
+
+    .password-input-wrap .violet-input:-webkit-autofill ~ .password-toggle-btn:hover,
+    .password-input-wrap .violet-input:-webkit-autofill ~ .password-toggle-btn:focus-visible {
+        color: var(--primary-light);
+        background: rgba(124, 58, 237, 0.20);
+        box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.24);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="register-container">
     <div class="register-card">
@@ -58,8 +107,11 @@
             <!-- Step 2: Password -->
             <div class="register-step" id="step2">
                 <h3 class="step-heading">Crear Contraseña</h3>
-                <div class="mb-3">
+                <div class="mb-3 password-input-wrap">
                     {{ form.password(class="violet-input", placeholder="Contraseña", id="password") }}
+                    <button type="button" class="password-toggle-btn" data-password-toggle data-password-target="password" aria-label="Mostrar contraseña" aria-pressed="false">
+                        <i class="fas fa-eye"></i>
+                    </button>
                     {% if form.password.errors %}
                     <div class="text-danger mt-2 small">
                         {% for error in form.password.errors %}
@@ -68,8 +120,11 @@
                     </div>
                     {% endif %}
                 </div>
-                <div class="mb-4">
+                <div class="mb-4 password-input-wrap">
                     {{ form.password2(class="violet-input", placeholder="Repetir Contraseña", id="password2") }}
+                    <button type="button" class="password-toggle-btn" data-password-toggle data-password-target="password2" aria-label="Mostrar contraseña" aria-pressed="false">
+                        <i class="fas fa-eye"></i>
+                    </button>
                     {% if form.password2.errors %}
                     <div class="text-danger mt-2 small">
                         {% for error in form.password2.errors %}
@@ -122,6 +177,23 @@
     let currentStep = 1;
     const totalSteps = 3;
 
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('[data-password-toggle]').forEach((toggleBtn) => {
+            const targetId = toggleBtn.getAttribute('data-password-target');
+            const input = document.getElementById(targetId);
+            const icon = toggleBtn.querySelector('i');
+            if (!input || !icon) return;
+
+            toggleBtn.addEventListener('click', () => {
+                const isHidden = input.type === 'password';
+                input.type = isHidden ? 'text' : 'password';
+                icon.className = isHidden ? 'fas fa-eye-slash' : 'fas fa-eye';
+                toggleBtn.setAttribute('aria-label', isHidden ? 'Ocultar contraseña' : 'Mostrar contraseña');
+                toggleBtn.setAttribute('aria-pressed', isHidden ? 'true' : 'false');
+            });
+        });
+    });
+
     function updateSteps() {
         // Hide all steps
         document.querySelectorAll('.register-step').forEach(step => {
@@ -164,33 +236,43 @@
             const emailInput = document.getElementById('email');
             const emailError = document.getElementById('emailError');
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            const normalizedEmail = emailInput.value.trim().toLowerCase();
 
+            emailInput.value = normalizedEmail;
             emailError.style.display = 'none';
 
-            if (!emailRegex.test(emailInput.value)) {
+            if (!emailRegex.test(normalizedEmail)) {
                 valid = false;
                 emailInput.classList.add('error');
                 emailError.textContent = 'Formato de correo inválido';
                 emailError.style.display = 'block';
             } else {
-                // Check if email already exists
                 try {
                     const response = await fetch('/api/check-email', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({ email: emailInput.value })
+                        body: JSON.stringify({ email: normalizedEmail })
                     });
 
-                    const data = await response.json();
-                    if (data.exists) {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        valid = false;
+                        emailInput.classList.add('error');
+                        emailError.textContent = data.error || 'No pudimos validar este correo. Intenta de nuevo.';
+                        emailError.style.display = 'block';
+                    } else if (data.exists) {
                         valid = false;
                         emailInput.classList.add('error');
                         emailError.textContent = 'Este correo electrónico ya está registrado';
                         emailError.style.display = 'block';
                     }
                 } catch (error) {
+                    valid = false;
+                    emailInput.classList.add('error');
+                    emailError.textContent = 'No pudimos validar este correo. Intenta de nuevo.';
+                    emailError.style.display = 'block';
                     console.error('Error checking email:', error);
                 }
             }
