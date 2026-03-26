@@ -49,6 +49,7 @@ class Config:
     # Never use a hardcoded fallback secret in source control.
     SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_urlsafe(64)
     DEBUG = _env_bool('FLASK_DEBUG', False)
+    PREFERRED_URL_SCHEME = os.environ.get('PREFERRED_URL_SCHEME') or ('https' if not DEBUG else 'http')
 
     # Zona horaria "de negocio" para cálculos de "hoy" (p. ej. reportes del día).
     # Se usa para convertir límites locales -> UTC naive (created_at se guarda en UTC naive).
@@ -64,6 +65,10 @@ class Config:
     MAX_CONTENT_LENGTH = 32 * 1024 * 1024  # 32MB máximo
     # Extensiones permitidas (añadimos formatos comunes de móviles)
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif'}
+    UPLOAD_BACKEND = (os.environ.get('UPLOAD_BACKEND') or 'local').strip().lower()
+    SUPABASE_URL = (os.environ.get('SUPABASE_URL') or '').strip().rstrip('/')
+    SUPABASE_SERVICE_ROLE_KEY = (os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or '').strip()
+    SUPABASE_STORAGE_BUCKET = (os.environ.get('SUPABASE_STORAGE_BUCKET') or 'uploads').strip()
 
     # Configuración de sesión
     PERMANENT_SESSION_LIFETIME = timedelta(days=7)
@@ -78,13 +83,18 @@ class Config:
     # None => same-origin policy by default in Flask-SocketIO.
     SOCKETIO_CORS_ALLOWED_ORIGINS = os.environ.get('SOCKETIO_CORS_ALLOWED_ORIGINS')
 
-    # Configuración de correo (para OTP)
+    # Configuración de correo (para OTP y recuperación)
+    MAIL_DELIVERY_METHOD = (os.environ.get('MAIL_DELIVERY_METHOD') or '').strip().lower()
     MAIL_SERVER = os.environ.get('MAIL_SERVER') or 'smtp.gmail.com'
     MAIL_PORT = int(os.environ.get('MAIL_PORT') or 587)
     MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() in ('1', 'true', 'yes')
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME') or ''
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD') or ''
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or MAIL_USERNAME
+    RESEND_API_KEY = os.environ.get('RESEND_API_KEY') or ''
+    RESEND_API_URL = os.environ.get('RESEND_API_URL') or 'https://api.resend.com/emails'
+    RESEND_FROM = os.environ.get('RESEND_FROM') or MAIL_DEFAULT_SENDER
+    RESEND_REPLY_TO = os.environ.get('RESEND_REPLY_TO') or ''
 
     @staticmethod
     def init_app(app):

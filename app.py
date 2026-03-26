@@ -37,6 +37,7 @@ from collections import Counter, defaultdict, deque
 import json
 import csv
 import glob
+import mimetypes
 import smtplib
 import base64
 import hashlib
@@ -46,7 +47,7 @@ import secrets
 import threading
 from flask_mail import Mail, Message
 from math import radians, cos, sin, asin, sqrt
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
@@ -728,6 +729,113 @@ def create_app():
         folder = os.path.join(base, 'verify')
         os.makedirs(folder, exist_ok=True)
         return folder
+
+
+    def public_upload_storage_enabled() -> bool:
+        return (
+            (app.config.get('UPLOAD_BACKEND') or '').strip().lower() == 'supabase'
+            and bool((app.config.get('SUPABASE_URL') or '').strip())
+            and bool((app.config.get('SUPABASE_SERVICE_ROLE_KEY') or '').strip())
+            and bool((app.config.get('SUPABASE_STORAGE_BUCKET') or '').strip())
+        )
+
+    def public_upload_storage_path(filename: str | None) -> str | None:
+        normalized = (filename or '').replace('\\', '/').lstrip('/')
+        if not normalized or normalized.startswith('verify/'):
+            return None
+        return normalized
+
+    def public_upload_storage_url(filename: str | None) -> str | None:
+        storage_path = public_upload_storage_path(filename)
+        if not storage_path or not public_upload_storage_enabled():
+            return None
+        base_url = (app.config.get('SUPABASE_URL') or '').rstrip('/')
+        bucket = (app.config.get('SUPABASE_STORAGE_BUCKET') or '').strip()
+        return f"{base_url}/storage/v1/object/public/{quote(bucket, safe='')}/{quote(storage_path, safe='/')}"
+
+    def sync_public_upload_to_storage(filename: str | None, *, local_path: str | None = None, mime_type: str | None = None) -> bool:
+        storage_path = public_upload_storage_path(filename)
+        if not storage_path:
+            return True
+        if not public_upload_storage_enabled():
+            return True
+
+        if not local_path:
+            local_path = os.path.join(ensure_upload_folder(), storage_path)
+        if not os.path.exists(local_path):
+            return False
+
+        api_key = (app.config.get('SUPABASE_SERVICE_ROLE_KEY') or '').strip()
+        base_url = (app.config.get('SUPABASE_URL') or '').rstrip('/')
+        bucket = (app.config.get('SUPABASE_STORAGE_BUCKET') or '').strip()
+        if not mime_type:
+            mime_type = mimetypes.guess_type(local_path)[0] or 'application/octet-stream'
+
+        with open(local_path, 'rb') as fh:
+            payload = fh.read()
+
+        req = Request(
+            f"{base_url}/storage/v1/object/{quote(bucket, safe='')}/{quote(storage_path, safe='/')}",
+            data=payload,
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'apikey': api_key,
+                'Content-Type': mime_type,
+                'x-upsert': 'true',
+            },
+            method='POST',
+        )
+        try:
+            with urlopen(req, timeout=30) as resp:  # nosec B310
+                status = getattr(resp, 'status', None) or resp.getcode()
+                return status in (200, 201)
+        except HTTPError as exc:
+            if app.debug:
+                try:
+                    detail = exc.read().decode('utf-8', errors='replace')
+                except Exception:
+                    detail = str(exc)
+                print(f'DEBUG: Supabase Storage HTTPError syncing {storage_path}: {detail}')
+            return False
+        except URLError as exc:
+            if app.debug:
+                print(f'DEBUG: Supabase Storage URLError syncing {storage_path}: {exc}')
+            return False
+        except Exception as exc:
+            if app.debug:
+                print(f'DEBUG: Supabase Storage sync error for {storage_path}: {exc}')
+            return False
+
+    def delete_public_upload_from_storage(filename: str | None) -> None:
+        storage_path = public_upload_storage_path(filename)
+        if not storage_path or not public_upload_storage_enabled():
+            return
+        api_key = (app.config.get('SUPABASE_SERVICE_ROLE_KEY') or '').strip()
+        base_url = (app.config.get('SUPABASE_URL') or '').rstrip('/')
+        bucket = (app.config.get('SUPABASE_STORAGE_BUCKET') or '').strip()
+        req = Request(
+            f"{base_url}/storage/v1/object/{quote(bucket, safe='')}/{quote(storage_path, safe='/')}",
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'apikey': api_key,
+            },
+            method='DELETE',
+        )
+        try:
+            with urlopen(req, timeout=15):  # nosec B310
+                return
+        except HTTPError as exc:
+            if exc.code == 404:
+                return
+            if app.debug:
+                try:
+                    detail = exc.read().decode('utf-8', errors='replace')
+                except Exception:
+                    detail = str(exc)
+                print(f'DEBUG: Supabase Storage HTTPError deleting {storage_path}: {detail}')
+        except Exception as exc:
+            if app.debug:
+                print(f'DEBUG: Supabase Storage delete error for {storage_path}: {exc}')
 
     _face_blur_runtime_cache = {'ready': False, 'dnn': None, 'haar': [], 'hog': None}
     _face_blur_fast_mode = str(os.environ.get('FACE_BLUR_FAST_MODE', '1')).strip().lower() in {'1', 'true', 'yes', 'on'}
@@ -2060,6 +2168,14 @@ def create_app():
                 if app.debug:
                     print('DEBUG: Face blur failed on upload:', e)
 
+        if not sync_public_upload_to_storage(unique_name, local_path=save_path):
+            try:
+                os.remove(save_path)
+            except Exception as exc:
+                _debug_log_suppressed('suppressed exception', exc)
+            flash('No se pudo publicar la imagen en el almacenamiento externo.', 'danger')
+            return redirect(url_for('index'))
+
         # Campos del formulario (con fallback a request.form)
         caption = safe_field(form, 'caption') or ''
         lat = parse_float(safe_field(form, 'latitude'))
@@ -2122,7 +2238,7 @@ def create_app():
             try:
                 import json as _json
                 from urllib.request import Request, urlopen
-                from urllib.parse import urlencode
+                from urllib.parse import urlencode, quote
                 params = {
                     'format': 'json',
                     'lat': f'{lat:.6f}',
@@ -2287,6 +2403,10 @@ def create_app():
                 own_req = VerificationRequest.query.filter_by(user_id=current_user.id).first()
                 if not own_req or (own_req.video_filename or '').strip() != normalized:
                     abort(403)
+
+        external_url = public_upload_storage_url(normalized)
+        if external_url:
+            return redirect(external_url, code=302)
 
         folder = ensure_upload_folder()
         return send_from_directory(folder, normalized)
@@ -3230,6 +3350,12 @@ def create_app():
                 ensure_upload_folder()
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
                 attachment_file.save(file_path)
+                if not sync_public_upload_to_storage(unique_filename, local_path=file_path, mime_type=attachment_file.mimetype):
+                    try:
+                        os.remove(file_path)
+                    except Exception as exc:
+                        _debug_log_suppressed('suppressed exception', exc)
+                    return jsonify({'error': 'No se pudo guardar el archivo en el almacenamiento externo'}), 500
                 message_type = 'image' if ext in {'png', 'jpg', 'jpeg'} else 'file'
                 message = ChatMessage(
                     content=content or '',
@@ -3312,10 +3438,20 @@ def create_app():
             filename = secure_filename(file.filename)
             if not allowed_file(filename):
                 return jsonify({'error': 'Tipo de archivo no permitido'}), 400
+            old_image = (room.image_filename or '').strip()
             unique_name = f"{uuid4().hex}.{filename.rsplit('.', 1)[1].lower()}"
             upload_folder = ensure_upload_folder()
-            file.save(os.path.join(upload_folder, unique_name))
+            save_path = os.path.join(upload_folder, unique_name)
+            file.save(save_path)
+            if not sync_public_upload_to_storage(unique_name, local_path=save_path, mime_type=file.mimetype):
+                try:
+                    os.remove(save_path)
+                except Exception as exc:
+                    _debug_log_suppressed('suppressed exception', exc)
+                return jsonify({'error': 'No se pudo guardar la imagen en el almacenamiento externo'}), 500
             room.image_filename = unique_name
+            if old_image and old_image != unique_name:
+                safe_remove_upload(old_image)
 
         db.session.commit()
 
@@ -3646,7 +3782,7 @@ def create_app():
             force: 1 para forzar recarga del cache
         """
         import json
-        from urllib.parse import urlencode
+        from urllib.parse import urlencode, quote
         from urllib.request import Request, urlopen
         import time
 
@@ -3743,7 +3879,7 @@ def create_app():
         Cachea por 12h en instance/.
         """
         import json
-        from urllib.parse import urlencode
+        from urllib.parse import urlencode, quote
         from urllib.request import Request, urlopen
         import time
 
@@ -3817,7 +3953,7 @@ def create_app():
         Cachea por 12h en instance/.
         """
         import json
-        from urllib.parse import urlencode
+        from urllib.parse import urlencode, quote
         from urllib.request import Request, urlopen
         import time
 
@@ -4335,6 +4471,8 @@ def create_app():
                 os.remove(file_path)
             except Exception as exc:
                 _debug_log_suppressed('suppressed exception', exc)
+        delete_public_upload_from_storage(name)
+
     def delete_user_and_related(target_user: User):
         # Verification requests + videos
         reqs = VerificationRequest.query.filter_by(user_id=target_user.id).all()
@@ -4542,6 +4680,12 @@ def create_app():
             unique_filename = str(uuid4()) + '.' + filename.rsplit('.', 1)[1].lower()
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
             file.save(file_path)
+            if not sync_public_upload_to_storage(unique_filename, local_path=file_path, mime_type=file.mimetype):
+                try:
+                    os.remove(file_path)
+                except Exception as exc:
+                    _debug_log_suppressed('suppressed exception', exc)
+                return jsonify({'error': 'No se pudo guardar la foto en el almacenamiento externo'}), 500
 
             user.profile_pic = unique_filename
             if bio != '':
@@ -4578,19 +4722,13 @@ def create_app():
             return jsonify({'error': 'Acceso denegado'}), 403
 
         room = ChatRoom.query.get_or_404(room_id)
-        upload_folder = ensure_upload_folder()
 
         try:
             messages = ChatMessage.query.filter_by(room_id=room_id).all()
             for msg in messages:
                 filename = getattr(msg, 'attachment_filename', None)
                 if filename:
-                    file_path = os.path.join(upload_folder, filename)
-                    try:
-                        if os.path.exists(file_path):
-                            os.remove(file_path)
-                    except Exception as exc:
-                        _debug_log_suppressed('suppressed exception', exc)
+                    safe_remove_upload(filename)
             ChatMessage.query.filter_by(room_id=room_id).delete(synchronize_session=False)
             db.session.commit()
 
@@ -4637,14 +4775,8 @@ def create_app():
             if getattr(message, 'is_deleted', False):
                 return jsonify({'success': True})
 
-            upload_folder = ensure_upload_folder()
             if message.attachment_filename:
-                file_path = os.path.join(upload_folder, message.attachment_filename)
-                try:
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                except Exception as exc:
-                    _debug_log_suppressed('suppressed exception', exc)
+                safe_remove_upload(message.attachment_filename)
             message.content = ''
             message.is_deleted = True
             message.deleted_at = utc_now_naive()
@@ -4868,13 +5000,18 @@ def create_app():
                     old_pic = (user.profile_pic or '').strip()
                     try:
                         file.save(save_path)
-                        user.profile_pic = unique_name
+                        if not sync_public_upload_to_storage(unique_name, local_path=save_path, mime_type=file.mimetype):
+                            try:
+                                os.remove(save_path)
+                            except Exception as exc:
+                                _debug_log_suppressed('suppressed exception', exc)
+                            error = 'No se pudo guardar la foto en el almacenamiento externo.'
+                        else:
+                            user.profile_pic = unique_name
                         # Intentar eliminar la foto anterior si no es la por defecto
                         try:
                             if old_pic and old_pic.lower() != 'default.jpg':
-                                old_path = os.path.join(upload_folder, old_pic)
-                                if os.path.exists(old_path):
-                                    os.remove(old_path)
+                                safe_remove_upload(old_pic)
                         except Exception as exc:
                             _debug_log_suppressed('suppressed exception', exc)
                     except Exception:
@@ -4897,13 +5034,18 @@ def create_app():
                     save_path = os.path.join(upload_folder, unique_name)
                     with open(save_path, 'wb') as f:
                         f.write(raw)
+                    if not sync_public_upload_to_storage(unique_name, local_path=save_path, mime_type=mime):
+                        try:
+                            os.remove(save_path)
+                        except Exception as exc:
+                            _debug_log_suppressed('suppressed exception', exc)
+                        error = 'No se pudo guardar la foto en el almacenamiento externo.'
                     old_pic = (user.profile_pic or '').strip()
-                    user.profile_pic = unique_name
+                    if not error:
+                        user.profile_pic = unique_name
                     try:
                         if old_pic and old_pic.lower() != 'default.jpg':
-                            old_path = os.path.join(upload_folder, old_pic)
-                            if os.path.exists(old_path):
-                                os.remove(old_path)
+                            safe_remove_upload(old_pic)
                     except Exception as exc:
                         _debug_log_suppressed('suppressed exception', exc)
                 except Exception:
@@ -4955,7 +5097,14 @@ def create_app():
                 _, ext = os.path.splitext(name)
                 ext = ext.lower() or '.jpg'
                 new_name = f"{uuid4().hex}{ext}"
-                file.save(os.path.join(upload_folder, new_name))
+                file_path = os.path.join(upload_folder, new_name)
+                file.save(file_path)
+                if not sync_public_upload_to_storage(new_name, local_path=file_path, mime_type=file.mimetype):
+                    try:
+                        os.remove(file_path)
+                    except Exception as exc:
+                        _debug_log_suppressed('suppressed exception', exc)
+                    return jsonify({'ok': False, 'error': 'No se pudo guardar la imagen en el almacenamiento externo.'}), 500
             elif b64.startswith('data:image/'):
                 # Guardar desde base64
                 mime = b64.split(';')[0].split(':')[1]
@@ -4974,8 +5123,15 @@ def create_app():
                 raw = base64.b64decode(data_part)
                 if len(raw) > max_avatar_bytes:
                     return jsonify({'ok': False, 'error': 'La imagen excede el tamaño permitido.'}), 400
-                with open(os.path.join(upload_folder, new_name), 'wb') as f:
+                file_path = os.path.join(upload_folder, new_name)
+                with open(file_path, 'wb') as f:
                     f.write(raw)
+                if not sync_public_upload_to_storage(new_name, local_path=file_path, mime_type=mime):
+                    try:
+                        os.remove(file_path)
+                    except Exception as exc:
+                        _debug_log_suppressed('suppressed exception', exc)
+                    return jsonify({'ok': False, 'error': 'No se pudo guardar la imagen en el almacenamiento externo.'}), 500
             else:
                 return jsonify({'ok': False, 'error': 'Imagen inválida'}), 400
 
@@ -4987,9 +5143,7 @@ def create_app():
 
             try:
                 if old and old.lower() != 'default.jpg':
-                    old_path = os.path.join(upload_folder, old)
-                    if os.path.exists(old_path):
-                        os.remove(old_path)
+                    safe_remove_upload(old)
             except Exception as exc:
                 _debug_log_suppressed('suppressed exception', exc)
             url = url_for('uploaded_file', filename=new_name)
@@ -5642,7 +5796,7 @@ def create_app():
         """
         import json
         import time
-        from urllib.parse import urlencode
+        from urllib.parse import urlencode, quote
         from urllib.request import Request, urlopen
 
         # Respeto básico a Nominatim (1 req/seg)
