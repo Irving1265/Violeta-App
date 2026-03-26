@@ -934,7 +934,7 @@ function showChatMessageToast(options) {
         if (!flash) return;
 
         const roomName = String(options.room_name || 'Chat');
-        const roomImageUrl = String(options.room_image_url || '/static/uploads/avatar.png');
+        const roomImageUrl = String(options.room_image_url || '/static/images/favicon.png');
         const username = String(options.username || '');
         const messageText = String(options.message || '').trim();
         if (!username || !messageText) return;

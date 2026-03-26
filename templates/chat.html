@@ -31,7 +31,7 @@
                         <i class="fas fa-arrow-left"></i>
                     </button>
                     <div class="chat-room-avatar">
-                        <img id="chatRoomAvatar" src="{{ url_for('static', filename='uploads/avatar.png') }}" alt="Sala">
+                        <img id="chatRoomAvatar" src="{{ url_for('static', filename='images/favicon.png') }}" alt="Sala">
                     </div>
                     <div class="chat-room-info">
                         <div class="chat-room-name" id="chatRoomName">Chat</div>
@@ -80,7 +80,7 @@
             </div>
             <div class="modal-body violet-modal-body">
                 <div class="room-edit-preview">
-                    <img id="editRoomPreview" src="{{ url_for('static', filename='uploads/avatar.png') }}" alt="preview">
+                    <img id="editRoomPreview" src="{{ url_for('static', filename='images/favicon.png') }}" alt="preview">
                 </div>
                 <input type="file" class="d-none" id="editRoomFile" accept="image/*">
                 <button type="button" class="btn btn-outline-light w-100 mt-3" id="editRoomPickBtn">
@@ -333,7 +333,7 @@
                 const editFileInput = document.getElementById('editRoomFile');
                 const modeAll = document.getElementById('editRoomModeAll');
                 const modeRestricted = document.getElementById('editRoomModeRestricted');
-                if (preview) preview.src = currentRoomData.image_url || '/static/uploads/avatar.png';
+                if (preview) preview.src = currentRoomData.image_url || '/static/images/favicon.png';
                 if (descInput) descInput.value = currentRoomData.description || '';
                 if (deleteBtn) {
                     deleteBtn.classList.toggle('d-none', !currentIsAdmin);
@@ -858,7 +858,7 @@
             roomIndex[room.id] = room;
             const lastMessage = room.last_message;
             const timeAgo = lastMessage ? formatTimeAgo(new Date(lastMessage.created_at)) : '';
-            const roomAvatar = room.image_url || '/static/uploads/avatar.png';
+            const roomAvatar = room.image_url || '/static/images/favicon.png';
             const lastMessageText = lastMessage ? formatLastMessage(lastMessage) : 'Sin mensajes';
             const isActive = currentRoomId != null && Number(currentRoomId) === Number(room.id);
 
@@ -1112,7 +1112,7 @@
             if (searchRow) searchRow.classList.remove('d-none');
         }
         if (chatContainer) chatContainer.classList.add('room-open');
-        avatar.src = currentRoomData.image_url || '/static/uploads/avatar.png';
+        avatar.src = currentRoomData.image_url || '/static/images/favicon.png';
         nameEl.textContent = currentRoomData.name || 'Chat';
         descEl.textContent = currentRoomData.description || 'Sin descripción';
 
