@@ -119,46 +119,24 @@
             </div>
             <div class="widget-body">
                 <div id="reportsByCategory">
-                    <ul class="trends-list">
-                        {% if report_counts %}
-                        {% for item in report_counts %}
+                    <ul class="trends-list" id="reportsByCategoryList">
                         <li>
                             <div class="trend-info">
-                                <h4 class="trend-title">{{ item.category }}</h4>
-                                <span class="trend-stats">{{ item.count }} reporte{{ 's' if item.count != 1 else '' }}</span>
+                                <h4 class="trend-title">Cargando...</h4>
+                                <span class="trend-stats">Preparando resumen</span>
                             </div>
                         </li>
-                        {% endfor %}
-                        {% else %}
-                        <li>
-                            <div class="trend-info">
-                                <h4 class="trend-title">Sin reportes</h4>
-                                <span class="trend-stats">Aún no hay reportes generados.</span>
-                            </div>
-                        </li>
-                        {% endif %}
                     </ul>
                 </div>
 
                 <div id="reportsToday" style="display:none;">
-                    <ul class="trends-list">
-                        {% if report_counts_today %}
-                        {% for item in report_counts_today %}
+                    <ul class="trends-list" id="reportsTodayList">
                         <li>
                             <div class="trend-info">
-                                <h4 class="trend-title">{{ item.category }}</h4>
-                                <span class="trend-stats">{{ item.count }} reporte{{ 's' if item.count != 1 else '' }}</span>
+                                <h4 class="trend-title">Cargando...</h4>
+                                <span class="trend-stats">Preparando resumen</span>
                             </div>
                         </li>
-                        {% endfor %}
-                        {% else %}
-                        <li>
-                            <div class="trend-info">
-                                <h4 class="trend-title">Hoy</h4>
-                                <span class="trend-stats">Aún no se han generado reportes el día de hoy</span>
-                            </div>
-                        </li>
-                        {% endif %}
                     </ul>
                 </div>
             </div>
@@ -233,7 +211,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
     // Configuración para JS
-    window.currentUserProfilePic = '{{ url_for("uploaded_file", filename=current_user.profile_pic) if current_user.is_authenticated and current_user.profile_pic and current_user.profile_pic != "default.jpg" else url_for("static", filename="images/default_avatar.jpg") }}';
+    window.currentUserProfilePic = '{{ avatar_url_for_user(current_user) if current_user.is_authenticated else url_for("static", filename="images/default_avatar.jpg") }}';
 
     // Mini Map Initialization
     (function () {
@@ -262,26 +240,24 @@
                 })
             }).addTo(map);
 
-            // Fetch hotspots
-            fetch('/api/hotspots?limit=30').then(r => r.json()).then(data => {
+            // Fetch hotspots already filtered near the current location.
+            fetch(`/api/hotspots?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&radius_km=8&limit=30`).then(r => r.json()).then(data => {
                 let count = 0;
                     (data.hotspots || []).forEach(h => {
 	                    // Distancia aproximada (km) para radios cortos.
 	                    const dx = (h.lng - lng) * Math.cos(((h.lat + lat) / 2) * Math.PI / 180) * 111.32;
 	                    const dy = (h.lat - lat) * 110.57;
 	                    const d = Math.sqrt(dx * dx + dy * dy);
-	                    if (d < 8) {
-	                        count += h.count || 1;
-	                        // Cerca: <= 0.5km, Medio: (0.5km, 1km), Lejos: >= 1km
-	                        const c = d <= 0.5 ? '#ef4444' : d < 1 ? '#f97316' : '#fbbf24';
-	                        const s = Math.min(14, 8 + (h.count || 1));
-	                        L.marker([h.lat, h.lng], {
-	                            icon: L.divIcon({
-                                html: `<div style="background:${c};width:${s}px;height:${s}px;border-radius:50%;opacity:0.85;"></div>`,
-                                className: '', iconSize: [s, s], iconAnchor: [s / 2, s / 2]
-                            })
-                        }).addTo(map);
-                    }
+	                    count += h.count || 1;
+	                    // Cerca: <= 0.5km, Medio: (0.5km, 1km), Lejos: >= 1km
+	                    const c = d <= 0.5 ? '#ef4444' : d < 1 ? '#f97316' : '#fbbf24';
+	                    const s = Math.min(14, 8 + (h.count || 1));
+	                    L.marker([h.lat, h.lng], {
+	                        icon: L.divIcon({
+                            html: `<div style="background:${c};width:${s}px;height:${s}px;border-radius:50%;opacity:0.85;"></div>`,
+                            className: '', iconSize: [s, s], iconAnchor: [s / 2, s / 2]
+                        })
+                    }).addTo(map);
                 });
                 if (countEl) countEl.textContent = count;
             }).catch(e => console.error(e));
@@ -420,10 +396,7 @@
         });
 
         window.__smoothNavigate = function (url) {
-            layout.classList.add('page-leave');
-            setTimeout(() => {
-                window.location.href = url;
-            }, 180);
+            window.location.href = url;
         };
     })();
 
@@ -483,11 +456,51 @@
         const icon = document.getElementById('reportsToggleIcon');
         const byCategory = document.getElementById('reportsByCategory');
         const today = document.getElementById('reportsToday');
+        const byCategoryList = document.getElementById('reportsByCategoryList');
+        const todayList = document.getElementById('reportsTodayList');
         const postsContainer = document.getElementById('posts-container');
-        if (!btn || !icon || !byCategory || !today) return;
+        if (!btn || !icon || !byCategory || !today || !byCategoryList || !todayList) return;
 
         let mode = 'category';
         let todayEmptyState = document.getElementById('feedTodayEmptyState');
+
+        function renderList(listEl, items, emptyTitle, emptyText) {
+            if (!listEl) return;
+            if (!Array.isArray(items) || items.length === 0) {
+                listEl.innerHTML = `
+                    <li>
+                        <div class="trend-info">
+                            <h4 class="trend-title">${emptyTitle}</h4>
+                            <span class="trend-stats">${emptyText}</span>
+                        </div>
+                    </li>
+                `;
+                return;
+            }
+            listEl.innerHTML = items.map((item) => `
+                <li>
+                    <div class="trend-info">
+                        <h4 class="trend-title">${escapeHtml(item.category || 'Sin categoría')}</h4>
+                        <span class="trend-stats">${Number(item.count || 0)} reporte${Number(item.count || 0) !== 1 ? 's' : ''}</span>
+                    </div>
+                </li>
+            `).join('');
+        }
+
+        function loadSidebarSummary() {
+            const selectedCity = "{{ selected_city or 'all' }}";
+            const url = `/api/feed/sidebar-summary?city=${encodeURIComponent(selectedCity)}`;
+            fetch(url, { headers: { Accept: 'application/json' } })
+                .then((response) => response.ok ? response.json() : Promise.reject(new Error('sidebar-summary')))
+                .then((data) => {
+                    renderList(byCategoryList, data.report_counts || [], 'Sin reportes', 'Aún no hay reportes generados.');
+                    renderList(todayList, data.report_counts_today || [], 'Hoy', 'Aún no se han generado reportes el día de hoy');
+                })
+                .catch(() => {
+                    renderList(byCategoryList, [], 'Sin reportes', 'No se pudo cargar el resumen.');
+                    renderList(todayList, [], 'Hoy', 'No se pudo cargar el resumen.');
+                });
+        }
 
         function getLocalTodayYmd() {
             const now = new Date();
@@ -552,6 +565,12 @@
         btn.addEventListener('click', () => {
             setMode(mode === 'category' ? 'today' : 'category');
         });
+
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(loadSidebarSummary, { timeout: 700 });
+        } else {
+            window.setTimeout(loadSidebarSummary, 120);
+        }
 
         if (postsContainer) {
             const observer = new MutationObserver(() => {

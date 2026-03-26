@@ -28,8 +28,9 @@ from flask_login import (
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.utils import secure_filename
-from models import db, User, UserBlock, SafetyContact, PanicEvent, SafetyCheckin, CheckinRoutePoint, Post, Comment, Like, Share, Tag, PostMeta, ChatRoom, ChatParticipant, ChatMessage, Report, VerificationRequest, post_tag
-from sqlalchemy import or_, and_, text, func
+from models import db, User, UserBlock, SafetyContact, PanicEvent, SafetyCheckin, CheckinRoutePoint, Post, Comment, Like, Share, Tag, PostMeta, ChatRoom, ChatParticipant, ChatMessage, ChatMessageReport, CommentReport, ModerationStrike, Report, VerificationRequest, post_tag
+from sqlalchemy import or_, and_, text, func, inspect
+from sqlalchemy.orm import selectinload
 from config import Config
 from forms import LoginForm, RegisterForm, PostForm, CommentForm, ShareForm
 from datetime import datetime, timedelta, timezone
@@ -42,9 +43,14 @@ import smtplib
 import base64
 import hashlib
 import re
+try:
+    import redis
+except Exception:  # pragma: no cover - optional runtime dependency
+    redis = None
 from email.message import EmailMessage
 import secrets
 import threading
+import time
 from flask_mail import Mail, Message
 from math import radians, cos, sin, asin, sqrt
 from urllib.parse import urlencode, quote
@@ -67,6 +73,17 @@ _RATE_LIMIT_LOCK = threading.Lock()
 def utc_now_naive() -> datetime:
     """Return UTC now as naive datetime to preserve current DB semantics."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def chat_message_deleted_reason(message: ChatMessage | None, reported_ids: set[int] | None = None) -> str | None:
+    if not message or not getattr(message, 'is_deleted', False):
+        return None
+    if reported_ids is not None:
+        return 'reported' if message.id in reported_ids else 'deleted'
+    try:
+        return 'reported' if bool(getattr(message, 'reports', None)) else 'deleted'
+    except Exception:
+        return 'deleted'
 
 def get_request_ip() -> str:
     forwarded_for = (request.headers.get('X-Forwarded-For') or '').split(',')[0].strip()
@@ -394,6 +411,95 @@ def ensure_safety_schema():
                 print('DEBUG ensure_safety_schema error:', e)
         except Exception as exc:
             _debug_log_suppressed('suppressed exception', exc)
+def ensure_moderation_schema():
+    """Ensure moderation-related columns exist on already-created tables."""
+    try:
+        engine = db.engine
+        inspector = inspect(engine)
+        tables = set(inspector.get_table_names())
+        if not tables:
+            return
+
+        dialect = engine.dialect.name
+        datetime_type = 'TIMESTAMP' if dialect == 'postgresql' else 'DATETIME'
+        bool_default = 'FALSE' if dialect == 'postgresql' else '0'
+        user_table = '"user"' if dialect == 'postgresql' else 'user'
+
+        with engine.begin() as conn:
+            if 'user' in tables:
+                user_cols = {col['name'] for col in inspector.get_columns('user')}
+                if 'abuse_strikes' not in user_cols:
+                    conn.execute(text(f'ALTER TABLE {user_table} ADD COLUMN abuse_strikes INTEGER DEFAULT 0'))
+                if 'muted_until' not in user_cols:
+                    conn.execute(text(f'ALTER TABLE {user_table} ADD COLUMN muted_until {datetime_type}'))
+                if 'last_abuse_at' not in user_cols:
+                    conn.execute(text(f'ALTER TABLE {user_table} ADD COLUMN last_abuse_at {datetime_type}'))
+                if 'permanently_banned_at' not in user_cols:
+                    conn.execute(text(f'ALTER TABLE {user_table} ADD COLUMN permanently_banned_at {datetime_type}'))
+                if 'permanent_ban_reason' not in user_cols:
+                    conn.execute(text(f'ALTER TABLE {user_table} ADD COLUMN permanent_ban_reason VARCHAR(255)'))
+                conn.execute(text(f'UPDATE {user_table} SET abuse_strikes = 0 WHERE abuse_strikes IS NULL'))
+
+            if 'comment' in tables:
+                comment_cols = {col['name'] for col in inspector.get_columns('comment')}
+                if 'is_hidden' not in comment_cols:
+                    conn.execute(text(f'ALTER TABLE comment ADD COLUMN is_hidden BOOLEAN DEFAULT {bool_default}'))
+                if 'hidden_at' not in comment_cols:
+                    conn.execute(text(f'ALTER TABLE comment ADD COLUMN hidden_at {datetime_type}'))
+                if 'hidden_by' not in comment_cols:
+                    conn.execute(text('ALTER TABLE comment ADD COLUMN hidden_by INTEGER'))
+                if 'hidden_reason' not in comment_cols:
+                    conn.execute(text('ALTER TABLE comment ADD COLUMN hidden_reason VARCHAR(32)'))
+                conn.execute(text('UPDATE comment SET is_hidden = 0 WHERE is_hidden IS NULL'))
+    except Exception as e:
+        try:
+            if 'app' in globals() and getattr(app, 'debug', False):
+                print('DEBUG ensure_moderation_schema error:', e)
+        except Exception as exc:
+            _debug_log_suppressed('suppressed exception', exc)
+
+
+def ensure_performance_indexes():
+    """Create pragmatic indexes for the hottest feed/comment queries."""
+    try:
+        engine = db.engine
+        dialect = engine.dialect.name
+        like_table = '"like"' if dialect == 'postgresql' else 'like'
+        with engine.begin() as conn:
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_post_created_at ON post (created_at)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_post_publish_at ON post (publish_at)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_post_user_created_at ON post (user_id, created_at)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_post_lat_lng ON post (latitude, longitude)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_comment_post_created_at ON comment (post_id, created_at)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_comment_user_id ON comment (user_id)"))
+            conn.execute(text(f"CREATE INDEX IF NOT EXISTS idx_like_post_id ON {like_table} (post_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chat_message_room_id ON chat_message (room_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chat_message_room_created_at ON chat_message (room_id, created_at)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chat_message_room_is_deleted_created_at ON chat_message (room_id, is_deleted, created_at)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chat_participant_user_room ON chat_participant (user_id, room_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chat_participant_room_id ON chat_participant (room_id)"))
+    except Exception as e:
+        try:
+            if 'app' in globals() and getattr(app, 'debug', False):
+                print('DEBUG ensure_performance_indexes error:', e)
+        except Exception as exc:
+            _debug_log_suppressed('suppressed exception', exc)
+
+
+def ensure_startup_schema():
+    """Run the lightweight schema/index sync needed in dev and prod."""
+    db.create_all()
+    ensure_chatroom_schema()
+    ensure_post_schema()
+    ensure_postmeta_schema()
+    ensure_report_schema()
+    ensure_user_schema()
+    ensure_userblock_schema()
+    ensure_safety_schema()
+    ensure_moderation_schema()
+    ensure_performance_indexes()
+
+
 def is_user_verified(user) -> bool:
     if not user or not getattr(user, 'is_authenticated', False):
         return True
@@ -419,53 +525,160 @@ def contains_abusive_language(content: str) -> bool:
     return False
 
 
-def is_user_temp_muted(user) -> bool:
+def moderation_badge_level(user) -> int:
+    if not user:
+        return 0
+    if getattr(user, 'username', '') == 'admin':
+        return 0
+    strikes = int(getattr(user, 'abuse_strikes', 0) or 0)
+    if strikes >= 2:
+        return 2
+    if strikes >= 1:
+        return 1
+    return 0
+
+
+def is_user_permanently_banned(user) -> bool:
     if not user or not getattr(user, 'is_authenticated', False):
         return False
     if getattr(user, 'username', '') == 'admin':
         return False
+    return bool(getattr(user, 'permanently_banned_at', None))
+
+
+def _clear_expired_moderation_restriction(user):
+    if not user or getattr(user, 'username', '') == 'admin':
+        return
+    until = getattr(user, 'muted_until', None)
+    if until and until <= utc_now_naive():
+        user.muted_until = None
+        db.session.add(user)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+
+def user_restriction_state(user, *, auto_clear: bool = False):
+    if not user or not getattr(user, 'is_authenticated', False):
+        return None
+    if getattr(user, 'username', '') == 'admin':
+        return None
+
+    now = utc_now_naive()
+    if getattr(user, 'permanently_banned_at', None):
+        return {
+            'type': 'permanent',
+            'message': 'Tu cuenta fue bloqueada de manera permanente por reincidencia grave en el incumplimiento de las reglas de la comunidad.',
+            'until': None,
+            'remaining_seconds': None,
+        }
+
     until = getattr(user, 'muted_until', None)
     if not until:
-        return False
-    return until > datetime.now()
+        return None
+    if until <= now:
+        if auto_clear:
+            _clear_expired_moderation_restriction(user)
+        return None
+
+    remaining_seconds = max(0, int((until - now).total_seconds()))
+    return {
+        'type': 'temporary',
+        'message': 'Tu cuenta se encuentra suspendida temporalmente por infringir las reglas de la comunidad.',
+        'until': until,
+        'remaining_seconds': remaining_seconds,
+    }
+
+
+def is_user_temp_muted(user) -> bool:
+    state = user_restriction_state(user)
+    return bool(state and state.get('type') == 'temporary')
 
 
 def remaining_mute_seconds(user) -> int:
-    if not user or not getattr(user, 'is_authenticated', False):
+    state = user_restriction_state(user)
+    if not state or state.get('type') != 'temporary':
         return 0
-    until = getattr(user, 'muted_until', None)
-    if not until:
-        return 0
-    delta = int((until - datetime.now()).total_seconds())
-    return max(0, delta)
+    return int(state.get('remaining_seconds') or 0)
 
 
-def apply_abuse_strike(user, reason: str = 'abusive_language'):
-    if not user or getattr(user, 'username', '') == 'admin':
-        return
+def apply_abuse_strike(
+    user,
+    reason: str = 'abusive_language',
+    *,
+    issued_by=None,
+    source_type: str = 'system',
+    source_id: int | None = None,
+    source_label: str | None = None,
+    details: str | None = None,
+    content_excerpt: str | None = None,
+):
+    if not user:
+        return {'applied': False, 'reason': 'invalid_user', 'strike': None, 'strike_count': 0, 'consequence': 'none'}
+    if getattr(user, 'username', '') == 'admin':
+        return {'applied': False, 'reason': 'admin_immune', 'strike': None, 'strike_count': 0, 'consequence': 'none'}
+    if is_user_permanently_banned(user):
+        return {'applied': False, 'reason': 'already_banned', 'strike': None, 'strike_count': int(getattr(user, 'abuse_strikes', 0) or 0), 'consequence': 'permanent_ban'}
 
-    now = datetime.now()
+    now = utc_now_naive()
+    day_start = datetime(now.year, now.month, now.day)
+    day_end = day_start + timedelta(days=1)
+    existing_today = ModerationStrike.query.filter(
+        ModerationStrike.user_id == user.id,
+        ModerationStrike.created_at >= day_start,
+        ModerationStrike.created_at < day_end,
+    ).order_by(ModerationStrike.created_at.desc()).first()
+    if existing_today:
+        return {
+            'applied': False,
+            'reason': 'daily_limit',
+            'strike': existing_today,
+            'strike_count': int(getattr(user, 'abuse_strikes', 0) or 0),
+            'consequence': 'none',
+        }
+
     strikes = int(getattr(user, 'abuse_strikes', 0) or 0) + 1
     user.abuse_strikes = strikes
     user.last_abuse_at = now
 
-    # Escalación progresiva: 10m, 30m, 2h, 12h, 24h
+    consequence = 'warning'
     if strikes == 1:
-        cooldown = timedelta(minutes=10)
+        consequence = 'warning'
     elif strikes == 2:
-        cooldown = timedelta(minutes=30)
-    elif strikes == 3:
-        cooldown = timedelta(hours=2)
-    elif strikes == 4:
-        cooldown = timedelta(hours=12)
+        user.muted_until = now + timedelta(days=7)
+        consequence = 'temporary_ban'
     else:
-        cooldown = timedelta(hours=24)
+        user.permanently_banned_at = now
+        user.permanent_ban_reason = (reason or 'moderation_strike')[:255]
+        user.muted_until = None
+        consequence = 'permanent_ban'
 
-    user.muted_until = now + cooldown
+    strike = ModerationStrike(
+        user_id=user.id,
+        issued_by=getattr(issued_by, 'id', issued_by),
+        source_type=(source_type or 'system')[:32],
+        source_id=source_id,
+        source_label=(source_label or '')[:255] or None,
+        reason=(reason or 'Incumplimiento de reglas')[:255],
+        details=details or None,
+        content_excerpt=content_excerpt or None,
+        strike_number=strikes,
+        consequence=consequence,
+        created_at=now,
+    )
     db.session.add(user)
+    db.session.add(strike)
+    return {
+        'applied': True,
+        'reason': 'ok',
+        'strike': strike,
+        'strike_count': strikes,
+        'consequence': consequence,
+    }
 
 
-def temp_mute_error_payload(prefix: str = 'Tienes una restricción temporal de interacción.'):
+def temp_mute_error_payload(prefix: str = 'Tu cuenta se encuentra suspendida temporalmente.'):
     secs = remaining_mute_seconds(current_user)
     if secs <= 0:
         return {'error': prefix}
@@ -687,14 +900,50 @@ def create_app():
         return {
             'user_is_temp_muted': is_user_temp_muted(current_user),
             'user_mute_remaining_seconds': remaining_mute_seconds(current_user),
+            'user_restriction_state': user_restriction_state(current_user, auto_clear=True),
         }
+
+    @app.before_request
+    def enforce_account_restrictions():
+        if not current_user.is_authenticated:
+            return None
+        if getattr(current_user, 'username', '') == 'admin':
+            return None
+
+        state = user_restriction_state(current_user, auto_clear=True)
+        if not state:
+            return None
+
+        endpoint = (request.endpoint or '').strip()
+        allowed = {
+            'logout',
+            'account_restricted',
+            'static',
+        }
+        if endpoint in allowed or endpoint.startswith('static'):
+            return None
+
+        payload = {
+            'error': state.get('message') or 'Tu cuenta tiene una restricción activa.',
+            'restriction': {
+                'type': state.get('type'),
+                'remaining_seconds': state.get('remaining_seconds'),
+                'until': state.get('until').isoformat() if state.get('until') else None,
+            }
+        }
+        wants_json = request.path.startswith('/api/') or 'application/json' in (request.headers.get('Accept') or '')
+        if wants_json:
+            return jsonify(payload), 423
+        return redirect(url_for('account_restricted'))
 
     @login_manager.user_loader
     def load_user(user_id):
         # Compatible con SQLAlchemy 2.x (Query.get es legacy)
         try:
             return db.session.get(User, int(user_id))
-        except Exception:
+        except Exception as exc:
+            db.session.rollback()
+            _debug_log_suppressed('suppressed exception', exc)
             return None
 
     # --- Utils ---
@@ -752,6 +1001,23 @@ def create_app():
         base_url = (app.config.get('SUPABASE_URL') or '').rstrip('/')
         bucket = (app.config.get('SUPABASE_STORAGE_BUCKET') or '').strip()
         return f"{base_url}/storage/v1/object/public/{quote(bucket, safe='')}/{quote(storage_path, safe='/')}"
+
+    def local_public_upload_url(filename: str | None) -> str | None:
+        storage_path = public_upload_storage_path(filename)
+        if not storage_path:
+            return None
+        folder = ensure_upload_folder()
+        static_root = os.path.abspath(app.static_folder or '')
+        if not static_root:
+            return None
+        file_path = os.path.abspath(os.path.join(folder, storage_path))
+        try:
+            relative_path = os.path.relpath(file_path, static_root)
+        except ValueError:
+            return None
+        if relative_path.startswith('..'):
+            return None
+        return url_for('static', filename=relative_path.replace(os.sep, '/'))
 
     def sync_public_upload_to_storage(filename: str | None, *, local_path: str | None = None, mime_type: str | None = None) -> bool:
         storage_path = public_upload_storage_path(filename)
@@ -1328,6 +1594,105 @@ def create_app():
                 print(f'DEBUG: Error enviando correo de recuperación: {type(e).__name__} - {e}')
             return False
 
+    def _summarize_moderation_text(raw: str | None, limit: int = 220) -> str:
+        txt = ' '.join((raw or '').strip().split())
+        if not txt:
+            return 'Sin extracto disponible.'
+        if len(txt) <= limit:
+            return txt
+        return txt[: limit - 1].rstrip() + '…'
+
+    def _format_moderation_dt(dt: datetime | None) -> str:
+        if not dt:
+            return 'Sin fecha'
+        return dt.strftime('%d/%m/%Y %H:%M')
+
+    def send_moderation_notice_email(user: User, strike: ModerationStrike) -> bool:
+        recipient = (getattr(user, 'email', '') or '').strip()
+        if not recipient:
+            return False
+
+        all_strikes = ModerationStrike.query.filter_by(user_id=user.id).order_by(ModerationStrike.created_at.asc()).all()
+        consequence = (strike.consequence or 'warning').strip().lower()
+        if consequence == 'permanent_ban':
+            subject = 'Tu cuenta fue bloqueada permanentemente - Violeta'
+            headline = 'Bloqueamos tu cuenta de manera permanente por acumulación de 3 strikes.'
+        elif consequence == 'temporary_ban':
+            subject = 'Tu cuenta fue suspendida temporalmente - Violeta'
+            headline = 'Tu cuenta fue suspendida temporalmente durante 7 días por reincidencia en el incumplimiento de las reglas de la comunidad.'
+        else:
+            subject = 'Recibiste un strike en Violeta'
+            headline = 'Registramos un strike en tu cuenta por contenido que infringe las reglas de la comunidad.'
+
+        history_lines = []
+        history_html = []
+        for item in all_strikes:
+            label = item.source_label or item.source_type
+            excerpt = _summarize_moderation_text(item.content_excerpt)
+            created = _format_moderation_dt(item.created_at)
+            history_lines.append(
+                f"- Strike {item.strike_number}: {label} | {item.reason} | {created}\n"
+                f"  Extracto: {excerpt}"
+            )
+            history_html.append(
+                f'<li style="margin:0 0 10px 0;">'
+                f'<strong>Strike {item.strike_number}</strong> · {label}<br>'
+                f'<span style="color:#d8b4fe;">{item.reason}</span> · {created}<br>'
+                f'<span style="color:#f5f3ff;">{excerpt}</span>'
+                f'</li>'
+            )
+
+        strike_label = strike.source_label or strike.source_type
+        strike_excerpt = _summarize_moderation_text(strike.content_excerpt)
+        strike_created = _format_moderation_dt(strike.created_at)
+        warning_line = ''
+        consequence_html = ''
+        if consequence == 'temporary_ban':
+            warning_line = '\nLa suspensión finalizará automáticamente en 7 días.'
+            consequence_html = '<div style="margin-top:10px;color:#fde68a;"><strong>Consecuencia:</strong> suspensión temporal de 7 días.</div>'
+        elif consequence == 'permanent_ban':
+            warning_line = '\nEl bloqueo es definitivo y responde a la acumulación de 3 strikes.'
+            consequence_html = '<div style="margin-top:10px;color:#fca5a5;"><strong>Consecuencia:</strong> bloqueo permanente.</div>'
+
+        text_body = (
+            f"Hola {getattr(user, 'username', 'usuaria')},\n\n"
+            f"{headline}\n\n"
+            f"Contenido sancionado: {strike_label}\n"
+            f"Fecha y hora: {strike_created}\n"
+            f"Motivo: {strike.reason}\n"
+            f"Extracto: {strike_excerpt}\n"
+            f"Detalle del reporte: {strike.details or 'Sin detalle adicional.'}\n"
+            f"Strikes acumulados: {getattr(user, 'abuse_strikes', 0)}"
+            f"{warning_line}\n\n"
+            "Historial relevante:\n"
+            f"{'\\n\\n'.join(history_lines)}\n\n"
+            "Si consideras que esto es un error, responde a este correo.\n\n"
+            "Equipo Violeta"
+        )
+
+        html_body = (
+            '<html><body style="font-family:Inter,Arial,sans-serif;background:#0f1020;color:#f3f4f6;padding:20px;">'
+            '<div style="max-width:620px;margin:0 auto;background:#1b1d35;border:1px solid rgba(167,139,250,.35);border-radius:16px;padding:24px;">'
+            f'<h2 style="margin:0 0 12px 0;color:#f5d0fe;">{subject}</h2>'
+            f'<p style="margin:0 0 16px 0;">Hola <strong>{getattr(user, "username", "usuaria")}</strong>.</p>'
+            f'<p style="margin:0 0 16px 0;color:#e9d5ff;">{headline}</p>'
+            '<div style="padding:14px 16px;border-radius:14px;background:rgba(139,92,246,.12);border:1px solid rgba(216,180,254,.25);margin-bottom:18px;">'
+            f'<div><strong>Contenido sancionado:</strong> {strike_label}</div>'
+            f'<div><strong>Fecha y hora:</strong> {strike_created}</div>'
+            f'<div><strong>Motivo:</strong> {strike.reason}</div>'
+            f'<div><strong>Extracto:</strong> {strike_excerpt}</div>'
+            f'<div><strong>Detalle del reporte:</strong> {strike.details or "Sin detalle adicional."}</div>'
+            f'<div><strong>Strikes acumulados:</strong> {getattr(user, "abuse_strikes", 0)}</div>'
+            f'{consequence_html}'
+            '</div>'
+            '<h3 style="margin:0 0 10px 0;color:#c4b5fd;font-size:1rem;">Historial relevante</h3>'
+            f'<ul style="padding-left:18px;margin:0 0 18px 0;">{"".join(history_html)}</ul>'
+            '<p style="margin:0;color:#cbd5e1;">Si consideras que esto es un error, responde a este correo.</p>'
+            '</div></body></html>'
+        )
+        return send_email_message(subject, [recipient], text_body, html_body)
+
+
     def normalize_phone(raw: str) -> str:
         if not raw:
             return ''
@@ -1497,6 +1862,276 @@ def create_app():
             or_(Post.publish_at.is_(None), Post.publish_at <= now)
         )
 
+    FEED_CITY_BOUNDS = {
+        'monterrey': (25.60, 25.75, -100.42, -100.25),
+        'san-pedro': (25.62, 25.70, -100.45, -100.35),
+        'guadalupe': (25.65, 25.72, -100.28, -100.18),
+        'apodaca': (25.73, 25.82, -100.25, -100.12),
+        'escobedo': (25.75, 25.85, -100.38, -100.28),
+        'santa-catarina': (25.62, 25.72, -100.52, -100.42),
+    }
+    _feed_sidebar_cache: dict[tuple, dict[str, object]] = {}
+    _runtime_response_cache: dict[tuple, dict[str, object]] = {}
+    _runtime_cache_client = None
+    _runtime_cache_client_failed = False
+
+    def extract_report_categories(cats_raw):
+        if not cats_raw:
+            return set()
+        try:
+            cats = json.loads(cats_raw)
+        except Exception:
+            return set()
+        if not isinstance(cats, list):
+            return set()
+        normalized = set()
+        for c in cats:
+            if c is None:
+                continue
+            name = str(c).strip()
+            if not name:
+                continue
+            key = name.casefold()
+            if key in ('baldios', 'baldío', 'baldio', 'baldíos'):
+                name = 'Baldíos'
+            elif key in ('poca iluminacion', 'poca iluminación'):
+                name = 'Poca iluminación'
+            normalized.add(name)
+        return normalized
+
+    def apply_feed_city_filter(query, selected_city: str):
+        if not selected_city or selected_city == 'all':
+            return query
+        bounds = FEED_CITY_BOUNDS.get(selected_city)
+        if bounds:
+            lat_min, lat_max, lng_min, lng_max = bounds
+            return query.filter(
+                Post.latitude.isnot(None),
+                Post.longitude.isnot(None),
+                Post.latitude.between(lat_min, lat_max),
+                Post.longitude.between(lng_min, lng_max),
+            )
+        return query.filter(Post.city.ilike(f"%{selected_city}%"))
+
+    def build_feed_posts_query(selected_city: str, viewer=None, *, eager: bool = False):
+        base_query = Post.query
+        if eager:
+            base_query = base_query.options(
+                selectinload(Post.author),
+                selectinload(Post.meta),
+            )
+        query = public_posts_query(base_query).order_by(Post.created_at.desc())
+        blocked_ids = blocked_user_ids_for(viewer) if viewer and getattr(viewer, 'is_authenticated', False) else set()
+        if blocked_ids:
+            query = query.filter(~Post.user_id.in_(blocked_ids))
+        query = apply_feed_city_filter(query, selected_city)
+        return query, blocked_ids
+
+    def compute_feed_sidebar_counts(query):
+        report_counts = []
+        report_counts_today = []
+        try:
+            cat_counts = Counter()
+            rows = query.with_entities(Post.categories).all()
+            for (cats_raw,) in rows:
+                for name in extract_report_categories(cats_raw):
+                    cat_counts[name] += 1
+
+            report_counts = [{'category': k, 'count': v} for k, v in cat_counts.items() if v > 0]
+            report_counts.sort(key=lambda x: (-x['count'], x['category'].casefold()))
+
+            from zoneinfo import ZoneInfo
+
+            tz_name = app.config.get('APP_TIMEZONE') or 'America/Monterrey'
+            try:
+                app_tz = ZoneInfo(tz_name)
+            except Exception:
+                app_tz = datetime.now().astimezone().tzinfo or timezone.utc
+
+            now_local = datetime.now(tz=app_tz)
+            start_today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+            start_tomorrow_local = start_today_local + timedelta(days=1)
+            start_today = start_today_local.astimezone(timezone.utc).replace(tzinfo=None)
+            start_tomorrow = start_tomorrow_local.astimezone(timezone.utc).replace(tzinfo=None)
+            rows_today = query.filter(
+                Post.created_at >= start_today,
+                Post.created_at < start_tomorrow,
+            ).with_entities(Post.categories).all()
+
+            cat_counts_today = Counter()
+            for (cats_raw,) in rows_today:
+                for name in extract_report_categories(cats_raw):
+                    cat_counts_today[name] += 1
+
+            report_counts_today = [{'category': k, 'count': v} for k, v in cat_counts_today.items() if v > 0]
+            report_counts_today.sort(key=lambda x: (-x['count'], x['category'].casefold()))
+        except Exception:
+            report_counts = []
+            report_counts_today = []
+        return report_counts, report_counts_today
+
+    def get_feed_sidebar_counts(selected_city: str, viewer=None):
+        viewer_id = getattr(viewer, 'id', None) if viewer and getattr(viewer, 'is_authenticated', False) else None
+        blocked_ids = blocked_user_ids_for(viewer) if viewer and getattr(viewer, 'is_authenticated', False) else set()
+        cache_key = ('feed_sidebar', viewer_id, selected_city, tuple(sorted(blocked_ids)))
+        cached_payload = get_runtime_cached_payload(cache_key, 20)
+        if cached_payload is not None:
+            return cached_payload.get('report_counts') or [], cached_payload.get('report_counts_today') or []
+
+        query, _ = build_feed_posts_query(selected_city, viewer, eager=False)
+        report_counts, report_counts_today = compute_feed_sidebar_counts(query)
+        payload = {
+            'report_counts': report_counts,
+            'report_counts_today': report_counts_today,
+        }
+        set_runtime_cached_payload(cache_key, payload, ttl_seconds=20, max_entries=64)
+        _feed_sidebar_cache[(viewer_id, selected_city, tuple(sorted(blocked_ids)))] = {
+            'ts': time.time(),
+            **payload,
+        }
+        return report_counts, report_counts_today
+
+    def get_runtime_cache_client():
+        nonlocal _runtime_cache_client, _runtime_cache_client_failed
+        if _runtime_cache_client_failed:
+            return None
+        if _runtime_cache_client is not None:
+            return _runtime_cache_client
+        if redis is None:
+            _runtime_cache_client_failed = True
+            return None
+        redis_url = (app.config.get('REDIS_URL') or '').strip()
+        if not redis_url:
+            _runtime_cache_client_failed = True
+            return None
+        try:
+            client = redis.Redis.from_url(
+                redis_url,
+                decode_responses=True,
+                socket_timeout=0.5,
+                socket_connect_timeout=0.5,
+                retry_on_timeout=False,
+            )
+            client.ping()
+            _runtime_cache_client = client
+            return _runtime_cache_client
+        except Exception as exc:
+            _debug_log_suppressed('suppressed exception', exc)
+            _runtime_cache_client_failed = True
+            return None
+
+    def runtime_cache_key_string(cache_key: tuple) -> str:
+        prefix = str(cache_key[0]) if cache_key else 'cache'
+        raw = json.dumps(cache_key, ensure_ascii=False, default=str, separators=(',', ':'))
+        digest = hashlib.sha256(raw.encode('utf-8')).hexdigest()
+        namespace = (app.config.get('CACHE_NAMESPACE') or 'violeta').strip() or 'violeta'
+        return f'{namespace}:cache:{prefix}:{digest}'
+
+    def get_runtime_cached_payload(cache_key: tuple, ttl_seconds: float):
+        now_ts = time.time()
+        redis_client = get_runtime_cache_client()
+        if redis_client is not None:
+            try:
+                raw = redis_client.get(runtime_cache_key_string(cache_key))
+                if raw:
+                    cached = json.loads(raw)
+                    if (now_ts - float(cached.get('ts') or 0)) < float(ttl_seconds):
+                        return cached.get('payload')
+            except Exception as exc:
+                _debug_log_suppressed('suppressed exception', exc)
+        cached = _runtime_response_cache.get(cache_key)
+        if not cached:
+            return None
+        if (now_ts - float(cached.get('ts') or 0)) >= float(ttl_seconds):
+            _runtime_response_cache.pop(cache_key, None)
+            return None
+        return cached.get('payload')
+
+    def set_runtime_cached_payload(cache_key: tuple, payload, *, ttl_seconds: float = 15, max_entries: int = 128):
+        wrapped = {
+            'ts': time.time(),
+            'payload': payload,
+        }
+        _runtime_response_cache[cache_key] = wrapped
+        redis_client = get_runtime_cache_client()
+        if redis_client is not None:
+            try:
+                redis_client.set(
+                    runtime_cache_key_string(cache_key),
+                    json.dumps(wrapped, ensure_ascii=False, separators=(',', ':')),
+                    ex=max(int(ttl_seconds * 4), 30),
+                )
+            except Exception as exc:
+                _debug_log_suppressed('suppressed exception', exc)
+        if len(_runtime_response_cache) > max_entries:
+            oldest_key = min(_runtime_response_cache, key=lambda key: float(_runtime_response_cache[key].get('ts') or 0))
+            _runtime_response_cache.pop(oldest_key, None)
+        return payload
+
+    def invalidate_runtime_response_cache(prefix: str | None = None):
+        if prefix is None:
+            _runtime_response_cache.clear()
+            redis_client = get_runtime_cache_client()
+            if redis_client is not None:
+                try:
+                    namespace = (app.config.get('CACHE_NAMESPACE') or 'violeta').strip() or 'violeta'
+                    keys = list(redis_client.scan_iter(match=f'{namespace}:cache:*'))
+                    if keys:
+                        redis_client.delete(*keys)
+                except Exception as exc:
+                    _debug_log_suppressed('suppressed exception', exc)
+            return
+        keys_to_drop = [key for key in _runtime_response_cache.keys() if key and key[0] == prefix]
+        for key in keys_to_drop:
+            _runtime_response_cache.pop(key, None)
+        redis_client = get_runtime_cache_client()
+        if redis_client is not None:
+            try:
+                namespace = (app.config.get('CACHE_NAMESPACE') or 'violeta').strip() or 'violeta'
+                keys = list(redis_client.scan_iter(match=f'{namespace}:cache:{prefix}:*'))
+                if keys:
+                    redis_client.delete(*keys)
+            except Exception as exc:
+                _debug_log_suppressed('suppressed exception', exc)
+
+    def enrich_posts_for_cards(posts, viewer=None):
+        if not posts:
+            return posts
+
+        post_ids = [getattr(post, 'id', None) for post in posts]
+        post_ids = [pid for pid in post_ids if pid is not None]
+        if not post_ids:
+            return posts
+
+        like_counts = dict(
+            db.session.query(Like.post_id, func.count(Like.id))
+            .filter(Like.post_id.in_(post_ids))
+            .group_by(Like.post_id)
+            .all()
+        )
+        comment_counts = dict(
+            db.session.query(Comment.post_id, func.count(Comment.id))
+            .filter(Comment.post_id.in_(post_ids))
+            .group_by(Comment.post_id)
+            .all()
+        )
+
+        liked_post_ids = set()
+        if viewer and getattr(viewer, 'is_authenticated', False):
+            liked_post_ids = {
+                row[0]
+                for row in db.session.query(Like.post_id)
+                .filter(Like.post_id.in_(post_ids), Like.user_id == viewer.id)
+                .all()
+            }
+
+        for post in posts:
+            pid = getattr(post, 'id', None)
+            setattr(post, 'likes_count', int(like_counts.get(pid, 0)))
+            setattr(post, 'comments_count', int(comment_counts.get(pid, 0)))
+            setattr(post, 'liked_by_me', pid in liked_post_ids)
+        return posts
+
     # --- Template Filters ---
     @app.template_filter('from_json')
     def from_json_filter(value):
@@ -1542,9 +2177,34 @@ def create_app():
     # Cache busting global (útil para evitar contenido viejo del feed)
     @app.after_request
     def add_no_cache_headers(response):
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
+        path = request.path or ''
+        method = (request.method or 'GET').upper()
+
+        if path.startswith('/static/'):
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            response.headers.pop('Pragma', None)
+            response.headers.pop('Expires', None)
+        elif method == 'GET' and path.startswith('/uploads/') and not path.startswith('/uploads/verify/'):
+            response.headers['Cache-Control'] = 'public, max-age=300'
+            response.headers.pop('Pragma', None)
+            response.headers.pop('Expires', None)
+        elif method == 'GET' and path == '/api/chat/rooms':
+            response.headers['Cache-Control'] = 'private, max-age=3, stale-while-revalidate=10'
+            response.headers.pop('Pragma', None)
+            response.headers.pop('Expires', None)
+        elif method == 'GET' and (
+            path == '/api/feed/sidebar-summary'
+            or path == '/api/hotspots'
+            or path == '/api/posts-by-city'
+            or path == '/api/posts-in-radius'
+        ):
+            response.headers['Cache-Control'] = 'private, max-age=15, stale-while-revalidate=30'
+            response.headers.pop('Pragma', None)
+            response.headers.pop('Expires', None)
+        else:
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
         # Asegurar que geolocalización del navegador no sea limitada por política (por defecto está permitida)
         # Esto explícitamente la habilita para el mismo origen.
         response.headers['Permissions-Policy'] = "geolocation=(self)"
@@ -1568,6 +2228,9 @@ def create_app():
             can_user_interact_post=can_user_interact_post,
             meta_allows_interaction=_meta_allows_interaction,
             public_location_for_post=public_location_for_post,
+            moderation_badge_level=moderation_badge_level,
+            media_url=media_url,
+            avatar_url_for_user=avatar_url_for_user,
         )
 
     @app.context_processor
@@ -1608,108 +2271,12 @@ def create_app():
         page = request.args.get('page', 1, type=int)
         per_page = app.config.get('FEED_PAGE_SIZE', 10)
 
-        city_bounds = {
-            'monterrey': (25.60, 25.75, -100.42, -100.25),
-            'san-pedro': (25.62, 25.70, -100.45, -100.35),
-            'guadalupe': (25.65, 25.72, -100.28, -100.18),
-            'apodaca': (25.73, 25.82, -100.25, -100.12),
-            'escobedo': (25.75, 25.85, -100.38, -100.28),
-            'santa-catarina': (25.62, 25.72, -100.52, -100.42),
-        }
-
-        query = public_posts_query(Post.query).order_by(Post.created_at.desc())
-        blocked_ids = blocked_user_ids_for(current_user) if current_user.is_authenticated else set()
-        if blocked_ids:
-            query = query.filter(~Post.user_id.in_(blocked_ids))
-
-        if selected_city and selected_city != 'all':
-            bounds = city_bounds.get(selected_city)
-            if bounds:
-                lat_min, lat_max, lng_min, lng_max = bounds
-                query = query.filter(
-                    Post.latitude.isnot(None),
-                    Post.longitude.isnot(None),
-                    Post.latitude.between(lat_min, lat_max),
-                    Post.longitude.between(lng_min, lng_max),
-                )
-            else:
-                query = query.filter(Post.city.ilike(f"%{selected_city}%"))
-
-        # Sidebar: reportes generados por categoría (orden descendente)
+        query, _ = build_feed_posts_query(selected_city, current_user, eager=True)
         report_counts = []
         report_counts_today = []
-        try:
-            def extract_categories(cats_raw):
-                if not cats_raw:
-                    return set()
-                try:
-                    cats = json.loads(cats_raw)
-                except Exception:
-                    return set()
-                if not isinstance(cats, list):
-                    return set()
-                # Count each post once per category (avoid duplicates inside the JSON array)
-                normalized = set()
-                for c in cats:
-                    if c is None:
-                        continue
-                    name = str(c).strip()
-                    if not name:
-                        continue
-                    key = name.casefold()
-                    if key in ('baldios', 'baldío', 'baldio', 'baldíos'):
-                        name = 'Baldíos'
-                    elif key in ('poca iluminacion', 'poca iluminación'):
-                        name = 'Poca iluminación'
-                    normalized.add(name)
-                return normalized
-
-            cat_counts = Counter()
-            rows = query.with_entities(Post.categories).all()
-            for (cats_raw,) in rows:
-                for name in extract_categories(cats_raw):
-                    cat_counts[name] += 1
-
-            report_counts = [{'category': k, 'count': v} for k, v in cat_counts.items() if v > 0]
-            report_counts.sort(key=lambda x: (-x['count'], x['category'].casefold()))
-
-            # Reportes generados hoy por categoría (mismo widget, pero filtrado a hoy).
-            # created_at se guarda con utc_now_naive() (UTC naive), así que convertimos
-            # el "hoy" local (zona horaria de la app) a límites UTC naive para filtrar correctamente.
-            #
-            # Importante: no dependemos del timezone del servidor/OS, ya que puede variar (p. ej. UTC).
-            # Usamos una zona horaria fija configurable (por default: America/Monterrey).
-            from zoneinfo import ZoneInfo
-
-            tz_name = app.config.get('APP_TIMEZONE') or 'America/Monterrey'
-            try:
-                app_tz = ZoneInfo(tz_name)
-            except Exception:
-                # Fallback defensivo si la zona no existe en el runtime.
-                app_tz = datetime.now().astimezone().tzinfo or timezone.utc
-
-            now_local = datetime.now(tz=app_tz)
-            start_today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
-            start_tomorrow_local = start_today_local + timedelta(days=1)
-            start_today = start_today_local.astimezone(timezone.utc).replace(tzinfo=None)
-            start_tomorrow = start_tomorrow_local.astimezone(timezone.utc).replace(tzinfo=None)
-            rows_today = query.filter(
-                Post.created_at >= start_today,
-                Post.created_at < start_tomorrow,
-            ).with_entities(Post.categories).all()
-
-            cat_counts_today = Counter()
-            for (cats_raw,) in rows_today:
-                for name in extract_categories(cats_raw):
-                    cat_counts_today[name] += 1
-
-            report_counts_today = [{'category': k, 'count': v} for k, v in cat_counts_today.items() if v > 0]
-            report_counts_today.sort(key=lambda x: (-x['count'], x['category'].casefold()))
-        except Exception:
-            report_counts = []
-            report_counts_today = []
 
         posts = query.paginate(page=page, per_page=per_page, error_out=False)
+        enrich_posts_for_cards(posts.items, current_user)
 
         if app.debug:
             print(f"DEBUG: Total posts found: {posts.total}")
@@ -1738,21 +2305,39 @@ def create_app():
         )
         return response
 
+    @app.route('/api/feed/sidebar-summary')
+    @login_required
+    def api_feed_sidebar_summary():
+        if current_user.is_authenticated and not is_user_verified(current_user):
+            return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
+        selected_city = (request.args.get('city') or 'all').strip().lower()
+        report_counts, report_counts_today = get_feed_sidebar_counts(selected_city, current_user)
+        return jsonify({
+            'report_counts': report_counts,
+            'report_counts_today': report_counts_today,
+        })
+
     @app.route('/feed')
     def feed():
         page = request.args.get('page', 1, type=int)
         per_page = app.config.get('FEED_PAGE_SIZE', 10)
-        posts = public_posts_query(
-            Post.query.options(db.joinedload(Post.comments).joinedload(Comment.author))
-        ).order_by(Post.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
         blocked_ids = blocked_user_ids_for(current_user) if current_user.is_authenticated else set()
+        query = public_posts_query(
+            Post.query.options(
+                selectinload(Post.author),
+                selectinload(Post.meta),
+                selectinload(Post.tags),
+            )
+        )
+        if blocked_ids:
+            query = query.filter(~Post.user_id.in_(blocked_ids))
+        posts = query.order_by(Post.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+        enrich_posts_for_cards(posts.items, current_user)
         data = []
         for p in posts.items:
-            if blocked_ids and p.user_id in blocked_ids:
-                continue
             try:
-                image_url = url_for('uploaded_file', filename=p.image_filename) if getattr(p, 'image_filename', None) else ''
-                liked_by_me = p.is_liked_by(current_user) if current_user.is_authenticated else False
+                image_url = media_url(getattr(p, 'image_filename', None))
+                liked_by_me = bool(getattr(p, 'liked_by_me', False))
                 allow_likes = _meta_allows_interaction(p, 'like')
                 allow_comments = _meta_allows_interaction(p, 'comment')
                 loc = public_location_for_post(p, current_user)
@@ -1770,8 +2355,8 @@ def create_app():
                     'username': getattr(p.author, 'username', 'unknown'),
                     'caption': p.caption,
                     'image_url': image_url,
-                    'likes_count': p.get_likes_count(),
-                    'comments_count': p.get_comments_count(),
+                    'likes_count': int(getattr(p, 'likes_count', 0)),
+                    'comments_count': int(getattr(p, 'comments_count', 0)),
                     'created_at': p.created_at.isoformat() if getattr(p, 'created_at', None) else None,
                     'liked_by_me': liked_by_me,
                     'allow_likes': allow_likes,
@@ -1862,6 +2447,14 @@ def create_app():
         return jsonify({'exists': user is not None})
 
 
+    @app.route('/account-restricted')
+    @login_required
+    def account_restricted():
+        state = user_restriction_state(current_user, auto_clear=True)
+        if not state:
+            return redirect(url_for('index'))
+        return render_template('account_restricted.html', restriction=state)
+
     @app.route('/login', methods=['GET', 'POST'])
     def login():
         if current_user.is_authenticated:
@@ -1889,6 +2482,10 @@ def create_app():
                 # Prevent session fixation by rotating session data at login.
                 session.clear()
                 login_user(user, remember=remember)
+                restriction = user_restriction_state(user, auto_clear=True)
+                if restriction:
+                    flash(restriction.get('message') or 'Tu cuenta tiene una restricción activa.', 'warning')
+                    return redirect(url_for('account_restricted'))
                 flash('Sesión iniciada', 'success')
                 return redirect(url_for('index'))
 
@@ -2373,6 +2970,11 @@ def create_app():
                 print(f'DEBUG: Location: {post.location_name}')
             except Exception as exc:
                 _debug_log_suppressed('suppressed exception', exc)
+        invalidate_runtime_response_cache('hotspots')
+        invalidate_runtime_response_cache('posts_in_radius')
+        invalidate_runtime_response_cache('posts_by_city')
+        invalidate_runtime_response_cache('feed_sidebar')
+        _feed_sidebar_cache.clear()
         # Mensajes según programación
         if current_user.username != 'admin':
             flash('Por seguridad tuya, tu publicación se hará pública en 15 min.', 'info')
@@ -2413,43 +3015,115 @@ def create_app():
 
     @app.route('/post/<int:post_id>')
     def post_detail(post_id):
-        post = Post.query.get_or_404(post_id)
+        post = Post.query.options(
+            selectinload(Post.author),
+            selectinload(Post.meta),
+        ).get_or_404(post_id)
         if current_user.is_authenticated and is_user_blocked_between(current_user.id, post.user_id):
             abort(404)
         if not is_public_post(post) and (not current_user.is_authenticated or current_user.username != 'admin'):
             abort(404)
+        enrich_posts_for_cards([post], current_user)
         comment_form = CommentForm()
         share_form = ShareForm()
         return render_template('post_detail.html', post=post, comment_form=comment_form, share_form=share_form)
 
-    def _avatar_url(user):
+    def media_url(filename: str | None, fallback_static: str | None = None) -> str:
+        normalized = (filename or '').strip()
+        if normalized:
+            external = public_upload_storage_url(normalized)
+            if external:
+                return external
+            local_public = local_public_upload_url(normalized)
+            if local_public:
+                return local_public
+            return url_for('uploaded_file', filename=normalized)
+        if fallback_static:
+            return url_for('static', filename=fallback_static)
+        return ''
+
+    def avatar_url_for_user(user) -> str:
         try:
-            if user and getattr(user, 'profile_pic', None) and user.profile_pic != 'default.jpg':
-                return url_for('uploaded_file', filename=user.profile_pic)
+            pic = (getattr(user, 'profile_pic', None) or '').strip()
+            if pic and pic != 'default.jpg':
+                return media_url(pic)
         except Exception as exc:
             _debug_log_suppressed('suppressed exception', exc)
         return url_for('static', filename='images/default_avatar.jpg')
 
+    def _avatar_url(user):
+        return avatar_url_for_user(user)
+
     @app.route('/comments/<int:post_id>')
     def comments(post_id):
-        post = Post.query.get_or_404(post_id)
-        if current_user.is_authenticated and is_user_blocked_between(current_user.id, post.user_id):
-            return jsonify({'comments': []})
-        if not is_public_post(post) and (not current_user.is_authenticated or current_user.username != 'admin'):
-            return jsonify({'comments': []})
-        out = []
-        for c in post.comments:
+        post_row = (
+            db.session.query(
+                Post.id,
+                Post.user_id,
+                Post.publish_at,
+                PostMeta.show_public,
+            )
+            .outerjoin(PostMeta, PostMeta.post_id == Post.id)
+            .filter(Post.id == post_id)
+            .first()
+        )
+        if not post_row:
+            abort(404)
+
+        if current_user.is_authenticated and is_user_blocked_between(current_user.id, post_row.user_id):
+            return jsonify({'comments': [], 'hidden_comments': []})
+
+        is_public = (
+            (getattr(post_row, 'publish_at', None) is None or post_row.publish_at <= datetime.now())
+            and (getattr(post_row, 'show_public', None) is None or bool(post_row.show_public))
+        )
+        if not is_public and (not current_user.is_authenticated or current_user.username != 'admin'):
+            return jsonify({'comments': [], 'hidden_comments': []})
+
+        visible_comments = []
+        hidden_comments = []
+        rows = (
+            db.session.query(
+                Comment.id,
+                Comment.user_id,
+                Comment.content,
+                Comment.created_at,
+                Comment.is_hidden,
+                User.username,
+                User.profile_pic,
+                User.abuse_strikes,
+            )
+            .join(User, User.id == Comment.user_id)
+            .filter(Comment.post_id == post_id)
+            .order_by(Comment.created_at.asc(), Comment.id.asc())
+            .all()
+        )
+        for row in rows:
             try:
-                out.append({
-                    'id': c.id,
-                    'username': getattr(c.author, 'username', 'unknown'),
-                    'profile_pic': _avatar_url(getattr(c, 'author', None)),
-                    'content': c.content,
-                    'created_at': c.created_at.isoformat() if getattr(c, 'created_at', None) else None,
-                })
+                username = getattr(row, 'username', 'unknown')
+                strikes = int(getattr(row, 'abuse_strikes', 0) or 0)
+                moderation_level = 0 if username == 'admin' else (2 if strikes >= 2 else 1 if strikes >= 1 else 0)
+                payload = {
+                    'id': row.id,
+                    'user_id': row.user_id,
+                    'username': username,
+                    'profile_pic': media_url(getattr(row, 'profile_pic', None), 'images/default_avatar.jpg'),
+                    'content': row.content,
+                    'created_at': row.created_at.isoformat() if getattr(row, 'created_at', None) else None,
+                    'moderation_level': moderation_level,
+                    'is_hidden': bool(getattr(row, 'is_hidden', False)),
+                }
+                if payload['is_hidden']:
+                    hidden_comments.append({
+                        **payload,
+                        'content': 'Este comentario ha sido reportado',
+                    })
+                else:
+                    visible_comments.append(payload)
             except Exception as exc:
                 _debug_log_suppressed('suppressed exception', exc)
-        return jsonify({'comments': out})
+        return jsonify({'comments': visible_comments, 'hidden_comments': hidden_comments})
+
 
     @app.route('/hotspots')
     def hotspots_page():
@@ -2636,7 +3310,10 @@ def create_app():
                         if p not in posts and is_public_post(p) and (not blocked_ids or p.user_id not in blocked_ids):
                             posts.append(p)
 
-            for p in posts[:50]:
+            posts = posts[:50]
+            enrich_posts_for_cards(posts, current_user)
+
+            for p in posts:
                 # Parse categories from JSON
                 categories = []
                 if getattr(p, 'categories', None):
@@ -2651,10 +3328,10 @@ def create_app():
                     'id': p.id,
                     'username': getattr(p.author, 'username', 'unknown'),
                     'caption': p.caption,
-                    'image_url': url_for('uploaded_file', filename=p.image_filename),
+                    'image_url': media_url(p.image_filename),
                     'created_at': p.created_at.isoformat() if getattr(p, 'created_at', None) else None,
-                    'likes_count': p.get_likes_count(),
-                    'comments_count': p.get_comments_count(),
+                    'likes_count': int(getattr(p, 'likes_count', 0)),
+                    'comments_count': int(getattr(p, 'comments_count', 0)),
                     'latitude': loc.get('lat'),
                     'longitude': loc.get('lng'),
                     'location_name': loc.get('name'),
@@ -2736,15 +3413,55 @@ def create_app():
         radius = request.args.get('radius_km', 2.0, type=float)
         precision = request.args.get('precision', 3, type=int)
         category = request.args.get('category')
+        limit = request.args.get('limit', type=int)
+        viewer_id = getattr(current_user, 'id', None) if current_user.is_authenticated else None
+        blocked_ids = blocked_user_ids_for(current_user) if current_user.is_authenticated else set()
+        cache_key = (
+            'hotspots',
+            viewer_id,
+            tuple(sorted(blocked_ids)),
+            round(c_lat, 4) if c_lat is not None else None,
+            round(c_lng, 4) if c_lng is not None else None,
+            round(float(radius or 0), 3),
+            int(precision or 3),
+            (category or '').strip().casefold(),
+            int(limit) if limit else None,
+        )
+        cached_payload = get_runtime_cached_payload(cache_key, 15)
+        if cached_payload is not None:
+            return jsonify(cached_payload)
 
-        q = Post.query
-        posts = [p for p in q.all() if is_public_post(p)]
+        q = public_posts_query(
+            Post.query.options(selectinload(Post.tags))
+        ).filter(
+            Post.latitude.isnot(None),
+            Post.longitude.isnot(None),
+        )
+        if blocked_ids:
+            q = q.filter(~Post.user_id.in_(blocked_ids))
+        if c_lat is not None and c_lng is not None:
+            lat_margin = max(radius / 110.57, 0.01)
+            cos_lat = max(abs(cos(radians(c_lat))), 0.2)
+            lng_margin = max(radius / (111.32 * cos_lat), 0.01)
+            q = q.filter(
+                Post.latitude.between(c_lat - lat_margin, c_lat + lat_margin),
+                Post.longitude.between(c_lng - lng_margin, c_lng + lng_margin),
+            )
+
+        posts = q.all()
+        post_ids = [p.id for p in posts]
+        like_counts = {}
+        if post_ids:
+            like_counts = dict(
+                db.session.query(Like.post_id, func.count(Like.id))
+                .filter(Like.post_id.in_(post_ids))
+                .group_by(Like.post_id)
+                .all()
+            )
         buckets = {}
 
         for p in posts:
             if not match_category(p, category):
-                continue
-            if p.latitude is None or p.longitude is None:
                 continue
             if c_lat is not None and c_lng is not None:
                 if not within_radius(p.latitude, p.longitude, c_lat, c_lng, radius):
@@ -2762,7 +3479,7 @@ def create_app():
                 buckets[key] = info
             info['count'] += 1
             try:
-                info['likes'] += p.get_likes_count()
+                info['likes'] += int(like_counts.get(p.id, 0))
             except Exception as exc:
                 _debug_log_suppressed('suppressed exception', exc)
             # Contar etiquetas
@@ -2781,7 +3498,11 @@ def create_app():
                 'top_tags': sorted(info['tags'].items(), key=lambda x: x[1], reverse=True)[:3],
             })
         payload.sort(key=lambda x: x['count'], reverse=True)
-        return jsonify({'hotspots': payload})
+        if limit and limit > 0:
+            payload = payload[:limit]
+        payload_wrapper = {'hotspots': payload}
+        set_runtime_cached_payload(cache_key, payload_wrapper, ttl_seconds=15, max_entries=160)
+        return jsonify(payload_wrapper)
 
     @app.route('/api/posts-in-radius')
     def api_posts_in_radius():
@@ -2798,6 +3519,20 @@ def create_app():
         category = request.args.get('category')
         if c_lat is None or c_lng is None:
             return jsonify({'posts': []})
+        viewer_id = getattr(current_user, 'id', None) if current_user.is_authenticated else None
+        blocked_ids = blocked_user_ids_for(current_user) if current_user.is_authenticated else set()
+        cache_key = (
+            'posts_in_radius',
+            viewer_id,
+            tuple(sorted(blocked_ids)),
+            round(c_lat, 4),
+            round(c_lng, 4),
+            round(float(radius or 0), 3),
+            (category or '').strip().casefold(),
+        )
+        cached_payload = get_runtime_cached_payload(cache_key, 8)
+        if cached_payload is not None:
+            return jsonify(cached_payload)
 
         def within_radius(p_lat, p_lng, c_lat, c_lng, radius_km=1.0):
             try:
@@ -2809,11 +3544,25 @@ def create_app():
             except Exception:
                 return False
 
-        blocked_ids = blocked_user_ids_for(current_user) if current_user.is_authenticated else set()
-        posts = [
-            p for p in Post.query.order_by(Post.created_at.desc()).all()
-            if is_public_post(p) and (not blocked_ids or p.user_id not in blocked_ids)
-        ]
+        lat_margin = max(radius / 110.57, 0.01)
+        cos_lat = max(abs(cos(radians(c_lat))), 0.2)
+        lng_margin = max(radius / (111.32 * cos_lat), 0.01)
+        posts_query = public_posts_query(
+            Post.query.options(
+                selectinload(Post.author),
+                selectinload(Post.meta),
+                selectinload(Post.tags),
+            )
+        ).filter(
+            Post.latitude.isnot(None),
+            Post.longitude.isnot(None),
+            Post.latitude.between(c_lat - lat_margin, c_lat + lat_margin),
+            Post.longitude.between(c_lng - lng_margin, c_lng + lng_margin),
+        )
+        if blocked_ids:
+            posts_query = posts_query.filter(~Post.user_id.in_(blocked_ids))
+        posts = posts_query.order_by(Post.created_at.desc()).limit(100).all()
+        visible_posts = []
         data = []
         for p in posts:
             # Reutilizar la lógica de categoría definida en api_hotspots
@@ -2864,34 +3613,38 @@ def create_app():
             if p.latitude is None or p.longitude is None:
                 continue
             if within_radius(p.latitude, p.longitude, c_lat, c_lng, radius):
-                # Parse categories from JSON
-                categories = []
-                if getattr(p, 'categories', None):
-                    try:
-                        import json
-                        categories = json.loads(p.categories)
-                    except Exception:
-                        categories = []
-
+                visible_posts.append(p)
+        enrich_posts_for_cards(visible_posts, current_user)
+        for p in visible_posts:
+            categories = []
+            if getattr(p, 'categories', None):
                 try:
-                    loc = public_location_for_post(p, current_user)
-                    data.append({
-                        'id': p.id,
-                        'username': getattr(p.author, 'username', 'unknown'),
-                        'caption': p.caption,
-                        'image_url': url_for('uploaded_file', filename=p.image_filename),
-                        'created_at': p.created_at.isoformat() if getattr(p, 'created_at', None) else None,
-                        'likes_count': p.get_likes_count(),
-                        'comments_count': p.get_comments_count(),
-                        'latitude': loc.get('lat'),
-                        'longitude': loc.get('lng'),
-                        'location_name': loc.get('name'),
-                        'location_visibility': loc.get('visibility'),
-                        'categories': categories,
-                    })
-                except Exception as exc:
-                    _debug_log_suppressed('suppressed exception', exc)
-        return jsonify({'posts': data})
+                    import json
+                    categories = json.loads(p.categories)
+                except Exception:
+                    categories = []
+
+            try:
+                loc = public_location_for_post(p, current_user)
+                data.append({
+                    'id': p.id,
+                    'username': getattr(p.author, 'username', 'unknown'),
+                    'caption': p.caption,
+                    'image_url': media_url(p.image_filename),
+                    'created_at': p.created_at.isoformat() if getattr(p, 'created_at', None) else None,
+                    'likes_count': int(getattr(p, 'likes_count', 0)),
+                    'comments_count': int(getattr(p, 'comments_count', 0)),
+                    'latitude': loc.get('lat'),
+                    'longitude': loc.get('lng'),
+                    'location_name': loc.get('name'),
+                    'location_visibility': loc.get('visibility'),
+                    'categories': categories,
+                })
+            except Exception as exc:
+                _debug_log_suppressed('suppressed exception', exc)
+        payload = {'posts': data}
+        set_runtime_cached_payload(cache_key, payload, ttl_seconds=8, max_entries=160)
+        return jsonify(payload)
 
     @app.route('/api/posts-by-city')
     def api_posts_by_city():
@@ -2899,63 +3652,47 @@ def create_app():
             return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
         """Filtra posts por ciudad usando coordenadas."""
         city = (request.args.get('city') or '').strip().lower()
-
-        # Bounding boxes para cada municipio (lat_min, lat_max, lng_min, lng_max)
-        city_bounds = {
-            'monterrey': (25.60, 25.75, -100.42, -100.25),
-            'san-pedro': (25.62, 25.70, -100.45, -100.35),
-            'guadalupe': (25.65, 25.72, -100.28, -100.18),
-            'apodaca': (25.73, 25.82, -100.25, -100.12),
-            'escobedo': (25.75, 25.85, -100.38, -100.28),
-            'santa-catarina': (25.62, 25.72, -100.52, -100.42),
-        }
-
-        def in_bounds(lat, lng, bounds):
-            if lat is None or lng is None:
-                return False
-            lat_min, lat_max, lng_min, lng_max = bounds
-            return lat_min <= lat <= lat_max and lng_min <= lng <= lng_max
-
+        viewer_id = getattr(current_user, 'id', None) if current_user.is_authenticated else None
         blocked_ids = blocked_user_ids_for(current_user) if current_user.is_authenticated else set()
-        posts_all = [
-            p for p in Post.query.order_by(Post.created_at.desc()).all()
-            if is_public_post(p) and (not blocked_ids or p.user_id not in blocked_ids)
-        ]
+        cache_key = (
+            'posts_by_city',
+            viewer_id,
+            tuple(sorted(blocked_ids)),
+            city or 'all',
+        )
+        cached_payload = get_runtime_cached_payload(cache_key, 8)
+        if cached_payload is not None:
+            return jsonify(cached_payload)
 
-        if city and city != 'all':
-            bounds = city_bounds.get(city)
-            if bounds:
-                filtered = [p for p in posts_all if in_bounds(p.latitude, p.longitude, bounds)]
-            else:
-                filtered = [p for p in posts_all if p.city and city in p.city.lower()]
-        else:
-            filtered = posts_all
+        filtered_query, _ = build_feed_posts_query(city or 'all', current_user, eager=True)
+        filtered = filtered_query.limit(50).all()
+        enrich_posts_for_cards(filtered, current_user)
 
         data = []
-        for p in filtered[:50]:
+        for p in filtered:
             try:
                 author = p.author
-                pic = url_for('static', filename='images/default_avatar.jpg')
-                if author and author.profile_pic and author.profile_pic != 'default.jpg':
-                    pic = url_for('uploaded_file', filename=author.profile_pic)
+                pic = avatar_url_for_user(author)
                 loc = public_location_for_post(p, current_user)
                 data.append({
                     'id': p.id,
                     'username': author.username if author else 'unknown',
                     'profile_pic': pic,
                     'caption': p.caption,
-                    'image_url': url_for('uploaded_file', filename=p.image_filename),
-                    'likes_count': p.get_likes_count(),
-                    'comments_count': p.get_comments_count(),
+                    'image_url': media_url(p.image_filename),
+                    'likes_count': int(getattr(p, 'likes_count', 0)),
+                    'comments_count': int(getattr(p, 'comments_count', 0)),
                     'location_name': loc.get('name'),
                     'latitude': loc.get('lat'),
                     'longitude': loc.get('lng'),
                     'location_visibility': loc.get('visibility'),
-                    'liked_by_me': p.is_liked_by(current_user) if current_user.is_authenticated else False,
+                    'liked_by_me': bool(getattr(p, 'liked_by_me', False)),
                 })
             except Exception as exc:
                 _debug_log_suppressed('suppressed bare exception', exc)
-        return jsonify({'posts': data})
+        payload = {'posts': data}
+        set_runtime_cached_payload(cache_key, payload, ttl_seconds=8, max_entries=160)
+        return jsonify(payload)
 
     @app.route('/api/reports/nearby')
     @login_required
@@ -3120,49 +3857,108 @@ def create_app():
         try:
             _ensure_default_chat_room()
 
-            rooms = []
-            all_rooms = ChatRoom.query.filter(ChatRoom.is_approved == True).order_by(ChatRoom.created_at.desc()).all()  # noqa: E712
             blocked_ids = blocked_user_ids_for(current_user)
-            participants = {p.room_id: p for p in ChatParticipant.query.filter_by(user_id=current_user.id).all()}
-            created_new = False
+            cache_key = (
+                'chat_rooms',
+                current_user.id,
+                tuple(sorted(blocked_ids)),
+            )
+            cached_payload = get_runtime_cached_payload(cache_key, 3)
+            if cached_payload is not None:
+                return jsonify(cached_payload)
+            rooms_query = ChatRoom.query.filter(ChatRoom.is_approved.is_(True))
+            if blocked_ids:
+                rooms_query = rooms_query.filter(or_(ChatRoom.created_by.is_(None), ~ChatRoom.created_by.in_(blocked_ids)))
+            all_rooms = rooms_query.order_by(ChatRoom.created_at.desc()).all()
+            room_ids = [room.id for room in all_rooms]
+            if not room_ids:
+                payload = {'rooms': []}
+                set_runtime_cached_payload(cache_key, payload, ttl_seconds=3, max_entries=96)
+                return jsonify(payload)
 
-            for room in all_rooms:
-                if room.created_by in blocked_ids:
-                    continue
+            participants = {
+                p.room_id: p
+                for p in ChatParticipant.query.filter(
+                    ChatParticipant.user_id == current_user.id,
+                    ChatParticipant.room_id.in_(room_ids),
+                ).all()
+            }
+            last_message_ids = dict(
+                db.session.query(ChatMessage.room_id, func.max(ChatMessage.id))
+                .filter(ChatMessage.room_id.in_(room_ids))
+                .group_by(ChatMessage.room_id)
+                .all()
+            )
+            last_messages_by_room = {}
+            if last_message_ids:
+                last_messages = ChatMessage.query.options(selectinload(ChatMessage.user)).filter(
+                    ChatMessage.id.in_(list(last_message_ids.values()))
+                ).all()
+                last_messages_by_room = {message.room_id: message for message in last_messages}
 
-                participant = participants.get(room.id)
-                if not participant:
-                    participant = ChatParticipant(user_id=current_user.id, room_id=room.id)
-                    db.session.add(participant)
-                    participants[room.id] = participant
-                    created_new = True
-
-                # Get last message
-                last_message = ChatMessage.query.filter_by(room_id=room.id).order_by(
-                    ChatMessage.created_at.desc()
-                ).first()
-
-                # Count unread messages (exclude my own + deleted + blocked users)
-                last_read = participant.last_read_at or utc_now_naive()
-                unread_q = ChatMessage.query.filter_by(room_id=room.id).filter(
-                    ChatMessage.created_at > last_read,
-                    ChatMessage.user_id != current_user.id,
-                    ChatMessage.is_deleted.is_(False),
+            unread_counts = {}
+            last_unread_message_ids = {}
+            participant_room_ids = list(participants.keys())
+            if participant_room_ids:
+                unread_rows_query = (
+                    db.session.query(
+                        ChatMessage.room_id,
+                        func.count(ChatMessage.id),
+                        func.max(ChatMessage.id),
+                    )
+                    .join(
+                        ChatParticipant,
+                        and_(
+                            ChatParticipant.room_id == ChatMessage.room_id,
+                            ChatParticipant.user_id == current_user.id,
+                        ),
+                    )
+                    .filter(
+                        ChatMessage.room_id.in_(participant_room_ids),
+                        ChatMessage.user_id != current_user.id,
+                        ChatMessage.is_deleted.is_(False),
+                        or_(
+                            ChatParticipant.last_read_at.is_(None),
+                            ChatMessage.created_at > ChatParticipant.last_read_at,
+                        ),
+                    )
                 )
                 if blocked_ids:
-                    unread_q = unread_q.filter(~ChatMessage.user_id.in_(blocked_ids))
-                unread_count = unread_q.count()
+                    unread_rows_query = unread_rows_query.filter(~ChatMessage.user_id.in_(blocked_ids))
+                unread_rows = unread_rows_query.group_by(ChatMessage.room_id).all()
+                unread_counts = {
+                    int(room_id): int(count or 0)
+                    for room_id, count, _ in unread_rows
+                }
+                last_unread_message_ids = {
+                    int(room_id): int(last_id)
+                    for room_id, _, last_id in unread_rows
+                    if last_id is not None
+                }
+
+            last_unread_messages_by_room = {}
+            if last_unread_message_ids:
+                unread_messages = ChatMessage.query.options(selectinload(ChatMessage.user)).filter(
+                    ChatMessage.id.in_(list(last_unread_message_ids.values()))
+                ).all()
+                last_unread_messages_by_room = {message.room_id: message for message in unread_messages}
+
+            rooms = []
+            for room in all_rooms:
+                participant = participants.get(room.id)
+                last_message = last_messages_by_room.get(room.id)
+                unread_count = int(unread_counts.get(room.id, 0))
                 last_unread_message_data = None
                 if unread_count > 0:
-                    last_unread = unread_q.order_by(ChatMessage.created_at.desc()).first()
+                    last_unread = last_unread_messages_by_room.get(room.id)
                     if last_unread:
                         last_unread_attachment_url = None
                         if last_unread.attachment_filename:
-                            last_unread_attachment_url = url_for('uploaded_file', filename=last_unread.attachment_filename)
+                            last_unread_attachment_url = media_url(last_unread.attachment_filename)
                         last_unread_message_data = {
                             'id': last_unread.id,
                             'content': last_unread.content,
-                            'username': last_unread.user.username if last_unread.user else None,
+                            'username': last_unread.user.username if getattr(last_unread, 'user', None) else None,
                             'created_at': last_unread.created_at.isoformat() if last_unread.created_at else None,
                             'message_type': last_unread.message_type,
                             'attachment_name': last_unread.attachment_name,
@@ -3171,14 +3967,13 @@ def create_app():
                             'is_deleted': False,
                         }
 
-                image_url = url_for('static', filename='images/favicon.png')
-                if getattr(room, 'image_filename', None) and room.image_filename != 'avatar.png':
-                    image_url = url_for('uploaded_file', filename=room.image_filename)
+                image_url = media_url(getattr(room, 'image_filename', None), 'images/favicon.png')
                 is_owner = room.created_by == current_user.id
                 can_post = True
                 if getattr(room, 'messages_open', True) is False:
                     can_post = current_user.username == 'admin' or is_owner
                 last_is_deleted = bool(getattr(last_message, 'is_deleted', False)) if last_message else False
+                last_deleted_reason = chat_message_deleted_reason(last_message) if last_is_deleted else None
                 rooms.append({
                     'id': room.id,
                     'name': room.name,
@@ -3189,23 +3984,24 @@ def create_app():
                     'messages_open': getattr(room, 'messages_open', True),
                     'can_post': can_post,
                     'last_message': {
+                        'id': last_message.id if last_message else None,
                         'content': '' if last_is_deleted else (last_message.content if last_message else None),
-                        'username': last_message.user.username if last_message else None,
+                        'username': last_message.user.username if last_message and getattr(last_message, 'user', None) else None,
                         'created_at': last_message.created_at.isoformat() if last_message else None,
                         'message_type': last_message.message_type if last_message else None,
                         'attachment_name': None if last_is_deleted else (last_message.attachment_name if last_message else None),
-                        'attachment_url': url_for('uploaded_file', filename=last_message.attachment_filename) if last_message and last_message.attachment_filename and not last_is_deleted else None,
+                        'attachment_url': media_url(last_message.attachment_filename) if last_message and last_message.attachment_filename and not last_is_deleted else None,
                         'is_deleted': last_is_deleted,
+                        'deleted_reason': last_deleted_reason,
                     } if last_message else None,
                     'last_unread_message': last_unread_message_data,
                     'unread_count': unread_count,
-                    'participants_count': len(room.participants),
+                    'participants_count': 0,
                 })
 
-            if created_new:
-                db.session.commit()
-
-            return jsonify({'rooms': rooms})
+            payload = {'rooms': rooms}
+            set_runtime_cached_payload(cache_key, payload, ttl_seconds=3, max_entries=96)
+            return jsonify(payload)
         except Exception as e:
             if app.debug:
                 print('DEBUG api_chat_rooms error:', e)
@@ -3231,6 +4027,7 @@ def create_app():
 
             participant.last_read_at = utc_now_naive()
             db.session.commit()
+            invalidate_runtime_response_cache('chat_rooms')
             return jsonify({'success': True})
         except Exception as e:
             db.session.rollback()
@@ -3256,7 +4053,6 @@ def create_app():
             if not participant:
                 participant = ChatParticipant(user_id=current_user.id, room_id=room_id)
                 db.session.add(participant)
-                db.session.commit()
 
             # Update last read time
             participant.last_read_at = utc_now_naive()
@@ -3265,33 +4061,48 @@ def create_app():
             # Get messages with pagination
             page = request.args.get('page', 1, type=int)
             per_page = 50
-            messages_query = ChatMessage.query.filter_by(room_id=room_id).order_by(ChatMessage.created_at.desc())
+            blocked_ids = blocked_user_ids_for(current_user)
+            messages_query = ChatMessage.query.options(selectinload(ChatMessage.user)).filter_by(room_id=room_id)
+            if blocked_ids:
+                messages_query = messages_query.filter(~ChatMessage.user_id.in_(blocked_ids))
+            messages_query = messages_query.order_by(ChatMessage.created_at.desc())
             messages_paginated = messages_query.paginate(page=page, per_page=per_page, error_out=False)
+            page_messages = list(messages_paginated.items)
+            message_ids = [msg.id for msg in page_messages]
+            reported_ids = set()
+            if message_ids:
+                reported_ids = {
+                    row[0]
+                    for row in db.session.query(ChatMessageReport.message_id)
+                    .filter(ChatMessageReport.message_id.in_(message_ids))
+                    .all()
+                }
 
             messages = []
-            for msg in messages_paginated.items:
-                if is_user_blocked_between(current_user.id, msg.user_id):
-                    continue
+            for msg in page_messages:
                 is_deleted = bool(getattr(msg, 'is_deleted', False))
+                deleted_reason = chat_message_deleted_reason(msg, reported_ids) if is_deleted else None
                 attachment_url = None
                 attachment_name = None
                 attachment_mime = None
                 if not is_deleted and msg.attachment_filename:
-                    attachment_url = url_for('uploaded_file', filename=msg.attachment_filename)
+                    attachment_url = media_url(msg.attachment_filename)
                     attachment_name = msg.attachment_name
                     attachment_mime = msg.attachment_mime
                 messages.append({
                     'id': msg.id,
                     'content': '' if is_deleted else msg.content,
-                    'username': msg.user.username,
-                    'user_id': msg.user.id,
-                    'user_avatar': url_for('uploaded_file', filename=msg.user.profile_pic) if msg.user.profile_pic and msg.user.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg'),
+                    'username': msg.user.username if getattr(msg, 'user', None) else 'unknown',
+                    'user_id': msg.user.id if getattr(msg, 'user', None) else None,
+                    'user_avatar': avatar_url_for_user(msg.user) if getattr(msg, 'user', None) else url_for('static', filename='images/default_avatar.jpg'),
                     'created_at': msg.created_at.isoformat(),
                     'message_type': msg.message_type,
                     'attachment_name': attachment_name,
                     'attachment_url': attachment_url,
                     'attachment_mime': attachment_mime,
                     'is_deleted': is_deleted,
+                    'deleted_reason': deleted_reason,
+                    'moderation_level': moderation_badge_level(msg.user),
                 })
 
             # Reverse to show oldest first
@@ -3385,20 +4196,23 @@ def create_app():
                 )
             db.session.add(message)
             db.session.commit()
+            invalidate_runtime_response_cache('chat_rooms')
 
             message_data = {
                 'id': message.id,
                 'content': message.content,
                 'username': current_user.username,
                 'user_id': current_user.id,
-                'user_avatar': url_for('uploaded_file', filename=current_user.profile_pic) if current_user.profile_pic and current_user.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg'),
+                'user_avatar': avatar_url_for_user(current_user),
                 'created_at': message.created_at.isoformat(),
                 'message_type': message.message_type,
                 'room_id': room_id,
                 'attachment_name': message.attachment_name,
-                'attachment_url': url_for('uploaded_file', filename=message.attachment_filename) if message.attachment_filename else None,
+                'attachment_url': media_url(message.attachment_filename) if message.attachment_filename else None,
                 'attachment_mime': message.attachment_mime,
                 'is_deleted': False,
+                'deleted_reason': None,
+                'moderation_level': moderation_badge_level(current_user),
             }
 
             try:
@@ -3454,10 +4268,9 @@ def create_app():
                 safe_remove_upload(old_image)
 
         db.session.commit()
+        invalidate_runtime_response_cache('chat_rooms')
 
-        image_url = url_for('static', filename='images/favicon.png')
-        if getattr(room, 'image_filename', None) and room.image_filename != 'avatar.png':
-            image_url = url_for('uploaded_file', filename=room.image_filename)
+        image_url = media_url(getattr(room, 'image_filename', None), 'images/favicon.png')
 
         return jsonify({
             'success': True,
@@ -3509,6 +4322,7 @@ def create_app():
             participant = ChatParticipant(user_id=current_user.id, room_id=room.id)
             db.session.add(participant)
             db.session.commit()
+            invalidate_runtime_response_cache('chat_rooms')
 
             if not is_approved:
                 return jsonify({
@@ -3554,6 +4368,7 @@ def create_app():
             participant = ChatParticipant(user_id=current_user.id, room_id=room_id)
             db.session.add(participant)
             db.session.commit()
+            invalidate_runtime_response_cache('chat_rooms')
 
             return jsonify({'success': True})
         except Exception as e:
@@ -4038,6 +4853,9 @@ def create_app():
                 db.session.add(like)
                 db.session.commit()
                 liked = True
+            invalidate_runtime_response_cache('hotspots')
+            invalidate_runtime_response_cache('posts_in_radius')
+            invalidate_runtime_response_cache('posts_by_city')
             return jsonify({'liked': liked, 'likes_count': post.get_likes_count()})
         except Exception as e:
             db.session.rollback()
@@ -4057,8 +4875,19 @@ def create_app():
         if not content:
             return jsonify({'ok': False, 'error': 'Contenido vacío o formulario inválido'}), 400
         if contains_abusive_language(content):
-            apply_abuse_strike(current_user)
+            result = apply_abuse_strike(
+                current_user,
+                reason='Lenguaje no permitido en comentario',
+                source_type='comment',
+                source_label='Comentario automático',
+                content_excerpt=content,
+            )
             db.session.commit()
+            if result.get('applied') and result.get('strike'):
+                try:
+                    send_moderation_notice_email(current_user, result['strike'])
+                except Exception as exc:
+                    _debug_log_suppressed('suppressed exception', exc)
             return jsonify({'ok': False, 'error': 'Tu comentario contiene lenguaje no permitido.'}), 400
         post = Post.query.get_or_404(post_id)
         if is_user_blocked_between(current_user.id, post.user_id):
@@ -4074,22 +4903,29 @@ def create_app():
             c.post = post
             db.session.add(c)
             db.session.commit()
+            invalidate_runtime_response_cache('posts_in_radius')
+            invalidate_runtime_response_cache('posts_by_city')
             return jsonify({
                 'ok': True,
                 'comment': {
                     'id': c.id,
+                    'user_id': current_user.id,
                     'username': current_user.username,
                     'profile_pic': _avatar_url(current_user),
                     'content': c.content,
                     'created_at': c.created_at.isoformat(),
+                    'moderation_level': moderation_badge_level(current_user),
+                    'is_hidden': False,
                 },
-                'comments_count': post.get_comments_count(),
+                'comments_count': Comment.query.filter_by(post_id=post.id, is_hidden=False).count(),
+                'hidden_comments_count': Comment.query.filter_by(post_id=post.id, is_hidden=True).count(),
             })
         except Exception as e:
             db.session.rollback()
             if app.debug:
                 print('DEBUG comment error:', e)
             return jsonify({'ok': False, 'error': 'No se pudo guardar el comentario'}), 400
+
 
     @app.route('/share/<int:post_id>', methods=['POST'])
     @login_required
@@ -4137,10 +4973,105 @@ def create_app():
         'Descripción con lenguaje verbal insultante',
         'La ubicación no corresponde al lugar donde se tomó la foto',
     ]
+    CHAT_MESSAGE_REPORT_REASONS = [
+        'Acoso o insultos',
+        'Spam o fraude',
+        'Amenaza o violencia',
+        'Contenido sexual no solicitado',
+        'Archivo o enlace sospechoso',
+    ]
+
+    COMMENT_REPORT_REASONS = CHAT_MESSAGE_REPORT_REASONS[:]
+
+    def _mark_report_resolution(report, status: str, admin_note: str | None = None):
+        report.status = status
+        report.admin_note = (admin_note or '').strip() or None
+        report.resolved_at = utc_now_naive()
+        report.resolved_by = current_user.id
+        db.session.add(report)
+
+    def _mark_related_reports(reports, status: str, admin_note: str | None = None):
+        for item in reports:
+            _mark_report_resolution(item, status, admin_note)
+
+    def _serialize_chat_message_payload(message: ChatMessage):
+        is_deleted = bool(getattr(message, 'is_deleted', False))
+        attachment_url = None
+        attachment_name = None
+        attachment_mime = None
+        if not is_deleted and message.attachment_filename:
+            attachment_url = url_for('uploaded_file', filename=message.attachment_filename)
+            attachment_name = message.attachment_name
+            attachment_mime = message.attachment_mime
+        return {
+            'id': message.id,
+            'content': '' if is_deleted else (message.content or ''),
+            'username': message.user.username if message.user else 'usuaria',
+            'user_id': message.user_id,
+            'user_avatar': _avatar_url(message.user),
+            'created_at': message.created_at.isoformat() if message.created_at else None,
+            'message_type': message.message_type,
+            'room_id': message.room_id,
+            'attachment_name': attachment_name,
+            'attachment_url': attachment_url,
+            'attachment_mime': attachment_mime,
+            'is_deleted': is_deleted,
+            'deleted_reason': chat_message_deleted_reason(message),
+            'moderation_level': moderation_badge_level(message.user),
+        }
+
+    def _emit_message_restored(message: ChatMessage):
+        try:
+            socketio.emit('message_restored', {
+                'room_id': message.room_id,
+                'message': _serialize_chat_message_payload(message),
+            }, room=f'room_{message.room_id}')
+        except Exception as e:
+            if app.debug:
+                print('DEBUG message_restored emit error:', e)
+
+    def _restore_reported_message(message: ChatMessage, admin_note: str | None = None):
+        message.is_deleted = False
+        message.deleted_at = None
+        message.deleted_by = None
+        db.session.add(message)
+        _mark_related_reports(message.reports, 'restored', admin_note)
+
+    def _restore_reported_post(post: Post, admin_note: str | None = None):
+        meta = PostMeta.query.filter_by(post_id=post.id).first()
+        if not meta:
+            meta = PostMeta(post_id=post.id)
+        meta.show_public = True
+        db.session.add(meta)
+        _mark_related_reports(post.reports, 'restored', admin_note)
+
+    def _restore_reported_comment(comment: Comment, admin_note: str | None = None):
+        comment.is_hidden = False
+        comment.hidden_at = None
+        comment.hidden_by = None
+        comment.hidden_reason = None
+        db.session.add(comment)
+        _mark_related_reports(comment.reports, 'restored', admin_note)
+
+    def _issue_report_strike(target_user: User, *, report_reason: str, source_type: str, source_id: int | None = None, source_label: str | None = None, details: str | None = None, content_excerpt: str | None = None):
+        result = apply_abuse_strike(
+            target_user,
+            reason=report_reason or 'Incumplimiento de reglas',
+            issued_by=current_user,
+            source_type=source_type,
+            source_id=source_id,
+            source_label=source_label,
+            details=details,
+            content_excerpt=content_excerpt,
+        )
+        return result
 
     @app.route('/report_post/<int:post_id>', methods=['POST'])
+    @csrf.exempt
     @login_required
     def report_post(post_id):
+        if not is_same_origin_request():
+            return jsonify({'error': 'Origen inválido'}), 403
         if current_user.is_authenticated and not is_user_verified(current_user):
             return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
         if is_user_temp_muted(current_user):
@@ -4254,15 +5185,23 @@ def create_app():
     @login_required
     def profile():
         user = current_user
-        # Ordenar posts por fecha (más recientes primero)
-        user_posts = sorted(user.posts, key=lambda p: p.created_at or 0, reverse=True)
+        user_posts = (
+            Post.query.options(
+                selectinload(Post.author),
+                selectinload(Post.meta),
+            )
+            .filter_by(user_id=user.id)
+            .order_by(Post.created_at.desc())
+            .all()
+        )
         now = datetime.now()
         for p in user_posts:
             p.can_delete = bool(p.created_at and (now - p.created_at) <= timedelta(hours=1))
             p.is_pending = bool(getattr(p, 'publish_at', None) and getattr(p, 'publish_at') > now)
+        enrich_posts_for_cards(user_posts, current_user)
         report_count = len(user_posts)
-        total_likes = sum((p.get_likes_count() for p in user_posts), 0)
-        total_comments = sum((p.get_comments_count() for p in user_posts), 0)
+        total_likes = sum((getattr(p, 'likes_count', 0) for p in user_posts), 0)
+        total_comments = sum((getattr(p, 'comments_count', 0) for p in user_posts), 0)
         return render_template(
             'profile.html',
             user=user,
@@ -4283,7 +5222,8 @@ def create_app():
 
         # Get all users and posts for admin management
         users = User.query.all()
-        posts = Post.query.all()
+        posts = Post.query.options(selectinload(Post.author), selectinload(Post.meta)).all()
+        enrich_posts_for_cards(posts, current_user)
         # Ensure at least one public chat room exists
         try:
             _ensure_default_chat_room()
@@ -4291,6 +5231,8 @@ def create_app():
             _debug_log_suppressed('suppressed exception', exc)
         chat_rooms = ChatRoom.query.order_by(ChatRoom.created_at.desc()).all()
         pending_rooms = [r for r in chat_rooms if not getattr(r, 'is_approved', True)]
+        chat_message_reports = ChatMessageReport.query.order_by(ChatMessageReport.created_at.desc()).all()
+        comment_reports = CommentReport.query.order_by(CommentReport.created_at.desc()).all()
 
         verifications = VerificationRequest.query.order_by(VerificationRequest.created_at.desc()).all()
         pending_verifications = [v for v in verifications if getattr(v, 'status', '') == 'pending']
@@ -4298,8 +5240,8 @@ def create_app():
         checkins = SafetyCheckin.query.order_by(SafetyCheckin.started_at.desc()).limit(200).all()
 
         # Calculate statistics
-        total_likes = sum(post.get_likes_count() for post in posts)
-        total_comments = sum(post.get_comments_count() for post in posts)
+        total_likes = sum((getattr(post, 'likes_count', 0) for post in posts), 0)
+        total_comments = sum((getattr(post, 'comments_count', 0) for post in posts), 0)
 
         return render_template(
             'admin.html',
@@ -4309,6 +5251,8 @@ def create_app():
             total_comments=total_comments,
             chat_rooms=chat_rooms,
             pending_rooms=pending_rooms,
+            chat_message_reports=chat_message_reports,
+            comment_reports=comment_reports,
             verifications=verifications,
             pending_verifications=pending_verifications,
             panic_events=PanicEvent.query.filter_by(status='open').order_by(PanicEvent.created_at.desc()).all(),
@@ -4492,6 +5436,14 @@ def create_app():
 
         # Reports created by user
         Report.query.filter_by(reporter_id=target_user.id).delete(synchronize_session=False)
+        Report.query.filter_by(resolved_by=target_user.id).update({'resolved_by': None}, synchronize_session=False)
+        ChatMessageReport.query.filter_by(reporter_id=target_user.id).delete(synchronize_session=False)
+        ChatMessageReport.query.filter_by(resolved_by=target_user.id).update({'resolved_by': None}, synchronize_session=False)
+        CommentReport.query.filter_by(reporter_id=target_user.id).delete(synchronize_session=False)
+        CommentReport.query.filter_by(resolved_by=target_user.id).update({'resolved_by': None}, synchronize_session=False)
+        Comment.query.filter_by(hidden_by=target_user.id).update({'hidden_by': None}, synchronize_session=False)
+        ModerationStrike.query.filter_by(user_id=target_user.id).delete(synchronize_session=False)
+        ModerationStrike.query.filter_by(issued_by=target_user.id).update({'issued_by': None}, synchronize_session=False)
         # User blocks created by or targeting user
         UserBlock.query.filter(
             (UserBlock.blocker_id == target_user.id) | (UserBlock.blocked_id == target_user.id)
@@ -4588,6 +5540,11 @@ def create_app():
         meta.show_public = True
         db.session.add(meta)
         db.session.commit()
+        invalidate_runtime_response_cache('hotspots')
+        invalidate_runtime_response_cache('posts_in_radius')
+        invalidate_runtime_response_cache('posts_by_city')
+        invalidate_runtime_response_cache('feed_sidebar')
+        _feed_sidebar_cache.clear()
         return jsonify({'success': True, 'message': 'Publicación restaurada'})
 
     @app.route('/admin/update_post_location/<int:post_id>', methods=['POST'])
@@ -4621,6 +5578,10 @@ def create_app():
             if app.debug:
                 print('DEBUG admin_update_post_location error:', exc)
             return jsonify({'error': 'No se pudo actualizar la ubicación'}), 500
+        invalidate_runtime_response_cache('hotspots')
+        invalidate_runtime_response_cache('posts_in_radius')
+        invalidate_runtime_response_cache('posts_by_city')
+        invalidate_runtime_response_cache('feed_sidebar')
 
         return jsonify({
             'success': True,
@@ -4703,6 +5664,7 @@ def create_app():
         room = ChatRoom.query.get_or_404(room_id)
         room.is_approved = True
         db.session.commit()
+        invalidate_runtime_response_cache('chat_rooms')
         return jsonify({'success': True})
 
     @app.route('/admin/delete_chat_room/<int:room_id>', methods=['POST'])
@@ -4713,6 +5675,7 @@ def create_app():
         room = ChatRoom.query.get_or_404(room_id)
         db.session.delete(room)
         db.session.commit()
+        invalidate_runtime_response_cache('chat_rooms')
         return jsonify({'success': True})
 
     @app.route('/admin/clear_chat_room/<int:room_id>', methods=['POST'])
@@ -4729,8 +5692,9 @@ def create_app():
                 filename = getattr(msg, 'attachment_filename', None)
                 if filename:
                     safe_remove_upload(filename)
-            ChatMessage.query.filter_by(room_id=room_id).delete(synchronize_session=False)
+                db.session.delete(msg)
             db.session.commit()
+            invalidate_runtime_response_cache('chat_rooms')
 
             try:
                 socketio.emit('room_cleared', {'room_id': room.id}, room=f'room_{room.id}')
@@ -4744,6 +5708,158 @@ def create_app():
             if app.debug:
                 print('DEBUG admin_clear_chat_room error:', e)
             return jsonify({'error': 'No se pudo vaciar el chat'}), 500
+
+    @app.route('/api/chat/message/<int:message_id>/report', methods=['POST'])
+    @csrf.exempt
+    @login_required
+    def api_chat_report_message(message_id):
+        if not is_same_origin_request():
+            return jsonify({'error': 'Origen inválido'}), 403
+        if current_user.is_authenticated and not is_user_verified(current_user):
+            return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
+        if is_user_temp_muted(current_user):
+            return jsonify(temp_mute_error_payload('Tienes una restricción temporal de interacción.')), 403
+
+        data = request.get_json(silent=True) or request.form or {}
+        reason = (data.get('reason') or '').strip()
+        details = (data.get('details') or '').strip()
+
+        if reason not in CHAT_MESSAGE_REPORT_REASONS:
+            return jsonify({'error': 'Categoría inválida'}), 400
+
+        try:
+            message = ChatMessage.query.get_or_404(message_id)
+            room = ChatRoom.query.get_or_404(message.room_id)
+
+            if not room.is_approved:
+                return jsonify({'error': 'Sala pendiente de aprobación'}), 403
+            if room.created_by and is_user_blocked_between(current_user.id, room.created_by):
+                return jsonify({'error': 'No tienes acceso a esta sala.'}), 403
+            if is_user_blocked_between(current_user.id, message.user_id):
+                return jsonify({'error': 'No puedes reportar contenido de esta cuenta.'}), 403
+            if message.user_id == current_user.id:
+                return jsonify({'error': 'No puedes reportar tu propio mensaje.'}), 400
+
+            existing = ChatMessageReport.query.filter_by(message_id=message.id, reporter_id=current_user.id).first()
+            if getattr(message, 'is_deleted', False) and not existing:
+                return jsonify({'error': 'Este mensaje ya no está disponible.'}), 400
+
+            if existing:
+                existing.reason = reason
+                existing.details = details or None
+                existing.status = 'pending'
+                existing.admin_note = None
+                existing.resolved_at = None
+                existing.resolved_by = None
+                report = existing
+            else:
+                report = ChatMessageReport(
+                    message_id=message.id,
+                    reporter_id=current_user.id,
+                    reason=reason,
+                    details=details or None,
+                    status='pending',
+                )
+                db.session.add(report)
+
+            if not getattr(message, 'is_deleted', False):
+                message.is_deleted = True
+                message.deleted_at = utc_now_naive()
+                message.deleted_by = current_user.id
+                db.session.add(message)
+
+            db.session.commit()
+
+            try:
+                socketio.emit('message_deleted', {
+                    'room_id': room.id,
+                    'message_id': message.id,
+                    'deleted_reason': 'reported',
+                    'created_at': message.created_at.isoformat() if message.created_at else None,
+                    'username': message.user.username if message.user else None,
+                    'message_type': message.message_type,
+                }, room=f'room_{room.id}')
+            except Exception as e:
+                if app.debug:
+                    print('DEBUG message_reported emit error:', e)
+
+            return jsonify({
+                'success': True,
+                'message': 'Reporte enviado',
+                'report_id': report.id,
+                'room_id': room.id,
+                'message_id': message.id,
+            })
+        except Exception as e:
+            db.session.rollback()
+            if app.debug:
+                print('DEBUG api_chat_report_message error:', e)
+            return jsonify({'error': 'No se pudo enviar el reporte'}), 400
+
+    @app.route('/api/comment/<int:comment_id>/report', methods=['POST'])
+    @csrf.exempt
+    @login_required
+    def api_comment_report(comment_id):
+        if not is_same_origin_request():
+            return jsonify({'error': 'Origen inválido'}), 403
+        if current_user.is_authenticated and not is_user_verified(current_user):
+            return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
+        if is_user_temp_muted(current_user):
+            return jsonify(temp_mute_error_payload('Tienes una restricción temporal de interacción.')), 403
+
+        data = request.get_json(silent=True) or request.form or {}
+        reason = (data.get('reason') or '').strip()
+        details = (data.get('details') or '').strip()
+        if reason not in COMMENT_REPORT_REASONS:
+            return jsonify({'error': 'Categoría inválida'}), 400
+
+        try:
+            comment = Comment.query.get_or_404(comment_id)
+            post = Post.query.get_or_404(comment.post_id)
+            if comment.user_id == current_user.id and current_user.username != 'admin':
+                return jsonify({'error': 'No puedes reportar tu propio comentario.'}), 400
+            if is_user_blocked_between(current_user.id, comment.user_id):
+                return jsonify({'error': 'No puedes reportar contenido de esta cuenta.'}), 403
+            if not is_public_post(post) and current_user.username != 'admin':
+                return jsonify({'error': 'Publicación no disponible.'}), 404
+
+            existing = CommentReport.query.filter_by(comment_id=comment.id, reporter_id=current_user.id).first()
+            if existing:
+                existing.reason = reason
+                existing.details = details or None
+                existing.status = 'pending'
+                existing.admin_note = None
+                existing.resolved_at = None
+                existing.resolved_by = None
+                report = existing
+            else:
+                report = CommentReport(
+                    comment_id=comment.id,
+                    reporter_id=current_user.id,
+                    reason=reason,
+                    details=details or None,
+                    status='pending',
+                )
+                db.session.add(report)
+
+            comment.is_hidden = True
+            comment.hidden_at = utc_now_naive()
+            comment.hidden_by = current_user.id
+            comment.hidden_reason = 'reported'
+            db.session.add(comment)
+            db.session.commit()
+            return jsonify({
+                'success': True,
+                'message': 'Reporte enviado',
+                'report_id': report.id,
+                'comment_id': comment.id,
+                'post_id': post.id,
+            })
+        except Exception as e:
+            db.session.rollback()
+            if app.debug:
+                print('DEBUG api_comment_report error:', e)
+            return jsonify({'error': 'No se pudo enviar el reporte'}), 400
 
     @app.route('/api/chat/message/<int:message_id>/delete', methods=['POST'])
     @login_required
@@ -4789,13 +5905,17 @@ def create_app():
             try:
                 socketio.emit('message_deleted', {
                     'room_id': room.id,
-                    'message_id': message.id
+                    'message_id': message.id,
+                    'deleted_reason': 'deleted',
+                    'created_at': message.created_at.isoformat() if message.created_at else None,
+                    'username': message.user.username if message.user else None,
+                    'message_type': message.message_type,
                 }, room=f'room_{room.id}')
             except Exception as e:
                 if app.debug:
                     print('DEBUG message_deleted emit error:', e)
 
-            return jsonify({'success': True})
+            return jsonify({'success': True, 'deleted_reason': 'deleted'})
         except Exception as e:
             db.session.rollback()
             if app.debug:
@@ -4939,33 +6059,237 @@ def create_app():
             'reports': reports
         })
 
-    @app.route('/admin/report/<int:report_id>/status', methods=['POST'])
+    @app.route('/admin/report/<int:report_id>/restore', methods=['POST'])
     @login_required
-    def admin_update_report_status(report_id):
+    def admin_restore_post_report(report_id):
         if current_user.username != 'admin':
             return jsonify({'error': 'Acceso denegado'}), 403
-
-        data = request.get_json(silent=True) or request.form or {}
-        status = (data.get('status') or '').strip().lower()
-        admin_note = (data.get('admin_note') or '').strip()
-        allowed = {'pending', 'reviewing', 'resolved', 'dismissed'}
-        if status not in allowed:
-            return jsonify({'error': 'Estado inválido'}), 400
-
         report = Report.query.get_or_404(report_id)
-        report.status = status
-        report.admin_note = admin_note or None
+        post = report.post
+        if not post:
+            return jsonify({'error': 'La publicación ya no existe'}), 404
+        admin_note = (request.get_json(silent=True) or request.form or {}).get('admin_note') if (request.get_json(silent=True) or request.form or {}) else ''
+        try:
+            _restore_reported_post(post, admin_note)
+            db.session.commit()
+            return jsonify({'success': True, 'status': 'restored'})
+        except Exception as e:
+            db.session.rollback()
+            if app.debug:
+                print('DEBUG admin_restore_post_report error:', e)
+            return jsonify({'error': 'No se pudo restaurar la publicación'}), 500
 
-        if status in {'resolved', 'dismissed'}:
-            report.resolved_at = datetime.now()
-            report.resolved_by = current_user.id
-        else:
-            report.resolved_at = None
-            report.resolved_by = None
+    @app.route('/admin/report/<int:report_id>/strike', methods=['POST'])
+    @login_required
+    def admin_strike_post_report(report_id):
+        if current_user.username != 'admin':
+            return jsonify({'error': 'Acceso denegado'}), 403
+        report = Report.query.get_or_404(report_id)
+        post = report.post
+        if not post or not post.author:
+            return jsonify({'error': 'La publicación ya no existe'}), 404
+        if post.author.username == 'admin':
+            return jsonify({'error': 'No puedes sancionar publicaciones del admin.'}), 400
+        payload = request.get_json(silent=True) or request.form or {}
+        admin_note = (payload.get('admin_note') or '').strip()
+        strike_result = None
+        try:
+            meta = PostMeta.query.filter_by(post_id=post.id).first()
+            if not meta:
+                meta = PostMeta(post_id=post.id)
+            meta.show_public = False
+            db.session.add(meta)
+            created_label = post.created_at.strftime('%d/%m/%Y %H:%M') if post.created_at else 'sin fecha'
+            location_label = post.location_name or post.city or post.country or 'sin ubicación'
+            strike_result = _issue_report_strike(
+                post.author,
+                report_reason=report.reason,
+                source_type='post',
+                source_id=post.id,
+                source_label=f'Publicación en {location_label}',
+                details=f'Publicación enviada el {created_label}. Ubicación: {location_label}. Motivo: {report.reason}. Nota admin: {admin_note or "Sin nota."}',
+                content_excerpt=post.caption or post.image_filename or 'Imagen adjunta',
+            )
+            if strike_result.get('applied'):
+                note = admin_note or 'Strike aplicado por publicación reportada.'
+            else:
+                note = admin_note or 'El contenido se mantuvo oculto, pero no se generó un nuevo strike por límite diario.'
+            _mark_related_reports(post.reports, 'struck', note)
+            db.session.commit()
+            if strike_result.get('applied') and strike_result.get('strike'):
+                try:
+                    send_moderation_notice_email(post.author, strike_result['strike'])
+                except Exception as exc:
+                    _debug_log_suppressed('suppressed exception', exc)
+            return jsonify({
+                'success': True,
+                'status': 'struck',
+                'strike_applied': bool(strike_result.get('applied')),
+                'consequence': strike_result.get('consequence'),
+                'message': 'Se aplicó la sanción.' if strike_result.get('applied') else 'El contenido quedó oculto, pero la usuaria ya tenía un strike hoy.'
+            })
+        except Exception as e:
+            db.session.rollback()
+            if app.debug:
+                print('DEBUG admin_strike_post_report error:', e)
+            return jsonify({'error': 'No se pudo aplicar la sanción'}), 500
 
-        db.session.add(report)
-        db.session.commit()
-        return jsonify({'success': True, 'status': report.status})
+    @app.route('/admin/chat_report/<int:report_id>/restore', methods=['POST'])
+    @login_required
+    def admin_restore_chat_report(report_id):
+        if current_user.username != 'admin':
+            return jsonify({'error': 'Acceso denegado'}), 403
+        report = ChatMessageReport.query.get_or_404(report_id)
+        message = report.message
+        if not message:
+            return jsonify({'error': 'El mensaje ya no existe'}), 404
+        payload = request.get_json(silent=True) or request.form or {}
+        admin_note = (payload.get('admin_note') or '').strip()
+        try:
+            _restore_reported_message(message, admin_note)
+            db.session.commit()
+            _emit_message_restored(message)
+            return jsonify({'success': True, 'status': 'restored'})
+        except Exception as e:
+            db.session.rollback()
+            if app.debug:
+                print('DEBUG admin_restore_chat_report error:', e)
+            return jsonify({'error': 'No se pudo restaurar el mensaje'}), 500
+
+    @app.route('/admin/chat_report/<int:report_id>/strike', methods=['POST'])
+    @login_required
+    def admin_strike_chat_report(report_id):
+        if current_user.username != 'admin':
+            return jsonify({'error': 'Acceso denegado'}), 403
+        report = ChatMessageReport.query.get_or_404(report_id)
+        message = report.message
+        if not message or not message.user:
+            return jsonify({'error': 'El mensaje ya no existe'}), 404
+        if message.user.username == 'admin':
+            return jsonify({'error': 'No puedes sancionar mensajes del admin.'}), 400
+        payload = request.get_json(silent=True) or request.form or {}
+        admin_note = (payload.get('admin_note') or '').strip()
+        strike_result = None
+        try:
+            message.is_deleted = True
+            if not message.deleted_at:
+                message.deleted_at = utc_now_naive()
+            if not message.deleted_by:
+                message.deleted_by = current_user.id
+            db.session.add(message)
+            room = message.room
+            room_label = room.name if room else 'grupo eliminado'
+            created_label = message.created_at.strftime('%d/%m/%Y %H:%M') if message.created_at else 'sin fecha'
+            strike_result = _issue_report_strike(
+                message.user,
+                report_reason=report.reason,
+                source_type='chat_message',
+                source_id=message.id,
+                source_label=f'Mensaje en {room_label}',
+                details=f'Grupo: {room_label}. Fecha: {created_label}. Motivo: {report.reason}. Nota admin: {admin_note or "Sin nota."}',
+                content_excerpt=message.content or message.attachment_name or 'Archivo adjunto',
+            )
+            if strike_result.get('applied'):
+                note = admin_note or 'Strike aplicado por mensaje reportado.'
+            else:
+                note = admin_note or 'El mensaje siguió oculto, pero no se generó un nuevo strike por límite diario.'
+            _mark_related_reports(message.reports, 'struck', note)
+            db.session.commit()
+            if strike_result.get('applied') and strike_result.get('strike'):
+                try:
+                    send_moderation_notice_email(message.user, strike_result['strike'])
+                except Exception as exc:
+                    _debug_log_suppressed('suppressed exception', exc)
+            return jsonify({
+                'success': True,
+                'status': 'struck',
+                'strike_applied': bool(strike_result.get('applied')),
+                'consequence': strike_result.get('consequence'),
+                'message': 'Se aplicó la sanción.' if strike_result.get('applied') else 'El mensaje quedó oculto, pero la usuaria ya tenía un strike hoy.'
+            })
+        except Exception as e:
+            db.session.rollback()
+            if app.debug:
+                print('DEBUG admin_strike_chat_report error:', e)
+            return jsonify({'error': 'No se pudo aplicar la sanción'}), 500
+
+    @app.route('/admin/comment_report/<int:report_id>/restore', methods=['POST'])
+    @login_required
+    def admin_restore_comment_report(report_id):
+        if current_user.username != 'admin':
+            return jsonify({'error': 'Acceso denegado'}), 403
+        report = CommentReport.query.get_or_404(report_id)
+        comment = report.comment
+        if not comment:
+            return jsonify({'error': 'El comentario ya no existe'}), 404
+        payload = request.get_json(silent=True) or request.form or {}
+        admin_note = (payload.get('admin_note') or '').strip()
+        try:
+            _restore_reported_comment(comment, admin_note)
+            db.session.commit()
+            return jsonify({'success': True, 'status': 'restored'})
+        except Exception as e:
+            db.session.rollback()
+            if app.debug:
+                print('DEBUG admin_restore_comment_report error:', e)
+            return jsonify({'error': 'No se pudo restaurar el comentario'}), 500
+
+    @app.route('/admin/comment_report/<int:report_id>/strike', methods=['POST'])
+    @login_required
+    def admin_strike_comment_report(report_id):
+        if current_user.username != 'admin':
+            return jsonify({'error': 'Acceso denegado'}), 403
+        report = CommentReport.query.get_or_404(report_id)
+        comment = report.comment
+        if not comment or not comment.author:
+            return jsonify({'error': 'El comentario ya no existe'}), 404
+        if comment.author.username == 'admin':
+            return jsonify({'error': 'No puedes sancionar comentarios del admin.'}), 400
+        payload = request.get_json(silent=True) or request.form or {}
+        admin_note = (payload.get('admin_note') or '').strip()
+        strike_result = None
+        try:
+            comment.is_hidden = True
+            comment.hidden_at = comment.hidden_at or utc_now_naive()
+            comment.hidden_by = comment.hidden_by or current_user.id
+            comment.hidden_reason = 'reported'
+            db.session.add(comment)
+            post = comment.post
+            post_label = f'publicación #{post.id}' if post else 'publicación eliminada'
+            created_label = comment.created_at.strftime('%d/%m/%Y %H:%M') if comment.created_at else 'sin fecha'
+            strike_result = _issue_report_strike(
+                comment.author,
+                report_reason=report.reason,
+                source_type='comment',
+                source_id=comment.id,
+                source_label=f'Comentario en {post_label}',
+                details=f'Post: {post_label}. Fecha: {created_label}. Motivo: {report.reason}. Nota admin: {admin_note or "Sin nota."}',
+                content_excerpt=comment.content,
+            )
+            if strike_result.get('applied'):
+                note = admin_note or 'Strike aplicado por comentario reportado.'
+            else:
+                note = admin_note or 'El comentario siguió oculto, pero no se generó un nuevo strike por límite diario.'
+            _mark_related_reports(comment.reports, 'struck', note)
+            db.session.commit()
+            if strike_result.get('applied') and strike_result.get('strike'):
+                try:
+                    send_moderation_notice_email(comment.author, strike_result['strike'])
+                except Exception as exc:
+                    _debug_log_suppressed('suppressed exception', exc)
+            return jsonify({
+                'success': True,
+                'status': 'struck',
+                'strike_applied': bool(strike_result.get('applied')),
+                'consequence': strike_result.get('consequence'),
+                'message': 'Se aplicó la sanción.' if strike_result.get('applied') else 'El comentario quedó oculto, pero la usuaria ya tenía un strike hoy.'
+            })
+        except Exception as e:
+            db.session.rollback()
+            if app.debug:
+                print('DEBUG admin_strike_comment_report error:', e)
+            return jsonify({'error': 'No se pudo aplicar la sanción'}), 500
+
 
     @app.route('/profile/edit', methods=['GET', 'POST'])
     @login_required
@@ -5159,7 +6483,15 @@ def create_app():
         user = User.query.filter_by(username=username).first_or_404()
         if current_user.is_authenticated and current_user.id != user.id and is_user_blocked_between(current_user.id, user.id):
             abort(404)
-        user_posts = sorted(user.posts, key=lambda p: p.created_at or 0, reverse=True)
+        user_posts = (
+            Post.query.options(
+                selectinload(Post.author),
+                selectinload(Post.meta),
+            )
+            .filter_by(user_id=user.id)
+            .order_by(Post.created_at.desc())
+            .all()
+        )
         now = datetime.now()
         for p in user_posts:
             p.can_delete = bool(p.created_at and (now - p.created_at) <= timedelta(hours=1))
@@ -5167,9 +6499,10 @@ def create_app():
         is_self = (current_user.is_authenticated and current_user.id == user.id)
         if not is_self and (not current_user.is_authenticated or current_user.username != 'admin'):
             user_posts = [p for p in user_posts if is_public_post(p)]
+        enrich_posts_for_cards(user_posts, current_user)
         report_count = len(user_posts)
-        total_likes = sum((p.get_likes_count() for p in user_posts), 0)
-        total_comments = sum((p.get_comments_count() for p in user_posts), 0)
+        total_likes = sum((getattr(p, 'likes_count', 0) for p in user_posts), 0)
+        total_comments = sum((getattr(p, 'comments_count', 0) for p in user_posts), 0)
         return render_template(
             'user_profile.html',
             user=user,
@@ -5772,14 +7105,7 @@ def create_app():
     # CLI helper para inicializar DB
     @app.cli.command('init-db')
     def init_db():
-        db.create_all()
-        ensure_chatroom_schema()
-        ensure_post_schema()
-        ensure_postmeta_schema()
-        ensure_report_schema()
-        ensure_user_schema()
-        ensure_userblock_schema()
-        ensure_safety_schema()
+        ensure_startup_schema()
         print('Base de datos inicializada')
 
     @app.cli.command('geocode-missing')
@@ -5944,14 +7270,7 @@ def create_app():
 
     with app.app_context():
         try:
-            db.create_all()
-            ensure_chatroom_schema()
-            ensure_post_schema()
-            ensure_postmeta_schema()
-            ensure_report_schema()
-            ensure_user_schema()
-            ensure_userblock_schema()
-            ensure_safety_schema()
+            ensure_startup_schema()
         except Exception as e:
             if app.debug:
                 print('DEBUG startup schema error:', e)
@@ -5970,14 +7289,7 @@ if __name__ == '__main__':
             ensure_folder = os.path.join(os.path.dirname(__file__), 'uploads')
             app.config['UPLOAD_FOLDER'] = ensure_folder
         os.makedirs(ensure_folder, exist_ok=True)
-        db.create_all()
-        ensure_chatroom_schema()
-        ensure_post_schema()
-        ensure_postmeta_schema()
-        ensure_report_schema()
-        ensure_user_schema()
-        ensure_userblock_schema()
-        ensure_safety_schema()
+        ensure_startup_schema()
     # Ejecutar con SocketIO (si no hay eventlet/gevent, usa Werkzeug). 
     # allow_unsafe_werkzeug=True evita el warning en modo desarrollo
     socketio.run(

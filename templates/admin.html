@@ -74,8 +74,8 @@
             <button class="tab-btn" onclick="switchTab('posts')" id="tab-posts" type="button">
                 Publicaciones
             </button>
-            <button class="tab-btn" onclick="switchTab('reportados')" id="tab-reportados" type="button">
-                <span class="tab-dot"></span> Reportados
+            <button class="tab-btn" onclick="switchTab('reportes')" id="tab-reportes" type="button">
+                <span class="tab-dot"></span> Reportes
             </button>
             <button class="tab-btn" onclick="switchTab('chats')" id="tab-chats" type="button">
                 Chats
@@ -150,6 +150,12 @@
                                     <div class="admin-user-cell__meta">
                                         <div class="admin-user-cell__name user-username">
                                             {{ user.username }}
+                                            {% set user_level = moderation_badge_level(user) %}
+                                            {% if user_level > 0 %}
+                                            <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if user_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if user_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if user_level >= 2 else 'Usuaria con un strike' }}">
+                                                <i class="fas fa-triangle-exclamation"></i>
+                                            </span>
+                                            {% endif %}
                                             {% if user.username == 'admin' %}
                                             <span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>
                                             {% endif %}
@@ -285,9 +291,10 @@
                                 <!-- Content -->
                                 <div class="card-body p-3 d-flex flex-column h-100">
                                     <div class="d-flex align-items-center gap-2 mb-3">
-                                        <img src="{{ url_for('uploaded_file', filename=post.author.profile_pic) if post.author.profile_pic and post.author.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
-                                            class="rounded-circle" width="24" height="24" alt="Author">
-                                        <span class="small fw-bold text-white post-author">{{ post.author.username }}{% if post.author.username == 'admin' %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}</span>
+                            <img src="{{ url_for('uploaded_file', filename=post.author.profile_pic) if post.author.profile_pic and post.author.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
+                                class="rounded-circle" width="24" height="24" alt="Author">
+                            {% set post_admin_level = moderation_badge_level(post.author) %}
+                            <span class="small fw-bold text-white post-author">{{ post.author.username }}{% if post_admin_level > 0 %}<span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if post_admin_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if post_admin_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if post_admin_level >= 2 else 'Usuaria con un strike' }}"><i class="fas fa-triangle-exclamation"></i></span>{% endif %}{% if post.author.username == 'admin' %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}</span>
                                         <span class="small text-muted ms-auto">{{ post.created_at.strftime('%d/%m') if
                                             post.created_at else '' }}</span>
                                     </div>
@@ -379,125 +386,131 @@
         {% endif %}
     </div>
 
-    <!-- Reported Posts Section -->
-    <div id="view-reportados" class="admin-view d-none">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4">
-            <h3 class="h5 mb-0 fw-bold text-white">Publicaciones Reportadas</h3>
-            <div class="report-filters w-100 w-md-auto">
-                {% set ns_users = namespace(items=[]) %}
-                {% for post in posts %}
-                {% if (post.meta and post.meta.show_public is not none and not post.meta.show_public) or (post.reports
-                and post.reports|length > 0) %}
-                {% if post.author.username not in ns_users.items %}
-                {% set ns_users.items = ns_users.items + [post.author.username] %}
-                {% endif %}
-                {% endif %}
-                {% endfor %}
-                <div class="filter-block">
-                    <div class="filter-label"><i class="fas fa-user"></i> Usuaria</div>
-                    <div class="filter-select-wrap">
-                        <select id="reportedUserFilter" class="filter-select" onchange="filterReportedPosts()">
-                            <option value="">Todas las usuarias</option>
-                            {% for username in ns_users.items %}
-                            <option value="{{ username }}">{{ username }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-                <div class="filter-block">
-                    <div class="filter-label"><i class="fas fa-tags"></i> Categoría</div>
-                    <div class="filter-select-wrap">
-                        <select id="reportedCategoryFilter" class="filter-select" onchange="filterReportedPosts()">
-                            <option value="">Todas las categorías</option>
-                            <option value="Información falso">Información falso</option>
-                            <option value="La imagen no corresponde al evento">La imagen no corresponde al evento
-                            </option>
-                            <option value="La imagen fue hecha con IA">La imagen fue hecha con IA</option>
-                            <option value="Descripción con lenguaje verbal insultante">Descripción con lenguaje verbal
-                                insultante</option>
-                            <option value="La ubicación no corresponde al lugar donde se tomó la foto">La ubicación no
-                                corresponde al lugar donde se tomó la foto</option>
-                        </select>
-                    </div>
-                </div>
-                <button class="btn btn-secondary rounded-circle circle-icon-btn" onclick="location.reload()"
-                    title="Refrescar">
-                    <i class="fas fa-sync-alt"></i>
-                </button>
-            </div>
-        </div>
-        <div class="bulk-toolbar">
-            <label class="bulk-check">
-                <input type="checkbox" id="selectAllReported">
-                <span>Seleccionar todos</span>
-            </label>
-            <button class="btn btn-success btn-sm" onclick="bulkRestoreReported()">Restaurar seleccionados</button>
-            <button class="btn btn-danger btn-sm" onclick="bulkDeleteReported()">Eliminar seleccionados</button>
-            <span class="bulk-count" id="reportedSelectedCount">0 seleccionados</span>
+    <!-- Reports Section -->
+    <div id="view-reportes" class="admin-view d-none">
+        <div class="report-subtabs" id="reportSubtabs" role="tablist" aria-label="Subsecciones de reportes">
+            <button class="report-subtab-btn active" type="button" id="report-subtab-reportados" role="tab" aria-selected="true" onclick="switchReportsSubtab('reportados')">
+                Publicaciones reportadas
+            </button>
+            <button class="report-subtab-btn" type="button" id="report-subtab-reportes-chat" role="tab" aria-selected="false" onclick="switchReportsSubtab('reportes-chat')">
+                Mensajes reportados
+            </button>
+            <button class="report-subtab-btn" type="button" id="report-subtab-reportes-comentarios" role="tab" aria-selected="false" onclick="switchReportsSubtab('reportes-comentarios')">
+                Comentarios reportados
+            </button>
         </div>
 
-        <div class="row g-4" id="reportedGrid">
+        <div id="report-subview-reportados" class="report-subview" role="tabpanel" aria-labelledby="report-subtab-reportados">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4">
+            <h3 class="h5 mb-0 fw-bold text-white">Publicaciones Reportadas</h3>
+            <div class="small text-secondary">Restaura la publicación o manda un strike a la usuaria.</div>
+        </div>
+        <div class="row g-3" id="reportedGrid">
             {% set ns = namespace(has=false) %}
             {% for post in posts %}
             {% if (post.meta and post.meta.show_public is not none and not post.meta.show_public) or (post.reports and
             post.reports|length > 0) %}
             {% set ns.has = true %}
+            {% set report_ref = post.reports|first %}
+            {% set author_level = moderation_badge_level(post.author) %}
+            {% if report_ref and report_ref.status == 'struck' %}
+                {% set report_status_label = 'Strike aplicado' %}
+                {% set report_status_class = 'message-report-card__status--struck' %}
+            {% elif report_ref and report_ref.status == 'restored' %}
+                {% set report_status_label = 'Restaurada' %}
+                {% set report_status_class = 'message-report-card__status--restored' %}
+            {% elif report_ref and report_ref.status == 'dismissed' %}
+                {% set report_status_label = 'Descartada' %}
+                {% set report_status_class = 'message-report-card__status--dismissed' %}
+            {% else %}
+                {% set report_status_label = 'Pendiente' %}
+                {% set report_status_class = 'message-report-card__status--pending' %}
+            {% endif %}
             {% set ns_reasons = namespace(items=[]) %}
             {% for r in post.reports %}
             {% if r.reason not in ns_reasons.items %}
             {% set ns_reasons.items = ns_reasons.items + [r.reason] %}
             {% endif %}
             {% endfor %}
-            <div class="col-12 col-sm-6 col-lg-4 col-xl-3 post-item reported-item" data-post-id="{{ post.id }}"
-                data-author="{{ post.author.username }}" data-reasons="{{ ns_reasons.items | join('||') }}"
-                onclick="openReportDetails(event, '{{ post.id }}')">
-                <div class="card h-100 border-0 bg-surface shadow-sm overflow-hidden"
-                    style="border-radius: var(--radius-md);">
-                    <div class="position-relative ratio ratio-1x1">
-                        <img src="{{ url_for('uploaded_file', filename=post.image_filename) }}"
-                            class="object-fit-cover w-100 h-100 reported-image" alt="Post reportado">
-                        <div class="reported-overlay">
-                            <span class="reported-pill">Reportado</span>
+            <div class="col-12 col-xl-6 reported-item"
+                data-search="{{ (post.author.username ~ ' ' ~ (post.caption or '') ~ ' ' ~ (post.location_name or '') ~ ' ' ~ (ns_reasons.items | join(' ')))|lower }}">
+                <div class="message-report-card h-100">
+                    <div class="message-report-card__head">
+                        <div>
+                            <div class="message-report-card__title">Publicación #{{ post.id }}</div>
+                            <div class="message-report-card__meta">
+                                {{ post.created_at.strftime('%d/%m/%Y %H:%M') if post.created_at else 'Sin fecha' }}
+                                {% if post.location_name %} · {{ post.location_name }}{% endif %}
+                            </div>
                         </div>
-                        <div class="position-absolute top-0 start-0 p-2 d-flex gap-2 align-items-center justify-content-start z-3 post-actions-top"
-                            style="width: auto !important; height: auto !important;">
-                            {% if post.meta and post.meta.show_public is not none and not post.meta.show_public %}
-                            <button class="btn btn-success btn-sm rounded-circle shadow-sm circle-icon-btn"
-                                onclick="restorePost('{{ post.id }}')" title="Restaurar">
-                                <i class="fas fa-undo"></i>
-                            </button>
-                            {% endif %}
-                            <button class="btn btn-danger btn-sm rounded-circle shadow-sm circle-icon-btn"
-                                onclick="deletePost('{{ post.id }}')" title="Eliminar">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                            <label
-                                class="btn btn-secondary btn-sm rounded-circle shadow-sm circle-icon-btn bulk-circle">
-                                <input type="checkbox" class="form-check-input reported-select" data-id="{{ post.id }}">
-                                <i class="fas fa-check"></i>
-                            </label>
+                        <span class="message-report-card__status {{ report_status_class }}">{{ report_status_label }}</span>
+                    </div>
+                    <div class="message-report-card__context">
+                        <div class="message-report-card__entity">
+                            <img class="message-report-card__avatar" src="{{ url_for('uploaded_file', filename=post.author.profile_pic) if post.author.profile_pic and post.author.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}" alt="Autora">
+                            <div class="message-report-card__entity-copy">
+                                <div class="message-report-card__entity-label">Autora</div>
+                                <div class="message-report-card__entity-title">
+                                    {{ post.author.username }}
+                                    {% if author_level > 0 %}
+                                    <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if author_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if author_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if author_level >= 2 else 'Usuaria con un strike' }}">
+                                        <i class="fas fa-triangle-exclamation"></i>
+                                    </span>
+                                    {% endif %}
+                                    {% if post.author.username == 'admin' %}
+                                    <span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>
+                                    {% endif %}
+                                </div>
+                                <div class="message-report-card__entity-subtitle">
+                                    {{ post.author.email }}
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="card-body p-3">
-                        <div class="d-flex align-items-center gap-2 mb-3">
-                            <img src="{{ url_for('uploaded_file', filename=post.author.profile_pic) if post.author.profile_pic and post.author.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
-                                class="rounded-circle" width="24" height="24" alt="Author">
-                            <span class="small fw-bold text-white post-author">{{ post.author.username }}{% if post.author.username == 'admin' %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}</span>
-                            <span class="small text-muted ms-auto">{{ post.created_at.strftime('%d/%m') if
-                                post.created_at else '' }}</span>
-                        </div>
-
-                        {% if post.caption %}
-                        <p class="small text-muted mb-3 text-truncate post-caption">{{ post.caption }}</p>
-                        {% endif %}
-
-                        <div class="d-flex justify-content-between align-items-center pt-2 border-top border-secondary">
-                            <div class="d-flex gap-3 small text-secondary">
-                                <span><i class="fas fa-heart me-1"></i> {{ post.get_likes_count() }}</span>
-                                <span><i class="fas fa-comment me-1"></i> {{ post.get_comments_count() }}</span>
+                    <div class="message-report-card__reason">
+                        {% if post.reports %}
+                        {% for report in post.reports %}
+                        <div class="mb-2">
+                            <div class="fw-semibold text-white">{{ report.reason }}</div>
+                            <div class="small text-secondary">
+                                Reportado por {{ report.reporter.username if report.reporter else 'Usuaria eliminada' }}
+                                · {{ report.created_at.strftime('%d/%m/%Y %H:%M') if report.created_at else 'Sin fecha' }}
                             </div>
-                            <div class="d-flex align-items-center gap-2"></div>
+                            {% if report.details %}
+                            <div class="small text-secondary mt-1">{{ report.details }}</div>
+                            {% endif %}
                         </div>
+                        {% endfor %}
+                        {% else %}
+                        <div class="small text-secondary">Oculta por moderación sin reporte asociado.</div>
+                        {% endif %}
+                    </div>
+                    <div class="message-report-card__bubble">
+                        <img class="message-report-card__image" src="{{ url_for('uploaded_file', filename=post.image_filename) }}" alt="Publicación reportada">
+                        <div class="small text-white mt-3">{{ post.caption or 'Sin descripción.' }}</div>
+                        <div class="small text-secondary mt-2">
+                            <i class="fas fa-heart me-1"></i>{{ post.get_likes_count() }}
+                            <span class="mx-2">·</span>
+                            <i class="fas fa-comment me-1"></i>{{ post.get_comments_count() }}
+                        </div>
+                    </div>
+                    {% if report_ref and (report_ref.admin_note or report_ref.resolved_at) %}
+                    <div class="message-report-card__review">
+                        {% if report_ref.admin_note %}<div><strong>Nota admin:</strong> {{ report_ref.admin_note }}</div>{% endif %}
+                        {% if report_ref.resolved_at %}
+                        <div class="mt-1">
+                            Revisado {{ report_ref.resolver.username if report_ref.resolver else 'por admin' }} · {{ report_ref.resolved_at.strftime('%d/%m/%Y %H:%M') }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    <div class="message-report-card__actions">
+                        {% if report_ref %}
+                        <button class="btn btn-outline-success btn-sm" type="button" onclick="restorePostReport('{{ report_ref.id }}')">Restaurar</button>
+                        <button class="btn btn-outline-danger btn-sm" type="button" onclick="strikePostReport('{{ report_ref.id }}')">Mandar un strike</button>
+                        {% else %}
+                        <button class="btn btn-outline-success btn-sm" type="button" onclick="restorePost('{{ post.id }}')">Restaurar</button>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -513,7 +526,230 @@
             </div>
             {% endif %}
         </div>
+
+        </div>
+
+        <div id="report-subview-reportes-chat" class="report-subview d-none" role="tabpanel" aria-labelledby="report-subtab-reportes-chat">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4">
+            <h3 class="h5 mb-0 fw-bold text-white">Mensajes reportados</h3>
+            <div class="small text-secondary">Restaura el mensaje o manda un strike a la usuaria responsable.</div>
+        </div>
+        {% if chat_message_reports %}
+        <div class="row g-3" id="reportedChatGrid">
+            {% for report in chat_message_reports %}
+            {% set msg = report.message %}
+            {% set sender = msg.user if msg else None %}
+            {% set room = msg.room if msg else None %}
+            {% set sender_level = moderation_badge_level(sender) %}
+            {% if report.status == 'struck' %}
+                {% set report_status_label = 'Strike aplicado' %}
+                {% set report_status_class = 'message-report-card__status--struck' %}
+            {% elif report.status == 'restored' %}
+                {% set report_status_label = 'Restaurado' %}
+                {% set report_status_class = 'message-report-card__status--restored' %}
+            {% elif report.status == 'dismissed' %}
+                {% set report_status_label = 'Descartado' %}
+                {% set report_status_class = 'message-report-card__status--dismissed' %}
+            {% else %}
+                {% set report_status_label = 'Pendiente' %}
+                {% set report_status_class = 'message-report-card__status--pending' %}
+            {% endif %}
+            <div class="col-12 col-xl-6 reported-chat-item"
+                data-search="{{ ((room.name if room else 'sala eliminada') ~ ' ' ~ (sender.username if sender else 'usuaria eliminada') ~ ' ' ~ (report.reporter.username if report.reporter else 'usuaria eliminada') ~ ' ' ~ (report.reason or '') ~ ' ' ~ (report.details or '') ~ ' ' ~ (msg.content or ''))|lower }}">
+                <div class="message-report-card h-100">
+                    <div class="message-report-card__head">
+                        <div>
+                            <div class="message-report-card__title">{{ room.name if room else 'Sala eliminada' }}</div>
+                            <div class="message-report-card__meta">
+                                Mensaje de {{ sender.username if sender else 'Usuaria eliminada' }}
+                                · Reportado por {{ report.reporter.username if report.reporter else 'Usuaria eliminada' }}
+                                · {{ report.created_at.strftime('%d/%m/%Y %H:%M') if report.created_at else 'Sin fecha' }}
+                            </div>
+                        </div>
+                        <span class="message-report-card__status {{ report_status_class }}">{{ report_status_label }}</span>
+                    </div>
+                    <div class="message-report-card__context">
+                        <div class="message-report-card__entity">
+                            <img class="message-report-card__thumb" src="{{ url_for('uploaded_file', filename=room.image_filename) if room and room.image_filename and room.image_filename != 'avatar.png' else url_for('static', filename='images/favicon.png') }}" alt="Grupo">
+                            <div class="message-report-card__entity-copy">
+                                <div class="message-report-card__entity-label">Grupo</div>
+                                <div class="message-report-card__entity-title">{{ room.name if room else 'Sala eliminada' }}</div>
+                                <div class="message-report-card__entity-subtitle">{{ room.description if room and room.description else 'Sin descripción' }}</div>
+                            </div>
+                        </div>
+                        <div class="message-report-card__entity">
+                            <img class="message-report-card__avatar" src="{{ url_for('uploaded_file', filename=sender.profile_pic) if sender and sender.profile_pic and sender.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}" alt="Usuaria">
+                            <div class="message-report-card__entity-copy">
+                                <div class="message-report-card__entity-label">Usuaria reportada</div>
+                                <div class="message-report-card__entity-title">
+                                    {{ sender.username if sender else 'Usuaria eliminada' }}
+                                    {% if sender_level > 0 %}
+                                    <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if sender_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if sender_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if sender_level >= 2 else 'Usuaria con un strike' }}">
+                                        <i class="fas fa-triangle-exclamation"></i>
+                                    </span>
+                                    {% endif %}
+                                    {% if sender and sender.username == 'admin' %}
+                                    <span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>
+                                    {% endif %}
+                                </div>
+                                <div class="message-report-card__entity-subtitle">
+                                    Enviado {{ msg.created_at.strftime('%d/%m/%Y %H:%M') if msg and msg.created_at else 'Sin fecha' }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="message-report-card__reason">
+                        <div class="fw-semibold text-white">{{ report.reason }}</div>
+                        {% if report.details %}
+                        <div class="small text-secondary mt-1">{{ report.details }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="message-report-card__bubble">
+                        {% if msg and msg.content %}
+                        <div class="small text-white">{{ msg.content }}</div>
+                        {% else %}
+                        <div class="small text-secondary">Sin texto.</div>
+                        {% endif %}
+                        {% if msg and msg.attachment_filename %}
+                            {% if msg.message_type == 'image' %}
+                            <img class="message-report-card__image" src="{{ url_for('uploaded_file', filename=msg.attachment_filename) }}" alt="Adjunto reportado">
+                            {% else %}
+                            <a class="message-report-card__file" href="{{ url_for('uploaded_file', filename=msg.attachment_filename) }}" target="_blank" rel="noopener noreferrer">
+                                <i class="fas fa-file me-2"></i>{{ msg.attachment_name or 'Archivo adjunto' }}
+                            </a>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                    {% if report.admin_note or report.resolved_at %}
+                    <div class="message-report-card__review">
+                        {% if report.admin_note %}<div><strong>Nota admin:</strong> {{ report.admin_note }}</div>{% endif %}
+                        {% if report.resolved_at %}
+                        <div class="mt-1">
+                            Revisado {{ report.resolver.username if report.resolver else 'por admin' }} · {{ report.resolved_at.strftime('%d/%m/%Y %H:%M') }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    <div class="message-report-card__actions">
+                        <button class="btn btn-outline-success btn-sm" type="button" onclick="restoreChatMessageReport('{{ report.id }}')">Restaurar</button>
+                        <button class="btn btn-outline-danger btn-sm" type="button" onclick="strikeChatMessageReport('{{ report.id }}')">Mandar un strike</button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted rounded-4 border border-secondary-subtle bg-dark bg-opacity-25">
+            <i class="fas fa-flag fa-2x mb-3 opacity-50"></i>
+            <p class="mb-0">No hay mensajes de chat reportados.</p>
+        </div>
+        {% endif %}
+        </div>
+
+        <div id="report-subview-reportes-comentarios" class="report-subview d-none" role="tabpanel" aria-labelledby="report-subtab-reportes-comentarios">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4">
+            <h3 class="h5 mb-0 fw-bold text-white">Comentarios reportados</h3>
+            <div class="small text-secondary">Los comentarios reportados permanecen en la sección de “Comentarios ocultos” hasta que decidas restaurarlos o sancionar a la usuaria.</div>
+        </div>
+        {% if comment_reports %}
+        <div class="row g-3" id="reportedCommentsGrid">
+            {% for report in comment_reports %}
+            {% set comment = report.comment %}
+            {% set sender = comment.author if comment else None %}
+            {% set post = comment.post if comment else None %}
+            {% set sender_level = moderation_badge_level(sender) %}
+            {% if report.status == 'struck' %}
+                {% set report_status_label = 'Strike aplicado' %}
+                {% set report_status_class = 'message-report-card__status--struck' %}
+            {% elif report.status == 'restored' %}
+                {% set report_status_label = 'Restaurado' %}
+                {% set report_status_class = 'message-report-card__status--restored' %}
+            {% elif report.status == 'dismissed' %}
+                {% set report_status_label = 'Descartado' %}
+                {% set report_status_class = 'message-report-card__status--dismissed' %}
+            {% else %}
+                {% set report_status_label = 'Pendiente' %}
+                {% set report_status_class = 'message-report-card__status--pending' %}
+            {% endif %}
+            <div class="col-12 col-xl-6 reported-comment-item"
+                data-search="{{ ((sender.username if sender else 'usuaria eliminada') ~ ' ' ~ (report.reporter.username if report.reporter else 'usuaria eliminada') ~ ' ' ~ (report.reason or '') ~ ' ' ~ (report.details or '') ~ ' ' ~ (comment.content or '') ~ ' ' ~ (post.caption or ''))|lower }}">
+                <div class="message-report-card h-100">
+                    <div class="message-report-card__head">
+                        <div>
+                            <div class="message-report-card__title">Comentario en publicación #{{ post.id if post else '—' }}</div>
+                            <div class="message-report-card__meta">
+                                Reportado por {{ report.reporter.username if report.reporter else 'Usuaria eliminada' }}
+                                · {{ report.created_at.strftime('%d/%m/%Y %H:%M') if report.created_at else 'Sin fecha' }}
+                            </div>
+                        </div>
+                        <span class="message-report-card__status {{ report_status_class }}">{{ report_status_label }}</span>
+                    </div>
+                    <div class="message-report-card__context">
+                        <div class="message-report-card__entity">
+                            <img class="message-report-card__thumb" src="{{ url_for('uploaded_file', filename=post.image_filename) if post and post.image_filename else url_for('static', filename='images/favicon.png') }}" alt="Publicación">
+                            <div class="message-report-card__entity-copy">
+                                <div class="message-report-card__entity-label">Publicación</div>
+                                <div class="message-report-card__entity-title">{{ post.location_name or ('Publicación #' ~ post.id) if post else 'Publicación eliminada' }}</div>
+                                <div class="message-report-card__entity-subtitle">{{ post.caption if post and post.caption else 'Sin descripción' }}</div>
+                            </div>
+                        </div>
+                        <div class="message-report-card__entity">
+                            <img class="message-report-card__avatar" src="{{ url_for('uploaded_file', filename=sender.profile_pic) if sender and sender.profile_pic and sender.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}" alt="Usuaria">
+                            <div class="message-report-card__entity-copy">
+                                <div class="message-report-card__entity-label">Usuaria reportada</div>
+                                <div class="message-report-card__entity-title">
+                                    {{ sender.username if sender else 'Usuaria eliminada' }}
+                                    {% if sender_level > 0 %}
+                                    <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if sender_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if sender_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if sender_level >= 2 else 'Usuaria con un strike' }}">
+                                        <i class="fas fa-triangle-exclamation"></i>
+                                    </span>
+                                    {% endif %}
+                                    {% if sender and sender.username == 'admin' %}
+                                    <span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>
+                                    {% endif %}
+                                </div>
+                                <div class="message-report-card__entity-subtitle">
+                                    Comentó {{ comment.created_at.strftime('%d/%m/%Y %H:%M') if comment and comment.created_at else 'Sin fecha' }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="message-report-card__reason">
+                        <div class="fw-semibold text-white">{{ report.reason }}</div>
+                        {% if report.details %}
+                        <div class="small text-secondary mt-1">{{ report.details }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="message-report-card__bubble">
+                        <div class="small text-white">{{ comment.content if comment and comment.content else 'Sin texto.' }}</div>
+                    </div>
+                    {% if report.admin_note or report.resolved_at %}
+                    <div class="message-report-card__review">
+                        {% if report.admin_note %}<div><strong>Nota admin:</strong> {{ report.admin_note }}</div>{% endif %}
+                        {% if report.resolved_at %}
+                        <div class="mt-1">
+                            Revisado {{ report.resolver.username if report.resolver else 'por admin' }} · {{ report.resolved_at.strftime('%d/%m/%Y %H:%M') }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    <div class="message-report-card__actions">
+                        <button class="btn btn-outline-success btn-sm" type="button" onclick="restoreCommentReport('{{ report.id }}')">Restaurar</button>
+                        <button class="btn btn-outline-danger btn-sm" type="button" onclick="strikeCommentReport('{{ report.id }}')">Mandar un strike</button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted rounded-4 border border-secondary-subtle bg-dark bg-opacity-25">
+            <i class="fas fa-comments fa-2x mb-3 opacity-50"></i>
+            <p class="mb-0">No hay comentarios reportados.</p>
+        </div>
+        {% endif %}
+        </div>
     </div>
+
 
     <!-- Chats Section -->
     <div id="view-verificaciones" class="admin-view d-none">
@@ -1881,15 +2117,39 @@
         }, 540);
     }
 
+    let currentReportsSubtab = 'reportados';
+
+    function applyReportsSubtabFilter() {
+        if (currentReportsSubtab === 'reportados') {
+            filterReportedPosts();
+        } else if (currentReportsSubtab === 'reportes-chat') {
+            filterReportedChatMessages();
+        } else if (currentReportsSubtab === 'reportes-comentarios') {
+            filterReportedComments();
+        }
+    }
+
     function applyActiveTabFilter() {
         const activeTabId = document.querySelector('#adminTabs .tab-btn.active')?.id;
         if (activeTabId === 'tab-users') {
             filterUsers();
         } else if (activeTabId === 'tab-posts') {
             filterPosts();
-        } else if (activeTabId === 'tab-reportados') {
-            filterReportedPosts();
+        } else if (activeTabId === 'tab-reportes') {
+            applyReportsSubtabFilter();
         }
+    }
+
+    function switchReportsSubtab(tabName) {
+        currentReportsSubtab = tabName;
+        document.querySelectorAll('.report-subtab-btn').forEach(btn => {
+            const isActive = btn.id === `report-subtab-${tabName}`;
+            btn.classList.toggle('active', isActive);
+            btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+        document.querySelectorAll('.report-subview').forEach(view => view.classList.add('d-none'));
+        document.getElementById(`report-subview-${tabName}`)?.classList.remove('d-none');
+        applyReportsSubtabFilter();
     }
 
     function switchTab(tabName) {
@@ -1902,6 +2162,10 @@
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.getElementById('tab-' + tabName).classList.add('active');
 
+        if (tabName === 'reportes') {
+            switchReportsSubtab(currentReportsSubtab);
+            return;
+        }
         applyActiveTabFilter();
     }
 
@@ -2406,35 +2670,98 @@
         }
     })();
 
-    function updateReportStatus(reportId, status) {
-        const statusLabels = {
-            pending: 'pendiente',
-            reviewing: 'en revisión',
-            resolved: 'resuelto',
-            dismissed: 'descartado',
-        };
-        const note = prompt('Nota opcional para este cambio de estado:') || '';
-        fetch(`/admin/report/${reportId}/status`, {
+    function requestAdminModerationNote(actionLabel) {
+        return (prompt(`Nota opcional para ${actionLabel}:`) || '').trim();
+    }
+
+    function runReportAction(url, options) {
+        const { confirmMessage, actionLabel, successFallback } = options;
+        if (confirmMessage && !confirm(confirmMessage)) return;
+        const adminNote = requestAdminModerationNote(actionLabel);
+        fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': '{{ csrf_token() }}'
             },
-            body: JSON.stringify({ status, admin_note: note.trim() })
+            body: JSON.stringify({ admin_note: adminNote })
         })
             .then(r => r.json())
             .then(data => {
                 if (!data.success) {
-                    alert('Error: ' + (data.error || 'No se pudo actualizar el reporte'));
+                    alert('Error: ' + (data.error || 'No se pudo completar la acción.'));
                     return;
                 }
-                alert(`Reporte marcado como ${statusLabels[status] || status}.`);
-                const detailsModal = document.getElementById('reportDetailsModal');
-                if (detailsModal && detailsModal.classList.contains('show')) {
-                    location.reload();
-                }
+                alert(data.message || successFallback);
+                location.reload();
             })
-            .catch(() => alert('Error al actualizar estado del reporte'));
+            .catch(() => alert('Error al completar la acción.'));
+    }
+
+    function restorePostReport(reportId) {
+        runReportAction(`/admin/report/${reportId}/restore`, {
+            confirmMessage: '¿Restaurar esta publicación para que vuelva a mostrarse?',
+            actionLabel: 'restaurar la publicación',
+            successFallback: 'La publicación fue restaurada.'
+        });
+    }
+
+    function strikePostReport(reportId) {
+        runReportAction(`/admin/report/${reportId}/strike`, {
+            confirmMessage: '¿Mandar un strike a la usuaria responsable de esta publicación?',
+            actionLabel: 'mandar el strike a la usuaria por esta publicación',
+            successFallback: 'La publicación quedó sancionada.'
+        });
+    }
+
+    function filterReportedChatMessages() {
+        const term = getGlobalSearchTerm();
+        const items = document.querySelectorAll('.reported-chat-item');
+        items.forEach(item => {
+            const haystack = ((item.getAttribute('data-search') || '') + ' ' + (item.textContent || '')).toLowerCase();
+            item.classList.toggle('d-none', !!term && !haystack.includes(term));
+        });
+    }
+
+    function filterReportedComments() {
+        const term = getGlobalSearchTerm();
+        const items = document.querySelectorAll('.reported-comment-item');
+        items.forEach(item => {
+            const haystack = ((item.getAttribute('data-search') || '') + ' ' + (item.textContent || '')).toLowerCase();
+            item.classList.toggle('d-none', !!term && !haystack.includes(term));
+        });
+    }
+
+    function restoreChatMessageReport(reportId) {
+        runReportAction(`/admin/chat_report/${reportId}/restore`, {
+            confirmMessage: '¿Restaurar este mensaje para que vuelva a verse en el chat?',
+            actionLabel: 'restaurar el mensaje',
+            successFallback: 'El mensaje fue restaurado.'
+        });
+    }
+
+    function strikeChatMessageReport(reportId) {
+        runReportAction(`/admin/chat_report/${reportId}/strike`, {
+            confirmMessage: '¿Mandar un strike a la usuaria responsable de este mensaje?',
+            actionLabel: 'mandar el strike a la usuaria por este mensaje',
+            successFallback: 'El mensaje quedó sancionado.'
+        });
+    }
+
+    function restoreCommentReport(reportId) {
+        runReportAction(`/admin/comment_report/${reportId}/restore`, {
+            confirmMessage: '¿Restaurar este comentario para que vuelva a mostrarse?',
+            actionLabel: 'restaurar el comentario',
+            successFallback: 'El comentario fue restaurado.'
+        });
+    }
+
+    function strikeCommentReport(reportId) {
+        runReportAction(`/admin/comment_report/${reportId}/strike`, {
+            confirmMessage: '¿Mandar un strike a la usuaria responsable de este comentario?',
+            actionLabel: 'mandar el strike a la usuaria por este comentario',
+            successFallback: 'El comentario quedó sancionado.'
+        });
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -2612,26 +2939,12 @@
     }
 
     function filterReportedPosts() {
-        const userSelect = document.getElementById('reportedUserFilter');
-        const categorySelect = document.getElementById('reportedCategoryFilter');
-        const userVal = userSelect ? userSelect.value.toLowerCase() : '';
-        const categoryVal = categorySelect ? categorySelect.value : '';
         const searchTerm = getGlobalSearchTerm();
         const items = document.querySelectorAll('#reportedGrid .reported-item');
 
         items.forEach(item => {
-            const author = (item.getAttribute('data-author') || '').toLowerCase();
-            const reasons = item.getAttribute('data-reasons') || '';
-
-            const matchesUser = !userVal || author === userVal;
-            const matchesCategory = !categoryVal || reasons.includes(categoryVal);
-            const matchesSearch = !searchTerm || author.includes(searchTerm) || reasons.toLowerCase().includes(searchTerm);
-
-            if (matchesUser && matchesCategory && matchesSearch) {
-                item.classList.remove('d-none');
-            } else {
-                item.classList.add('d-none');
-            }
+            const haystack = ((item.getAttribute('data-search') || '') + ' ' + (item.textContent || '')).toLowerCase();
+            item.classList.toggle('d-none', !!searchTerm && !haystack.includes(searchTerm));
         });
     }
 
@@ -2679,33 +2992,6 @@
         const ids = getSelectedIds('.post-select');
         if (!ids.length) return alert('Selecciona publicaciones para eliminar');
         if (!confirm('¿Eliminar las publicaciones seleccionadas?')) return;
-        fetch('/admin/bulk_delete_posts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
-            body: JSON.stringify({ ids })
-        }).then(r => r.json()).then(data => {
-            if (!data.success) return alert('Error: ' + data.error);
-            location.reload();
-        }).catch(() => alert('Error al eliminar publicaciones'));
-    }
-
-    function bulkRestoreReported() {
-        const ids = getSelectedIds('.reported-select');
-        if (!ids.length) return alert('Selecciona reportes para restaurar');
-        fetch('/admin/bulk_restore_posts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
-            body: JSON.stringify({ ids })
-        }).then(r => r.json()).then(data => {
-            if (!data.success) return alert('Error: ' + data.error);
-            location.reload();
-        }).catch(() => alert('Error al restaurar publicaciones'));
-    }
-
-    function bulkDeleteReported() {
-        const ids = getSelectedIds('.reported-select');
-        if (!ids.length) return alert('Selecciona reportes para eliminar');
-        if (!confirm('¿Eliminar las publicaciones reportadas seleccionadas?')) return;
         fetch('/admin/bulk_delete_posts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
@@ -2786,8 +3072,8 @@
                             : '';
                         const statusMap = {
                             pending: { label: 'Pendiente', cls: 'bg-warning text-dark' },
-                            reviewing: { label: 'En revisión', cls: 'bg-info text-dark' },
-                            resolved: { label: 'Resuelto', cls: 'bg-success text-white' },
+                            restored: { label: 'Restaurada', cls: 'bg-success text-white' },
+                            struck: { label: 'Strike aplicado', cls: 'bg-danger text-white' },
                             dismissed: { label: 'Descartado', cls: 'bg-secondary text-white' },
                         };
                         const statusInfo = statusMap[r.status] || statusMap.pending;
@@ -2804,9 +3090,8 @@
                             ${r.admin_note ? `<div class="small text-info mt-1"><strong>Nota admin:</strong> ${r.admin_note}</div>` : ''}
                             ${resolutionText}
                             <div class="d-flex flex-wrap gap-2 mt-2">
-                                <button class="btn btn-sm btn-outline-info" onclick="updateReportStatus('${r.id}', 'reviewing')">En revisión</button>
-                                <button class="btn btn-sm btn-outline-success" onclick="updateReportStatus('${r.id}', 'resolved')">Resolver</button>
-                                <button class="btn btn-sm btn-outline-secondary" onclick="updateReportStatus('${r.id}', 'dismissed')">Descartar</button>
+                                <button class="btn btn-sm btn-outline-success" onclick="restorePostReport('${r.id}')">Restaurar</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="strikePostReport('${r.id}')">Mandar un strike</button>
                             </div>
                         `;
                         reportsEl.appendChild(item);
@@ -2844,7 +3129,6 @@
         startAdminActivityAutoRefresh();
         wireBulkSelection('selectAllUsers', '.user-select', 'usersSelectedCount');
         wireBulkSelection('selectAllPosts', '.post-select', 'postsSelectedCount');
-        wireBulkSelection('selectAllReported', '.reported-select', 'reportedSelectedCount');
         wireBulkSelection('selectAllChats', '.chat-select', 'chatsSelectedCount');
 
         const globalFilter = document.getElementById('adminGlobalFilter');

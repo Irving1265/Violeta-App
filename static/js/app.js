@@ -36,6 +36,9 @@ function handleAuthRedirect(response) {
 }
 
 let currentReportPostId = null;
+let currentReportCommentId = null;
+let currentReportCommentPostId = null;
+const commentLoadPromises = new Map();
 
 function extractRemainingSeconds(text) {
     const msg = String(text || '');
@@ -76,6 +79,8 @@ async function submitReport(event) {
     event.preventDefault();
     const modalEl = document.getElementById('reportPostModal');
     const errorEl = document.getElementById('reportPostError');
+    const form = event.target;
+    const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
     if (!modalEl || !currentReportPostId) {
         return;
     }
@@ -92,8 +97,24 @@ async function submitReport(event) {
         return;
     }
 
+    const postId = Number(currentReportPostId);
+    const postCard = document.querySelector(`[data-post-id="${postId}"]`);
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.dataset.originalText = submitBtn.textContent || 'Enviar reporte';
+        submitBtn.textContent = 'Enviando...';
+    }
+
+    const modal = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.hide();
+    if (postCard) {
+        postCard.dataset.reportPending = 'true';
+        postCard.style.opacity = '0.42';
+        postCard.style.pointerEvents = 'none';
+    }
+
     try {
-        const response = await fetch(`/report_post/${currentReportPostId}`, {
+        const response = await fetch(`/report_post/${postId}`, {
             method: 'POST',
             headers: buildHeaders('application/json'),
             body: JSON.stringify({
@@ -108,20 +129,9 @@ async function submitReport(event) {
 
         const data = await response.json();
         if (!response.ok || !data.ok) {
-            if (errorEl) {
-                errorEl.textContent = data.error || 'No se pudo enviar el reporte.';
-                errorEl.classList.remove('d-none');
-            }
-            return;
+            throw new Error(data.error || 'No se pudo enviar el reporte.');
         }
 
-        const modal = bootstrap.Modal.getInstance(modalEl);
-        if (modal) {
-            modal.hide();
-        }
-
-        // Remove post from UI
-        const postCard = document.querySelector(`[data-post-id="${currentReportPostId}"]`);
         if (postCard) {
             postCard.remove();
         }
@@ -131,9 +141,21 @@ async function submitReport(event) {
         currentReportPostId = null;
     } catch (error) {
         console.error('Error submitting report:', error);
+        if (postCard) {
+            delete postCard.dataset.reportPending;
+            postCard.style.opacity = '';
+            postCard.style.pointerEvents = '';
+        }
         if (errorEl) {
-            errorEl.textContent = 'Ocurrió un error al enviar el reporte.';
+            errorEl.textContent = error.message || 'Ocurrió un error al enviar el reporte.';
             errorEl.classList.remove('d-none');
+        }
+        showAlert(error.message || 'Ocurrió un error al enviar el reporte.', 'danger');
+        modal.show();
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = submitBtn.dataset.originalText || 'Enviar reporte';
         }
     }
 }
@@ -224,49 +246,141 @@ function toggleComments(postId) {
 }
 
 // Cargar comentarios de una publicación
-async function loadComments(postId) {
-    const commentsSection = document.querySelector(`#comments-${postId} .violet-comments-list`);
-    if (!commentsSection || commentsSection.dataset.loaded === 'true') {
-        return;
-    }
+function canReportComment(comment) {
+    if (!comment || !window.CURRENT_USER || !window.CURRENT_USER.is_authenticated) return false;
+    if (String(window.CURRENT_USER.username || '').toLowerCase() === 'admin') return true;
+    return Number(window.CURRENT_USER.id) !== Number(comment.user_id);
+}
 
-    try {
-        const response = await fetch(`/comments/${postId}`, {
-            headers: { Accept: 'application/json' }
-        });
+function renderModerationBadge(level) {
+    const numeric = Number(level || 0);
+    if (!Number.isFinite(numeric) || numeric <= 0) return '';
+    const tone = numeric >= 2 ? 'red' : 'yellow';
+    const title = numeric >= 2 ? 'Usuaria con dos strikes o más' : 'Usuaria con un strike';
+    return `<span class="moderation-strike-badge moderation-strike-badge--${tone}" title="${title}" aria-label="${title}"><i class="fas fa-triangle-exclamation"></i></span>`;
+}
 
-        if (!response.ok) {
-            console.error('Error loading comments: ', await response.text());
-            return;
-        }
-
-        const data = await response.json();
-        commentsSection.innerHTML = '';
-
-        data.comments.forEach(comment => {
-            const commentDiv = document.createElement('div');
-            commentDiv.className = 'violet-comment';
-            const timeLabel = typeof getRelativeTime === 'function'
-                ? getRelativeTime(comment.created_at)
-                : new Date(comment.created_at).toLocaleString();
-            const avatarSrc = comment.profile_pic || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.username)}&background=b565a7&color=fff&rounded=true&size=32`;
-            commentDiv.innerHTML = `
-                <img class="violet-comment-avatar" src="${avatarSrc}" alt="avatar">
-                <div class="violet-comment-content">
-                    <div class="violet-comment-header">
-                        <span class="violet-comment-username">${comment.username}${renderAdminBadge(comment.username)}</span>
+function buildCommentMarkup(comment, postId, options = {}) {
+    const hidden = !!options.hidden;
+    const timeLabel = typeof getRelativeTime === 'function'
+        ? getRelativeTime(comment.created_at)
+        : new Date(comment.created_at).toLocaleString();
+    const avatarSrc = comment.profile_pic || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.username)}&background=b565a7&color=fff&rounded=true&size=32`;
+    const reportBtn = (!hidden && canReportComment(comment))
+        ? `<button class="comment-report-btn" type="button" onclick="openCommentReportModal(${comment.id}, ${postId})" title="Reportar comentario"><i class="fas fa-flag"></i></button>`
+        : '';
+    const hiddenClass = hidden ? ' violet-comment--hidden' : '';
+    const textClass = hidden ? ' violet-comment-text--hidden' : '';
+    const bodyText = hidden ? 'Este comentario fue ocultado por moderación.' : escapeHtml(comment.content);
+    return `
+        <div class="violet-comment${hiddenClass}" data-comment-id="${comment.id}">
+            <img class="violet-comment-avatar" src="${avatarSrc}" alt="avatar" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='/static/images/default_avatar.jpg';">
+            <div class="violet-comment-content">
+                <div class="violet-comment-header">
+                    <div class="violet-comment-identity">
+                        <div class="violet-comment-name-row">
+                            <span class="violet-comment-username">${escapeHtml(comment.username)}${renderModerationBadge(comment.moderation_level)}${renderAdminBadge(comment.username)}</span>
+                            ${reportBtn}
+                        </div>
+                    </div>
+                    <div class="violet-comment-header-actions">
                         <span class="violet-comment-time">${timeLabel}</span>
                     </div>
-                    <div class="violet-comment-text">${comment.content}</div>
                 </div>
-            `;
-            commentsSection.appendChild(commentDiv);
-        });
+                <div class="violet-comment-text${textClass}">${bodyText}</div>
+            </div>
+        </div>
+    `;
+}
 
-        commentsSection.dataset.loaded = 'true';
-    } catch (error) {
-        console.error('Error loading comments:', error);
+function ensureCommentsStructure(postId) {
+    const commentsSection = document.getElementById(`comments-${postId}`);
+    const root = commentsSection ? commentsSection.querySelector('.violet-comments-list') : null;
+    if (!root) return null;
+
+    let visibleWrap = root.querySelector('.violet-comments-visible');
+    if (!visibleWrap) {
+        visibleWrap = document.createElement('div');
+        visibleWrap.className = 'violet-comments-visible';
+        root.appendChild(visibleWrap);
     }
+
+    let hiddenWrap = root.querySelector('.violet-comments-hidden-wrap');
+    if (!hiddenWrap) {
+        hiddenWrap = document.createElement('div');
+        hiddenWrap.className = 'violet-comments-hidden-wrap d-none';
+        hiddenWrap.innerHTML = `
+            <div class="violet-comments-hidden-title">Comentarios ocultos</div>
+            <div class="violet-comments-hidden-list"></div>
+        `;
+        root.appendChild(hiddenWrap);
+    }
+
+    let hiddenList = hiddenWrap.querySelector('.violet-comments-hidden-list');
+    if (!hiddenList) {
+        hiddenList = document.createElement('div');
+        hiddenList.className = 'violet-comments-hidden-list';
+        hiddenWrap.appendChild(hiddenList);
+    }
+
+    return { root, visibleWrap, hiddenWrap, hiddenList };
+}
+
+function updateCommentsCount(postId, total) {
+    const postCard = document.querySelector(`[data-post-id="${postId}"]`);
+    const commentsCount = postCard ? postCard.querySelector('.comments-count') : null;
+    if (commentsCount) {
+        commentsCount.textContent = String(total);
+    }
+}
+
+function renderCommentsState(postId, data) {
+    const structure = ensureCommentsStructure(postId);
+    if (!structure) return;
+    const commentsSection = document.getElementById(`comments-${postId}`);
+
+    const comments = Array.isArray(data.comments) ? data.comments : [];
+    const hiddenComments = Array.isArray(data.hidden_comments) ? data.hidden_comments : [];
+    structure.visibleWrap.innerHTML = comments.map(comment => buildCommentMarkup(comment, postId)).join('');
+    structure.hiddenList.innerHTML = hiddenComments.map(comment => buildCommentMarkup(comment, postId, { hidden: true })).join('');
+    structure.hiddenWrap.classList.toggle('d-none', hiddenComments.length === 0);
+    structure.root.dataset.loaded = 'true';
+    if (commentsSection) {
+        commentsSection.dataset.commentsLoaded = 'true';
+    }
+    updateCommentsCount(postId, comments.length + hiddenComments.length);
+}
+
+async function loadComments(postId, force = false) {
+    const commentsSection = document.getElementById(`comments-${postId}`);
+    if (!force && commentsSection && commentsSection.dataset.commentsLoaded === 'true') {
+        return;
+    }
+    const requestKey = String(postId);
+    if (!force && commentLoadPromises.has(requestKey)) {
+        return commentLoadPromises.get(requestKey);
+    }
+    const loader = (async () => {
+        try {
+            const response = await fetch(`/comments/${postId}`, {
+                headers: { Accept: 'application/json' }
+            });
+
+            if (!response.ok) {
+                console.error('Error loading comments: ', await response.text());
+                return;
+            }
+
+            const data = await response.json();
+            renderCommentsState(postId, data);
+        } catch (error) {
+            console.error('Error loading comments:', error);
+        } finally {
+            commentLoadPromises.delete(requestKey);
+        }
+    })();
+    commentLoadPromises.set(requestKey, loader);
+    return loader;
 }
 
 // Función para enviar comentarios
@@ -280,49 +394,10 @@ async function submitComment(event, postId) {
     const form = event.target;
     const contentInput = form.querySelector('[name="content"]');
     const content = contentInput ? contentInput.value.trim() : '';
-
-    if (!content) {
-        return;
-    }
-
-    // Optimistic UI Update
-    const commentsList = document.querySelector(`#comments-${postId} .violet-comments-list`) ||
-        document.querySelector(`#comments-${postId} .comments-list`);
-    let tempCommentId = null;
-    let tempCommentDiv = null;
-
-    if (commentsList && window.CURRENT_USER && window.CURRENT_USER.is_authenticated) {
-        tempCommentId = 'temp-' + Date.now();
-        tempCommentDiv = document.createElement('div');
-        tempCommentDiv.className = 'violet-comment';
-        tempCommentDiv.id = tempCommentId;
-        tempCommentDiv.innerHTML = `
-            <img class="violet-comment-avatar" src="${window.CURRENT_USER.profile_pic || `https://ui-avatars.com/api/?name=${encodeURIComponent(window.CURRENT_USER.username)}&background=b565a7&color=fff&rounded=true&size=32`}" alt="avatar">
-            <div class="violet-comment-content">
-                <div class="violet-comment-header">
-                    <span class="violet-comment-username">${window.CURRENT_USER.username}${renderAdminBadge(window.CURRENT_USER.username)}</span>
-                    <span class="violet-comment-time">Ahora</span>
-                </div>
-                <div class="violet-comment-text">${escapeHtml(content)}</div>
-            </div>
-        `;
-        commentsList.appendChild(tempCommentDiv);
-        commentsList.scrollTop = commentsList.scrollHeight;
-
-        // Clear input immediately
-        if (contentInput) {
-            contentInput.value = '';
-            contentInput.blur(); // Optional: remove focus
-        }
-    } else if (contentInput) {
-        // Clear input even if we can't do optimistic UI
-        contentInput.value = '';
-    }
+    if (!content) return;
 
     const formData = new FormData(form);
     formData.set('content', content);
-
-    // Garantizar que el token CSRF esté presente
     const csrfToken = getCsrfToken();
     if (csrfToken) {
         formData.set('csrf_token', csrfToken);
@@ -336,19 +411,11 @@ async function submitComment(event, postId) {
         });
 
         if (handleAuthRedirect(response)) {
-            // Revert optimistic update if redirected
-            if (tempCommentDiv) tempCommentDiv.remove();
-            if (contentInput) contentInput.value = content; // Restore content
             return;
         }
 
         const data = await response.json();
         if (!response.ok || !data.ok) {
-            // Revert optimistic update on error
-            if (tempCommentDiv) tempCommentDiv.remove();
-            if (contentInput) contentInput.value = content; // Restore content
-
-            console.error('Error submitting comment:', data);
             showAlert(data.error || 'No se pudo enviar el comentario.', 'danger');
             if (data && data.error && data.error.toLowerCase().includes('restricción temporal')) {
                 const secs = extractRemainingSeconds(data.error);
@@ -359,59 +426,163 @@ async function submitComment(event, postId) {
             return;
         }
 
-        // Update the temp comment with real data or replace it
-        if (tempCommentDiv) {
-            tempCommentDiv.remove(); // Remove the temporary comment
+        if (contentInput) {
+            contentInput.value = '';
         }
-
-        const postCard = document.querySelector(`[data-post-id="${postId}"]`);
-        const commentsCount = postCard ? postCard.querySelector('.comments-count') : null;
-
-        if (!commentsList) {
-            return;
-        }
-
-        const commentDiv = document.createElement('div');
-        commentDiv.className = 'violet-comment';
-        const displayTime = typeof getRelativeTime === 'function'
-            ? getRelativeTime(data.comment.created_at)
-            : new Date(data.comment.created_at).toLocaleString();
-        const avatarSrc = data.comment.profile_pic || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.comment.username)}&background=b565a7&color=fff&rounded=true&size=32`;
-        commentDiv.innerHTML = `
-            <img class="violet-comment-avatar" src="${avatarSrc}" alt="avatar">
-            <div class="violet-comment-content">
-                <div class="violet-comment-header">
-                    <span class="violet-comment-username">${data.comment.username}${renderAdminBadge(data.comment.username)}</span>
-                    <span class="violet-comment-time">${displayTime}</span>
-                </div>
-                <div class="violet-comment-text">${escapeHtml(data.comment.content)}</div>
-            </div>
-        `;
-
-        commentsList.appendChild(commentDiv);
-        commentsList.dataset.loaded = 'true'; // Mark as loaded even if it was already
-
-        if (commentsCount) {
-            commentsCount.textContent = data.comments_count;
-        }
-
-        // Animation for the newly added real comment
-        commentDiv.style.opacity = '0';
-        commentDiv.style.transform = 'translateY(10px)';
-        requestAnimationFrame(() => {
-            commentDiv.style.transition = 'all 0.3s ease';
-            commentDiv.style.opacity = '1';
-            commentDiv.style.transform = 'translateY(0)';
-        });
+        await loadComments(postId, true);
     } catch (error) {
-        // Revert optimistic update on error
-        if (tempCommentDiv) tempCommentDiv.remove();
-        if (contentInput) contentInput.value = content; // Restore content
-
         console.error('Error submitting comment:', error);
         showAlert('Ocurrió un error al enviar tu comentario.', 'danger');
     }
 }
+
+function openCommentReportModal(commentId, postId) {
+    currentReportCommentId = Number(commentId);
+    currentReportCommentPostId = Number(postId);
+    const modalEl = document.getElementById('reportCommentModal');
+    const form = document.getElementById('reportCommentForm');
+    const errorEl = document.getElementById('reportCommentError');
+    const detailsEl = document.getElementById('reportCommentDetails');
+    if (form) form.reset();
+    if (detailsEl) detailsEl.value = '';
+    if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.classList.add('d-none');
+    }
+    if (!modalEl || typeof bootstrap === 'undefined') return;
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
+
+function optimisticallyHideReportedComment(postId, commentId) {
+    const structure = ensureCommentsStructure(postId);
+    if (!structure) return;
+
+    const commentEl = structure.visibleWrap.querySelector(`.violet-comment[data-comment-id="${commentId}"]`);
+    if (!commentEl) return;
+
+    const reportBtn = commentEl.querySelector('.comment-report-btn');
+    if (reportBtn) {
+        reportBtn.remove();
+    }
+
+    commentEl.classList.add('violet-comment--hidden');
+    const textEl = commentEl.querySelector('.violet-comment-text');
+    if (textEl) {
+        textEl.textContent = 'Este comentario ha sido reportado';
+        textEl.classList.add('violet-comment-text--hidden');
+    }
+
+    structure.hiddenWrap.classList.remove('d-none');
+    structure.hiddenList.appendChild(commentEl);
+}
+
+async function submitCommentReport(event) {
+    event.preventDefault();
+    const errorEl = document.getElementById('reportCommentError');
+    const selectedReason = document.querySelector('input[name="comment_report_reason"]:checked');
+    const detailsEl = document.getElementById('reportCommentDetails');
+    const modalEl = document.getElementById('reportCommentModal');
+    const form = event.target;
+    const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+
+    if (!currentReportCommentId || !currentReportCommentPostId) {
+        if (errorEl) {
+            errorEl.textContent = 'No se encontró el comentario a reportar.';
+            errorEl.classList.remove('d-none');
+        }
+        return;
+    }
+
+    if (!selectedReason) {
+        if (errorEl) {
+            errorEl.textContent = 'Selecciona una clasificación antes de continuar.';
+            errorEl.classList.remove('d-none');
+        }
+        return;
+    }
+
+    const commentId = currentReportCommentId;
+    const postId = currentReportCommentPostId;
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.dataset.originalText = submitBtn.textContent || 'Enviar reporte';
+        submitBtn.textContent = 'Enviando...';
+    }
+
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        const instance = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
+        instance.hide();
+    }
+    optimisticallyHideReportedComment(postId, commentId);
+
+    try {
+        const response = await fetch(`/api/comment/${commentId}/report`, {
+            method: 'POST',
+            headers: buildHeaders('application/json'),
+            body: JSON.stringify({
+                reason: selectedReason.value,
+                details: detailsEl ? detailsEl.value.trim() : ''
+            })
+        });
+
+        if (handleAuthRedirect(response)) {
+            return;
+        }
+
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'No se pudo enviar el reporte');
+        }
+
+        currentReportCommentId = null;
+        currentReportCommentPostId = null;
+        loadComments(postId, true);
+        notifyCommentAction(data.message || 'El comentario fue reportado correctamente.', 'success');
+    } catch (error) {
+        if (errorEl) {
+            errorEl.textContent = error.message || 'No se pudo enviar el reporte.';
+            errorEl.classList.remove('d-none');
+        }
+        await loadComments(postId, true);
+        if (typeof showAlert === 'function') {
+            showAlert(error.message || 'No se pudo enviar el reporte.', 'danger');
+        }
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = submitBtn.dataset.originalText || 'Enviar reporte';
+        }
+    }
+}
+
+function notifyCommentAction(message, type = 'info') {
+    if (typeof showAlert === 'function') {
+        showAlert(message, type);
+    } else {
+        alert(message);
+    }
+}
+
+function prefetchPostDetailComments() {
+    const targets = document.querySelectorAll('.comments-section[data-prefetch-comments="true"][data-comments-loaded="false"]');
+    if (!targets.length) return;
+    const runner = () => {
+        targets.forEach((section) => {
+            const postCard = section.closest('[data-post-id]');
+            const postId = postCard ? Number(postCard.dataset.postId) : NaN;
+            if (Number.isFinite(postId)) {
+                loadComments(postId);
+            }
+        });
+    };
+    if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(runner, { timeout: 600 });
+    } else {
+        window.setTimeout(runner, 120);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', prefetchPostDetailComments);
 
 function renderAdminBadge(username, sizeClass = 'admin-badge--xs') {
     if (username !== 'admin') return '';
@@ -1001,7 +1172,9 @@ function showChatMessageToast(options) {
 
 // Poll chat rooms for new unread messages and show a toast.
 (function initChatRoomToasts() {
-    const POLL_MS = 5000;
+    const IS_CHAT_PAGE = window.location && window.location.pathname === '/chat';
+    const POLL_MS = IS_CHAT_PAGE ? 8000 : 20000;
+    const INITIAL_DELAY_MS = IS_CHAT_PAGE ? 0 : 2500;
     let initialized = false;
     const lastUnreadKeyByRoom = new Map();
     let pollTimer = null;
@@ -1075,8 +1248,10 @@ function showChatMessageToast(options) {
 
     document.addEventListener('DOMContentLoaded', () => {
         if (pollTimer) return;
-        poll(true);
-        pollTimer = window.setInterval(() => poll(false), POLL_MS);
+        window.setTimeout(() => {
+            poll(true);
+            pollTimer = window.setInterval(() => poll(false), POLL_MS);
+        }, INITIAL_DELAY_MS);
     });
 })();
 
@@ -1184,7 +1359,8 @@ function showNearbyReportToast(options) {
 
 // Poll nearby reports (within 1km) and show a toast when a new report is published near the user.
 (function initNearbyReportToasts() {
-    const POLL_MS = 8000;
+    const POLL_MS = 15000;
+    const INITIAL_DELAY_MS = 3000;
     const RADIUS_KM = 1;
     const GEO_TTL_MS = 25000;
 
@@ -1330,6 +1506,12 @@ function showNearbyReportToast(options) {
     document.addEventListener('DOMContentLoaded', () => {
         if (pollTimer) return;
 
+        const startPolling = () => {
+            if (pollTimer) return;
+            poll(true);
+            pollTimer = window.setInterval(() => poll(false), POLL_MS);
+        };
+
         // Permission UX: avoid prompting for geolocation on page load if the browser would show a permission prompt.
         try {
             if (navigator.permissions && typeof navigator.permissions.query === 'function') {
@@ -1337,7 +1519,7 @@ function showNearbyReportToast(options) {
                     const st = String(status && status.state || '');
                     if (st === 'granted') {
                         geoRequestReady = true;
-                        poll(true);
+                        window.setTimeout(startPolling, INITIAL_DELAY_MS);
                         return;
                     }
                     if (st === 'denied') {
@@ -1347,7 +1529,7 @@ function showNearbyReportToast(options) {
                     // "prompt": wait for a user gesture before requesting location.
                     const enable = () => {
                         geoRequestReady = true;
-                        poll(true);
+                        startPolling();
                     };
                     window.addEventListener('pointerdown', enable, { once: true, passive: true });
                     window.addEventListener('keydown', enable, { once: true });
@@ -1355,7 +1537,7 @@ function showNearbyReportToast(options) {
                     // Fallback: require user gesture before requesting location.
                     const enable = () => {
                         geoRequestReady = true;
-                        poll(true);
+                        startPolling();
                     };
                     window.addEventListener('pointerdown', enable, { once: true, passive: true });
                     window.addEventListener('keydown', enable, { once: true });
@@ -1364,15 +1546,12 @@ function showNearbyReportToast(options) {
                 // Fallback: require user gesture before requesting location.
                 const enable = () => {
                     geoRequestReady = true;
-                    poll(true);
+                    startPolling();
                 };
                 window.addEventListener('pointerdown', enable, { once: true, passive: true });
                 window.addEventListener('keydown', enable, { once: true });
             }
         } catch (_) {}
-
-        poll(true);
-        pollTimer = window.setInterval(() => poll(false), POLL_MS);
     });
 })();
 
@@ -1409,15 +1588,23 @@ document.addEventListener('click', function (event) {
 (function () {
     function isModifiedEvent(e) { return e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0; }
     function isSameOrigin(href) { try { const u = new URL(href, window.location.href); return u.origin === window.location.origin; } catch (_) { return false; } }
+    const prefetchedUrls = new Set();
+
+    function prefetchDocument(href) {
+        if (!href || href.startsWith('#') || href.startsWith('tel:') || href.startsWith('mailto:')) return;
+        if (!isSameOrigin(href)) return;
+        const normalized = new URL(href, window.location.href).toString();
+        if (prefetchedUrls.has(normalized)) return;
+        const link = document.createElement('link');
+        link.rel = 'prefetch';
+        link.as = 'document';
+        link.href = normalized;
+        document.head.appendChild(link);
+        prefetchedUrls.add(normalized);
+    }
+
     function animateOutAndNavigate(href) {
-        const area = document.querySelector('.main-content');
-        if (area) {
-            area.classList.remove('page-anim-in');
-            area.classList.add('page-anim-out');
-            setTimeout(() => { window.location.href = href; }, 280);
-        } else {
-            window.location.href = href;
-        }
+        window.location.href = href;
     }
     document.addEventListener('DOMContentLoaded', function () {
         const area = document.querySelector('.main-content');
@@ -1425,6 +1612,10 @@ document.addEventListener('click', function (event) {
             // animate entry
             requestAnimationFrame(() => { area.classList.add('page-anim-in'); });
         }
+
+        document.querySelectorAll('.sidebar-link, .bottom-nav .nav-item, .widget-card a, .brand-logo a').forEach((link) => {
+            if (link && link.href) prefetchDocument(link.href);
+        });
 
         // Delegate clicks on nav and primary buttons/links
         document.addEventListener('click', function (e) {
@@ -1442,6 +1633,18 @@ document.addEventListener('click', function (event) {
                 e.preventDefault();
                 animateOutAndNavigate(href);
             }
+        }, true);
+
+        document.addEventListener('pointerenter', function (e) {
+            const link = e.target.closest('a[href]');
+            if (!link) return;
+            prefetchDocument(link.href);
+        }, true);
+
+        document.addEventListener('focusin', function (e) {
+            const link = e.target.closest('a[href]');
+            if (!link) return;
+            prefetchDocument(link.href);
         }, true);
     });
 })();

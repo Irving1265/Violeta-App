@@ -3,6 +3,7 @@ from flask_login import UserMixin
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 
+
 db = SQLAlchemy()
 
 # --- Etiquetas / Peligros ----------------------------------------------------
@@ -13,6 +14,7 @@ post_tag = db.Table(
     db.Column('post_id', db.Integer, db.ForeignKey('post.id'), primary_key=True),
     db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True),
 )
+
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -26,20 +28,24 @@ class User(UserMixin, db.Model):
     abuse_strikes = db.Column(db.Integer, default=0)
     muted_until = db.Column(db.DateTime)
     last_abuse_at = db.Column(db.DateTime)
+    permanently_banned_at = db.Column(db.DateTime)
+    permanent_ban_reason = db.Column(db.String(255))
 
     # Relaciones
     posts = db.relationship('Post', back_populates='author', lazy=True, cascade='all, delete-orphan')
     comments = db.relationship('Comment', back_populates='author', lazy=True, cascade='all, delete-orphan')
     likes = db.relationship('Like', back_populates='user', lazy=True, cascade='all, delete-orphan')
-    
+    moderation_strikes = db.relationship('ModerationStrike', back_populates='user', lazy=True, cascade='all, delete-orphan', foreign_keys='ModerationStrike.user_id')
+
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
-    
+
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
-    
+
     def __repr__(self):
         return f'<User {self.username}>'
+
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -64,20 +70,21 @@ class Post(db.Model):
     comments = db.relationship('Comment', back_populates='post', lazy=True, cascade='all, delete-orphan')
     likes = db.relationship('Like', back_populates='post', lazy=True, cascade='all, delete-orphan')
     tags = db.relationship('Tag', secondary=post_tag, lazy='subquery', backref=db.backref('posts', lazy=True))
-    
+
     def get_likes_count(self):
         return len(self.likes)  # type: ignore
-    
+
     def get_comments_count(self):
         return len(self.comments)  # type: ignore
-    
+
     def is_liked_by(self, user):
         if not user.is_authenticated:
             return False
         return Like.query.filter_by(user_id=user.id, post_id=self.id).first() is not None
-    
+
     def __repr__(self):
         return f'<Post {self.id}>'
+
 
 class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -100,19 +107,26 @@ class PostMeta(db.Model):
 
     post = db.relationship('Post', backref=db.backref('meta', uselist=False, cascade='all, delete-orphan'))
 
+
 class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    is_hidden = db.Column(db.Boolean, default=False)
+    hidden_at = db.Column(db.DateTime)
+    hidden_by = db.Column(db.Integer)
+    hidden_reason = db.Column(db.String(32))
 
     # Relaciones
     author = db.relationship('User', back_populates='comments')
     post = db.relationship('Post', back_populates='comments')
+    reports = db.relationship('CommentReport', back_populates='comment', lazy=True, cascade='all, delete-orphan')
 
     def __repr__(self):
         return f'<Comment {self.id}>'
+
 
 class Like(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -129,6 +143,7 @@ class Like(db.Model):
 
     def __repr__(self):
         return f'<Like {self.user_id}-{self.post_id}>'
+
 
 class Share(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -296,6 +311,7 @@ class ChatMessage(db.Model):
     user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('chat_messages', lazy=True))
     deleted_by_user = db.relationship('User', foreign_keys=[deleted_by], backref=db.backref('deleted_chat_messages', lazy=True))
     room = db.relationship('ChatRoom', back_populates='messages')
+    reports = db.relationship('ChatMessageReport', back_populates='message', lazy=True, cascade='all, delete-orphan')
 
     def __repr__(self):
         return f'<ChatMessage {self.user_id}-{self.room_id}>'
@@ -309,7 +325,7 @@ class Report(db.Model):
     reporter_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     reason = db.Column(db.String(120), nullable=False)
     details = db.Column(db.Text)
-    status = db.Column(db.String(20), default='pending')  # pending, reviewing, resolved, dismissed
+    status = db.Column(db.String(20), default='pending')  # pending, reviewing, resolved, dismissed, restored, struck
     admin_note = db.Column(db.Text)
     resolved_at = db.Column(db.DateTime)
     resolved_by = db.Column(db.Integer, db.ForeignKey('user.id'))
@@ -323,6 +339,71 @@ class Report(db.Model):
 
     def __repr__(self):
         return f'<Report {self.post_id}-{self.reporter_id}>'
+
+
+class ChatMessageReport(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(db.Integer, db.ForeignKey('chat_message.id'), nullable=False)
+    reporter_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    reason = db.Column(db.String(120), nullable=False)
+    details = db.Column(db.Text)
+    status = db.Column(db.String(20), default='pending')  # pending, reviewing, resolved, dismissed, restored, struck
+    admin_note = db.Column(db.Text)
+    resolved_at = db.Column(db.DateTime)
+    resolved_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    message = db.relationship('ChatMessage', back_populates='reports')
+    reporter = db.relationship('User', foreign_keys=[reporter_id], backref=db.backref('chat_message_reports', lazy=True))
+    resolver = db.relationship('User', foreign_keys=[resolved_by], backref=db.backref('resolved_chat_message_reports', lazy=True))
+
+    __table_args__ = (db.UniqueConstraint('message_id', 'reporter_id', name='unique_reporter_chat_message'),)
+
+    def __repr__(self):
+        return f'<ChatMessageReport {self.message_id}-{self.reporter_id}>'
+
+
+class CommentReport(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    comment_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=False)
+    reporter_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    reason = db.Column(db.String(120), nullable=False)
+    details = db.Column(db.Text)
+    status = db.Column(db.String(20), default='pending')  # pending, reviewing, resolved, dismissed, restored, struck
+    admin_note = db.Column(db.Text)
+    resolved_at = db.Column(db.DateTime)
+    resolved_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    comment = db.relationship('Comment', back_populates='reports')
+    reporter = db.relationship('User', foreign_keys=[reporter_id], backref=db.backref('comment_reports', lazy=True))
+    resolver = db.relationship('User', foreign_keys=[resolved_by], backref=db.backref('resolved_comment_reports', lazy=True))
+
+    __table_args__ = (db.UniqueConstraint('comment_id', 'reporter_id', name='unique_reporter_comment'),)
+
+    def __repr__(self):
+        return f'<CommentReport {self.comment_id}-{self.reporter_id}>'
+
+
+class ModerationStrike(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    issued_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    source_type = db.Column(db.String(32), nullable=False)
+    source_id = db.Column(db.Integer)
+    source_label = db.Column(db.String(255))
+    reason = db.Column(db.String(255), nullable=False)
+    details = db.Column(db.Text)
+    content_excerpt = db.Column(db.Text)
+    strike_number = db.Column(db.Integer, nullable=False)
+    consequence = db.Column(db.String(32), default='warning')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', foreign_keys=[user_id], back_populates='moderation_strikes')
+    issuer = db.relationship('User', foreign_keys=[issued_by], backref=db.backref('issued_moderation_strikes', lazy=True))
+
+    def __repr__(self):
+        return f'<ModerationStrike {self.user_id}:{self.strike_number}:{self.source_type}>'
 
 
 # --- Verification ----------------------------------------------------

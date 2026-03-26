@@ -149,6 +149,70 @@
     </div>
 </div>
 
+<div class="modal fade" id="reportChatMessageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-surface border border-secondary text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Reportar mensaje</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <form id="reportChatMessageForm" onsubmit="submitChatMessageReport(event)">
+                <div class="modal-body">
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <span class="report-icon">
+                            <i class="fas fa-flag"></i>
+                        </span>
+                        <p class="text-secondary small mb-0">
+                            Selecciona la clasificación que mejor describe el problema.
+                        </p>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <label class="report-option">
+                            <input type="radio" name="chat_report_reason" value="Acoso o insultos">
+                            <span class="report-option-check"></span>
+                            <span class="report-option-text">Acoso o insultos</span>
+                        </label>
+                        <label class="report-option">
+                            <input type="radio" name="chat_report_reason" value="Spam o fraude">
+                            <span class="report-option-check"></span>
+                            <span class="report-option-text">Spam o fraude</span>
+                        </label>
+                        <label class="report-option">
+                            <input type="radio" name="chat_report_reason" value="Amenaza o violencia">
+                            <span class="report-option-check"></span>
+                            <span class="report-option-text">Amenaza o violencia</span>
+                        </label>
+                        <label class="report-option">
+                            <input type="radio" name="chat_report_reason" value="Contenido sexual no solicitado">
+                            <span class="report-option-check"></span>
+                            <span class="report-option-text">Contenido sexual no solicitado</span>
+                        </label>
+                        <label class="report-option">
+                            <input type="radio" name="chat_report_reason" value="Archivo o enlace sospechoso">
+                            <span class="report-option-check"></span>
+                            <span class="report-option-text">Archivo o enlace sospechoso</span>
+                        </label>
+                    </div>
+                    <div class="mt-3">
+                        <label for="reportChatMessageDetails" class="form-label text-secondary">Comentario</label>
+                        <textarea id="reportChatMessageDetails" class="form-control bg-body border-secondary text-white"
+                            rows="3" placeholder="Agrega un comentario adicional..."></textarea>
+                    </div>
+                    <div class="report-modal-note mt-3">
+                        Este mensaje se ocultará mientras el equipo lo revisa.
+                    </div>
+                    <div class="alert alert-danger d-none mt-3" id="reportChatMessageError"></div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Enviar reporte</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
     // Chat functionality
@@ -159,7 +223,7 @@
     let currentUser = "{{ current_user.username if current_user.is_authenticated else '' }}";
     let currentUserId = {{ current_user.id if current_user.is_authenticated else 'null' }};
     let currentIsAdmin = {{ 'true' if current_user.is_authenticated and current_user.username == 'admin' else 'false' }};
-    let currentUserAvatar = "{{ url_for('uploaded_file', filename=current_user.profile_pic) if current_user.is_authenticated and current_user.profile_pic and current_user.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}";
+    let currentUserAvatar = "{{ avatar_url_for_user(current_user) if current_user.is_authenticated else url_for('static', filename='images/default_avatar.jpg') }}";
     let roomCropFile = null;
     let roomCropper = null;
     let roomCropModal = null;
@@ -167,6 +231,12 @@
     let pendingAttachmentFile = null;
     let autoOpenRoomId = null;
     let joinedSocketRooms = new Set();
+    let currentReportMessageId = null;
+    let chatRoomsLoadPromise = null;
+    let lastChatRoomsLoadedAt = 0;
+    const CHAT_ROOMS_REFRESH_DEBOUNCE_MS = 1200;
+    const CHAT_ROOMS_CACHE_KEY = 'violeta_chat_rooms_cache_v1';
+    const CHAT_ROOMS_CACHE_TTL_MS = 20000;
 
     function isMobileChatView() {
         return window.matchMedia('(max-width: 767.98px)').matches;
@@ -225,14 +295,44 @@
 	            } else {
 	                // Si el usuario está dentro de un chat, no reemplazar la vista actual.
 	                if (!currentRoomId) {
-	                    loadChatRooms();
+	                    loadChatRooms({ force: true });
 	                }
 	            }
 	        });
 
         socket.on('message_deleted', function (data) {
             if (!data || !data.message_id) return;
-            applyMessageDeleted(data.message_id);
+            const deletedReason = data.deleted_reason || 'deleted';
+            applyMessageDeleted(data.message_id, deletedReason);
+            if (data.room_id && roomIndex && roomIndex[data.room_id]) {
+                const roomLastMessage = roomIndex[data.room_id].last_message;
+                if (roomLastMessage && Number(roomLastMessage.id) === Number(data.message_id)) {
+                    updateRoomInList(data.room_id, {
+                        id: data.message_id,
+                        room_id: data.room_id,
+                        content: '',
+                        username: data.username || roomLastMessage.username,
+                        created_at: data.created_at || roomLastMessage.created_at,
+                        message_type: data.message_type || roomLastMessage.message_type,
+                        attachment_name: null,
+                        attachment_url: null,
+                        attachment_mime: null,
+                        is_deleted: true,
+                        deleted_reason: deletedReason,
+                    });
+                }
+            }
+        });
+
+        socket.on('message_restored', function (data) {
+            if (!data || !data.message) return;
+            const payload = data.message;
+            if (data.room_id == currentRoomId) {
+                applyMessageRestored(payload);
+            }
+            if (payload.room_id) {
+                updateRoomInList(payload.room_id, payload);
+            }
         });
 
         socket.on('user_joined', function (data) {
@@ -306,7 +406,7 @@
                 window.__CHAT_CURRENT_ROOM_ID = null;
                 currentRoomData = null;
                 document.querySelectorAll('.chat-room-item').forEach(item => item.classList.remove('active'));
-                loadChatRooms();
+                loadChatRooms({ force: true });
                 const container = document.getElementById('chatMessages');
                 if (container) {
                     container.innerHTML = `
@@ -503,7 +603,7 @@
                             can_post: data.room.messages_open ? true : (currentIsAdmin || data.room.created_by === currentUserId)
                         };
                         updateRoomHeader();
-                        loadChatRooms();
+                        loadChatRooms({ force: true });
                         bootstrap.Modal.getInstance(document.getElementById('editRoomModal')).hide();
                     })
                     .catch(err => {
@@ -601,7 +701,7 @@
                             bootstrap.Modal.getInstance(document.getElementById('editRoomModal')).hide();
                             currentRoomId = null;
                             currentRoomData = null;
-                            loadChatRooms();
+                            loadChatRooms({ force: true });
                             updateRoomHeader();
                             updateSendState();
                         })
@@ -703,11 +803,35 @@
 
         if (messagesContainer) {
             messagesContainer.addEventListener('click', (e) => {
+                const reportBtn = e.target.closest('.chat-msg-report-btn');
+                if (reportBtn) {
+                    e.preventDefault();
+                    const messageId = reportBtn.getAttribute('data-message-id');
+                    if (!messageId) return;
+                    openChatReportModal(messageId);
+                    return;
+                }
+
                 const btn = e.target.closest('.chat-msg-delete-btn');
                 if (!btn) return;
                 e.preventDefault();
                 const messageId = btn.getAttribute('data-message-id');
-                if (!messageId) return;
+                if (!messageId) {
+                    const pendingKey = btn.getAttribute('data-pending-key');
+                    if (!pendingKey) return;
+                    const pendingRow = btn.closest(`.chat-message-row.pending[data-pending-key="${pendingKey}"]`);
+                    if (!pendingRow) return;
+                    const previewUrl = pendingRow.getAttribute('data-preview-url');
+                    if (previewUrl && previewUrl.startsWith('blob:')) {
+                        try { URL.revokeObjectURL(previewUrl); } catch (err) {}
+                    }
+                    pendingRow.remove();
+                    const messagesLeft = messagesContainer.querySelector('.chat-message-row');
+                    if (!messagesLeft) {
+                        messagesContainer.innerHTML = '<div class="chat-placeholder"><p>Esta sala no tiene mensajes aún. ¡Sé la primera en escribir!</p></div>';
+                    }
+                    return;
+                }
 
                 fetch(`/api/chat/message/${messageId}/delete`, {
                     method: 'POST',
@@ -722,7 +846,7 @@
                             alert('Error: ' + (data.error || 'No se pudo eliminar el mensaje'));
                             return;
                         }
-                        applyMessageDeleted(messageId);
+                        applyMessageDeleted(messageId, data.deleted_reason || 'deleted');
                     })
                     .catch(err => {
                         console.error(err);
@@ -818,32 +942,86 @@
         });
     }
 
-    function loadChatRooms() {
-        fetch('/api/chat/rooms')
+    function readCachedChatRooms() {
+        try {
+            const raw = sessionStorage.getItem(CHAT_ROOMS_CACHE_KEY);
+            if (!raw) return null;
+            const payload = JSON.parse(raw);
+            const rooms = Array.isArray(payload && payload.rooms) ? payload.rooms : null;
+            const ts = Number(payload && payload.ts);
+            if (!rooms || !Number.isFinite(ts)) return null;
+            if ((Date.now() - ts) > CHAT_ROOMS_CACHE_TTL_MS) return null;
+            return rooms;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function writeCachedChatRooms(rooms) {
+        try {
+            sessionStorage.setItem(CHAT_ROOMS_CACHE_KEY, JSON.stringify({
+                ts: Date.now(),
+                rooms: rooms || []
+            }));
+        } catch (e) {}
+    }
+
+    function applyChatRoomsPayload(rooms) {
+        if (rooms && rooms.length > 0) {
+            const sorted = sortRoomsByRecent(rooms);
+            syncSocketRoomSubscriptions(sorted);
+            displayChatRooms(sorted);
+            if (autoOpenRoomId && roomIndex && roomIndex[autoOpenRoomId]) {
+                const rid = autoOpenRoomId;
+                autoOpenRoomId = null;
+                selectRoom(rid);
+            } else if (!isMobileChatView() && (currentRoomId == null || !roomIndex[currentRoomId])) {
+                const firstRoom = sorted[0];
+                if (firstRoom && firstRoom.id != null) {
+                    selectRoom(Number(firstRoom.id));
+                }
+            }
+        } else {
+            showEmptyState();
+        }
+    }
+
+    function loadChatRooms(options = {}) {
+        const force = !!(options && options.force);
+        const now = Date.now();
+        if (chatRoomsLoadPromise) {
+            return chatRoomsLoadPromise;
+        }
+        if (!force) {
+            const cachedRooms = readCachedChatRooms();
+            if (cachedRooms && cachedRooms.length) {
+                applyChatRoomsPayload(cachedRooms);
+                lastChatRoomsLoadedAt = now;
+                return Promise.resolve(cachedRooms);
+            }
+        }
+        if (!force && lastChatRoomsLoadedAt && (now - lastChatRoomsLoadedAt) < CHAT_ROOMS_REFRESH_DEBOUNCE_MS && Object.keys(roomIndex || {}).length) {
+            displayChatRooms(Object.values(roomIndex || {}));
+            return Promise.resolve(Object.values(roomIndex || {}));
+        }
+
+        chatRoomsLoadPromise = fetch('/api/chat/rooms')
             .then(response => response.json())
             .then(data => {
-                if (data.rooms && data.rooms.length > 0) {
-                    const sorted = sortRoomsByRecent(data.rooms);
-                    syncSocketRoomSubscriptions(sorted);
-                    displayChatRooms(sorted);
-                    if (autoOpenRoomId && roomIndex && roomIndex[autoOpenRoomId]) {
-                        const rid = autoOpenRoomId;
-                        autoOpenRoomId = null;
-                        selectRoom(rid);
-                    } else if (!isMobileChatView() && (currentRoomId == null || !roomIndex[currentRoomId])) {
-                        const firstRoom = sorted[0];
-                        if (firstRoom && firstRoom.id != null) {
-                            selectRoom(Number(firstRoom.id));
-                        }
-                    }
-                } else {
-                    showEmptyState();
-                }
+                applyChatRoomsPayload(data.rooms || []);
+                writeCachedChatRooms(data.rooms || []);
+                lastChatRoomsLoadedAt = Date.now();
+                return data.rooms || [];
             })
             .catch(error => {
                 console.error('Error loading chat rooms:', error);
                 showEmptyState();
+                return [];
+            })
+            .finally(() => {
+                chatRoomsLoadPromise = null;
             });
+        return chatRoomsLoadPromise;
     }
 
     function displayChatRooms(rooms) {
@@ -851,6 +1029,7 @@
         if (!container) return;
 
         const sortedRooms = sortRoomsByRecent(rooms);
+        writeCachedChatRooms(sortedRooms);
         roomIndex = {};
         let html = '<div class="chat-rooms-list">';
 
@@ -870,7 +1049,7 @@
                     <div class="room-info">
                         <div class="room-name">${escapeHtml(room.name)}</div>
                         <div class="room-last-message">
-                            ${lastMessage ? `${escapeHtml(lastMessage.username)}${renderAdminBadge(lastMessage.username, 'admin-badge--xs')}: ${lastMessageText}` : 'Sin mensajes'}
+                            ${lastMessage ? `${escapeHtml(lastMessage.username)}${renderModerationBadge(lastMessage.moderation_level)}${renderAdminBadge(lastMessage.username, 'admin-badge--xs')}: ${lastMessageText}` : 'Sin mensajes'}
                         </div>
                     </div>
                     <div class="room-meta">
@@ -1141,15 +1320,26 @@
         const timeStr = opts.timeStr || (isPending ? formatTime(new Date()) : formatTime(new Date(message.created_at)));
         const bodyHtml = renderMessageBody(message);
         const effectiveKey = encodePendingKey((opts.pendingKey || buildPendingKey(message.content, message.attachment_name)));
-        const deletePlacement = getDeletePlacement(message);
-        let leftDelete = deletePlacement === 'left' ? renderDeleteButton(message, 'left') : '';
-        const rightDelete = deletePlacement === 'right' ? renderDeleteButton(message, 'right') : '';
-        if (!leftDelete && isPending && isOwn) {
-            leftDelete = renderPendingDeleteButton(effectiveKey);
+        let leftActions = '';
+        let rightActions = '';
+
+        if (isPending && isOwn) {
+            leftActions = renderPendingActionStack(effectiveKey);
+        } else {
+            const actionPlacement = getMessageActionPlacement(message);
+            const actionsHtml = renderMessageActions(message);
+            if (actionPlacement === 'left') {
+                leftActions = actionsHtml;
+            } else if (actionPlacement === 'right') {
+                rightActions = actionsHtml;
+            }
         }
 
         const rowAttrs = [];
         rowAttrs.push(`data-message-id="${message.id || ''}"`);
+        if (message && message.deleted_reason) {
+            rowAttrs.push(`data-deleted-reason="${escapeHtml(message.deleted_reason)}"`);
+        }
         if (isPending) {
             rowAttrs.push(`data-pending-key="${effectiveKey}"`);
             if (message && typeof message.attachment_url === 'string' && message.attachment_url.startsWith('blob:')) {
@@ -1160,13 +1350,13 @@
         const avatar = message.user_avatar || '/static/images/default_avatar.jpg';
         const metaHtml = message.is_deleted ? '' : `
             <div class="chat-message-meta ${isOwn ? 'own' : ''}">
-                <div class="chat-username">${escapeHtml(message.username)}${renderAdminBadge(message.username)}</div>
+                <div class="chat-username">${escapeHtml(message.username)}${renderModerationBadge(message.moderation_level)}${renderAdminBadge(message.username)}</div>
             </div>
         `;
 
         return `
             <div class="chat-message-row ${isOwn ? 'own' : ''} ${isPending ? 'pending' : ''}" ${rowAttrs.join(' ')}>
-                ${leftDelete}
+                ${leftActions}
                 ${!isOwn ? `<img class="chat-side-avatar" src="${avatar}" alt="avatar">` : ''}
                 <div class="chat-message-stack ${isOwn ? 'own' : ''}">
                     ${metaHtml}
@@ -1176,7 +1366,7 @@
                     <div class="chat-time">${timeStr}</div>
                 </div>
                 ${isOwn ? `<img class="chat-side-avatar chat-side-avatar--own" src="${avatar}" alt="avatar">` : ''}
-                ${rightDelete}
+                ${rightActions}
             </div>
         `;
     }
@@ -1416,7 +1606,7 @@
                             alert(data.message || 'El administrador debe aprobar la sala.');
                         }
                     }
-                    loadChatRooms(); // Refresh room list
+                    loadChatRooms({ force: true }); // Refresh room list
                     // Clear input after creating new room
                     const input = document.querySelector('.chat-input');
                     if (input) input.value = '';
@@ -1455,7 +1645,7 @@
                 }
             } else {
                 // Si la sala no está en memoria (nueva/aprobada), refrescamos catálogo.
-                loadChatRooms();
+                loadChatRooms({ force: true });
                 return;
             }
             if (currentRoomId != null && Number(currentRoomId) === rid && currentRoomData) {
@@ -1495,61 +1685,68 @@
 	        }
 	    }
 
-	    function renderPendingDeleteButton(encodedPendingKey) {
-	        if (!encodedPendingKey) return '';
-	        return `
-	            <button class="chat-msg-delete-btn chat-msg-delete-btn--left" data-pending-key="${encodedPendingKey}" title="Eliminar mensaje">
-	                <i class="fas fa-trash"></i>
-	            </button>
-	        `;
-	    }
+    function renderPendingActionStack(encodedPendingKey) {
+        if (!encodedPendingKey) return '';
+        return `
+            <div class="chat-message-actions chat-message-actions--left">
+                <button class="chat-msg-action-btn chat-msg-delete-btn chat-msg-delete-btn--left" data-pending-key="${encodedPendingKey}" title="Eliminar mensaje">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        `;
+    }
 
-	    function upgradePendingMessage(pendingKey, serverMessage) {
-	        if (!serverMessage || !serverMessage.id) return false;
-	        const container = document.querySelector('.chat-messages');
-	        if (!container) return false;
+    function upgradePendingMessage(pendingKey, serverMessage) {
+        if (!serverMessage || !serverMessage.id) return false;
+        const container = document.querySelector('.chat-messages');
+        if (!container) return false;
 
-	        const effectiveKey = encodePendingKey(pendingKey || buildPendingKey(serverMessage.content, serverMessage.attachment_name));
-	        const row = container.querySelector(`.chat-message-row.pending[data-pending-key="${effectiveKey}"]`);
-	        if (!row) return false;
+        const effectiveKey = encodePendingKey(pendingKey || buildPendingKey(serverMessage.content, serverMessage.attachment_name));
+        const row = container.querySelector(`.chat-message-row.pending[data-pending-key="${effectiveKey}"]`);
+        if (!row) return false;
 
-	        row.classList.remove('pending');
-	        row.removeAttribute('data-pending-key');
-	        row.setAttribute('data-message-id', String(serverMessage.id));
+        row.classList.remove('pending');
+        row.removeAttribute('data-pending-key');
+        row.setAttribute('data-message-id', String(serverMessage.id));
+        if (serverMessage.deleted_reason) {
+            row.setAttribute('data-deleted-reason', serverMessage.deleted_reason);
+        } else {
+            row.removeAttribute('data-deleted-reason');
+        }
 
-	        // Update time to persisted timestamp (if available).
-	        const timeEl = row.querySelector('.chat-time');
-	        if (timeEl && serverMessage.created_at) {
-	            timeEl.textContent = formatTime(new Date(serverMessage.created_at));
-	        }
+        const timeEl = row.querySelector('.chat-time');
+        if (timeEl && serverMessage.created_at) {
+            timeEl.textContent = formatTime(new Date(serverMessage.created_at));
+        }
 
-	        // Swap any optimistic blob URL with the persisted URL (then revoke blob).
-	        const previewUrl = row.getAttribute('data-preview-url');
-	        if (previewUrl && typeof previewUrl === 'string' && previewUrl.startsWith('blob:') && serverMessage.attachment_url) {
-	            const img = row.querySelector('.chat-attachment--image img');
-	            if (img) img.src = serverMessage.attachment_url;
-	            const link = row.querySelector('.chat-attachment--file a');
-	            if (link) link.href = serverMessage.attachment_url;
-	            try { URL.revokeObjectURL(previewUrl); } catch (e) {}
-	            row.removeAttribute('data-preview-url');
-	        }
+        const previewUrl = row.getAttribute('data-preview-url');
+        if (previewUrl && typeof previewUrl === 'string' && previewUrl.startsWith('blob:') && serverMessage.attachment_url) {
+            const img = row.querySelector('.chat-attachment--image img');
+            if (img) img.src = serverMessage.attachment_url;
+            const link = row.querySelector('.chat-attachment--file a');
+            if (link) link.href = serverMessage.attachment_url;
+            try { URL.revokeObjectURL(previewUrl); } catch (e) {}
+            row.removeAttribute('data-preview-url');
+        }
 
-	        // Replace delete button(s) with the real ones (now we have message.id/created_at).
-	        row.querySelectorAll('.chat-msg-delete-btn').forEach(btn => btn.remove());
-	        const placement = getDeletePlacement(serverMessage);
-	        const leftHtml = placement === 'left' ? renderDeleteButton(serverMessage, 'left') : '';
-	        const rightHtml = placement === 'right' ? renderDeleteButton(serverMessage, 'right') : '';
-	        if (leftHtml) row.insertAdjacentHTML('afterbegin', leftHtml);
-	        if (rightHtml) row.insertAdjacentHTML('beforeend', rightHtml);
+        row.querySelectorAll('.chat-message-actions').forEach(stack => stack.remove());
+        const placement = getMessageActionPlacement(serverMessage);
+        const actionsHtml = renderMessageActions(serverMessage);
+        if (placement === 'left' && actionsHtml) {
+            row.insertAdjacentHTML('afterbegin', actionsHtml);
+        }
+        if (placement === 'right' && actionsHtml) {
+            row.insertAdjacentHTML('beforeend', actionsHtml);
+        }
 
-	        refreshDeleteButtons();
-	        return true;
-	    }
+        refreshDeleteButtons();
+        return true;
+    }
 
-	    function renderAttachment(message) {
-	        if (!message || !message.attachment_url) return '';
-	        const name = escapeHtml(message.attachment_name || 'Archivo adjunto');
-	        const mime = (message.attachment_mime || '').toLowerCase();
+    function renderAttachment(message) {
+        if (!message || !message.attachment_url) return '';
+        const name = escapeHtml(message.attachment_name || 'Archivo adjunto');
+        const mime = (message.attachment_mime || '').toLowerCase();
         const isImage = message.message_type === 'image' || mime.startsWith('image/');
         if (isImage) {
             return `
@@ -1568,9 +1765,23 @@
         `;
     }
 
+    function getDeletedMessageText(messageOrReason) {
+        const reason = typeof messageOrReason === 'string'
+            ? messageOrReason
+            : ((messageOrReason && messageOrReason.deleted_reason) || 'deleted');
+        return reason === 'reported' ? 'Este mensaje ha sido reportado' : 'Este mensaje ha sido eliminado';
+    }
+
+    function getDeletedLastMessageText(messageOrReason) {
+        const reason = typeof messageOrReason === 'string'
+            ? messageOrReason
+            : ((messageOrReason && messageOrReason.deleted_reason) || 'deleted');
+        return reason === 'reported' ? 'Mensaje reportado' : 'Mensaje eliminado';
+    }
+
     function renderMessageBody(message) {
         if (message && message.is_deleted) {
-            return `<div class="chat-text chat-text--deleted">Este mensaje ha sido eliminado</div>`;
+            return `<div class="chat-text chat-text--deleted">${getDeletedMessageText(message)}</div>`;
         }
         const text = (message.content || '').trim();
         const textHtml = text ? `<div class="chat-text">${escapeHtml(text)}</div>` : '';
@@ -1584,7 +1795,7 @@
     function formatLastMessage(message) {
         if (!message) return 'Sin mensajes';
         if (message.is_deleted) {
-            return 'Mensaje eliminado';
+            return getDeletedLastMessageText(message);
         }
         const hasAttachment = !!message.attachment_name;
         if (hasAttachment) {
@@ -1601,9 +1812,9 @@
 
     function getDeletePlacement(message) {
         if (!message || !message.id || message.is_deleted) return null;
-        const isSender = message.user_id === currentUserId;
+        const isSender = Number(message.user_id) === Number(currentUserId);
         const isAdmin = currentIsAdmin;
-        const isOwner = currentRoomData && currentRoomData.created_by === currentUserId;
+        const isOwner = currentRoomData && Number(currentRoomData.created_by) === Number(currentUserId);
         if (message.username === 'admin' && !isAdmin) {
             return null;
         }
@@ -1619,12 +1830,23 @@
         return null;
     }
 
+    function getReportPlacement(message) {
+        if (!message || !message.id || message.is_deleted) return null;
+        const isSender = Number(message.user_id) === Number(currentUserId);
+        if (isSender) return null;
+        return getDeletePlacement(message) || 'right';
+    }
+
+    function getMessageActionPlacement(message) {
+        return getDeletePlacement(message) || getReportPlacement(message);
+    }
+
     function renderDeleteButton(message, side) {
         if (!message || !message.id) return '';
         const canShow = getDeletePlacement(message) === side;
         if (!canShow) return '';
         let expireAttr = '';
-        if (side === 'left' && message.user_id === currentUserId) {
+        if (side === 'left' && Number(message.user_id) === Number(currentUserId)) {
             const createdAt = new Date(message.created_at);
             if (!Number.isNaN(createdAt.getTime())) {
                 const expireAt = createdAt.getTime() + (10 * 60 * 1000);
@@ -1632,9 +1854,34 @@
             }
         }
         return `
-            <button class="chat-msg-delete-btn chat-msg-delete-btn--${side}" data-message-id="${message.id}"${expireAttr} title="Eliminar mensaje">
+            <button class="chat-msg-action-btn chat-msg-delete-btn chat-msg-delete-btn--${side}" data-message-id="${message.id}"${expireAttr} title="Eliminar mensaje">
                 <i class="fas fa-trash"></i>
             </button>
+        `;
+    }
+
+    function renderReportButton(message, side) {
+        if (!message || !message.id) return '';
+        const canShow = getReportPlacement(message) === side;
+        if (!canShow) return '';
+        return `
+            <button class="chat-msg-action-btn chat-msg-report-btn chat-msg-report-btn--${side}" data-message-id="${message.id}" title="Reportar mensaje">
+                <i class="fas fa-flag"></i>
+            </button>
+        `;
+    }
+
+    function renderMessageActions(message) {
+        const placement = getMessageActionPlacement(message);
+        if (!placement) return '';
+        const reportButton = renderReportButton(message, placement);
+        const deleteButton = renderDeleteButton(message, placement);
+        if (!reportButton && !deleteButton) return '';
+        return `
+            <div class="chat-message-actions chat-message-actions--${placement}">
+                ${reportButton}
+                ${deleteButton}
+            </div>
         `;
     }
 
@@ -1643,26 +1890,158 @@
         document.querySelectorAll('.chat-msg-delete-btn[data-expire-at]').forEach(btn => {
             const exp = parseInt(btn.getAttribute('data-expire-at'), 10);
             if (Number.isFinite(exp) && now > exp) {
+                const stack = btn.closest('.chat-message-actions');
                 btn.remove();
+                if (stack && !stack.querySelector('.chat-msg-action-btn')) {
+                    stack.remove();
+                }
             }
         });
     }
 
-    function applyMessageDeleted(messageId) {
+    function notifyChatAction(message, type = 'info') {
+        if (typeof showAlert === 'function') {
+            showAlert(message, type);
+        } else {
+            alert(message);
+        }
+    }
+
+    function openChatReportModal(messageId) {
+        currentReportMessageId = messageId;
+        const modalEl = document.getElementById('reportChatMessageModal');
+        const form = document.getElementById('reportChatMessageForm');
+        const errorEl = document.getElementById('reportChatMessageError');
+        if (form) form.reset();
+        if (errorEl) {
+            errorEl.textContent = '';
+            errorEl.classList.add('d-none');
+        }
+        const detailsEl = document.getElementById('reportChatMessageDetails');
+        if (detailsEl) detailsEl.value = '';
+        if (!modalEl || typeof bootstrap === 'undefined') return;
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+
+    function submitChatMessageReport(event) {
+        event.preventDefault();
+        const errorEl = document.getElementById('reportChatMessageError');
+        const reasonInput = document.querySelector('input[name="chat_report_reason"]:checked');
+        const detailsEl = document.getElementById('reportChatMessageDetails');
+        const form = document.getElementById('reportChatMessageForm');
+        const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+        const messageId = currentReportMessageId;
+
+        if (errorEl) {
+            errorEl.textContent = '';
+            errorEl.classList.add('d-none');
+        }
+
+        if (!messageId) {
+            if (errorEl) {
+                errorEl.textContent = 'No se encontró el mensaje a reportar.';
+                errorEl.classList.remove('d-none');
+            }
+            return;
+        }
+
+        if (!reasonInput) {
+            if (errorEl) {
+                errorEl.textContent = 'Selecciona una clasificación antes de enviar el reporte.';
+                errorEl.classList.remove('d-none');
+            }
+            return;
+        }
+
+        if (submitBtn) submitBtn.disabled = true;
+        const reason = reasonInput.value;
+        const details = detailsEl ? detailsEl.value.trim() : '';
+
+        fetch(`/api/chat/message/${messageId}/report`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ reason, details })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.error || 'No se pudo enviar el reporte');
+                }
+
+                const modalEl = document.getElementById('reportChatMessageModal');
+                if (modalEl && typeof bootstrap !== 'undefined') {
+                    const instance = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
+                    instance.hide();
+                }
+
+                applyMessageDeleted(messageId, 'reported');
+                const roomId = data.room_id || currentRoomId;
+                if (roomId && roomIndex[roomId] && roomIndex[roomId].last_message && Number(roomIndex[roomId].last_message.id) === Number(messageId)) {
+                    updateRoomInList(roomId, {
+                        ...roomIndex[roomId].last_message,
+                        room_id: Number(roomId),
+                        id: Number(messageId),
+                        is_deleted: true,
+                        deleted_reason: 'reported'
+                    });
+                }
+                currentReportMessageId = null;
+                notifyChatAction(data.message || 'El mensaje fue reportado correctamente.', 'success');
+            })
+            .catch(error => {
+                if (errorEl) {
+                    errorEl.textContent = error.message || 'No se pudo enviar el reporte.';
+                    errorEl.classList.remove('d-none');
+                } else {
+                    alert(error.message || 'No se pudo enviar el reporte.');
+                }
+            })
+            .finally(() => {
+                if (submitBtn) submitBtn.disabled = false;
+            });
+    }
+
+    function applyMessageDeleted(messageId, deletedReason = 'deleted') {
         const row = document.querySelector(`.chat-message-row[data-message-id="${messageId}"]`);
         if (!row) return;
-        row.querySelectorAll('.chat-msg-delete-btn').forEach(btn => btn.remove());
+        row.setAttribute('data-deleted-reason', deletedReason);
+        row.querySelectorAll('.chat-message-actions').forEach(stack => stack.remove());
+        const meta = row.querySelector('.chat-message-meta');
+        if (meta) meta.remove();
         const bubble = row.querySelector('.chat-message');
         if (!bubble) return;
         bubble.classList.add('deleted');
-        const textEl = bubble.querySelector('.chat-text');
-        if (textEl) {
-            textEl.textContent = 'Este mensaje ha sido eliminado';
-            textEl.classList.add('chat-text--deleted');
+        bubble.innerHTML = `<div class="chat-text chat-text--deleted">${getDeletedMessageText(deletedReason)}</div>`;
+    }
+
+    function applyMessageRestored(message) {
+        if (!message || !message.id) return;
+        const container = document.querySelector('.chat-messages');
+        if (!container) return;
+        const row = document.querySelector(`.chat-message-row[data-message-id="${message.id}"]`);
+        const markup = renderMessageRow(message);
+        if (row) {
+            row.outerHTML = markup;
         } else {
-            bubble.insertAdjacentHTML('beforeend', '<div class="chat-text chat-text--deleted">Este mensaje ha sido eliminado</div>');
+            const placeholder = container.querySelector('.chat-placeholder');
+            if (placeholder) {
+                container.innerHTML = '';
+            }
+            container.insertAdjacentHTML('beforeend', markup);
+            container.scrollTop = container.scrollHeight;
         }
-        bubble.querySelectorAll('.chat-attachment').forEach(el => el.remove());
+        refreshDeleteButtons();
+    }
+
+    function renderModerationBadge(level) {
+        const numeric = Number(level || 0);
+        if (!Number.isFinite(numeric) || numeric <= 0) return '';
+        const tone = numeric >= 2 ? 'red' : 'yellow';
+        const title = numeric >= 2 ? 'Usuaria con dos strikes o más' : 'Usuaria con un strike';
+        return `<span class="moderation-strike-badge moderation-strike-badge--${tone}" title="${title}" aria-label="${title}"><i class="fas fa-triangle-exclamation"></i></span>`;
     }
 
     function renderAdminBadge(username, sizeClass = 'admin-badge--xs') {

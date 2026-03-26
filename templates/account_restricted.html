@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="auth-page-shell auth-page-shell--login">
+    <div class="auth-page-card auth-page-card--login text-center">
+        <div class="mb-4">
+            <div class="mx-auto d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width:72px;height:72px;background:rgba(239,68,68,.16);color:#fca5a5;font-size:1.6rem;">
+                <i class="fas fa-triangle-exclamation"></i>
+            </div>
+            <h2 class="mb-2">Cuenta restringida</h2>
+            <p class="text-secondary mb-0">{{ restriction.message }}</p>
+        </div>
+
+        {% if restriction.type == 'temporary' and restriction.until %}
+        <div class="glass-card p-3 mb-4" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:18px;">
+            <div class="small text-uppercase text-secondary mb-2">Tiempo restante</div>
+            <div id="restrictionCountdown" class="fs-3 fw-bold text-white" data-until="{{ restriction.until.isoformat() }}">
+                Calculando...
+            </div>
+            <div class="small text-secondary mt-2">Tu acceso se restaurará automáticamente al terminar el periodo.</div>
+        </div>
+        {% else %}
+        <div class="glass-card p-3 mb-4" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:18px;">
+            <div class="small text-secondary">Si consideras que esto es un error, responde al correo de moderación enviado a tu cuenta.</div>
+        </div>
+        {% endif %}
+
+        <a href="{{ url_for('logout') }}" class="violet-btn-primary w-100 text-center text-decoration-none">Cerrar sesión</a>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+    const el = document.getElementById('restrictionCountdown');
+    if (!el) return;
+    const untilRaw = el.getAttribute('data-until');
+    const until = untilRaw ? new Date(untilRaw) : null;
+    if (!until || Number.isNaN(until.getTime())) {
+        el.textContent = 'Sin fecha';
+        return;
+    }
+    function render() {
+        const diff = Math.max(0, until.getTime() - Date.now());
+        if (diff <= 0) {
+            el.textContent = 'Puedes volver a entrar ahora';
+            window.setTimeout(() => window.location.reload(), 1200);
+            return;
+        }
+        const totalSeconds = Math.floor(diff / 1000);
+        const days = Math.floor(totalSeconds / 86400);
+        const hours = Math.floor((totalSeconds % 86400) / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        const parts = [];
+        if (days) parts.push(`${days}d`);
+        if (hours || days) parts.push(`${hours}h`);
+        if (minutes || hours || days) parts.push(`${minutes}m`);
+        parts.push(`${seconds}s`);
+        el.textContent = parts.join(' ');
+    }
+    render();
+    window.setInterval(render, 1000);
+})();
+</script>
+{% endblock %}

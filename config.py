@@ -83,6 +83,10 @@ class Config:
     # None => same-origin policy by default in Flask-SocketIO.
     SOCKETIO_CORS_ALLOWED_ORIGINS = os.environ.get('SOCKETIO_CORS_ALLOWED_ORIGINS')
 
+    # Cache compartido opcional para producción.
+    REDIS_URL = (os.environ.get('REDIS_URL') or '').strip()
+    CACHE_NAMESPACE = (os.environ.get('CACHE_NAMESPACE') or 'violeta').strip()
+
     # Configuración de correo (para OTP y recuperación)
     MAIL_DELIVERY_METHOD = (os.environ.get('MAIL_DELIVERY_METHOD') or '').strip().lower()
     MAIL_SERVER = os.environ.get('MAIL_SERVER') or 'smtp.gmail.com'
