@@ -671,7 +671,7 @@
                             <input type="checkbox" class="form-check-input chat-select" data-id="{{ room.id }}">
                         </div>
                         <div class="d-flex align-items-center gap-3 flex-grow-1">
-                            <img src="{{ url_for('uploaded_file', filename=room.image_filename) if room.image_filename and room.image_filename != 'avatar.png' else url_for('static', filename='uploads/avatar.png') }}"
+                            <img src="{{ url_for('uploaded_file', filename=room.image_filename) if room.image_filename and room.image_filename != 'avatar.png' else url_for('static', filename='images/favicon.png') }}"
                                 class="rounded-circle object-fit-cover" width="44" height="44" alt="Avatar de sala">
                             <div class="text-start">
                                 <div class="fw-bold text-white">{{ room.name }}</div>

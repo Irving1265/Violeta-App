@@ -3171,7 +3171,7 @@ def create_app():
                             'is_deleted': False,
                         }
 
-                image_url = url_for('static', filename='uploads/avatar.png')
+                image_url = url_for('static', filename='images/favicon.png')
                 if getattr(room, 'image_filename', None) and room.image_filename != 'avatar.png':
                     image_url = url_for('uploaded_file', filename=room.image_filename)
                 is_owner = room.created_by == current_user.id
@@ -3455,7 +3455,7 @@ def create_app():
 
         db.session.commit()
 
-        image_url = url_for('static', filename='uploads/avatar.png')
+        image_url = url_for('static', filename='images/favicon.png')
         if getattr(room, 'image_filename', None) and room.image_filename != 'avatar.png':
             image_url = url_for('uploaded_file', filename=room.image_filename)
 
