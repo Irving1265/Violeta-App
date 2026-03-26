@@ -219,7 +219,7 @@
                                         {% if comment.author.username == 'admin' %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
                                     </a>
                                     {% if current_user.is_authenticated and (current_user.id != comment.user_id or current_user.username == 'admin') %}
-                                    <button type="button" class="comment-report-btn" onclick="openCommentReportModal({{ comment.id }}, {{ post.id }})" title="Reportar comentario">
+                                    <button type="button" class="comment-report-btn {% if current_user.username == 'admin' %}comment-report-btn--always-visible{% endif %}" onclick="openCommentReportModal({{ comment.id }}, {{ post.id }})" title="Reportar comentario">
                                         <i class="fas fa-flag"></i>
                                     </button>
                                     {% endif %}

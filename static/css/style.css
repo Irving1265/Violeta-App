@@ -4100,6 +4100,12 @@ body.modal-open .main-content {
     font-size: 0.62rem;
 }
 
+.comment-report-btn--always-visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+
 .violet-comment-name-row:hover .comment-report-btn,
 .violet-comment-name-row:focus-within .comment-report-btn,
 .comment-report-btn:focus-visible,

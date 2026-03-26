@@ -266,8 +266,11 @@ function buildCommentMarkup(comment, postId, options = {}) {
         ? getRelativeTime(comment.created_at)
         : new Date(comment.created_at).toLocaleString();
     const avatarSrc = comment.profile_pic || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.username)}&background=b565a7&color=fff&rounded=true&size=32`;
+    const reportBtnClass = String(window.CURRENT_USER?.username || '').toLowerCase() === 'admin'
+        ? 'comment-report-btn comment-report-btn--always-visible'
+        : 'comment-report-btn';
     const reportBtn = (!hidden && canReportComment(comment))
-        ? `<button class="comment-report-btn" type="button" onclick="openCommentReportModal(${comment.id}, ${postId})" title="Reportar comentario"><i class="fas fa-flag"></i></button>`
+        ? `<button class="${reportBtnClass}" type="button" onclick="openCommentReportModal(${comment.id}, ${postId})" title="Reportar comentario"><i class="fas fa-flag"></i></button>`
         : '';
     const hiddenClass = hidden ? ' violet-comment--hidden' : '';
     const textClass = hidden ? ' violet-comment-text--hidden' : '';
@@ -1603,6 +1606,21 @@ document.addEventListener('click', function (event) {
         prefetchedUrls.add(normalized);
     }
 
+    function shouldPrefetchLink(link) {
+        if (!link || !link.href) return false;
+        if (link.dataset && link.dataset.noPrefetch === '1') return false;
+        const href = link.getAttribute('href') || '';
+        if (!href || href.startsWith('#') || href.startsWith('tel:') || href.startsWith('mailto:')) return false;
+        if (!isSameOrigin(href)) return false;
+        try {
+            const url = new URL(href, window.location.href);
+            if (url.pathname === '/logout') return false;
+        } catch (_) {
+            return false;
+        }
+        return true;
+    }
+
     function animateOutAndNavigate(href) {
         window.location.href = href;
     }
@@ -1614,7 +1632,7 @@ document.addEventListener('click', function (event) {
         }
 
         document.querySelectorAll('.sidebar-link, .bottom-nav .nav-item, .widget-card a, .brand-logo a').forEach((link) => {
-            if (link && link.href) prefetchDocument(link.href);
+            if (shouldPrefetchLink(link)) prefetchDocument(link.href);
         });
 
         // Delegate clicks on nav and primary buttons/links
@@ -1637,13 +1655,13 @@ document.addEventListener('click', function (event) {
 
         document.addEventListener('pointerenter', function (e) {
             const link = e.target.closest('a[href]');
-            if (!link) return;
+            if (!shouldPrefetchLink(link)) return;
             prefetchDocument(link.href);
         }, true);
 
         document.addEventListener('focusin', function (e) {
             const link = e.target.closest('a[href]');
-            if (!link) return;
+            if (!shouldPrefetchLink(link)) return;
             prefetchDocument(link.href);
         }, true);
     });
