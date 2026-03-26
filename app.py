@@ -48,7 +48,9 @@ from flask_mail import Mail, Message
 from math import radians, cos, sin, asin, sqrt
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 VERIFY_REQUIRED_MSG = 'Para poder ver el contenido tenemos que verificar tu identidad'
 PASSWORD_RESET_TOKEN_TTL_SECONDS = 15 * 60
@@ -60,6 +62,11 @@ TOKEN_STATE_EXPIRED = 2
 _RATE_LIMIT_BUCKETS: dict[str, deque[float]] = defaultdict(deque)
 _RATE_LIMIT_LOCK = threading.Lock()
 
+
+def utc_now_naive() -> datetime:
+    """Return UTC now as naive datetime to preserve current DB semantics."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 def get_request_ip() -> str:
     forwarded_for = (request.headers.get('X-Forwarded-For') or '').split(',')[0].strip()
     real_ip = (request.headers.get('X-Real-IP') or '').strip()
@@ -67,7 +74,7 @@ def get_request_ip() -> str:
     return forwarded_for or real_ip or remote or 'unknown'
 
 def is_rate_limited(bucket: str, limit: int, window_seconds: int) -> bool:
-    now_ts = datetime.utcnow().timestamp()
+    now_ts = datetime.now(timezone.utc).timestamp()
     cutoff = now_ts - float(window_seconds)
     with _RATE_LIMIT_LOCK:
         q = _RATE_LIMIT_BUCKETS[bucket]
@@ -647,6 +654,7 @@ def public_location_for_post(post, viewer=None):
 
 def create_app():
     app = Flask(__name__)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
     app.config.from_object(Config)
 
     if not os.environ.get('SECRET_KEY'):
@@ -658,9 +666,6 @@ def create_app():
     # --- Extensiones ---
     db.init_app(app)
     
-    # Initialize Flask-Mail
-    mail = Mail(app)
-
     csrf = CSRFProtect()
     csrf.init_app(app)
 
@@ -1068,145 +1073,148 @@ def create_app():
                 return 0
         return applied
 
-    def send_verification_email(to_email: str, code: str) -> bool:
-        try:
-            server = app.config.get('MAIL_SERVER')
-            port = int(app.config.get('MAIL_PORT') or 587)
-            use_tls = bool(app.config.get('MAIL_USE_TLS'))
-            username = app.config.get('MAIL_USERNAME')
-            password = app.config.get('MAIL_PASSWORD')
-            sender = app.config.get('MAIL_DEFAULT_SENDER') or username
-            if not server or not sender:
-                return False
-            msg = EmailMessage()
-            msg['Subject'] = 'Tu código de verificación - Violeta'
-            msg['From'] = sender
-            msg['To'] = to_email
-            msg.set_content(f"Tu código de verificación es: {code}\n\nEste código expira en 10 minutos.\n\nVioleta")
-            
-            if app.debug:
-                print(f'DEBUG: Intentando enviar email a {to_email}')
-                print(f'DEBUG: Servidor SMTP: {server}:{port}')
-                print(f'DEBUG: Usuario: {username}')
-                print(f'DEBUG: TLS: {use_tls}')
-            
-            with smtplib.SMTP(server, port) as smtp:
-                if use_tls:
-                    smtp.starttls()
-                if username and password:
-                    smtp.login(username, password)
-                smtp.send_message(msg)
-            
-            if app.debug:
-                print(f'DEBUG: Email enviado exitosamente a {to_email}')
-            
-            return True
-        except Exception as e:
-            if app.debug:
-                print(f'DEBUG: Error enviando email: {type(e).__name__}')
-                print(f'DEBUG: Mensaje de error: {str(e)}')
-                import traceback
-                traceback.print_exc()
+    def _mail_delivery_method() -> str:
+        configured = (app.config.get('MAIL_DELIVERY_METHOD') or '').strip().lower()
+        if configured in {'smtp', 'resend'}:
+            return configured
+        if (app.config.get('RESEND_API_KEY') or '').strip():
+            return 'resend'
+        return 'smtp'
+
+    def _send_email_via_smtp(subject: str, recipients: list[str], text_body: str, html_body: str | None = None) -> bool:
+        server = app.config.get('MAIL_SERVER')
+        port = int(app.config.get('MAIL_PORT') or 587)
+        use_tls = bool(app.config.get('MAIL_USE_TLS'))
+        username = app.config.get('MAIL_USERNAME')
+        password = app.config.get('MAIL_PASSWORD')
+        sender = app.config.get('MAIL_DEFAULT_SENDER') or username
+        if not server or not sender or not recipients:
             return False
 
-    def _is_valid_email(email: str) -> bool:
-        pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
-        return bool(re.match(pattern, (email or '').strip()))
+        msg = EmailMessage()
+        msg['Subject'] = subject
+        msg['From'] = sender
+        msg['To'] = ', '.join(recipients)
+        msg.set_content(text_body)
+        if html_body:
+            msg.add_alternative(html_body, subtype='html')
 
-    def _password_signature(password_hash: str) -> str:
-        return hashlib.sha256((password_hash or '').encode('utf-8')).hexdigest()[:24]
+        with smtplib.SMTP(server, port) as smtp:
+            if use_tls:
+                smtp.starttls()
+            if username and password:
+                smtp.login(username, password)
+            smtp.send_message(msg)
+        return True
 
-    def _password_reset_serializer() -> URLSafeTimedSerializer:
-        secret_key = app.config.get('SECRET_KEY')
-        return URLSafeTimedSerializer(secret_key, salt='violeta-password-reset-v1')
+    def _send_email_via_resend(subject: str, recipients: list[str], text_body: str, html_body: str | None = None) -> bool:
+        api_key = (app.config.get('RESEND_API_KEY') or '').strip()
+        api_url = (app.config.get('RESEND_API_URL') or 'https://api.resend.com/emails').strip()
+        sender = (app.config.get('RESEND_FROM') or app.config.get('MAIL_DEFAULT_SENDER') or '').strip()
+        reply_to = (app.config.get('RESEND_REPLY_TO') or '').strip()
+        if not api_key or not api_url or not sender or not recipients:
+            return False
 
-    def build_password_reset_token(user: User) -> str:
         payload = {
-            'uid': int(user.id),
-            'email': (user.email or '').strip().lower(),
-            'pwd_sig': _password_signature(user.password_hash or ''),
+            'from': sender,
+            'to': recipients,
+            'subject': subject,
+            'text': text_body,
         }
-        serializer = _password_reset_serializer()
-        return serializer.dumps(payload)
+        if html_body:
+            payload['html'] = html_body
+        if reply_to:
+            payload['reply_to'] = reply_to
 
-    def resolve_password_reset_token(token: str, max_age_seconds: int = PASSWORD_RESET_TOKEN_TTL_SECONDS):
-        serializer = _password_reset_serializer()
+        body = json.dumps(payload).encode('utf-8')
+        req = Request(
+            api_url,
+            data=body,
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json',
+            },
+            method='POST',
+        )
         try:
-            payload = serializer.loads(token, max_age=max_age_seconds)
-        except SignatureExpired:
-            return None, TOKEN_STATE_EXPIRED
-        except BadSignature:
-            return None, TOKEN_STATE_INVALID
-        except Exception:
-            return None, TOKEN_STATE_INVALID
+            with urlopen(req, timeout=15) as resp:  # nosec B310
+                status = getattr(resp, 'status', None) or resp.getcode()
+                if status not in (200, 201, 202):
+                    raise RuntimeError(f'Resend respondió con estado {status}')
+                return True
+        except HTTPError as exc:
+            if app.debug:
+                detail = ''
+                try:
+                    detail = exc.read().decode('utf-8', errors='replace')
+                except Exception:
+                    detail = str(exc)
+                print(f'DEBUG: Resend HTTPError: {detail}')
+            return False
+        except URLError as exc:
+            if app.debug:
+                print(f'DEBUG: Resend URLError: {exc}')
+            return False
 
-        user_id = payload.get('uid')
-        email = (payload.get('email') or '').strip().lower()
-        pwd_sig = payload.get('pwd_sig') or ''
-
+    def send_email_message(subject: str, recipients: list[str], text_body: str, html_body: str | None = None) -> bool:
+        method = _mail_delivery_method()
         try:
-            user_id = int(user_id)
-        except Exception:
-            return None, TOKEN_STATE_INVALID
+            if method == 'resend':
+                return _send_email_via_resend(subject, recipients, text_body, html_body)
+            return _send_email_via_smtp(subject, recipients, text_body, html_body)
+        except Exception as exc:
+            if app.debug:
+                print(f'DEBUG: Error enviando correo ({method}): {type(exc).__name__} - {exc}')
+            return False
 
-        user = db.session.get(User, user_id)
-        if not user:
-            return None, TOKEN_STATE_INVALID
+    def send_verification_email(to_email: str, code: str) -> bool:
+        subject = 'Tu código de verificación - Violeta'
+        text_body = (
+            f"Tu código de verificación es: {code}\n\n"
+            "Este código expira en 10 minutos.\n\n"
+            "Violeta"
+        )
+        html_body = (
+            "<html><body style=\"font-family:Inter,Arial,sans-serif;background:#0f1020;color:#f3f4f6;padding:20px;\">"
+            "<div style=\"max-width:560px;margin:0 auto;background:#1b1d35;border:1px solid rgba(167,139,250,.35);"
+            "border-radius:16px;padding:24px;\">"
+            "<h2 style=\"margin:0 0 10px 0;color:#a78bfa;\">Tu código de verificación</h2>"
+            f"<p style=\"margin:0 0 18px 0;\">Tu código de verificación es <strong style=\"font-size:22px;letter-spacing:2px;\">{code}</strong>.</p>"
+            "<p style=\"margin:0;color:#c4b5fd;\">Este código expira en 10 minutos.</p>"
+            "</div></body></html>"
+        )
+        return send_email_message(subject, [to_email], text_body, html_body)
 
-        if (user.email or '').strip().lower() != email:
-            return None, TOKEN_STATE_INVALID
-        if _password_signature(user.password_hash or '') != pwd_sig:
-            return None, TOKEN_STATE_INVALID
-        return user, TOKEN_STATE_OK
+    def _password_reset_email_bodies(user: User, reset_link: str) -> tuple[str, str, str]:
+        display_name = (getattr(user, 'username', '') or 'usuaria').strip()
+        subject = 'Restablece tu contraseña - Violeta'
+        text_body = (
+            f"Hola {display_name},\n\n"
+            "Recibimos una solicitud para restablecer tu contraseña en Violeta.\n\n"
+            f"Usa este enlace para crear una nueva contraseña:\n{reset_link}\n\n"
+            "Este enlace expira en 15 minutos.\n"
+            "Si no solicitaste este cambio, puedes ignorar este correo.\n\n"
+            "Equipo Violeta"
+        )
+        html_body = (
+            "<html><body style=\"font-family:Inter,Arial,sans-serif;background:#0f1020;color:#f3f4f6;padding:20px;\">"
+            "<div style=\"max-width:560px;margin:0 auto;background:#1b1d35;border:1px solid rgba(167,139,250,.35);"
+            "border-radius:16px;padding:24px;\">"
+            "<h2 style=\"margin:0 0 10px 0;color:#a78bfa;\">Restablece tu contraseña</h2>"
+            f"<p style=\"margin:0 0 14px 0;\">Hola <strong>{display_name}</strong>, recibimos una solicitud para cambiar tu contraseña.</p>"
+            f"<p style=\"margin:0 0 18px 0;\"><a href=\"{reset_link}\" "
+            "style=\"display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;"
+            "font-weight:700;\">Crear nueva contraseña</a></p>"
+            "<p style=\"margin:0 0 8px 0;color:#c4b5fd;\">Este enlace expira en 15 minutos.</p>"
+            "<p style=\"margin:0;color:#9ca3af;\">Si no solicitaste este cambio, ignora este correo.</p>"
+            "</div></body></html>"
+        )
+        return subject, text_body, html_body
 
     def send_password_reset_email(user: User, reset_link: str) -> bool:
+        subject, text_body, html_body = _password_reset_email_bodies(user, reset_link)
         try:
-            server = app.config.get('MAIL_SERVER')
-            port = int(app.config.get('MAIL_PORT') or 587)
-            use_tls = bool(app.config.get('MAIL_USE_TLS'))
-            username = app.config.get('MAIL_USERNAME')
-            password = app.config.get('MAIL_PASSWORD')
-            sender = app.config.get('MAIL_DEFAULT_SENDER') or username
-            if not server or not sender:
-                return False
-
-            display_name = (getattr(user, 'username', '') or 'usuaria').strip()
-            msg = EmailMessage()
-            msg['Subject'] = 'Restablece tu contraseña - Violeta'
-            msg['From'] = sender
-            msg['To'] = user.email
-            msg.set_content(
-                f"Hola {display_name},\n\n"
-                "Recibimos una solicitud para restablecer tu contraseña en Violeta.\n\n"
-                f"Usa este enlace para crear una nueva contraseña:\n{reset_link}\n\n"
-                "Este enlace expira en 15 minutos.\n"
-                "Si no solicitaste este cambio, puedes ignorar este correo.\n\n"
-                "Equipo Violeta"
-            )
-            msg.add_alternative(
-                (
-                    "<html><body style=\"font-family:Inter,Arial,sans-serif;background:#0f1020;color:#f3f4f6;padding:20px;\">"
-                    "<div style=\"max-width:560px;margin:0 auto;background:#1b1d35;border:1px solid rgba(167,139,250,.35);"
-                    "border-radius:16px;padding:24px;\">"
-                    "<h2 style=\"margin:0 0 10px 0;color:#a78bfa;\">Restablece tu contraseña</h2>"
-                    f"<p style=\"margin:0 0 14px 0;\">Hola <strong>{display_name}</strong>, recibimos una solicitud para cambiar tu contraseña.</p>"
-                    f"<p style=\"margin:0 0 18px 0;\"><a href=\"{reset_link}\" "
-                    "style=\"display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;"
-                    "font-weight:700;\">Crear nueva contraseña</a></p>"
-                    "<p style=\"margin:0 0 8px 0;color:#c4b5fd;\">Este enlace expira en 15 minutos.</p>"
-                    "<p style=\"margin:0;color:#9ca3af;\">Si no solicitaste este cambio, ignora este correo.</p>"
-                    "</div></body></html>"
-                ),
-                subtype='html',
-            )
-
-            with smtplib.SMTP(server, port) as smtp:
-                if use_tls:
-                    smtp.starttls()
-                if username and password:
-                    smtp.login(username, password)
-                smtp.send_message(msg)
-            return True
+            return send_email_message(subject, [(user.email or '').strip()], text_body, html_body)
         except Exception as e:
             if app.debug:
                 print(f'DEBUG: Error enviando correo de recuperación: {type(e).__name__} - {e}')
@@ -1558,7 +1566,7 @@ def create_app():
             report_counts.sort(key=lambda x: (-x['count'], x['category'].casefold()))
 
             # Reportes generados hoy por categoría (mismo widget, pero filtrado a hoy).
-            # created_at se guarda con datetime.utcnow() (UTC naive), así que convertimos
+            # created_at se guarda con utc_now_naive() (UTC naive), así que convertimos
             # el "hoy" local (zona horaria de la app) a límites UTC naive para filtrar correctamente.
             #
             # Importante: no dependemos del timezone del servidor/OS, ya que puede variar (p. ej. UTC).
@@ -1680,15 +1688,16 @@ def create_app():
             return redirect(url_for('index'))
         form = RegisterForm()
         if form.validate_on_submit():
+            normalized_email = (form.email.data or '').strip().lower()
             # Evitar duplicados por usuario o email
             exists = User.query.filter(
-                (User.username == form.username.data) | (User.email == form.email.data)
+                (User.username == form.username.data) | (func.lower(User.email) == normalized_email)
             ).first()
             if exists:
-                flash('El usuario o email ya existe', 'danger')
+                flash('La usuaria o el correo ya existen', 'danger')
                 return redirect(url_for('register'))
             try:
-                user = User(username=form.username.data, email=form.email.data)  # type: ignore
+                user = User(username=form.username.data, email=normalized_email)  # type: ignore
                 user.set_password(form.password.data)
                 user.is_verified = False
                 db.session.add(user)
@@ -1720,7 +1729,8 @@ def create_app():
         if not email:
             return jsonify({'exists': False})
 
-        user = User.query.filter_by(email=email).first()
+        normalized_email = email.lower()
+        user = User.query.filter(func.lower(User.email) == normalized_email).first()
         return jsonify({'exists': user is not None})
 
     @app.route('/api/check-username', methods=['POST'])
@@ -1814,7 +1824,7 @@ def create_app():
         reset_link = url_for('reset_password', token=token, _external=True)
         sent = send_password_reset_email(user, reset_link)
         if not sent:
-            return jsonify({'error': 'No pudimos enviar el correo. Revisa la configuración de MAIL_*.'}), 500
+            return jsonify({'error': 'No pudimos enviar el correo. Revisa la configuración de correo (MAIL_* o RESEND_*).'}), 500
 
         return jsonify({
             'ok': True,
@@ -1891,9 +1901,9 @@ def create_app():
             session['otp_failures'] = 0
 
             # Send email
-            msg = Message("Tu Código de Verificación - Violeta", recipients=[email])
-            msg.body = f"Tu código de verificación es: {otp_code}\n\nEste código expira en 10 minutos.\n\nVioleta"
-            mail.send(msg)
+            sent = send_verification_email(email, otp_code)
+            if not sent:
+                return jsonify({'error': 'No se pudo enviar el correo. Revisa la configuración de correo.'}), 500
 
             return jsonify({'message': 'Código enviado exitosamente'}), 200
         except Exception as e:
@@ -2364,7 +2374,7 @@ def create_app():
 
         sent = send_verification_email(email, code)
         if not sent:
-            return jsonify({'error': 'No se pudo enviar el correo. Revisa la configuración de MAIL_*.'}), 500
+            return jsonify({'error': 'No se pudo enviar el correo. Revisa la configuración de correo (MAIL_* o RESEND_*).'}), 500
 
         session['verify_otp_failures'] = 0
         return jsonify({'ok': True, 'message': 'Código enviado a tu correo.'})
@@ -3013,7 +3023,7 @@ def create_app():
                 ).first()
 
                 # Count unread messages (exclude my own + deleted + blocked users)
-                last_read = participant.last_read_at or datetime.utcnow()
+                last_read = participant.last_read_at or utc_now_naive()
                 unread_q = ChatMessage.query.filter_by(room_id=room.id).filter(
                     ChatMessage.created_at > last_read,
                     ChatMessage.user_id != current_user.id,
@@ -3099,7 +3109,7 @@ def create_app():
                 participant = ChatParticipant(user_id=current_user.id, room_id=room_id)
                 db.session.add(participant)
 
-            participant.last_read_at = datetime.utcnow()
+            participant.last_read_at = utc_now_naive()
             db.session.commit()
             return jsonify({'success': True})
         except Exception as e:
@@ -3129,7 +3139,7 @@ def create_app():
                 db.session.commit()
 
             # Update last read time
-            participant.last_read_at = datetime.utcnow()
+            participant.last_read_at = utc_now_naive()
             db.session.commit()
 
             # Get messages with pagination
@@ -3958,10 +3968,10 @@ def create_app():
             db.session.commit()
             return jsonify({'ok': False, 'error': 'Tu mensaje contiene lenguaje no permitido'}), 400
         if not receiver_username:
-            return jsonify({'ok': False, 'error': 'Usuario receptor inválido'}), 400
+            return jsonify({'ok': False, 'error': 'Usuaria destinataria inválida'}), 400
         receiver = User.query.filter_by(username=receiver_username).first()
         if not receiver:
-            return jsonify({'ok': False, 'error': 'Usuario receptor no existe'}), 404
+            return jsonify({'ok': False, 'error': 'La usuaria destinataria no existe'}), 404
         if is_user_blocked_between(current_user.id, receiver.id):
             return jsonify({'ok': False, 'error': 'No puedes compartir con esta cuenta.'}), 403
         post = Post.query.get_or_404(post_id)
@@ -4079,7 +4089,7 @@ def create_app():
         if post.user_id != current_user.id:
             flash('No tienes permiso para eliminar esta publicación.', 'danger')
             return redirect(url_for('profile'))
-        if post.created_at and datetime.utcnow() - post.created_at > timedelta(hours=1):
+        if post.created_at and utc_now_naive() - post.created_at > timedelta(hours=1):
             flash('Solo puedes eliminar una publicación dentro de la primera hora.', 'danger')
             return redirect(url_for('profile'))
         try:
@@ -4179,7 +4189,7 @@ def create_app():
         if days not in (7, 15, 30):
             days = 7
 
-        today = datetime.utcnow().date()
+        today = utc_now_naive().date()
         start_date = today - timedelta(days=days - 1)
         start_dt = datetime.combine(start_date, datetime.min.time())
 
@@ -4271,7 +4281,7 @@ def create_app():
             'totals': totals,
             'total_reports': int(sum(totals)),
             'total_posts': int(sum(totals)),
-            'updated_at': datetime.utcnow().isoformat(),
+            'updated_at': utc_now_naive().isoformat(),
         })
 
     @app.route('/admin/verify/<int:req_id>/approve', methods=['POST'])
@@ -4409,12 +4419,12 @@ def create_app():
         try:
             delete_user_and_related(user)
             db.session.commit()
-            return jsonify({'success': True, 'message': f'Usuario {user.username} eliminado'})
+            return jsonify({'success': True, 'message': f'Usuaria {user.username} eliminada'})
         except Exception as e:
             db.session.rollback()
             if app.debug:
                 print('DEBUG admin_delete_user error:', e)
-            return jsonify({'error': 'No se pudo eliminar el usuario'}), 500
+            return jsonify({'error': 'No se pudo eliminar la usuaria'}), 500
 
     @app.route('/admin/delete_post/<int:post_id>', methods=['POST'])
     @login_required
@@ -4493,16 +4503,16 @@ def create_app():
         new_username = request.form.get('new_username', '').strip()
 
         if not new_username:
-            return jsonify({'error': 'Nombre de usuario requerido'}), 400
+            return jsonify({'error': 'Nombre de usuaria requerido'}), 400
 
         # Check if username already exists
         existing = User.query.filter_by(username=new_username).first()
         if existing and existing.id != user_id:
-            return jsonify({'error': 'Nombre de usuario ya existe'}), 400
+            return jsonify({'error': 'El nombre de usuaria ya existe'}), 400
 
         user.username = new_username
         db.session.commit()
-        return jsonify({'success': True, 'message': f'Nombre de usuario cambiado a {new_username}'})
+        return jsonify({'success': True, 'message': f'Nombre de usuaria cambiado a {new_username}'})
 
     @app.route('/admin/change_user_photo/<int:user_id>', methods=['POST'])
     @login_required
@@ -4619,7 +4629,7 @@ def create_app():
             elif is_owner:
                 allowed = True
             elif is_sender and message.created_at:
-                allowed = (datetime.utcnow() - message.created_at) <= timedelta(minutes=10)
+                allowed = (utc_now_naive() - message.created_at) <= timedelta(minutes=10)
 
             if not allowed:
                 return jsonify({'error': 'No tienes permiso para eliminar este mensaje'}), 403
@@ -4637,7 +4647,7 @@ def create_app():
                     _debug_log_suppressed('suppressed exception', exc)
             message.content = ''
             message.is_deleted = True
-            message.deleted_at = datetime.utcnow()
+            message.deleted_at = utc_now_naive()
             message.deleted_by = current_user.id
             message.attachment_filename = None
             message.attachment_name = None
@@ -4681,7 +4691,7 @@ def create_app():
             db.session.rollback()
             if app.debug:
                 print('DEBUG admin_bulk_delete_users error:', e)
-            return jsonify({'error': 'No se pudieron eliminar usuarios'}), 500
+            return jsonify({'error': 'No se pudieron eliminar usuarias'}), 500
 
     @app.route('/admin/bulk_delete_posts', methods=['POST'])
     @login_required
@@ -5166,7 +5176,7 @@ def create_app():
 
         points = []
         for r in rows:
-            dt = r.recorded_at or r.created_at or datetime.utcnow()
+            dt = r.recorded_at or r.created_at or utc_now_naive()
             points.append({
                 'lat': float(r.latitude),
                 'lng': float(r.longitude),
@@ -5541,7 +5551,7 @@ def create_app():
         except Exception:
             recorded_at = None
         if recorded_at is None:
-            recorded_at = datetime.utcnow()
+            recorded_at = utc_now_naive()
 
         point = CheckinRoutePoint(
             checkin_id=checkin.id,
@@ -5571,7 +5581,7 @@ def create_app():
 
         points = []
         for r in rows:
-            dt = r.recorded_at or r.created_at or datetime.utcnow()
+            dt = r.recorded_at or r.created_at or utc_now_naive()
             ts_ms = int(dt.replace(tzinfo=timezone.utc).timestamp() * 1000)
             points.append({
                 'lat': r.latitude,

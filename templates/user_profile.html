@@ -12,7 +12,7 @@
         onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
 
       <div class="profile-details mt-4">
-        <h2 class="mb-1">@{{ user.username }}{% if user.username == 'admin' %}<span class="admin-badge admin-badge--profile" title="Admin verificado" aria-label="Admin verificado"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}</h2>
+        <h2 class="mb-1">@{{ user.username }}{% if user.username == 'admin' %}<span class="admin-badge admin-badge--profile" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}</h2>
         {% if user.bio %}
         <p class="mb-2">{{ user.bio }}</p>
         {% endif %}

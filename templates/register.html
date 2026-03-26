@@ -152,12 +152,12 @@
 
             <!-- Step 3: Username -->
             <div class="register-step" id="step3">
-                <h3 class="step-heading">Nombre de Usuario</h3>
+                <h3 class="step-heading">Nombre de usuaria</h3>
                 <p class="text-muted text-center mb-4 small">
                     Este será tu identificador único en la plataforma.
                 </p>
                 <div class="mb-4" id="usernameContainer">
-                    {{ form.username(class="violet-input", placeholder="@usuario", id="username") }}
+                    {{ form.username(class="violet-input", placeholder="@usuaria", id="username") }}
                     {% if form.username.errors %}
                     <div class="text-danger mt-2 small">
                         {% for error in form.username.errors %}
@@ -309,7 +309,7 @@
             if (usernameInput.value.trim().length < 3) {
                 valid = false;
                 usernameInput.classList.add('error');
-                usernameError.textContent = 'El nombre de usuario debe tener al menos 3 caracteres';
+                usernameError.textContent = 'El nombre de usuaria debe tener al menos 3 caracteres';
                 usernameError.style.display = 'block';
             } else {
                 // Check if username already exists
@@ -326,7 +326,7 @@
                     if (data.exists) {
                         valid = false;
                         usernameInput.classList.add('error');
-                        usernameError.textContent = 'Este nombre de usuario ya está en uso';
+                        usernameError.textContent = 'Este nombre de usuaria ya está en uso';
                         usernameError.style.display = 'block';
                     }
                 } catch (error) {

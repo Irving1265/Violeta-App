@@ -20,7 +20,7 @@
             <div class="admin-kpi-grid">
                 <article class="admin-kpi-card">
                     <div class="admin-kpi-value">{{ users|length }}</div>
-                    <div class="admin-kpi-label">Usuarios totales</div>
+                    <div class="admin-kpi-label">Usuarias totales</div>
                     <div class="admin-kpi-icon"><i class="fas fa-users"></i></div>
                 </article>
                 <article class="admin-kpi-card">
@@ -69,7 +69,7 @@
     <section class="admin-tabs-panel">
         <div class="admin-tabs-scroll" id="adminTabs">
             <button class="tab-btn active" onclick="switchTab('users')" id="tab-users" type="button">
-                Usuarios
+                Usuarias
             </button>
             <button class="tab-btn" onclick="switchTab('posts')" id="tab-posts" type="button">
                 Publicaciones
@@ -102,13 +102,13 @@
     <div id="view-users" class="admin-view">
         <div class="admin-data-card">
             <div class="admin-data-card__head">
-                <h3>Lista de usuarios recientes</h3>
-                <div class="small text-secondary">Mostrando {{ users|length }} usuarios</div>
+                <h3>Lista de usuarias recientes</h3>
+                <div class="small text-secondary">Mostrando {{ users|length }} usuarias</div>
             </div>
             <div class="admin-users-search-wrap">
                 <label class="admin-global-search">
                     <i class="fas fa-search"></i>
-                    <input id="adminGlobalFilter" type="search" placeholder="Buscar usuario, alerta..." autocomplete="off">
+                    <input id="adminGlobalFilter" type="search" placeholder="Buscar usuaria, alerta..." autocomplete="off">
                 </label>
             </div>
             <div class="bulk-toolbar admin-table-bulk-toolbar">
@@ -125,7 +125,7 @@
                     <thead>
                         <tr>
                             <th class="admin-users-table__check"></th>
-                            <th>Usuario</th>
+                            <th>Usuaria</th>
                             <th>Estado</th>
                             <th>Actividad</th>
                             <th>Registro</th>
@@ -151,7 +151,7 @@
                                         <div class="admin-user-cell__name user-username">
                                             {{ user.username }}
                                             {% if user.username == 'admin' %}
-                                            <span class="admin-badge admin-badge--xs" title="Admin verificado" aria-label="Admin verificado"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>
+                                            <span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>
                                             {% endif %}
                                         </div>
                                         <div class="admin-user-cell__email user-email">{{ user.email }}</div>
@@ -184,10 +184,10 @@
                                         data-user-id="{{ user.id }}"
                                         data-photo-url="{{ url_for('uploaded_file', filename=user.profile_pic) if user.profile_pic and user.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
                                         data-bio="{{ (user.bio or '')|e }}"
-                                        title="Editar usuario">
+                                        title="Editar usuaria">
                                         <i class="fas fa-pen"></i>
                                     </button>
-                                    <button class="admin-icon-action is-danger" onclick="deleteUser('{{ user.id }}', '{{ user.username }}')" title="Eliminar usuario">
+                                    <button class="admin-icon-action is-danger" onclick="deleteUser('{{ user.id }}', '{{ user.username }}')" title="Eliminar usuaria">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                     {% else %}
@@ -201,7 +201,7 @@
                 </table>
             </div>
             <div class="admin-table-footer">
-                <div class="text-secondary small">Mostrando 1-{{ [users|length, 3]|min }} de {{ users|length }} usuarios</div>
+                <div class="text-secondary small">Mostrando 1-{{ [users|length, 3]|min }} de {{ users|length }} usuarias</div>
                 <div class="admin-table-pagination">
                     <button type="button">Prev</button>
                     <button type="button" class="is-active">1</button>
@@ -287,7 +287,7 @@
                                     <div class="d-flex align-items-center gap-2 mb-3">
                                         <img src="{{ url_for('uploaded_file', filename=post.author.profile_pic) if post.author.profile_pic and post.author.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
                                             class="rounded-circle" width="24" height="24" alt="Author">
-                                        <span class="small fw-bold text-white post-author">{{ post.author.username }}{% if post.author.username == 'admin' %}<span class="admin-badge admin-badge--xs" title="Admin verificado" aria-label="Admin verificado"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}</span>
+                                        <span class="small fw-bold text-white post-author">{{ post.author.username }}{% if post.author.username == 'admin' %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}</span>
                                         <span class="small text-muted ms-auto">{{ post.created_at.strftime('%d/%m') if
                                             post.created_at else '' }}</span>
                                     </div>
@@ -394,10 +394,10 @@
                 {% endif %}
                 {% endfor %}
                 <div class="filter-block">
-                    <div class="filter-label"><i class="fas fa-user"></i> Usuario</div>
+                    <div class="filter-label"><i class="fas fa-user"></i> Usuaria</div>
                     <div class="filter-select-wrap">
                         <select id="reportedUserFilter" class="filter-select" onchange="filterReportedPosts()">
-                            <option value="">Todos los usuarios</option>
+                            <option value="">Todas las usuarias</option>
                             {% for username in ns_users.items %}
                             <option value="{{ username }}">{{ username }}</option>
                             {% endfor %}
@@ -482,7 +482,7 @@
                         <div class="d-flex align-items-center gap-2 mb-3">
                             <img src="{{ url_for('uploaded_file', filename=post.author.profile_pic) if post.author.profile_pic and post.author.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
                                 class="rounded-circle" width="24" height="24" alt="Author">
-                            <span class="small fw-bold text-white post-author">{{ post.author.username }}{% if post.author.username == 'admin' %}<span class="admin-badge admin-badge--xs" title="Admin verificado" aria-label="Admin verificado"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}</span>
+                            <span class="small fw-bold text-white post-author">{{ post.author.username }}{% if post.author.username == 'admin' %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}</span>
                             <span class="small text-muted ms-auto">{{ post.created_at.strftime('%d/%m') if
                                 post.created_at else '' }}</span>
                         </div>
@@ -583,9 +583,9 @@
                                 class="rounded-circle object-fit-cover" width="48" height="48" alt="Avatar">
                             <div>
                                 <div class="fw-bold text-white">
-                                    {{ c.user.username if c.user else 'Usuario eliminado' }}
+                                    {{ c.user.username if c.user else 'Usuaria eliminada' }}
                                     {% if c.user and c.user.username == 'admin' %}
-                                    <span class="admin-badge admin-badge--xs" title="Admin verificado" aria-label="Admin verificado">
+                                    <span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada">
                                         <img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin">
                                     </span>
                                     {% endif %}
@@ -737,7 +737,7 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content bg-surface border border-secondary text-white change-photo-modal">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title">Editar usuario</h5>
+                <h5 class="modal-title">Editar usuaria</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -2054,7 +2054,7 @@
     }
 
     function deleteUser(userId, username) {
-        if (confirm(`¿Estás seguro de que quieres eliminar al usuario "${username}"? Esta acción no se puede deshacer.`)) {
+        if (confirm(`¿Estás segura de que quieres eliminar a la usuaria "${username}"? Esta acción no se puede deshacer.`)) {
             fetch(`/admin/delete_user/${userId}`, {
                 method: 'POST',
                 headers: {
@@ -2073,7 +2073,7 @@
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('Error al eliminar usuario');
+                    alert('Error al eliminar usuaria');
                 });
         }
     }
@@ -2663,8 +2663,8 @@
 
     function bulkDeleteUsers() {
         const ids = getSelectedIds('.user-select');
-        if (!ids.length) return alert('Selecciona usuarios para eliminar');
-        if (!confirm('¿Eliminar los usuarios seleccionados?')) return;
+        if (!ids.length) return alert('Selecciona usuarias para eliminar');
+        if (!confirm('¿Eliminar las usuarias seleccionadas?')) return;
         fetch('/admin/bulk_delete_users', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
@@ -2672,7 +2672,7 @@
         }).then(r => r.json()).then(data => {
             if (!data.success) return alert('Error: ' + data.error);
             location.reload();
-        }).catch(() => alert('Error al eliminar usuarios'));
+        }).catch(() => alert('Error al eliminar usuarias'));
     }
 
     function bulkDeletePosts() {
@@ -2759,8 +2759,8 @@
                 if (authorName === 'admin') {
                     const badge = document.createElement('span');
                     badge.className = 'admin-badge admin-badge--xs';
-                    badge.title = 'Admin verificado';
-                    badge.setAttribute('aria-label', 'Admin verificado');
+                    badge.title = 'Admin verificada';
+                    badge.setAttribute('aria-label', 'Admin verificada');
                     badge.innerHTML = `<img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin">`;
                     authorEl.appendChild(badge);
                 }
@@ -2782,7 +2782,7 @@
                         const item = document.createElement('div');
                         item.className = 'report-detail-item';
                         const reporterBadge = r.reporter === 'admin'
-                            ? `<span class="admin-badge admin-badge--xs" title="Admin verificado" aria-label="Admin verificado"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>`
+                            ? `<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>`
                             : '';
                         const statusMap = {
                             pending: { label: 'Pendiente', cls: 'bg-warning text-dark' },
@@ -2820,7 +2820,7 @@
                         const item = document.createElement('div');
                         item.className = 'report-detail-item';
                         const badge = c.username === 'admin'
-                            ? `<span class="admin-badge admin-badge--xs" title="Admin verificado" aria-label="Admin verificado"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>`
+                            ? `<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>`
                             : '';
                         item.innerHTML = `
                             <div class="fw-bold text-white">${c.username}${badge}</div>

@@ -125,7 +125,7 @@
           <div class="auth-card glass-panel">
             <div class="auth-header">
               <img class="avatar-ilu" src="{{ url_for('static', filename='uploads/avatar.png') }}" alt="Avatar" style="max-width: 100px; display: block; margin: 0 auto;">
-              <h2 style="text-align: center;">Bienvenido</h2>
+              <h2 style="text-align: center;">Bienvenida</h2>
             </div>
 
             <form method="POST" action="{{ url_for('login') }}" class="auth-form">
@@ -135,7 +135,7 @@
               <div class="form-group" style="margin-bottom: 20px;">
                 <div class="input-icon-wrapper" style="position: relative; background: rgba(255,255,255,0.08); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
                   <i class="fas fa-user input-icon" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #aaa; font-size: 1.1rem; z-index: 2;"></i>
-                  <input type="text" name="login" class="violet-input" placeholder="Usuario o Email" required style="width: 100%; background: none; border: none; outline: none; color: white; padding: 14px 15px 14px 45px; font-size: 1rem; border-radius: 12px;">
+                  <input type="text" name="login" class="violet-input" placeholder="Usuaria o correo" required style="width: 100%; background: none; border: none; outline: none; color: white; padding: 14px 15px 14px 45px; font-size: 1rem; border-radius: 12px;">
                 </div>
                 {% if form.username.errors %}
                 <div class="violet-error">{% for e in form.username.errors %}<small style="color: #ff4d4d;">{{ e }}</small>{% endfor %}</div>

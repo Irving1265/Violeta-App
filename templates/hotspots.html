@@ -1903,7 +1903,7 @@
         const primaryCat = p.__categories[0] || 'Otros';
         const badgeClass = reportsBadgeClass(primaryCat);
         const safeCaption = escapeHtml(p.caption || 'Sin descripción');
-        const safeUser = escapeHtml(p.username || 'Usuario');
+        const safeUser = escapeHtml(p.username || 'Usuaria');
         const safeTime = escapeHtml(formatRelativeTime(p.created_at));
         const safeDistance = escapeHtml(formatDistance(p.__distanceMeters));
         const imageHtml = p.image_url

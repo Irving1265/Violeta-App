@@ -36,7 +36,7 @@
                 </a>
                 <div class="post-author-meta">
                     <div class="fw-bold post-author-name-row">
-                        <a href="{{ url_for('user_profile', username=post.author.username) }}">{{ post.author.username }}</a>{% if post.author.username == 'admin' %}<span class="admin-badge" title="Admin verificado" aria-label="Admin verificado"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+                        <a href="{{ url_for('user_profile', username=post.author.username) }}">{{ post.author.username }}</a>{% if post.author.username == 'admin' %}<span class="admin-badge" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
                     </div>
                     <div class="post-meta-row">
                         <div class="small text-muted post-location">
@@ -163,7 +163,7 @@
 
         {% if post.caption %}
         <div class="mb-2">
-            <span class="fw-bold">{{ post.author.username }}</span>{% if post.author.username == 'admin' %}<span class="admin-badge admin-badge--sm" title="Admin verificado" aria-label="Admin verificado"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+            <span class="fw-bold">{{ post.author.username }}</span>{% if post.author.username == 'admin' %}<span class="admin-badge admin-badge--sm" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
             {{ post.caption }}
         </div>
         {% endif %}
@@ -187,7 +187,7 @@
                 <div class="comment-bubble">
                     <div class="comment-header">
                         <a href="{{ url_for('user_profile', username=comment.author.username) }}" class="comment-author">
-                            {{ comment.author.username }}{% if comment.author.username == 'admin' %}<span class="admin-badge admin-badge--xs" title="Admin verificado" aria-label="Admin verificado"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+                            {{ comment.author.username }}{% if comment.author.username == 'admin' %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
                         </a>
                     </div>
                     <div class="comment-text">
