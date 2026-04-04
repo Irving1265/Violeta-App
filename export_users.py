@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Script to export all users from the database to an Excel file.
-WARNING: This exports hashed passwords - in production, passwords should never be exported.
 """
 
 import pandas as pd
@@ -10,7 +9,7 @@ from models import User
 
 def export_users_to_excel():
     """Export all users to Excel file"""
-    app = create_app()
+    app, _socketio = create_app()
     with app.app_context():
         # Query all users
         users = User.query.all()
@@ -22,7 +21,6 @@ def export_users_to_excel():
                 'ID': user.id,
                 'Username': user.username,
                 'Email': user.email,
-                'Password_Hash': user.password_hash,  # WARNING: Never export real passwords
                 'Profile_Pic': user.profile_pic,
                 'Bio': user.bio,
                 'Created_At': user.created_at.strftime('%Y-%m-%d %H:%M:%S') if user.created_at else None
@@ -36,7 +34,6 @@ def export_users_to_excel():
         df.to_excel(output_file, index=False, engine='openpyxl')
 
         print(f"✅ Exported {len(user_data)} users to '{output_file}'")
-        print("⚠️  WARNING: This file contains password hashes. Never share this file!")
 
         return output_file
 

@@ -7,8 +7,7 @@
       <div class="position-relative z-2">
         <h1 class="fw-bold mb-2">Emergencia</h1>
         <p class="text-white-50 mb-0">
-          Mantén presionado 5 segundos para activar el protocolo y llamar al <strong>911</strong>
-          (temporalmente se marcará <strong>{{ emergency_number }}</strong>).
+          Mantén presionado 5 segundos para activar el protocolo y llamar al <strong>{{ emergency_number }}</strong>.
         </p>
       </div>
     </div>
@@ -29,7 +28,7 @@
 
       <div class="emergency-center">
         <button id="emergencyHoldBtn" type="button" class="emergency-hold-btn">
-          <span class="emergency-hold-btn__number">911</span>
+          <span class="emergency-hold-btn__number">{{ emergency_number }}</span>
           <span class="emergency-hold-btn__hint">Mantén presionado 5 segundos</span>
           <span class="emergency-hold-btn__countdown" id="holdCountdown">5</span>
         </button>
@@ -190,6 +189,15 @@
   }
 
   function getCurrentLocation() {
+    const nativeBridge = window.VioletaNativeBridge || null;
+    if (nativeBridge && typeof nativeBridge.getCurrentPosition === 'function') {
+      return nativeBridge.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 9000,
+        maximumAge: 0
+      }).then((coords) => ({ lat: coords.lat, lng: coords.lng }))
+        .catch(() => ({ lat: null, lng: null }));
+    }
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
         resolve({ lat: null, lng: null });

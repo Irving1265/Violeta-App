@@ -27,9 +27,10 @@ from flask_login import (
 )
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from flask_socketio import SocketIO, emit, join_room, leave_room
+from jinja2 import FileSystemBytecodeCache
 from werkzeug.utils import secure_filename
-from models import db, User, UserBlock, SafetyContact, PanicEvent, SafetyCheckin, CheckinRoutePoint, Post, Comment, Like, Share, Tag, PostMeta, ChatRoom, ChatParticipant, ChatMessage, ChatMessageReport, CommentReport, ModerationStrike, Report, VerificationRequest, post_tag
-from sqlalchemy import or_, and_, text, func, inspect
+from models import db, User, UserBlock, SafetyContact, PanicEvent, SafetyCheckin, CheckinRoutePoint, Post, Comment, Like, Share, Tag, PostMeta, ChatRoom, ChatParticipant, ChatMessage, ChatMessageReport, CommentReport, ModerationStrike, Report, VerificationRequest, AuditLog, post_tag
+from sqlalchemy import or_, and_, text, func, inspect, insert
 from sqlalchemy.orm import selectinload
 from config import Config
 from forms import LoginForm, RegisterForm, PostForm, CommentForm, ShareForm
@@ -37,12 +38,14 @@ from datetime import datetime, timedelta, timezone
 from collections import Counter, defaultdict, deque
 import json
 import csv
+import io
 import glob
 import mimetypes
 import smtplib
 import base64
 import hashlib
 import re
+from functools import wraps
 try:
     import redis
 except Exception:  # pragma: no cover - optional runtime dependency
@@ -81,7 +84,10 @@ def chat_message_deleted_reason(message: ChatMessage | None, reported_ids: set[i
     if reported_ids is not None:
         return 'reported' if message.id in reported_ids else 'deleted'
     try:
-        return 'reported' if bool(getattr(message, 'reports', None)) else 'deleted'
+        for report in getattr(message, 'reports', None) or []:
+            if getattr(report, 'status', None) in ('reviewing', 'struck'):
+                return 'reported'
+        return 'deleted'
     except Exception:
         return 'deleted'
 
@@ -90,6 +96,75 @@ def get_request_ip() -> str:
     real_ip = (request.headers.get('X-Real-IP') or '').strip()
     remote = (request.remote_addr or '').strip()
     return forwarded_for or real_ip or remote or 'unknown'
+
+
+def get_request_user_agent() -> str:
+    raw = (request.headers.get('User-Agent') or '').strip()
+    if len(raw) > 255:
+        return raw[:255]
+    return raw
+
+
+def serialize_audit_details(details) -> str | None:
+    if details is None:
+        return None
+    payload = details
+    if not isinstance(payload, (dict, list)):
+        payload = {'value': str(payload)}
+    try:
+        return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    except Exception:
+        try:
+            fallback = {'value': str(details)}
+            return json.dumps(fallback, ensure_ascii=False, sort_keys=True)
+        except Exception:
+            return None
+
+
+def record_audit_event(
+    event_type: str,
+    *,
+    actor=None,
+    target_user=None,
+    workspace: str | None = None,
+    resource_type: str | None = None,
+    resource_id: int | None = None,
+    route: str | None = None,
+    method: str | None = None,
+    summary: str | None = None,
+    details=None,
+) -> None:
+    normalized_event = (event_type or '').strip().lower()
+    if not normalized_event:
+        return
+    if normalized_event == 'workspace.view':
+        actor_id = getattr(actor, 'id', None) or getattr(current_user, 'id', None)
+        throttle_bucket = f"audit:view:{actor_id or 'anon'}:{(workspace or '').strip().lower() or 'workspace'}:{(route or request.path or '').strip() or '/'}"
+        if is_rate_limited(throttle_bucket, limit=1, window_seconds=20):
+            return
+    actor_user = actor
+    if actor_user is None and getattr(current_user, 'is_authenticated', False):
+        actor_user = current_user
+    values = {
+        'actor_id': getattr(actor_user, 'id', None),
+        'target_user_id': getattr(target_user, 'id', None) if target_user is not None else None,
+        'event_type': normalized_event,
+        'workspace': (workspace or '').strip().lower() or None,
+        'resource_type': (resource_type or '').strip().lower() or None,
+        'resource_id': int(resource_id) if resource_id is not None else None,
+        'route': (route or request.path or '').strip()[:255] or None,
+        'method': (method or request.method or '').strip().upper()[:10] or None,
+        'ip_address': get_request_ip()[:64],
+        'user_agent': get_request_user_agent(),
+        'summary': (summary or '').strip()[:255] or None,
+        'details': serialize_audit_details(details),
+        'created_at': utc_now_naive(),
+    }
+    try:
+        with db.engine.begin() as connection:
+            connection.execute(insert(AuditLog.__table__).values(**values))
+    except Exception as exc:
+        _debug_log_suppressed('suppressed audit exception', exc)
 
 def is_rate_limited(bucket: str, limit: int, window_seconds: int) -> bool:
     now_ts = datetime.now(timezone.utc).timestamp()
@@ -230,23 +305,35 @@ def ensure_report_schema():
         except Exception as exc:
             _debug_log_suppressed('suppressed exception', exc)
 def ensure_user_schema():
-    """Add is_verified column to user if missing (SQLite only)."""
+    """Ensure user table has the columns required by access control and moderation."""
     try:
         engine = db.engine
-        if engine.dialect.name != 'sqlite':
+        inspector = inspect(engine)
+        tables = set(inspector.get_table_names())
+        if 'user' not in tables:
             return
-        with engine.connect() as conn:
-            cols = [row[1] for row in conn.execute(text("PRAGMA table_info(user)")).fetchall()]
+        dialect = engine.dialect.name
+        user_table = '"user"' if dialect == 'postgresql' else 'user'
+        datetime_type = 'TIMESTAMP' if dialect == 'postgresql' else 'DATETIME'
+        bool_true = 'TRUE' if dialect == 'postgresql' else '1'
+        with engine.begin() as conn:
+            cols = {col['name'] for col in inspector.get_columns('user')}
             if 'is_verified' not in cols:
-                conn.execute(text("ALTER TABLE user ADD COLUMN is_verified BOOLEAN DEFAULT 1"))
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN is_verified BOOLEAN DEFAULT {bool_true}"))
             if 'abuse_strikes' not in cols:
-                conn.execute(text("ALTER TABLE user ADD COLUMN abuse_strikes INTEGER DEFAULT 0"))
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN abuse_strikes INTEGER DEFAULT 0"))
             if 'muted_until' not in cols:
-                conn.execute(text("ALTER TABLE user ADD COLUMN muted_until DATETIME"))
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN muted_until {datetime_type}"))
             if 'last_abuse_at' not in cols:
-                conn.execute(text("ALTER TABLE user ADD COLUMN last_abuse_at DATETIME"))
-            conn.execute(text("UPDATE user SET is_verified = 1 WHERE is_verified IS NULL"))
-            conn.execute(text("UPDATE user SET abuse_strikes = 0 WHERE abuse_strikes IS NULL"))
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN last_abuse_at {datetime_type}"))
+            if 'roles' not in cols:
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN roles TEXT"))
+            conn.execute(text(f"UPDATE {user_table} SET is_verified = {bool_true} WHERE is_verified IS NULL"))
+            conn.execute(text(f"UPDATE {user_table} SET abuse_strikes = 0 WHERE abuse_strikes IS NULL"))
+            conn.execute(text(
+                f"UPDATE {user_table} SET roles = 'super_admin' "
+                "WHERE lower(username) = 'admin' AND (roles IS NULL OR trim(roles) = '')"
+            ))
     except Exception as e:
         try:
             if 'app' in globals() and getattr(app, 'debug', False):
@@ -498,12 +585,357 @@ def ensure_startup_schema():
     ensure_safety_schema()
     ensure_moderation_schema()
     ensure_performance_indexes()
+    try:
+        purge_expired_audit_logs()
+    except Exception as exc:
+        _debug_log_suppressed('suppressed audit purge exception', exc)
+
+
+AUDIT_DEFAULT_RETENTION_DAYS = 365
+AUDIT_DEFAULT_VISIBLE_LIMIT = 250
+AUDIT_MAX_VISIBLE_LIMIT = 500
+AUDIT_MAX_EXPORT_LIMIT = 5000
+AUDIT_DAYS_FILTER_OPTIONS = (7, 30, 90, 180, 365, 0)
+AUDIT_WORKSPACE_FILTER_OPTIONS = ('admin', 'verification', 'moderation', 'safety')
+AUDIT_EVENT_FILTER_HINTS = (
+    'workspace.view',
+    'user_roles.update',
+    'verification.approve',
+    'verification.reject',
+    'report_details.view',
+    'safety.route_points.view',
+    'panic.resolve',
+)
+
+
+def audit_log_retention_days() -> int:
+    raw = os.environ.get('AUDIT_LOG_RETENTION_DAYS', str(AUDIT_DEFAULT_RETENTION_DAYS))
+    try:
+        value = int(str(raw).strip() or AUDIT_DEFAULT_RETENTION_DAYS)
+    except Exception:
+        value = AUDIT_DEFAULT_RETENTION_DAYS
+    return max(0, min(3650, value))
+
+
+def audit_log_visible_limit() -> int:
+    raw = os.environ.get('AUDIT_LOG_VISIBLE_LIMIT', str(AUDIT_DEFAULT_VISIBLE_LIMIT))
+    try:
+        value = int(str(raw).strip() or AUDIT_DEFAULT_VISIBLE_LIMIT)
+    except Exception:
+        value = AUDIT_DEFAULT_VISIBLE_LIMIT
+    return max(50, min(AUDIT_MAX_VISIBLE_LIMIT, value))
+
+
+def audit_log_export_limit() -> int:
+    raw = os.environ.get('AUDIT_LOG_EXPORT_LIMIT', str(AUDIT_MAX_EXPORT_LIMIT))
+    try:
+        value = int(str(raw).strip() or AUDIT_MAX_EXPORT_LIMIT)
+    except Exception:
+        value = AUDIT_MAX_EXPORT_LIMIT
+    return max(100, min(AUDIT_MAX_EXPORT_LIMIT, value))
+
+
+def purge_expired_audit_logs(retention_days: int | None = None) -> int:
+    retention = audit_log_retention_days() if retention_days is None else int(retention_days)
+    if retention <= 0:
+        return 0
+    cutoff = utc_now_naive() - timedelta(days=retention)
+    deleted = (
+        AuditLog.query
+        .filter(AuditLog.created_at.isnot(None), AuditLog.created_at < cutoff)
+        .delete(synchronize_session=False)
+    )
+    db.session.commit()
+    return int(deleted or 0)
+
+
+def parse_audit_days_filter(value) -> int:
+    try:
+        parsed = int(str(value).strip() or '30')
+    except Exception:
+        parsed = 30
+    return parsed if parsed in AUDIT_DAYS_FILTER_OPTIONS else 30
+
+
+def build_audit_filters_from_request() -> dict:
+    return {
+        'workspace': (request.args.get('audit_workspace') or '').strip().lower(),
+        'event_type': (request.args.get('audit_event') or '').strip().lower(),
+        'actor_username': (request.args.get('audit_actor') or '').strip(),
+        'target_username': (request.args.get('audit_target') or '').strip(),
+        'days': parse_audit_days_filter(request.args.get('audit_days')),
+        'tab': (request.args.get('tab') or '').strip().lower(),
+    }
+
+
+def audit_filters_to_query_params(filters: dict | None = None) -> dict:
+    payload = dict(filters or {})
+    params = {}
+    if payload.get('workspace'):
+        params['audit_workspace'] = payload['workspace']
+    if payload.get('event_type'):
+        params['audit_event'] = payload['event_type']
+    if payload.get('actor_username'):
+        params['audit_actor'] = payload['actor_username']
+    if payload.get('target_username'):
+        params['audit_target'] = payload['target_username']
+    params['audit_days'] = str(payload.get('days', 30))
+    params['tab'] = payload.get('tab') or 'auditoria'
+    return params
+
+
+def build_audit_log_query(filters: dict | None = None, *, include_related: bool = True, limit: int | None = None):
+    payload = dict(filters or {})
+    query = AuditLog.query
+    if include_related:
+        query = query.options(
+            selectinload(AuditLog.actor),
+            selectinload(AuditLog.target_user),
+        )
+
+    workspace = (payload.get('workspace') or '').strip().lower()
+    if workspace:
+        query = query.filter(AuditLog.workspace == workspace)
+
+    event_type = (payload.get('event_type') or '').strip().lower()
+    if event_type:
+        query = query.filter(AuditLog.event_type == event_type)
+
+    actor_username = (payload.get('actor_username') or '').strip().lower()
+    if actor_username:
+        actor_ids = db.session.query(User.id).filter(func.lower(User.username).like(f'%{actor_username}%'))
+        query = query.filter(AuditLog.actor_id.in_(actor_ids))
+
+    target_username = (payload.get('target_username') or '').strip().lower()
+    if target_username:
+        target_ids = db.session.query(User.id).filter(func.lower(User.username).like(f'%{target_username}%'))
+        query = query.filter(AuditLog.target_user_id.in_(target_ids))
+
+    days = parse_audit_days_filter(payload.get('days'))
+    if days > 0:
+        cutoff = utc_now_naive() - timedelta(days=days)
+        query = query.filter(AuditLog.created_at >= cutoff)
+
+    query = query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+    final_limit = audit_log_visible_limit() if limit is None else int(limit)
+    if final_limit > 0:
+        query = query.limit(final_limit)
+    return query
+
+
+def audit_filter_option_payloads() -> dict:
+    try:
+        rows = (
+            db.session.query(AuditLog.workspace, AuditLog.event_type)
+            .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+            .limit(2000)
+            .all()
+        )
+    except Exception:
+        rows = []
+    workspaces = {item for item in AUDIT_WORKSPACE_FILTER_OPTIONS}
+    event_types = {item for item in AUDIT_EVENT_FILTER_HINTS}
+    for workspace, event_type in rows:
+        if workspace:
+            workspaces.add(str(workspace).strip().lower())
+        if event_type:
+            event_types.add(str(event_type).strip().lower())
+    return {
+        'workspaces': sorted(workspaces),
+        'event_types': sorted(event_types),
+        'days': list(AUDIT_DAYS_FILTER_OPTIONS),
+    }
+
+
+def resolve_initial_admin_tab(available_tabs, fallback='users') -> str:
+    requested = (request.args.get('tab') or '').strip().lower()
+    if requested and requested in (available_tabs or []):
+        return requested
+    return fallback if fallback in (available_tabs or []) else ((available_tabs or [fallback])[0])
+
+
+ROLE_SUPER_ADMIN = 'super_admin'
+ROLE_VERIFICATION_REVIEWER = 'verification_reviewer'
+ROLE_MODERATION_REVIEWER = 'moderation_reviewer'
+ROLE_SAFETY_OPERATOR = 'safety_operator'
+ROLE_SUPPORT_READONLY = 'support_readonly'
+
+PERM_ADMIN_PANEL_VIEW = 'admin.panel.view'
+PERM_ACCOUNT_BYPASS_RESTRICTIONS = 'account.bypass_restrictions'
+PERM_CONTENT_UNRESTRICTED = 'content.unrestricted'
+PERM_CONTENT_REVIEW_PRIVATE = 'content.review_private'
+PERM_USERS_MANAGE = 'users.manage'
+PERM_VERIFICATION_REVIEW = 'verification.review'
+PERM_POSTS_MANAGE = 'posts.manage'
+PERM_CHAT_ROOMS_MANAGE = 'chat.rooms.manage'
+PERM_CHAT_ROOMS_OVERRIDE = 'chat.rooms.override'
+PERM_CHAT_MESSAGES_MODERATE = 'chat.messages.moderate'
+PERM_REPORTS_REVIEW = 'reports.review'
+PERM_SAFETY_VIEW_ANY = 'safety.view_any'
+PERM_SAFETY_RESOLVE_PANIC = 'safety.resolve_panic'
+PERM_STAFF_BADGE = 'staff.badge'
+PERM_PROTECTED_STAFF = 'staff.protected'
+
+ROLE_PERMISSIONS = {
+    ROLE_SUPER_ADMIN: {'*'},
+    ROLE_VERIFICATION_REVIEWER: {
+        PERM_VERIFICATION_REVIEW,
+    },
+    ROLE_MODERATION_REVIEWER: {
+        PERM_CONTENT_REVIEW_PRIVATE,
+        PERM_REPORTS_REVIEW,
+        PERM_CHAT_ROOMS_MANAGE,
+        PERM_CHAT_MESSAGES_MODERATE,
+    },
+    ROLE_SAFETY_OPERATOR: {
+        PERM_SAFETY_VIEW_ANY,
+        PERM_SAFETY_RESOLVE_PANIC,
+    },
+    ROLE_SUPPORT_READONLY: set(),
+}
+
+STAFF_ROLE_OPTIONS = (
+    {
+        'key': ROLE_SUPER_ADMIN,
+        'label': 'Súper admin',
+        'description': 'Acceso total y gestión de roles.',
+    },
+    {
+        'key': ROLE_VERIFICATION_REVIEWER,
+        'label': 'Verificación',
+        'description': 'Revisión de identidad y elegibilidad.',
+    },
+    {
+        'key': ROLE_MODERATION_REVIEWER,
+        'label': 'Moderación',
+        'description': 'Reportes, restauraciones y strikes.',
+    },
+    {
+        'key': ROLE_SAFETY_OPERATOR,
+        'label': 'Safety',
+        'description': 'Check-ins, trayectos y pánico.',
+    },
+    {
+        'key': ROLE_SUPPORT_READONLY,
+        'label': 'Soporte',
+        'description': 'Consulta operativa de solo lectura.',
+    },
+)
+
+
+def user_role_names(user) -> set[str]:
+    if not user or not getattr(user, 'is_authenticated', False):
+        return set()
+    roles: set[str] = set()
+    try:
+        if hasattr(user, 'role_set'):
+            roles = {role.strip().lower() for role in user.role_set() if str(role).strip()}
+        else:
+            raw = (getattr(user, 'roles', None) or '').strip()
+            roles = {
+                chunk.strip().lower()
+                for chunk in raw.split(',')
+                if chunk.strip()
+            }
+    except Exception:
+        roles = set()
+    if not roles and str(getattr(user, 'username', '')).strip().lower() == 'admin':
+        roles.add(ROLE_SUPER_ADMIN)
+    return roles
+
+
+def user_has_role(user, role: str) -> bool:
+    normalized = (role or '').strip().lower()
+    if not normalized:
+        return False
+    return normalized in user_role_names(user)
+
+
+def user_has_any_role(user, *roles: str) -> bool:
+    current = user_role_names(user)
+    if not current:
+        return False
+    for role in roles:
+        normalized = (role or '').strip().lower()
+        if normalized and normalized in current:
+            return True
+    return False
+
+
+def user_has_permission(user, permission: str) -> bool:
+    normalized = (permission or '').strip().lower()
+    if not normalized:
+        return False
+    roles = user_role_names(user)
+    if not roles:
+        return False
+    for role in roles:
+        permissions = ROLE_PERMISSIONS.get(role, set())
+        if '*' in permissions or normalized in permissions:
+            return True
+    return False
+
+
+def user_is_super_admin(user) -> bool:
+    return user_has_role(user, ROLE_SUPER_ADMIN)
+
+
+def user_is_protected_staff(user) -> bool:
+    return user_has_permission(user, PERM_PROTECTED_STAFF)
+
+
+def user_has_staff_badge(user) -> bool:
+    return user_has_permission(user, PERM_STAFF_BADGE)
+
+
+def user_can_override_content_controls(user) -> bool:
+    return user_has_permission(user, PERM_CONTENT_UNRESTRICTED)
+
+
+def user_can_review_private_content(user) -> bool:
+    return user_has_permission(user, PERM_CONTENT_REVIEW_PRIVATE) or user_can_override_content_controls(user)
+
+
+def user_can_access_admin_panel(user) -> bool:
+    return user_has_permission(user, PERM_ADMIN_PANEL_VIEW)
+
+
+def permission_required(permission: str, *, json_only: bool = False, flash_message: str = 'Acceso denegado.'):
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            if not current_user.is_authenticated:
+                wants_json = json_only or request.path.startswith('/api/') or 'application/json' in (request.headers.get('Accept') or '')
+                if wants_json:
+                    return jsonify({'error': 'Inicia sesión para continuar.'}), 401
+                return redirect(url_for('login'))
+            if user_has_permission(current_user, permission):
+                return fn(*args, **kwargs)
+            wants_json = json_only or request.path.startswith('/api/') or 'application/json' in (request.headers.get('Accept') or '')
+            if wants_json:
+                return jsonify({'error': flash_message}), 403
+            flash(flash_message, 'error')
+            return redirect(url_for('index'))
+        return wrapper
+    return decorator
+
+
+def staff_role_payloads():
+    return [dict(item) for item in STAFF_ROLE_OPTIONS]
+
+
+def count_super_admin_users() -> int:
+    try:
+        users = User.query.all()
+    except Exception:
+        return 0
+    return sum(1 for user in users if user_is_super_admin(user))
 
 
 def is_user_verified(user) -> bool:
     if not user or not getattr(user, 'is_authenticated', False):
         return True
-    if getattr(user, 'username', '') == 'admin':
+    if user_has_permission(user, PERM_ACCOUNT_BYPASS_RESTRICTIONS):
         return True
     return bool(getattr(user, 'is_verified', False))
 
@@ -528,7 +960,7 @@ def contains_abusive_language(content: str) -> bool:
 def moderation_badge_level(user) -> int:
     if not user:
         return 0
-    if getattr(user, 'username', '') == 'admin':
+    if user_is_protected_staff(user):
         return 0
     strikes = int(getattr(user, 'abuse_strikes', 0) or 0)
     if strikes >= 2:
@@ -541,13 +973,13 @@ def moderation_badge_level(user) -> int:
 def is_user_permanently_banned(user) -> bool:
     if not user or not getattr(user, 'is_authenticated', False):
         return False
-    if getattr(user, 'username', '') == 'admin':
+    if user_has_permission(user, PERM_ACCOUNT_BYPASS_RESTRICTIONS):
         return False
     return bool(getattr(user, 'permanently_banned_at', None))
 
 
 def _clear_expired_moderation_restriction(user):
-    if not user or getattr(user, 'username', '') == 'admin':
+    if not user or user_has_permission(user, PERM_ACCOUNT_BYPASS_RESTRICTIONS):
         return
     until = getattr(user, 'muted_until', None)
     if until and until <= utc_now_naive():
@@ -562,7 +994,7 @@ def _clear_expired_moderation_restriction(user):
 def user_restriction_state(user, *, auto_clear: bool = False):
     if not user or not getattr(user, 'is_authenticated', False):
         return None
-    if getattr(user, 'username', '') == 'admin':
+    if user_has_permission(user, PERM_ACCOUNT_BYPASS_RESTRICTIONS):
         return None
 
     now = utc_now_naive()
@@ -616,7 +1048,7 @@ def apply_abuse_strike(
 ):
     if not user:
         return {'applied': False, 'reason': 'invalid_user', 'strike': None, 'strike_count': 0, 'consequence': 'none'}
-    if getattr(user, 'username', '') == 'admin':
+    if user_is_protected_staff(user):
         return {'applied': False, 'reason': 'admin_immune', 'strike': None, 'strike_count': 0, 'consequence': 'none'}
     if is_user_permanently_banned(user):
         return {'applied': False, 'reason': 'already_banned', 'strike': None, 'strike_count': int(getattr(user, 'abuse_strikes', 0) or 0), 'consequence': 'permanent_ban'}
@@ -761,7 +1193,7 @@ def can_user_interact_post(post, user, interaction: str) -> bool:
         return True
     if not user or not getattr(user, 'is_authenticated', False):
         return False
-    if getattr(user, 'username', '') == 'admin':
+    if user_can_override_content_controls(user):
         return True
     return getattr(post, 'user_id', None) == getattr(user, 'id', None)
 
@@ -770,10 +1202,57 @@ def normalize_location_visibility(value: str | None, is_admin_user: bool) -> str
     val = (value or '').strip().lower()
     allowed = {'exact', 'approx', 'hidden'}
     if val not in allowed:
-        return 'exact' if is_admin_user else 'approx'
-    if not is_admin_user and val == 'exact':
-        return 'approx'
+        return 'exact'
     return val
+
+
+def normalize_capture_motion_state(value: str | None) -> str:
+    val = (value or '').strip().lower()
+    if val in {'stationary', 'walking'}:
+        return val
+    if val in {'blocked', 'vehicle', 'driving', 'cycling', 'running'}:
+        return 'blocked'
+    return 'unknown'
+
+
+def public_location_approx_meters() -> int:
+    raw = str(os.environ.get('PUBLIC_LOCATION_APPROX_METERS', '25')).strip()
+    try:
+        value = int(round(float(raw)))
+    except (TypeError, ValueError):
+        value = 25
+    return max(10, min(250, value))
+
+
+def approximate_public_coords(lat, lng) -> tuple[float | None, float | None]:
+    try:
+        if lat is None or lng is None:
+            return None, None
+        lat_value = float(lat)
+        lng_value = float(lng)
+    except (TypeError, ValueError):
+        return None, None
+
+    meters = float(public_location_approx_meters())
+    lat_step = meters / 111_320.0
+    cos_lat = max(abs(cos(radians(lat_value))), 0.1)
+    lng_step = meters / (111_320.0 * cos_lat)
+
+    snapped_lat = round(lat_value / lat_step) * lat_step if lat_step > 0 else lat_value
+    snapped_lng = round(lng_value / lng_step) * lng_step if lng_step > 0 else lng_value
+    return round(snapped_lat, 6), round(snapped_lng, 6)
+
+
+def approximate_location_label(city: str | None, country: str | None) -> str:
+    safe_city = (city or '').strip()
+    safe_country = (country or '').strip()
+    if safe_city and safe_country:
+        return f"Zona aproximada en {safe_city}, {safe_country}"
+    if safe_city:
+        return f"Zona aproximada en {safe_city}"
+    if safe_country:
+        return f"Zona aproximada en {safe_country}"
+    return 'Zona aproximada'
 
 
 def blocked_user_ids_for(user) -> set[int]:
@@ -813,7 +1292,7 @@ def public_location_for_post(post, viewer=None):
 
     is_owner_or_admin = False
     if viewer and getattr(viewer, 'is_authenticated', False):
-        if getattr(viewer, 'username', '') == 'admin' or getattr(viewer, 'id', None) == getattr(post, 'user_id', None):
+        if user_can_review_private_content(viewer) or getattr(viewer, 'id', None) == getattr(post, 'user_id', None):
             is_owner_or_admin = True
 
     meta = getattr(post, 'meta', None)
@@ -842,15 +1321,11 @@ def public_location_for_post(post, viewer=None):
         }
 
     if mode == 'approx':
-        approx_lat = round(float(lat), 3) if lat is not None else None
-        approx_lng = round(float(lng), 3) if lng is not None else None
-        approx_name = name
-        if approx_name and 'aprox' not in approx_name.lower():
-            approx_name = f"{approx_name} (aprox.)"
+        approx_lat, approx_lng = approximate_public_coords(lat, lng)
         return {
             'lat': approx_lat,
             'lng': approx_lng,
-            'name': approx_name,
+            'name': approximate_location_label(city, country),
             'city': city,
             'country': country,
             'visibility': mode,
@@ -870,6 +1345,9 @@ def create_app():
     app = Flask(__name__)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
     app.config.from_object(Config)
+    jinja_cache_dir = os.path.join(app.instance_path, 'jinja-cache')
+    os.makedirs(jinja_cache_dir, exist_ok=True)
+    app.jinja_env.bytecode_cache = FileSystemBytecodeCache(jinja_cache_dir, '%s.cache')
 
     if not os.environ.get('SECRET_KEY'):
         app.logger.warning('SECRET_KEY no está definido en entorno. Se usa una clave efímera para esta sesión.')
@@ -903,11 +1381,31 @@ def create_app():
             'user_restriction_state': user_restriction_state(current_user, auto_clear=True),
         }
 
+    @app.context_processor
+    def inject_safety_publish_policy():
+        return {'safety_publish_policy': safety_publish_policy_payload()}
+
+    @app.context_processor
+    def inject_access_control():
+        return {
+            'user_role_names': user_role_names,
+            'user_has_permission': user_has_permission,
+            'user_has_role': user_has_role,
+            'user_is_super_admin': user_is_super_admin,
+            'user_is_protected_staff': user_is_protected_staff,
+            'user_has_staff_badge': user_has_staff_badge,
+            'staff_role_options': staff_role_payloads(),
+            'current_user_is_super_admin': user_is_super_admin(current_user),
+            'current_user_can_access_admin_panel': user_can_access_admin_panel(current_user),
+            'current_user_can_override_content_controls': user_can_override_content_controls(current_user),
+            'current_user_can_review_private_content': user_can_review_private_content(current_user),
+        }
+
     @app.before_request
     def enforce_account_restrictions():
         if not current_user.is_authenticated:
             return None
-        if getattr(current_user, 'username', '') == 'admin':
+        if user_has_permission(current_user, PERM_ACCOUNT_BYPASS_RESTRICTIONS):
             return None
 
         state = user_restriction_state(current_user, auto_clear=True)
@@ -1447,6 +1945,60 @@ def create_app():
                 return 0
         return applied
 
+    def strip_image_metadata_in_place(image_path: str) -> bool:
+        """Re-save common image formats without EXIF/ICC metadata."""
+        _, ext = os.path.splitext(image_path or '')
+        ext = ext.lower()
+        if ext not in {'.jpg', '.jpeg', '.png', '.webp', '.bmp'}:
+            return False
+
+        try:
+            from PIL import Image, ImageOps
+        except Exception:
+            return False
+
+        tmp_path = f'{image_path}.sanitized'
+        try:
+            with Image.open(image_path) as im:
+                normalized = ImageOps.exif_transpose(im)
+                output = normalized.copy()
+                target_format = 'JPEG'
+                save_kwargs: dict[str, object] = {}
+
+                if ext in {'.jpg', '.jpeg'}:
+                    target_format = 'JPEG'
+                    if output.mode not in ('RGB', 'L'):
+                        output = output.convert('RGB')
+                    save_kwargs = {'quality': 92, 'optimize': True}
+                elif ext == '.png':
+                    target_format = 'PNG'
+                    if output.mode not in ('RGB', 'RGBA', 'L'):
+                        output = output.convert('RGBA')
+                    save_kwargs = {'optimize': True}
+                elif ext == '.webp':
+                    target_format = 'WEBP'
+                    if output.mode not in ('RGB', 'RGBA', 'L'):
+                        output = output.convert('RGBA')
+                    save_kwargs = {'quality': 92, 'method': 6}
+                elif ext == '.bmp':
+                    target_format = 'BMP'
+                    if output.mode not in ('RGB', 'RGBA', 'L'):
+                        output = output.convert('RGB')
+
+                output.save(tmp_path, format=target_format, **save_kwargs)
+
+            os.replace(tmp_path, image_path)
+            return True
+        except Exception as exc:
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception as cleanup_exc:
+                _debug_log_suppressed('suppressed exception', cleanup_exc)
+            if app.debug:
+                print('DEBUG: metadata strip failed:', exc)
+            return False
+
     def _mail_delivery_method() -> str:
         configured = (app.config.get('MAIL_DELIVERY_METHOD') or '').strip().lower()
         if configured in {'smtp', 'resend'}:
@@ -1734,6 +2286,8 @@ def create_app():
         return req
 
     def append_user_export(user):
+        if str(os.environ.get('ENABLE_USER_EXPORT', '')).strip().lower() not in {'1', 'true', 'yes', 'on'}:
+            return
         try:
             export_dir = os.path.join(os.path.dirname(__file__), 'exports')
             os.makedirs(export_dir, exist_ok=True)
@@ -1747,11 +2301,10 @@ def create_app():
             with open(csv_path, 'a', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
                 if write_header:
-                    writer.writerow(['username', 'email', 'password_hash', 'posts_count', 'is_verified'])
+                    writer.writerow(['username', 'email', 'posts_count', 'is_verified'])
                 writer.writerow([
                     user.username,
                     user.email,
-                    user.password_hash,
                     posts_count,
                     bool(getattr(user, 'is_verified', False))
                 ])
@@ -1778,17 +2331,20 @@ def create_app():
             return f"{base_msg} Ubicación: {maps_url}", maps_url
         return f"{base_msg} Ubicación no disponible.", ""
 
-    def send_sms_via_twilio(to_phone: str, body: str) -> bool:
+    def get_emergency_number() -> str:
+        value = (os.environ.get('EMERGENCY_NUMBER') or '911').strip()
+        return value or '911'
+
+    def send_twilio_message(to_value: str, from_value: str, body: str) -> bool:
         sid = (os.environ.get('TWILIO_ACCOUNT_SID') or '').strip()
         token = (os.environ.get('TWILIO_AUTH_TOKEN') or '').strip()
-        from_phone = (os.environ.get('TWILIO_FROM_NUMBER') or '').strip()
-        if not sid or not token or not from_phone:
+        if not sid or not token or not to_value or not from_value or not body:
             return False
 
         try:
             payload = urlencode({
-                'To': to_phone,
-                'From': from_phone,
+                'To': to_value,
+                'From': from_value,
                 'Body': body,
             }).encode('utf-8')
             req = Request(
@@ -1803,8 +2359,20 @@ def create_app():
                 return 200 <= int(getattr(response, 'status', 0)) < 300
         except Exception as e:
             if app.debug:
-                print('DEBUG twilio sms error:', e)
+                print('DEBUG twilio message error:', e)
             return False
+
+    def send_whatsapp_via_twilio(to_phone: str, body: str) -> bool:
+        from_phone = (os.environ.get('TWILIO_WHATSAPP_FROM_NUMBER') or '').strip()
+        if not from_phone:
+            return False
+        return send_twilio_message(f'whatsapp:{to_phone}', f'whatsapp:{from_phone}', body)
+
+    def send_sms_via_twilio(to_phone: str, body: str) -> bool:
+        from_phone = (os.environ.get('TWILIO_FROM_NUMBER') or '').strip()
+        if not from_phone:
+            return False
+        return send_twilio_message(to_phone, from_phone, body)
 
     def valid_coords(lat, lng):
         try:
@@ -1813,6 +2381,168 @@ def create_app():
             return -90.0 <= float(lat) <= 90.0 and -180.0 <= float(lng) <= 180.0
         except Exception:
             return False
+
+    def safety_publish_min_delay_minutes() -> int:
+        raw = str(os.environ.get('SAFETY_PUBLISH_MIN_DELAY_MINUTES', '15')).strip()
+        try:
+            value = int(round(float(raw)))
+        except (TypeError, ValueError):
+            value = 15
+        return max(5, min(120, value))
+
+    def safety_publish_distance_meters() -> int:
+        raw = str(os.environ.get('SAFETY_PUBLISH_DISTANCE_METERS', '200')).strip()
+        try:
+            value = int(round(float(raw)))
+        except (TypeError, ValueError):
+            value = 200
+        return max(25, min(5000, value))
+
+    def safety_publish_fallback_minutes() -> int:
+        raw = str(os.environ.get('SAFETY_PUBLISH_FALLBACK_MINUTES', '60')).strip()
+        try:
+            value = int(round(float(raw)))
+        except (TypeError, ValueError):
+            value = 60
+        return max(safety_publish_min_delay_minutes(), min(24 * 60, value))
+
+    def safety_publish_policy_payload():
+        return {
+            'min_delay_minutes': safety_publish_min_delay_minutes(),
+            'distance_meters': safety_publish_distance_meters(),
+            'fallback_minutes': safety_publish_fallback_minutes(),
+        }
+
+    def safety_publish_min_ready_at(post) -> datetime:
+        created_at = getattr(post, 'created_at', None) or datetime.now()
+        return created_at + timedelta(minutes=safety_publish_min_delay_minutes())
+
+    def safety_publish_fallback_at(post) -> datetime:
+        created_at = getattr(post, 'created_at', None) or datetime.now()
+        return created_at + timedelta(minutes=safety_publish_fallback_minutes())
+
+    def haversine_distance_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+        d_lat = radians(lat2 - lat1)
+        d_lng = radians(lng2 - lng1)
+        a = sin(d_lat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(d_lng / 2) ** 2
+        return 6371000.0 * 2 * asin(sqrt(a))
+
+    def pending_safety_posts_for_user(user):
+        if not user or not getattr(user, 'is_authenticated', False):
+            return []
+        if user_can_override_content_controls(user):
+            return []
+        now = datetime.now()
+        return (
+            Post.query
+            .options(selectinload(Post.meta))
+            .filter_by(user_id=user.id)
+            .filter(Post.publish_at.isnot(None), Post.publish_at > now)
+            .order_by(Post.created_at.asc())
+            .limit(30)
+            .all()
+        )
+
+    def summarize_pending_safety_posts_for_user(user):
+        now = datetime.now()
+        posts = pending_safety_posts_for_user(user)
+        next_due_at = None
+        needs_location_check = False
+        fallback_due_count = 0
+        missing_post_location_count = 0
+
+        for post in posts:
+            min_ready_at = safety_publish_min_ready_at(post)
+            fallback_at = safety_publish_fallback_at(post)
+            if not valid_coords(getattr(post, 'latitude', None), getattr(post, 'longitude', None)):
+                missing_post_location_count += 1
+            if now >= fallback_at:
+                fallback_due_count += 1
+            elif now >= min_ready_at:
+                needs_location_check = True
+
+            candidate_due_at = fallback_at if now >= min_ready_at else min_ready_at
+            if next_due_at is None or candidate_due_at < next_due_at:
+                next_due_at = candidate_due_at
+
+        next_check_in_sec = None
+        if next_due_at is not None and next_due_at > now:
+            next_check_in_sec = max(1, int((next_due_at - now).total_seconds()))
+
+        return {
+            'pending_count': len(posts),
+            'needs_location_check': needs_location_check,
+            'fallback_due_count': fallback_due_count,
+            'missing_post_location_count': missing_post_location_count,
+            'next_check_in_sec': next_check_in_sec,
+            'policy': safety_publish_policy_payload(),
+        }
+
+    def invalidate_post_discovery_caches():
+        invalidate_runtime_response_cache('hotspots')
+        invalidate_runtime_response_cache('posts_in_radius')
+        invalidate_runtime_response_cache('posts_by_city')
+        invalidate_runtime_response_cache('feed_sidebar')
+        _feed_sidebar_cache.clear()
+
+    def try_release_pending_safety_posts_for_user(user, current_lat=None, current_lng=None):
+        now = datetime.now()
+        posts = pending_safety_posts_for_user(user)
+        released = []
+        distance_threshold = float(safety_publish_distance_meters())
+        can_check_distance = valid_coords(current_lat, current_lng)
+
+        for post in posts:
+            min_ready_at = safety_publish_min_ready_at(post)
+            fallback_at = safety_publish_fallback_at(post)
+            reason = None
+            distance_m = None
+
+            if now >= fallback_at:
+                reason = 'fallback'
+            elif now >= min_ready_at and can_check_distance and valid_coords(post.latitude, post.longitude):
+                distance_m = haversine_distance_m(
+                    float(post.latitude),
+                    float(post.longitude),
+                    float(current_lat),
+                    float(current_lng),
+                )
+                if distance_m >= distance_threshold:
+                    reason = 'distance'
+
+            if not reason:
+                continue
+
+            post.publish_at = now
+            db.session.add(post)
+            released.append({
+                'id': post.id,
+                'reason': reason,
+                'distance_meters': int(round(distance_m)) if distance_m is not None else None,
+            })
+
+        if released:
+            db.session.commit()
+            invalidate_post_discovery_caches()
+
+        summary = summarize_pending_safety_posts_for_user(user)
+        return {
+            'released_count': len(released),
+            'released_posts': released,
+            **summary,
+        }
+
+    def annotate_user_post_visibility_state(posts):
+        now = datetime.now()
+        for post in posts:
+            post.can_delete = bool(post.created_at and (now - post.created_at) <= timedelta(hours=1))
+            post.is_pending = bool(getattr(post, 'publish_at', None) and getattr(post, 'publish_at') > now)
+            if post.is_pending:
+                post.pending_min_ready_at = safety_publish_min_ready_at(post)
+                post.pending_fallback_at = safety_publish_fallback_at(post)
+            else:
+                post.pending_min_ready_at = None
+                post.pending_fallback_at = None
 
     def extract_hashtags(text: str):
         """Extrae hashtags de un texto (sin el #), en minúsculas.
@@ -1892,10 +2622,14 @@ def create_app():
             if not name:
                 continue
             key = name.casefold()
-            if key in ('baldios', 'baldío', 'baldio', 'baldíos'):
-                name = 'Baldíos'
+            if key in ('terrenos baldios', 'terrenos baldíos', 'baldios', 'baldío', 'baldio', 'baldíos', 'punto ciego'):
+                name = 'Terrenos baldíos'
             elif key in ('poca iluminacion', 'poca iluminación'):
                 name = 'Poca iluminación'
+            elif key in ('banquetas en mal estado',):
+                name = 'Banquetas en mal estado'
+            elif key in ('zona insegura', 'zonas inseguras'):
+                name = 'Zona insegura'
             normalized.add(name)
         return normalized
 
@@ -2029,6 +2763,12 @@ def create_app():
 
     def get_runtime_cached_payload(cache_key: tuple, ttl_seconds: float):
         now_ts = time.time()
+        cached = _runtime_response_cache.get(cache_key)
+        if cached:
+            if (now_ts - float(cached.get('ts') or 0)) < float(ttl_seconds):
+                return cached.get('payload')
+            _runtime_response_cache.pop(cache_key, None)
+
         redis_client = get_runtime_cache_client()
         if redis_client is not None:
             try:
@@ -2036,16 +2776,11 @@ def create_app():
                 if raw:
                     cached = json.loads(raw)
                     if (now_ts - float(cached.get('ts') or 0)) < float(ttl_seconds):
+                        _runtime_response_cache[cache_key] = cached
                         return cached.get('payload')
             except Exception as exc:
                 _debug_log_suppressed('suppressed exception', exc)
-        cached = _runtime_response_cache.get(cache_key)
-        if not cached:
-            return None
-        if (now_ts - float(cached.get('ts') or 0)) >= float(ttl_seconds):
-            _runtime_response_cache.pop(cache_key, None)
-            return None
-        return cached.get('payload')
+        return None
 
     def set_runtime_cached_payload(cache_key: tuple, payload, *, ttl_seconds: float = 15, max_entries: int = 128):
         wrapped = {
@@ -2067,6 +2802,42 @@ def create_app():
             oldest_key = min(_runtime_response_cache, key=lambda key: float(_runtime_response_cache[key].get('ts') or 0))
             _runtime_response_cache.pop(oldest_key, None)
         return payload
+
+    def get_cached_html_page(cache_key: tuple, ttl_seconds: float):
+        now_ts = time.time()
+        cached = _runtime_response_cache.get(cache_key)
+        if not cached:
+            return None
+        if (now_ts - float(cached.get('ts') or 0)) >= float(ttl_seconds):
+            _runtime_response_cache.pop(cache_key, None)
+            return None
+        cached_html = cached.get('payload')
+        if not cached_html:
+            return None
+        response = make_response(cached_html)
+        response.mimetype = 'text/html'
+        return response
+
+    def set_cached_html_page(cache_key: tuple, html: str, *, ttl_seconds: float = 15, max_entries: int = 128):
+        _runtime_response_cache[cache_key] = {
+            'ts': time.time(),
+            'payload': html,
+        }
+        if len(_runtime_response_cache) > max_entries:
+            oldest_key = min(_runtime_response_cache, key=lambda key: float(_runtime_response_cache[key].get('ts') or 0))
+            _runtime_response_cache.pop(oldest_key, None)
+        response = make_response(html)
+        response.mimetype = 'text/html'
+        return response
+
+    def maybe_process_overdue_checkins(user_id: int | None = None, *, ttl_seconds: float = 30):
+        cache_scope = user_id if user_id is not None else 'all'
+        cache_key = ('checkins_overdue_refresh', cache_scope)
+        if get_runtime_cached_payload(cache_key, ttl_seconds) is not None:
+            return 0
+        refreshed = process_overdue_checkins(user_id)
+        set_runtime_cached_payload(cache_key, True, ttl_seconds=ttl_seconds, max_entries=64)
+        return refreshed
 
     def invalidate_runtime_response_cache(prefix: str | None = None):
         if prefix is None:
@@ -2180,8 +2951,13 @@ def create_app():
         path = request.path or ''
         method = (request.method or 'GET').upper()
 
-        if path.startswith('/static/'):
-            response.headers['Cache-Control'] = 'public, max-age=3600'
+        if path == '/service-worker.js':
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+            response.headers['Service-Worker-Allowed'] = '/'
+        elif path.startswith('/static/'):
+            response.headers['Cache-Control'] = 'public, max-age=86400, immutable'
             response.headers.pop('Pragma', None)
             response.headers.pop('Expires', None)
         elif method == 'GET' and path.startswith('/uploads/') and not path.startswith('/uploads/verify/'):
@@ -2201,6 +2977,18 @@ def create_app():
             response.headers['Cache-Control'] = 'private, max-age=15, stale-while-revalidate=30'
             response.headers.pop('Pragma', None)
             response.headers.pop('Expires', None)
+        elif method == 'GET' and (
+            path == '/admin'
+            or path == '/admin/content'
+            or path == '/admin/overview'
+            or path == '/admin/tab-content'
+            or path == '/safety'
+            or path == '/safety/content'
+            or (path.startswith('/user/') and path.count('/') in (2, 3))
+        ):
+            response.headers['Cache-Control'] = 'private, max-age=20, stale-while-revalidate=60'
+            response.headers.pop('Pragma', None)
+            response.headers.pop('Expires', None)
         else:
             response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
             response.headers['Pragma'] = 'no-cache'
@@ -2212,6 +3000,16 @@ def create_app():
         response.headers.setdefault('X-Content-Type-Options', 'nosniff')
         response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
         response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+        return response
+
+
+    @app.route('/service-worker.js')
+    def service_worker():
+        response = send_from_directory(app.static_folder, 'service-worker.js', mimetype='application/javascript')
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        response.headers['Service-Worker-Allowed'] = '/'
         return response
 
     # Hacer disponible csrf_token() en todas las plantillas (fallback explícito)
@@ -2269,7 +3067,12 @@ def create_app():
 
         selected_city = (request.args.get('city') or 'all').strip().lower()
         page = request.args.get('page', 1, type=int)
-        per_page = app.config.get('FEED_PAGE_SIZE', 10)
+        per_page = app.config.get('FEED_PAGE_SIZE', 3)
+        blocked_ids = blocked_user_ids_for(current_user) if current_user.is_authenticated else set()
+        page_cache_key = ('page_home', current_user.id, selected_city, page, per_page, tuple(sorted(blocked_ids)))
+        cached_response = get_cached_html_page(page_cache_key, 20)
+        if cached_response is not None:
+            return cached_response
 
         query, _ = build_feed_posts_query(selected_city, current_user, eager=True)
         report_counts = []
@@ -2290,20 +3093,18 @@ def create_app():
         comment_form = CommentForm()
         share_form = ShareForm()
 
-        response = make_response(
-            render_template(
-                'index.html',
-                posts=posts.items,
-                pagination=posts,
-                post_form=post_form,
-                comment_form=comment_form,
-                share_form=share_form,
-                selected_city=selected_city,
-                report_counts=report_counts,
-                report_counts_today=report_counts_today,
-            )
+        html = render_template(
+            'index.html',
+            posts=posts.items,
+            pagination=posts,
+            post_form=post_form,
+            comment_form=comment_form,
+            share_form=share_form,
+            selected_city=selected_city,
+            report_counts=report_counts,
+            report_counts_today=report_counts_today,
         )
-        return response
+        return set_cached_html_page(page_cache_key, html, ttl_seconds=20, max_entries=96)
 
     @app.route('/api/feed/sidebar-summary')
     @login_required
@@ -2319,20 +3120,19 @@ def create_app():
 
     @app.route('/feed')
     def feed():
+        selected_city = (request.args.get('city') or 'all').strip().lower()
         page = request.args.get('page', 1, type=int)
-        per_page = app.config.get('FEED_PAGE_SIZE', 10)
-        blocked_ids = blocked_user_ids_for(current_user) if current_user.is_authenticated else set()
-        query = public_posts_query(
-            Post.query.options(
-                selectinload(Post.author),
-                selectinload(Post.meta),
-                selectinload(Post.tags),
-            )
-        )
-        if blocked_ids:
-            query = query.filter(~Post.user_id.in_(blocked_ids))
-        posts = query.order_by(Post.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+        per_page = app.config.get('FEED_PAGE_SIZE', 3)
+        viewer_id = getattr(current_user, 'id', None) if current_user.is_authenticated else None
+        query, blocked_ids = build_feed_posts_query(selected_city, current_user, eager=True)
+        cache_key = ('feed_page', viewer_id, selected_city, page, per_page, tuple(sorted(blocked_ids)))
+        cached_payload = get_runtime_cached_payload(cache_key, 20)
+        if cached_payload is not None:
+            return jsonify(cached_payload)
+
+        posts = query.paginate(page=page, per_page=per_page, error_out=False)
         enrich_posts_for_cards(posts.items, current_user)
+        html = render_template('_post_cards.html', posts=posts.items)
         data = []
         for p in posts.items:
             try:
@@ -2373,7 +3173,15 @@ def create_app():
             except Exception as e:
                 if app.debug:
                     print('DEBUG: error building feed item:', e)
-        return jsonify({'posts': data, 'has_next': posts.has_next})
+        payload = {
+            'posts': data,
+            'html': html,
+            'has_next': posts.has_next,
+            'page': page,
+            'next_page': page + 1 if posts.has_next else None,
+        }
+        set_runtime_cached_payload(cache_key, payload, ttl_seconds=20, max_entries=96)
+        return jsonify(payload)
 
     @app.route('/register', methods=['GET', 'POST'])
     def register():
@@ -2395,7 +3203,6 @@ def create_app():
                 user.is_verified = False
                 db.session.add(user)
                 db.session.commit()
-                append_user_export(user)
                 flash('Registro exitoso. Inicia sesión.', 'success')
                 return redirect(url_for('login'))
             except Exception as e:
@@ -2695,6 +3502,26 @@ def create_app():
             flash('Debes seleccionar una imagen.', 'danger')
             return redirect(url_for('index'))
 
+        capture_source = (request.form.get('capture_source') or '').strip().lower()
+        capture_lat = parse_float((request.form.get('capture_latitude') or '').strip())
+        capture_lng = parse_float((request.form.get('capture_longitude') or '').strip())
+        capture_accuracy = parse_float((request.form.get('capture_accuracy') or '').strip())
+        capture_speed_mps = parse_float((request.form.get('capture_speed_mps') or '').strip())
+        capture_taken_at = (request.form.get('capture_taken_at') or '').strip()[:64]
+        capture_motion_state = normalize_capture_motion_state(request.form.get('capture_motion_state'))
+        capture_location_name = (request.form.get('capture_location_name') or '').strip()
+        capture_city = (request.form.get('capture_city') or '').strip()
+        capture_country = (request.form.get('capture_country') or '').strip()
+        if not user_can_override_content_controls(current_user) and capture_source != 'camera':
+            flash('Por seguridad, la publicación debe capturarse en el momento con la cámara.', 'danger')
+            return redirect(url_for('index'))
+        if not user_can_override_content_controls(current_user) and capture_motion_state not in {'stationary', 'walking'}:
+            flash('Por seguridad, solo puedes reportar si estás detenida o caminando al tomar la foto.', 'danger')
+            return redirect(url_for('index'))
+        if not user_can_override_content_controls(current_user) and not valid_coords(capture_lat, capture_lng):
+            flash('Necesitamos la ubicación exacta del lugar donde tomaste la foto para publicar.', 'danger')
+            return redirect(url_for('index'))
+
         # Defense-in-depth: normalize and validate filename again.
         filename = (file.filename or '').strip()
         if not filename:
@@ -2751,6 +3578,9 @@ def create_app():
                 flash('No se pudo procesar la imagen HEIC. Intenta con JPG/PNG.', 'danger')
                 return redirect(url_for('index'))
 
+        if ext in {'.jpg', '.jpeg', '.png', '.webp', '.bmp'}:
+            strip_image_metadata_in_place(save_path)
+
         # Protección de privacidad: difuminar únicamente rostros detectados.
         faces_blurred = 0
         if ext in {'.jpg', '.jpeg', '.png', '.webp', '.bmp'}:
@@ -2778,6 +3608,10 @@ def create_app():
         lat = parse_float(safe_field(form, 'latitude'))
         lng = parse_float(safe_field(form, 'longitude'))
         loc_source = (safe_field(form, 'loc_source') or '').lower()
+        if not user_can_override_content_controls(current_user):
+            lat = capture_lat
+            lng = capture_lng
+            loc_source = 'capture'
 
         # Procesar categorías
         categories_raw = request.form.getlist('categories') or []
@@ -2793,12 +3627,12 @@ def create_app():
         if app.debug:
             try:
                 print('DEBUG: Upload coords -> lat:', lat, 'lng:', lng, 'loc_source:', loc_source)
+                print('DEBUG: Capture motion -> state:', capture_motion_state, 'speed:', capture_speed_mps, 'accuracy:', capture_accuracy, 'taken_at:', capture_taken_at)
                 print('DEBUG: Categories:', categories)
             except Exception as exc:
                 _debug_log_suppressed('suppressed exception', exc)
-        # Ya no bloqueamos la publicación por ubicación.
-        # Si vienen coordenadas inválidas o faltan, continuamos sin ubicarlas.
-        # Esto permite publicar independientemente de si el GPS está activo.
+        # Admin puede continuar sin ubicación válida; publicaciones normales usan la
+        # ubicación exacta congelada al momento de la captura.
         if not valid_coords(lat, lng):
             lat = None
             lng = None
@@ -2806,12 +3640,16 @@ def create_app():
         location_name = safe_field(form, 'location_name')
         city = safe_field(form, 'city')
         country = safe_field(form, 'country')
+        if not user_can_override_content_controls(current_user):
+            location_name = capture_location_name or location_name
+            city = capture_city or city
+            country = capture_country or country
 
         # Programación de publicación
         now = datetime.now()
         publish_at = now
-        if current_user.username != 'admin':
-            publish_at = now + timedelta(minutes=15)
+        if not user_can_override_content_controls(current_user):
+            publish_at = now + timedelta(minutes=safety_publish_fallback_minutes())
         else:
             mode = (request.form.get('publish_mode') or 'now').lower()
             if mode == 'delay':
@@ -2909,7 +3747,7 @@ def create_app():
 
                 location_visibility = normalize_location_visibility(
                     location_visibility_raw,
-                    current_user.username == 'admin'
+                    user_can_override_content_controls(current_user)
                 )
 
                 meta = PostMeta.query.filter_by(post_id=post.id).first()
@@ -2970,14 +3808,15 @@ def create_app():
                 print(f'DEBUG: Location: {post.location_name}')
             except Exception as exc:
                 _debug_log_suppressed('suppressed exception', exc)
-        invalidate_runtime_response_cache('hotspots')
-        invalidate_runtime_response_cache('posts_in_radius')
-        invalidate_runtime_response_cache('posts_by_city')
-        invalidate_runtime_response_cache('feed_sidebar')
-        _feed_sidebar_cache.clear()
+        invalidate_post_discovery_caches()
         # Mensajes según programación
-        if current_user.username != 'admin':
-            flash('Por seguridad tuya, tu publicación se hará pública en 15 min.', 'info')
+        if not user_can_override_content_controls(current_user):
+            policy = safety_publish_policy_payload()
+            flash(
+                f"Tu publicación se hará pública cuando pasen {policy['min_delay_minutes']} min y estés al menos a "
+                f"{policy['distance_meters']} m del punto del reporte, o en máximo {policy['fallback_minutes']} min.",
+                'info'
+            )
         else:
             mode = (request.form.get('publish_mode') or 'now').lower()
             if mode == 'delay':
@@ -2991,6 +3830,21 @@ def create_app():
                 flash('Publicación creada', 'success')
         return redirect(url_for('index'))
 
+    @app.route('/api/posts/pending-safety/status')
+    @login_required
+    def api_pending_safety_status():
+        summary = summarize_pending_safety_posts_for_user(current_user)
+        return jsonify({'ok': True, **summary})
+
+    @app.route('/api/posts/pending-safety/release', methods=['POST'])
+    @login_required
+    def api_pending_safety_release():
+        payload = request.get_json(silent=True) or request.form or {}
+        lat = parse_float(payload.get('lat'))
+        lng = parse_float(payload.get('lng'))
+        result = try_release_pending_safety_posts_for_user(current_user, lat, lng)
+        return jsonify({'ok': True, **result})
+
     @app.route('/uploads/<path:filename>')
     def uploaded_file(filename):
         if current_user.is_authenticated and not is_user_verified(current_user):
@@ -3001,7 +3855,7 @@ def create_app():
         if normalized.startswith('verify/'):
             if not current_user.is_authenticated:
                 abort(403)
-            if current_user.username != 'admin':
+            if not user_can_override_content_controls(current_user):
                 own_req = VerificationRequest.query.filter_by(user_id=current_user.id).first()
                 if not own_req or (own_req.video_filename or '').strip() != normalized:
                     abort(403)
@@ -3021,7 +3875,7 @@ def create_app():
         ).get_or_404(post_id)
         if current_user.is_authenticated and is_user_blocked_between(current_user.id, post.user_id):
             abort(404)
-        if not is_public_post(post) and (not current_user.is_authenticated or current_user.username != 'admin'):
+        if not is_public_post(post) and (not current_user.is_authenticated or not user_can_review_private_content(current_user)):
             abort(404)
         enrich_posts_for_cards([post], current_user)
         comment_form = CommentForm()
@@ -3077,7 +3931,7 @@ def create_app():
             (getattr(post_row, 'publish_at', None) is None or post_row.publish_at <= datetime.now())
             and (getattr(post_row, 'show_public', None) is None or bool(post_row.show_public))
         )
-        if not is_public and (not current_user.is_authenticated or current_user.username != 'admin'):
+        if not is_public and (not current_user.is_authenticated or not user_can_review_private_content(current_user)):
             return jsonify({'comments': [], 'hidden_comments': []})
 
         visible_comments = []
@@ -3092,6 +3946,7 @@ def create_app():
                 User.username,
                 User.profile_pic,
                 User.abuse_strikes,
+                User.roles,
             )
             .join(User, User.id == Comment.user_id)
             .filter(Comment.post_id == post_id)
@@ -3102,7 +3957,12 @@ def create_app():
             try:
                 username = getattr(row, 'username', 'unknown')
                 strikes = int(getattr(row, 'abuse_strikes', 0) or 0)
-                moderation_level = 0 if username == 'admin' else (2 if strikes >= 2 else 1 if strikes >= 1 else 0)
+                is_staff_badged = ROLE_SUPER_ADMIN in {
+                    chunk.strip().lower()
+                    for chunk in str(getattr(row, 'roles', '') or '').split(',')
+                    if chunk.strip()
+                }
+                moderation_level = 0 if is_staff_badged else (2 if strikes >= 2 else 1 if strikes >= 1 else 0)
                 payload = {
                     'id': row.id,
                     'user_id': row.user_id,
@@ -3111,6 +3971,7 @@ def create_app():
                     'content': row.content,
                     'created_at': row.created_at.isoformat() if getattr(row, 'created_at', None) else None,
                     'moderation_level': moderation_level,
+                    'is_super_admin': is_staff_badged,
                     'is_hidden': bool(getattr(row, 'is_hidden', False)),
                 }
                 if payload['is_hidden']:
@@ -3232,6 +4093,7 @@ def create_app():
         folder = ensure_verification_folder()
         unique_name = f"{uuid4().hex}{ext}"
         save_path = os.path.join(folder, unique_name)
+        previous_video = (req.video_filename or '').strip()
         try:
             file.save(save_path)
         except Exception:
@@ -3239,6 +4101,8 @@ def create_app():
         req.video_filename = f"verify/{unique_name}"
         db.session.add(req)
         db.session.commit()
+        if previous_video and previous_video != req.video_filename:
+            safe_remove_upload(previous_video)
         return jsonify({'ok': True, 'message': 'Video cargado.'})
 
     @app.route('/api/verify/submit', methods=['POST'])
@@ -3959,6 +4823,7 @@ def create_app():
                             'id': last_unread.id,
                             'content': last_unread.content,
                             'username': last_unread.user.username if getattr(last_unread, 'user', None) else None,
+                            'is_super_admin': user_has_staff_badge(last_unread.user) if getattr(last_unread, 'user', None) else False,
                             'created_at': last_unread.created_at.isoformat() if last_unread.created_at else None,
                             'message_type': last_unread.message_type,
                             'attachment_name': last_unread.attachment_name,
@@ -3971,7 +4836,7 @@ def create_app():
                 is_owner = room.created_by == current_user.id
                 can_post = True
                 if getattr(room, 'messages_open', True) is False:
-                    can_post = current_user.username == 'admin' or is_owner
+                    can_post = user_has_permission(current_user, PERM_CHAT_ROOMS_OVERRIDE) or is_owner
                 last_is_deleted = bool(getattr(last_message, 'is_deleted', False)) if last_message else False
                 last_deleted_reason = chat_message_deleted_reason(last_message) if last_is_deleted else None
                 rooms.append({
@@ -3987,6 +4852,7 @@ def create_app():
                         'id': last_message.id if last_message else None,
                         'content': '' if last_is_deleted else (last_message.content if last_message else None),
                         'username': last_message.user.username if last_message and getattr(last_message, 'user', None) else None,
+                        'is_super_admin': user_has_staff_badge(last_message.user) if last_message and getattr(last_message, 'user', None) else False,
                         'created_at': last_message.created_at.isoformat() if last_message else None,
                         'message_type': last_message.message_type if last_message else None,
                         'attachment_name': None if last_is_deleted else (last_message.attachment_name if last_message else None),
@@ -4075,6 +4941,7 @@ def create_app():
                     row[0]
                     for row in db.session.query(ChatMessageReport.message_id)
                     .filter(ChatMessageReport.message_id.in_(message_ids))
+                    .filter(ChatMessageReport.status.in_(('reviewing', 'struck')))
                     .all()
                 }
 
@@ -4093,6 +4960,7 @@ def create_app():
                     'id': msg.id,
                     'content': '' if is_deleted else msg.content,
                     'username': msg.user.username if getattr(msg, 'user', None) else 'unknown',
+                    'is_super_admin': user_has_staff_badge(msg.user) if getattr(msg, 'user', None) else False,
                     'user_id': msg.user.id if getattr(msg, 'user', None) else None,
                     'user_avatar': avatar_url_for_user(msg.user) if getattr(msg, 'user', None) else url_for('static', filename='images/default_avatar.jpg'),
                     'created_at': msg.created_at.isoformat(),
@@ -4133,8 +5001,8 @@ def create_app():
             if room.created_by and is_user_blocked_between(current_user.id, room.created_by):
                 return jsonify({'error': 'No puedes enviar mensajes en esta sala.'}), 403
             if not getattr(room, 'messages_open', True):
-                if current_user.username != 'admin' and room.created_by != current_user.id:
-                    return jsonify({'error': 'Solo el admin y el creador pueden enviar mensajes en esta sala.'}), 403
+                if not user_has_permission(current_user, PERM_CHAT_ROOMS_OVERRIDE) and room.created_by != current_user.id:
+                    return jsonify({'error': 'Solo personal autorizado y la creadora pueden enviar mensajes en esta sala.'}), 403
 
             # Ensure participant exists (public rooms)
             participant = ChatParticipant.query.filter_by(user_id=current_user.id, room_id=room_id).first()
@@ -4161,6 +5029,8 @@ def create_app():
                 ensure_upload_folder()
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
                 attachment_file.save(file_path)
+                if ext in {'png', 'jpg', 'jpeg', 'webp', 'bmp'}:
+                    strip_image_metadata_in_place(file_path)
                 if not sync_public_upload_to_storage(unique_filename, local_path=file_path, mime_type=attachment_file.mimetype):
                     try:
                         os.remove(file_path)
@@ -4213,6 +5083,7 @@ def create_app():
                 'is_deleted': False,
                 'deleted_reason': None,
                 'moderation_level': moderation_badge_level(current_user),
+                'is_super_admin': user_has_staff_badge(current_user),
             }
 
             try:
@@ -4238,7 +5109,7 @@ def create_app():
             return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
         """Update chat room metadata (admin or creator only)."""
         room = ChatRoom.query.get_or_404(room_id)
-        if current_user.username != 'admin' and room.created_by != current_user.id:
+        if not user_has_permission(current_user, PERM_CHAT_ROOMS_MANAGE) and room.created_by != current_user.id:
             return jsonify({'error': 'Acceso denegado'}), 403
 
         description = (request.form.get('description') or '').strip()
@@ -4257,6 +5128,7 @@ def create_app():
             upload_folder = ensure_upload_folder()
             save_path = os.path.join(upload_folder, unique_name)
             file.save(save_path)
+            strip_image_metadata_in_place(save_path)
             if not sync_public_upload_to_storage(unique_name, local_path=save_path, mime_type=file.mimetype):
                 try:
                     os.remove(save_path)
@@ -4305,7 +5177,7 @@ def create_app():
                 return jsonify({'error': 'Room name already exists'}), 400
 
             # Create room
-            is_approved = True if current_user.username == 'admin' else False
+            is_approved = True if user_has_permission(current_user, PERM_CHAT_ROOMS_MANAGE) else False
             room = ChatRoom(
                 name=room_name,
                 is_private=is_private,
@@ -4967,6 +5839,12 @@ def create_app():
             return jsonify({'ok': False, 'error': 'No se pudo compartir la publicación'}), 400
 
     REPORT_REASONS = [
+        'Doxxing o datos personales',
+        'Ubicación exacta, rastreo o rutina',
+        'Amenaza o violencia',
+        'Contenido íntimo o sexual sin consentimiento',
+        'Suplantación de identidad',
+        'Fraude o phishing',
         'Información falso',
         'La imagen no corresponde al evento',
         'La imagen fue hecha con IA',
@@ -4974,14 +5852,61 @@ def create_app():
         'La ubicación no corresponde al lugar donde se tomó la foto',
     ]
     CHAT_MESSAGE_REPORT_REASONS = [
-        'Acoso o insultos',
-        'Spam o fraude',
+        'Doxxing o datos personales',
+        'Ubicación exacta, rastreo o rutina',
         'Amenaza o violencia',
+        'Contenido íntimo o sexual sin consentimiento',
         'Contenido sexual no solicitado',
         'Archivo o enlace sospechoso',
+        'Acoso o insultos',
+        'Spam o fraude',
     ]
 
     COMMENT_REPORT_REASONS = CHAT_MESSAGE_REPORT_REASONS[:]
+
+    POST_HIGH_RISK_REPORT_REASONS = {
+        'Doxxing o datos personales',
+        'Ubicación exacta, rastreo o rutina',
+        'Amenaza o violencia',
+        'Contenido íntimo o sexual sin consentimiento',
+        'Suplantación de identidad',
+        'Fraude o phishing',
+    }
+    CHAT_MESSAGE_HIGH_RISK_REPORT_REASONS = {
+        'Doxxing o datos personales',
+        'Ubicación exacta, rastreo o rutina',
+        'Amenaza o violencia',
+        'Contenido íntimo o sexual sin consentimiento',
+        'Contenido sexual no solicitado',
+        'Archivo o enlace sospechoso',
+    }
+    COMMENT_HIGH_RISK_REPORT_REASONS = CHAT_MESSAGE_HIGH_RISK_REPORT_REASONS.copy()
+    HIGH_RISK_REPORT_PATTERNS = (
+        re.compile(r'(?:google\.com/maps|maps\.app\.goo\.gl|goo\.gl/maps|maps\.apple\.com|waze\.com/ul)', re.IGNORECASE),
+        re.compile(r'(?<!\d)-?\d{1,2}\.\d{4,}\s*,\s*-?\d{1,3}\.\d{4,}(?!\d)'),
+        re.compile(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}', re.IGNORECASE),
+        re.compile(r'(?:tel[eé]fono|celular|whatsapp|contacto)[^\n]{0,24}(?:\+?\d[\d\s().-]{7,}\d)', re.IGNORECASE),
+    )
+
+    def _report_requires_immediate_hide(source_type: str, reason: str, details: str | None = None, content_excerpt: str | None = None) -> bool:
+        if source_type == 'post':
+            high_risk_reasons = POST_HIGH_RISK_REPORT_REASONS
+        elif source_type == 'comment':
+            high_risk_reasons = COMMENT_HIGH_RISK_REPORT_REASONS
+        else:
+            high_risk_reasons = CHAT_MESSAGE_HIGH_RISK_REPORT_REASONS
+
+        if reason in high_risk_reasons:
+            return True
+
+        combined_text = '\n'.join(
+            part.strip()
+            for part in (details or '', content_excerpt or '')
+            if part and part.strip()
+        )
+        if not combined_text:
+            return False
+        return any(pattern.search(combined_text) for pattern in HIGH_RISK_REPORT_PATTERNS)
 
     def _mark_report_resolution(report, status: str, admin_note: str | None = None):
         report.status = status
@@ -5018,6 +5943,7 @@ def create_app():
             'is_deleted': is_deleted,
             'deleted_reason': chat_message_deleted_reason(message),
             'moderation_level': moderation_badge_level(message.user),
+            'is_super_admin': user_has_staff_badge(message.user),
         }
 
     def _emit_message_restored(message: ChatMessage):
@@ -5084,15 +6010,23 @@ def create_app():
             return jsonify({'ok': False, 'error': 'Categoría inválida'}), 400
 
         post = Post.query.get_or_404(post_id)
+        if post.user_id == current_user.id and not user_is_protected_staff(current_user):
+            return jsonify({'ok': False, 'error': 'No puedes reportar tu propia publicación.'}), 400
         if is_user_blocked_between(current_user.id, post.user_id):
             return jsonify({'ok': False, 'error': 'No puedes reportar contenido de esta cuenta.'}), 403
         existing = Report.query.filter_by(post_id=post.id, reporter_id=current_user.id).first()
+        high_risk = _report_requires_immediate_hide(
+            'post',
+            reason,
+            details=details,
+            content_excerpt='\n'.join(part for part in (post.caption or '', post.location_name or '') if part),
+        )
 
         try:
             if existing:
                 existing.reason = reason
                 existing.details = details or None
-                existing.status = 'pending'
+                existing.status = 'reviewing' if high_risk else 'pending'
                 existing.admin_note = None
                 existing.resolved_at = None
                 existing.resolved_by = None
@@ -5103,18 +6037,44 @@ def create_app():
                 report.reporter_id = current_user.id
                 report.reason = reason
                 report.details = details or None
-                report.status = 'pending'
+                report.status = 'reviewing' if high_risk else 'pending'
                 db.session.add(report)
 
+            content_hidden = False
             meta = PostMeta.query.filter_by(post_id=post.id).first()
-            if not meta:
-                meta = PostMeta()  # type: ignore
-                meta.post_id = post.id
-            meta.show_public = False
-            db.session.add(meta)
+            if high_risk:
+                if not meta:
+                    meta = PostMeta()  # type: ignore
+                    meta.post_id = post.id
+                meta.show_public = False
+                db.session.add(meta)
+                content_hidden = True
+            elif meta and meta.show_public is False:
+                content_hidden = True
 
             db.session.commit()
-            return jsonify({'ok': True, 'message': 'Reporte enviado', 'report_id': report.id, 'status': report.status})
+            if high_risk:
+                invalidate_runtime_response_cache('hotspots')
+                invalidate_runtime_response_cache('posts_in_radius')
+                invalidate_runtime_response_cache('posts_by_city')
+                invalidate_runtime_response_cache('feed_sidebar')
+                _feed_sidebar_cache.clear()
+
+            if high_risk:
+                message = 'Reporte de alto riesgo enviado. La publicación se ocultó preventivamente mientras la revisamos.'
+            elif content_hidden:
+                message = 'Reporte enviado. La publicación ya está oculta mientras el equipo la revisa.'
+            else:
+                message = 'Reporte enviado a revisión. La publicación seguirá visible hasta que el equipo la revise.'
+
+            return jsonify({
+                'ok': True,
+                'message': message,
+                'report_id': report.id,
+                'status': report.status,
+                'high_risk': high_risk,
+                'hidden_immediately': content_hidden,
+            })
         except Exception as e:
             db.session.rollback()
             if app.debug:
@@ -5194,10 +6154,7 @@ def create_app():
             .order_by(Post.created_at.desc())
             .all()
         )
-        now = datetime.now()
-        for p in user_posts:
-            p.can_delete = bool(p.created_at and (now - p.created_at) <= timedelta(hours=1))
-            p.is_pending = bool(getattr(p, 'publish_at', None) and getattr(p, 'publish_at') > now)
+        annotate_user_post_visibility_state(user_posts)
         enrich_posts_for_cards(user_posts, current_user)
         report_count = len(user_posts)
         total_likes = sum((getattr(p, 'likes_count', 0) for p in user_posts), 0)
@@ -5211,60 +6168,603 @@ def create_app():
             total_comments=total_comments,
         )
 
+    def _base_ops_panel_context() -> dict:
+        return {
+            'users': [],
+            'posts': [],
+            'total_likes': 0,
+            'total_comments': 0,
+            'chat_rooms': [],
+            'pending_rooms': [],
+            'chat_message_reports': [],
+            'comment_reports': [],
+            'verifications': [],
+            'pending_verifications': [],
+            'panic_events': [],
+            'checkins': [],
+            'audit_logs': [],
+            'audit_filters': {},
+            'audit_filter_options': {'workspaces': [], 'event_types': [], 'days': list(AUDIT_DAYS_FILTER_OPTIONS)},
+            'audit_export_url': '',
+            'audit_retention_days': audit_log_retention_days(),
+            'available_admin_tabs': [],
+            'active_admin_tab': 'users',
+            'initial_admin_tab': 'users',
+            'ops_panel_title': 'Panel de Operaciones',
+            'ops_panel_subtitle': 'Resumen de actividad en tiempo real.',
+            'show_admin_overview': False,
+            'staff_role_options': staff_role_payloads(),
+            'active_reports_subtab': 'reportados',
+        }
+
+    def _build_super_admin_overview_context() -> dict:
+        return {
+            'total_users_count': db.session.query(func.count(User.id)).scalar() or 0,
+            'total_posts_count': db.session.query(func.count(Post.id)).scalar() or 0,
+            'total_likes': db.session.query(func.count(Like.id)).scalar() or 0,
+            'total_comments': db.session.query(func.count(Comment.id)).scalar() or 0,
+        }
+
+    def _build_super_admin_ops_context(active_tab: str = 'users', reports_subtab: str = 'reportados', *, include_overview: bool = True, page_number: int = 1) -> dict:
+        context = _base_ops_panel_context()
+        available_tabs = ['users', 'posts', 'reportes', 'chats', 'verificaciones', 'rutas']
+        if active_tab not in available_tabs:
+            active_tab = 'users'
+        report_subtabs = {'reportados', 'reportes-chat', 'reportes-comentarios'}
+        if reports_subtab not in report_subtabs:
+            reports_subtab = 'reportados'
+        page_number = max(1, int(page_number or 1))
+
+        users_limit = app.config.get('ADMIN_USERS_LIMIT', 12)
+        posts_limit = app.config.get('ADMIN_POSTS_LIMIT', 9)
+        reported_posts_limit = app.config.get('ADMIN_REPORTED_POSTS_LIMIT', 8)
+        chat_rooms_limit = app.config.get('ADMIN_CHAT_ROOMS_LIMIT', 8)
+        reports_limit = app.config.get('ADMIN_REPORTS_LIMIT', 8)
+        verifications_limit = app.config.get('ADMIN_VERIFICATIONS_LIMIT', 8)
+        checkins_limit = app.config.get('ADMIN_CHECKINS_LIMIT', 10)
+        panic_events_limit = app.config.get('ADMIN_PANIC_EVENTS_LIMIT', 8)
+
+        context.update({
+            'available_admin_tabs': available_tabs,
+            'active_admin_tab': active_tab,
+            'initial_admin_tab': active_tab,
+            'ops_panel_title': 'Panel de Operaciones',
+            'ops_panel_subtitle': 'Resumen de actividad en tiempo real.',
+            'show_admin_overview': include_overview,
+            'active_reports_subtab': reports_subtab,
+            'admin_page_number': page_number,
+        })
+
+        if include_overview:
+            context.update(_build_super_admin_overview_context())
+
+        if active_tab == 'users':
+            total_users_count = db.session.query(func.count(User.id)).scalar() or 0
+            total_pages = max(1, (total_users_count + users_limit - 1) // users_limit) if total_users_count else 1
+            page_number = min(page_number, total_pages)
+            users = (
+                User.query
+                .order_by(User.created_at.desc())
+                .offset((page_number - 1) * users_limit)
+                .limit(users_limit)
+                .all()
+            )
+            user_ids = [user.id for user in users]
+            user_post_counts = {}
+            user_like_counts = {}
+            if user_ids:
+                user_post_counts = dict(
+                    db.session.query(Post.user_id, func.count(Post.id))
+                    .filter(Post.user_id.in_(user_ids))
+                    .group_by(Post.user_id)
+                    .all()
+                )
+                user_like_counts = dict(
+                    db.session.query(Post.user_id, func.count(Like.id))
+                    .join(Like, Like.post_id == Post.id)
+                    .filter(Post.user_id.in_(user_ids))
+                    .group_by(Post.user_id)
+                    .all()
+                )
+            for user in users:
+                user.post_count = int(user_post_counts.get(user.id, 0))
+                user.like_count = int(user_like_counts.get(user.id, 0))
+            context.update({
+                'users': users,
+                'total_users_count': total_users_count,
+                'tab_total_count': total_users_count,
+                'tab_page': page_number,
+                'tab_total_pages': total_pages,
+                'tab_has_prev': page_number > 1,
+                'tab_has_next': page_number < total_pages,
+                'tab_page_size': users_limit,
+            })
+            return context
+
+        if active_tab == 'posts':
+            total_posts_count = db.session.query(func.count(Post.id)).scalar() or 0
+            total_pages = max(1, (total_posts_count + posts_limit - 1) // posts_limit) if total_posts_count else 1
+            page_number = min(page_number, total_pages)
+            posts = (
+                Post.query.options(
+                    selectinload(Post.author),
+                    selectinload(Post.meta),
+                )
+                .order_by(Post.created_at.desc())
+                .offset((page_number - 1) * posts_limit)
+                .limit(posts_limit)
+                .all()
+            )
+            enrich_posts_for_cards(posts, current_user)
+            post_ids = [post.id for post in posts]
+            reported_post_ids = set()
+            if post_ids:
+                reported_post_ids = {
+                    int(post_id)
+                    for post_id, in db.session.query(Report.post_id)
+                    .filter(Report.post_id.in_(post_ids))
+                    .distinct()
+                    .all()
+                }
+            for post in posts:
+                is_hidden = bool(post.meta and post.meta.show_public is not None and not post.meta.show_public)
+                post.is_reported_admin = is_hidden or post.id in reported_post_ids
+            context.update({
+                'posts': posts,
+                'total_posts_count': total_posts_count,
+                'tab_total_count': total_posts_count,
+                'tab_page': page_number,
+                'tab_total_pages': total_pages,
+                'tab_has_prev': page_number > 1,
+                'tab_has_next': page_number < total_pages,
+                'tab_page_size': posts_limit,
+            })
+            return context
+
+        if active_tab == 'reportes':
+            reported_posts = []
+            chat_message_reports = []
+            comment_reports = []
+
+            if reports_subtab == 'reportados':
+                reported_posts = (
+                    Post.query.options(
+                        selectinload(Post.author),
+                        selectinload(Post.meta),
+                        selectinload(Post.reports).selectinload(Report.reporter),
+                        selectinload(Post.reports).selectinload(Report.resolver),
+                    )
+                    .filter(
+                        or_(
+                            Post.meta.has(PostMeta.show_public.is_(False)),
+                            Post.reports.any(),
+                        )
+                    )
+                    .order_by(Post.created_at.desc())
+                    .limit(reported_posts_limit)
+                    .all()
+                )
+                enrich_posts_for_cards(reported_posts, current_user)
+            elif reports_subtab == 'reportes-chat':
+                chat_message_reports = (
+                    ChatMessageReport.query.options(
+                        selectinload(ChatMessageReport.message).selectinload(ChatMessage.user),
+                        selectinload(ChatMessageReport.message).selectinload(ChatMessage.room),
+                        selectinload(ChatMessageReport.reporter),
+                        selectinload(ChatMessageReport.resolver),
+                    )
+                    .order_by(ChatMessageReport.created_at.desc())
+                    .limit(reports_limit)
+                    .all()
+                )
+            else:
+                comment_reports = (
+                    CommentReport.query.options(
+                        selectinload(CommentReport.comment).selectinload(Comment.author),
+                        selectinload(CommentReport.comment).selectinload(Comment.post),
+                        selectinload(CommentReport.reporter),
+                        selectinload(CommentReport.resolver),
+                    )
+                    .order_by(CommentReport.created_at.desc())
+                    .limit(reports_limit)
+                    .all()
+                )
+            context.update({
+                'reported_posts': reported_posts,
+                'chat_message_reports': chat_message_reports,
+                'comment_reports': comment_reports,
+            })
+            return context
+
+        if active_tab == 'chats':
+            pending_rooms = (
+                ChatRoom.query.filter_by(is_approved=False)
+                .order_by(ChatRoom.created_at.desc())
+                .limit(chat_rooms_limit)
+                .all()
+            )
+            chat_rooms = (
+                ChatRoom.query.order_by(ChatRoom.created_at.desc())
+                .limit(chat_rooms_limit)
+                .all()
+            )
+            room_ids = [room.id for room in chat_rooms]
+            room_participant_counts = {}
+            room_message_counts = {}
+            if room_ids:
+                room_participant_counts = {
+                    int(room_id): int(count or 0)
+                    for room_id, count in db.session.query(ChatParticipant.room_id, func.count(ChatParticipant.id))
+                    .filter(ChatParticipant.room_id.in_(room_ids))
+                    .group_by(ChatParticipant.room_id)
+                    .all()
+                }
+                room_message_counts = {
+                    int(room_id): int(count or 0)
+                    for room_id, count in db.session.query(ChatMessage.room_id, func.count(ChatMessage.id))
+                    .filter(ChatMessage.room_id.in_(room_ids))
+                    .group_by(ChatMessage.room_id)
+                    .all()
+                }
+            for room in chat_rooms:
+                room.participant_count = room_participant_counts.get(room.id, 0)
+                room.message_count = room_message_counts.get(room.id, 0)
+            context.update({
+                'pending_rooms': pending_rooms,
+                'chat_rooms': chat_rooms,
+            })
+            return context
+
+        if active_tab == 'verificaciones':
+            verifications = (
+                VerificationRequest.query.options(
+                    selectinload(VerificationRequest.user),
+                    selectinload(VerificationRequest.reviewer),
+                )
+                .order_by(VerificationRequest.created_at.desc())
+                .limit(verifications_limit)
+                .all()
+            )
+            pending_verifications = [v for v in verifications if getattr(v, 'status', '') == 'pending']
+            pending_verifications_count = (
+                db.session.query(func.count(VerificationRequest.id))
+                .filter(VerificationRequest.status == 'pending')
+                .scalar()
+                or 0
+            )
+            context.update({
+                'verifications': verifications,
+                'pending_verifications': pending_verifications,
+                'pending_verifications_count': pending_verifications_count,
+            })
+            return context
+
+        if active_tab == 'rutas':
+            maybe_process_overdue_checkins(ttl_seconds=30)
+            checkins = (
+                SafetyCheckin.query.options(selectinload(SafetyCheckin.user))
+                .order_by(SafetyCheckin.started_at.desc())
+                .limit(checkins_limit)
+                .all()
+            )
+            checkins_total_count = db.session.query(func.count(SafetyCheckin.id)).scalar() or 0
+            panic_events = (
+                PanicEvent.query.options(selectinload(PanicEvent.user), selectinload(PanicEvent.resolver))
+                .filter_by(status='open')
+                .order_by(PanicEvent.created_at.desc())
+                .limit(panic_events_limit)
+                .all()
+            )
+            context.update({
+                'checkins': checkins,
+                'checkins_total_count': checkins_total_count,
+                'panic_events': panic_events,
+            })
+            return context
+
+        return context
+
+    def _build_verification_ops_context() -> dict:
+        context = _base_ops_panel_context()
+        verifications = (
+            VerificationRequest.query.options(
+                selectinload(VerificationRequest.user),
+                selectinload(VerificationRequest.reviewer),
+            )
+            .order_by(VerificationRequest.created_at.desc())
+            .all()
+        )
+        context.update({
+            'verifications': verifications,
+            'pending_verifications': [v for v in verifications if getattr(v, 'status', '') == 'pending'],
+            'available_admin_tabs': ['verificaciones'],
+            'initial_admin_tab': 'verificaciones',
+            'ops_panel_title': 'Centro de Verificación',
+            'ops_panel_subtitle': 'Revisión de identidad y elegibilidad.',
+        })
+        return context
+
+    def _build_moderation_ops_context() -> dict:
+        context = _base_ops_panel_context()
+        posts = (
+            Post.query.options(
+                selectinload(Post.author),
+                selectinload(Post.meta),
+                selectinload(Post.reports).selectinload(Report.reporter),
+                selectinload(Post.reports).selectinload(Report.resolver),
+            )
+            .outerjoin(PostMeta, PostMeta.post_id == Post.id)
+            .outerjoin(Report, Report.post_id == Post.id)
+            .filter(
+                or_(
+                    and_(PostMeta.id.isnot(None), PostMeta.show_public.is_(False)),
+                    Report.id.isnot(None),
+                )
+            )
+            .order_by(Post.created_at.desc())
+            .distinct()
+            .all()
+        )
+        enrich_posts_for_cards(posts, current_user)
+        chat_message_reports = (
+            ChatMessageReport.query.options(
+                selectinload(ChatMessageReport.message).selectinload(ChatMessage.user),
+                selectinload(ChatMessageReport.message).selectinload(ChatMessage.room),
+                selectinload(ChatMessageReport.reporter),
+                selectinload(ChatMessageReport.resolver),
+            )
+            .order_by(ChatMessageReport.created_at.desc())
+            .all()
+        )
+        comment_reports = (
+            CommentReport.query.options(
+                selectinload(CommentReport.comment).selectinload(Comment.author),
+                selectinload(CommentReport.comment).selectinload(Comment.post),
+                selectinload(CommentReport.reporter),
+                selectinload(CommentReport.resolver),
+            )
+            .order_by(CommentReport.created_at.desc())
+            .all()
+        )
+        context.update({
+            'posts': posts,
+            'chat_message_reports': chat_message_reports,
+            'comment_reports': comment_reports,
+            'available_admin_tabs': ['reportes'],
+            'initial_admin_tab': 'reportes',
+            'ops_panel_title': 'Centro de Moderación',
+            'ops_panel_subtitle': 'Revisión de reportes, restauraciones y strikes.',
+        })
+        return context
+
+    def _build_safety_ops_context() -> dict:
+        maybe_process_overdue_checkins(ttl_seconds=30)
+        context = _base_ops_panel_context()
+        checkins = (
+            SafetyCheckin.query.options(selectinload(SafetyCheckin.user))
+            .order_by(SafetyCheckin.started_at.desc())
+            .limit(200)
+            .all()
+        )
+        panic_events = (
+            PanicEvent.query.options(selectinload(PanicEvent.user), selectinload(PanicEvent.resolver))
+            .filter_by(status='open')
+            .order_by(PanicEvent.created_at.desc())
+            .all()
+        )
+        context.update({
+            'checkins': checkins,
+            'panic_events': panic_events,
+            'available_admin_tabs': ['rutas'],
+            'initial_admin_tab': 'rutas',
+            'ops_panel_title': 'Centro de Safety',
+            'ops_panel_subtitle': 'Monitoreo de check-ins, trayectos y eventos de pánico.',
+        })
+        return context
+
     @app.route('/admin')
     @login_required
+    @permission_required(PERM_ADMIN_PANEL_VIEW, flash_message='Acceso denegado. Solo para personal autorizado.')
     def admin_panel():
-        if current_user.username != 'admin':
-            flash('Acceso denegado. Solo para administradores.', 'error')
-            return redirect(url_for('index'))
-
-        process_overdue_checkins()
-
-        # Get all users and posts for admin management
-        users = User.query.all()
-        posts = Post.query.options(selectinload(Post.author), selectinload(Post.meta)).all()
-        enrich_posts_for_cards(posts, current_user)
-        # Ensure at least one public chat room exists
-        try:
-            _ensure_default_chat_room()
-        except Exception as exc:
-            _debug_log_suppressed('suppressed exception', exc)
-        chat_rooms = ChatRoom.query.order_by(ChatRoom.created_at.desc()).all()
-        pending_rooms = [r for r in chat_rooms if not getattr(r, 'is_approved', True)]
-        chat_message_reports = ChatMessageReport.query.order_by(ChatMessageReport.created_at.desc()).all()
-        comment_reports = CommentReport.query.order_by(CommentReport.created_at.desc()).all()
-
-        verifications = VerificationRequest.query.order_by(VerificationRequest.created_at.desc()).all()
-        pending_verifications = [v for v in verifications if getattr(v, 'status', '') == 'pending']
-
-        checkins = SafetyCheckin.query.order_by(SafetyCheckin.started_at.desc()).limit(200).all()
-
-        # Calculate statistics
-        total_likes = sum((getattr(post, 'likes_count', 0) for post in posts), 0)
-        total_comments = sum((getattr(post, 'comments_count', 0) for post in posts), 0)
-
-        return render_template(
-            'admin.html',
-            users=users,
-            posts=posts,
-            total_likes=total_likes,
-            total_comments=total_comments,
-            chat_rooms=chat_rooms,
-            pending_rooms=pending_rooms,
-            chat_message_reports=chat_message_reports,
-            comment_reports=comment_reports,
-            verifications=verifications,
-            pending_verifications=pending_verifications,
-            panic_events=PanicEvent.query.filter_by(status='open').order_by(PanicEvent.created_at.desc()).all(),
-            checkins=checkins,
+        active_tab = (request.args.get('tab') or 'users').strip().lower()
+        reports_subtab = (request.args.get('reports_subtab') or 'reportados').strip().lower()
+        page_number = max(1, request.args.get('page', default=1, type=int) or 1)
+        page_cache_key = ('page_admin_shell', current_user.id, active_tab, reports_subtab, page_number)
+        cached_response = get_cached_html_page(page_cache_key, 90)
+        if cached_response is not None:
+            return cached_response
+        html = render_template(
+            'admin_shell.html',
+            active_admin_tab=active_tab,
+            active_reports_subtab=reports_subtab,
+            active_page_number=page_number,
         )
+        return set_cached_html_page(page_cache_key, html, ttl_seconds=90, max_entries=96)
+
+    @app.route('/admin/content')
+    @login_required
+    @permission_required(PERM_ADMIN_PANEL_VIEW, flash_message='Acceso denegado. Solo para personal autorizado.')
+    def admin_panel_content():
+        active_tab = (request.args.get('tab') or 'users').strip().lower()
+        reports_subtab = (request.args.get('reports_subtab') or 'reportados').strip().lower()
+        page_number = max(1, request.args.get('page', default=1, type=int) or 1)
+        if active_tab == 'chats':
+            try:
+                _ensure_default_chat_room()
+            except Exception as exc:
+                _debug_log_suppressed('suppressed exception', exc)
+        page_cache_key = ('page_admin_content', current_user.id, active_tab, reports_subtab, page_number)
+        cached_response = get_cached_html_page(page_cache_key, 45)
+        if cached_response is not None:
+            return cached_response
+        context = _build_super_admin_ops_context(active_tab, reports_subtab, include_overview=False, page_number=page_number)
+        record_audit_event(
+            'workspace.view',
+            workspace='admin',
+            resource_type='workspace',
+            summary='Abrió el panel completo de operaciones.',
+            details={
+                'available_tabs': context.get('available_admin_tabs') or [],
+                'active_tab': context.get('active_admin_tab') or 'users',
+                'active_reports_subtab': context.get('active_reports_subtab') or 'reportados',
+                'page_number': context.get('admin_page_number') or 1,
+                'mode': 'content',
+            },
+        )
+        html = render_template('admin.html', admin_partial=True, **context)
+        return set_cached_html_page(page_cache_key, html, ttl_seconds=45, max_entries=96)
+
+    @app.route('/admin/overview')
+    @login_required
+    @permission_required(PERM_ADMIN_PANEL_VIEW, flash_message='Acceso denegado. Solo para personal autorizado.')
+    def admin_panel_overview():
+        page_cache_key = ('page_admin_overview', current_user.id)
+        cached_response = get_cached_html_page(page_cache_key, 45)
+        if cached_response is not None:
+            return cached_response
+        html = render_template('admin_overview.html', **_build_super_admin_overview_context())
+        return set_cached_html_page(page_cache_key, html, ttl_seconds=45, max_entries=96)
+
+    @app.route('/admin/tab-content')
+    @login_required
+    @permission_required(PERM_ADMIN_PANEL_VIEW, flash_message='Acceso denegado. Solo para personal autorizado.')
+    def admin_panel_tab_content():
+        return admin_panel_content()
+
+    @app.route('/admin/audit_logs/export')
+    @login_required
+    @permission_required(PERM_ADMIN_PANEL_VIEW, flash_message='Acceso denegado. Solo para personal autorizado.')
+    def admin_export_audit_logs():
+        filters = build_audit_filters_from_request()
+        rows = build_audit_log_query(
+            filters,
+            include_related=True,
+            limit=audit_log_export_limit(),
+        ).all()
+
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow([
+            'created_at',
+            'workspace',
+            'event_type',
+            'summary',
+            'actor_username',
+            'target_username',
+            'resource_type',
+            'resource_id',
+            'route',
+            'method',
+            'ip_address',
+            'user_agent',
+            'details',
+        ])
+        for entry in rows:
+            writer.writerow([
+                entry.created_at.isoformat() if entry.created_at else '',
+                entry.workspace or '',
+                entry.event_type or '',
+                entry.summary or '',
+                entry.actor.username if entry.actor else '',
+                entry.target_user.username if entry.target_user else '',
+                entry.resource_type or '',
+                entry.resource_id or '',
+                entry.route or '',
+                entry.method or '',
+                entry.ip_address or '',
+                entry.user_agent or '',
+                entry.details or '',
+            ])
+
+        record_audit_event(
+            'audit.export',
+            workspace='admin',
+            resource_type='audit_log',
+            summary='Exportó auditoría en CSV.',
+            details={
+                'rows_exported': len(rows),
+                'filters': audit_filters_to_query_params(filters),
+            },
+        )
+
+        response = make_response(buffer.getvalue())
+        response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+        response.headers['Content-Disposition'] = f'attachment; filename=audit-logs-{utc_now_naive().strftime("%Y%m%d-%H%M%S")}.csv'
+        return response
+
+    @app.route('/admin/audit_logs/purge', methods=['POST'])
+    @login_required
+    @permission_required(PERM_ADMIN_PANEL_VIEW, json_only=True, flash_message='Acceso denegado. Solo para personal autorizado.')
+    def admin_purge_audit_logs():
+        try:
+            deleted_count = purge_expired_audit_logs()
+            retention_days = audit_log_retention_days()
+            record_audit_event(
+                'audit.purge',
+                workspace='admin',
+                resource_type='audit_log',
+                summary='Ejecutó la purga de auditoría.',
+                details={
+                    'deleted_count': deleted_count,
+                    'retention_days': retention_days,
+                },
+            )
+            return jsonify({
+                'success': True,
+                'deleted_count': deleted_count,
+                'retention_days': retention_days,
+            })
+        except Exception as exc:
+            db.session.rollback()
+            _debug_log_suppressed('suppressed audit purge route exception', exc)
+            return jsonify({'success': False, 'error': 'No se pudo completar la purga de auditoría.'}), 500
+
+    @app.route('/staff/verificaciones')
+    @login_required
+    @permission_required(PERM_VERIFICATION_REVIEW, flash_message='Acceso denegado. Solo para personal de verificación.')
+    def verification_workspace():
+        context = _build_verification_ops_context()
+        record_audit_event(
+            'workspace.view',
+            workspace='verification',
+            resource_type='workspace',
+            summary='Abrió el centro de verificación.',
+            details={'available_tabs': context.get('available_admin_tabs') or []},
+        )
+        return render_template('admin.html', **context)
+
+    @app.route('/staff/moderacion')
+    @login_required
+    @permission_required(PERM_REPORTS_REVIEW, flash_message='Acceso denegado. Solo para personal de moderación.')
+    def moderation_workspace():
+        context = _build_moderation_ops_context()
+        record_audit_event(
+            'workspace.view',
+            workspace='moderation',
+            resource_type='workspace',
+            summary='Abrió el centro de moderación.',
+            details={'available_tabs': context.get('available_admin_tabs') or []},
+        )
+        return render_template('admin.html', **context)
+
+    @app.route('/staff/safety')
+    @login_required
+    @permission_required(PERM_SAFETY_VIEW_ANY, flash_message='Acceso denegado. Solo para personal de safety.')
+    def safety_workspace():
+        context = _build_safety_ops_context()
+        record_audit_event(
+            'workspace.view',
+            workspace='safety',
+            resource_type='workspace',
+            summary='Abrió el centro de safety.',
+            details={'available_tabs': context.get('available_admin_tabs') or []},
+        )
+        return render_template('admin.html', **context)
 
     @app.route('/admin/reports_timeseries')
     @login_required
+    @permission_required(PERM_ADMIN_PANEL_VIEW, json_only=True)
     def admin_reports_timeseries():
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
-
         days = request.args.get('days', default=7, type=int)
         if days not in (7, 15, 30):
             days = 7
@@ -5301,14 +6801,14 @@ def create_app():
                 if not raw:
                     continue
                 key = raw.casefold()
-                if key in ('baldios', 'baldío', 'baldio', 'baldíos'):
-                    normalized.add('Baldíos')
+                if key in ('terrenos baldios', 'terrenos baldíos', 'baldios', 'baldío', 'baldio', 'baldíos', 'punto ciego'):
+                    normalized.add('Terrenos baldíos')
                 elif key in ('poca iluminacion', 'poca iluminación'):
                     normalized.add('Poca iluminación')
                 elif key in ('banquetas en mal estado',):
                     normalized.add('Banquetas en mal estado')
-                elif key in ('zonas inseguras',):
-                    normalized.add('Zonas inseguras')
+                elif key in ('zona insegura', 'zonas inseguras'):
+                    normalized.add('Zona insegura')
                 else:
                     normalized.add(raw)
             return normalized
@@ -5366,34 +6866,68 @@ def create_app():
 
     @app.route('/admin/verify/<int:req_id>/approve', methods=['POST'])
     @login_required
+    @permission_required(PERM_VERIFICATION_REVIEW, json_only=True)
     def admin_approve_verification(req_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
         req = VerificationRequest.query.get_or_404(req_id)
+        video_to_delete = (req.video_filename or '').strip()
+        previous_status = (req.status or '').strip() or 'pending'
         req.status = 'approved'
         req.reviewed_at = datetime.now()
         req.reviewed_by = current_user.id
+        req.video_filename = None
         user = User.query.get(req.user_id)
         if user:
             user.is_verified = True
         db.session.add(req)
         db.session.commit()
+        if video_to_delete:
+            safe_remove_upload(video_to_delete)
+        record_audit_event(
+            'verification.approve',
+            workspace='verification',
+            target_user=user,
+            resource_type='verification_request',
+            resource_id=req.id,
+            summary='Aprobó una verificación.',
+            details={
+                'previous_status': previous_status,
+                'new_status': req.status,
+                'user_id': req.user_id,
+            },
+        )
         return jsonify({'success': True})
 
     @app.route('/admin/verify/<int:req_id>/reject', methods=['POST'])
     @login_required
+    @permission_required(PERM_VERIFICATION_REVIEW, json_only=True)
     def admin_reject_verification(req_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
         req = VerificationRequest.query.get_or_404(req_id)
+        video_to_delete = (req.video_filename or '').strip()
+        previous_status = (req.status or '').strip() or 'pending'
         req.status = 'rejected'
         req.reviewed_at = datetime.now()
         req.reviewed_by = current_user.id
+        req.video_filename = None
         user = User.query.get(req.user_id)
         if user:
             user.is_verified = False
         db.session.add(req)
         db.session.commit()
+        if video_to_delete:
+            safe_remove_upload(video_to_delete)
+        record_audit_event(
+            'verification.reject',
+            workspace='verification',
+            target_user=user,
+            resource_type='verification_request',
+            resource_id=req.id,
+            summary='Rechazó una verificación.',
+            details={
+                'previous_status': previous_status,
+                'new_status': req.status,
+                'user_id': req.user_id,
+            },
+        )
         return jsonify({'success': True})
 
     def safe_remove_upload(filename: str | None):
@@ -5444,6 +6978,8 @@ def create_app():
         Comment.query.filter_by(hidden_by=target_user.id).update({'hidden_by': None}, synchronize_session=False)
         ModerationStrike.query.filter_by(user_id=target_user.id).delete(synchronize_session=False)
         ModerationStrike.query.filter_by(issued_by=target_user.id).update({'issued_by': None}, synchronize_session=False)
+        AuditLog.query.filter_by(actor_id=target_user.id).update({'actor_id': None}, synchronize_session=False)
+        AuditLog.query.filter_by(target_user_id=target_user.id).update({'target_user_id': None}, synchronize_session=False)
         # User blocks created by or targeting user
         UserBlock.query.filter(
             (UserBlock.blocker_id == target_user.id) | (UserBlock.blocked_id == target_user.id)
@@ -5498,13 +7034,11 @@ def create_app():
 
     @app.route('/admin/delete_user/<int:user_id>', methods=['POST'])
     @login_required
+    @permission_required(PERM_USERS_MANAGE, json_only=True)
     def admin_delete_user(user_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
-
         user = User.query.get_or_404(user_id)
-        if user.username == 'admin':
-            return jsonify({'error': 'No puedes eliminar al administrador'}), 400
+        if user_is_protected_staff(user):
+            return jsonify({'error': 'No puedes eliminar una cuenta protegida'}), 400
 
         try:
             delete_user_and_related(user)
@@ -5518,10 +7052,8 @@ def create_app():
 
     @app.route('/admin/delete_post/<int:post_id>', methods=['POST'])
     @login_required
+    @permission_required(PERM_POSTS_MANAGE, json_only=True)
     def admin_delete_post(post_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
-
         post = Post.query.get_or_404(post_id)
         db.session.delete(post)
         db.session.commit()
@@ -5529,10 +7061,8 @@ def create_app():
 
     @app.route('/admin/restore_post/<int:post_id>', methods=['POST'])
     @login_required
+    @permission_required(PERM_POSTS_MANAGE, json_only=True)
     def admin_restore_post(post_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
-
         meta = PostMeta.query.filter_by(post_id=post_id).first()
         if not meta:
             return jsonify({'error': 'No hay reporte para restaurar'}), 404
@@ -5549,10 +7079,8 @@ def create_app():
 
     @app.route('/admin/update_post_location/<int:post_id>', methods=['POST'])
     @login_required
+    @permission_required(PERM_POSTS_MANAGE, json_only=True)
     def admin_update_post_location(post_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
-
         post = Post.query.get_or_404(post_id)
         payload = request.get_json(silent=True) or request.form
 
@@ -5594,10 +7122,8 @@ def create_app():
 
     @app.route('/admin/change_username/<int:user_id>', methods=['POST'])
     @login_required
+    @permission_required(PERM_USERS_MANAGE, json_only=True)
     def admin_change_username(user_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
-
         user = User.query.get_or_404(user_id)
         new_username = request.form.get('new_username', '').strip()
 
@@ -5615,10 +7141,8 @@ def create_app():
 
     @app.route('/admin/change_user_photo/<int:user_id>', methods=['POST'])
     @login_required
+    @permission_required(PERM_USERS_MANAGE, json_only=True)
     def admin_change_user_photo(user_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
-
         user = User.query.get_or_404(user_id)
 
         bio = (request.form.get('bio') or '').strip()
@@ -5641,6 +7165,7 @@ def create_app():
             unique_filename = str(uuid4()) + '.' + filename.rsplit('.', 1)[1].lower()
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
             file.save(file_path)
+            strip_image_metadata_in_place(file_path)
             if not sync_public_upload_to_storage(unique_filename, local_path=file_path, mime_type=file.mimetype):
                 try:
                     os.remove(file_path)
@@ -5656,11 +7181,67 @@ def create_app():
         else:
             return jsonify({'error': 'Tipo de archivo no permitido'}), 400
 
+    @app.route('/admin/user/<int:user_id>/roles', methods=['POST'])
+    @login_required
+    @permission_required(PERM_USERS_MANAGE, json_only=True)
+    def admin_update_user_roles(user_id):
+        user = User.query.get_or_404(user_id)
+        payload = request.get_json(silent=True) or request.form or {}
+        raw_roles = payload.get('roles') if isinstance(payload, dict) else None
+
+        if raw_roles is None and hasattr(request.form, 'getlist'):
+            raw_roles = request.form.getlist('roles')
+
+        if isinstance(raw_roles, str):
+            raw_roles = [chunk.strip() for chunk in raw_roles.split(',') if chunk.strip()]
+        elif not isinstance(raw_roles, (list, tuple, set)):
+            raw_roles = []
+
+        allowed_roles = {item['key'] for item in STAFF_ROLE_OPTIONS}
+        next_roles = sorted({
+            str(role).strip().lower()
+            for role in raw_roles
+            if str(role).strip().lower() in allowed_roles
+        })
+        current_roles = user_role_names(user)
+
+        if ROLE_SUPER_ADMIN in current_roles and ROLE_SUPER_ADMIN not in next_roles:
+            if count_super_admin_users() <= 1:
+                return jsonify({'success': False, 'error': 'Debe existir al menos una cuenta con rol de súper admin.'}), 400
+
+        user.set_roles(next_roles)
+        db.session.add(user)
+        try:
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            _debug_log_suppressed('suppressed exception', exc)
+            return jsonify({'success': False, 'error': 'No se pudieron guardar los roles.'}), 500
+
+        next_roles_saved = sorted(user_role_names(user))
+        record_audit_event(
+            'user_roles.update',
+            workspace='admin',
+            target_user=user,
+            resource_type='user',
+            resource_id=user.id,
+            summary='Actualizó los roles de una cuenta del staff.',
+            details={
+                'previous_roles': sorted(current_roles),
+                'new_roles': next_roles_saved,
+            },
+        )
+
+        return jsonify({
+            'success': True,
+            'user_id': user.id,
+            'roles': next_roles_saved,
+        })
+
     @app.route('/admin/approve_chat_room/<int:room_id>', methods=['POST'])
     @login_required
+    @permission_required(PERM_CHAT_ROOMS_MANAGE, json_only=True)
     def admin_approve_chat_room(room_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
         room = ChatRoom.query.get_or_404(room_id)
         room.is_approved = True
         db.session.commit()
@@ -5669,9 +7250,8 @@ def create_app():
 
     @app.route('/admin/delete_chat_room/<int:room_id>', methods=['POST'])
     @login_required
+    @permission_required(PERM_CHAT_ROOMS_MANAGE, json_only=True)
     def admin_delete_chat_room(room_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
         room = ChatRoom.query.get_or_404(room_id)
         db.session.delete(room)
         db.session.commit()
@@ -5680,10 +7260,8 @@ def create_app():
 
     @app.route('/admin/clear_chat_room/<int:room_id>', methods=['POST'])
     @login_required
+    @permission_required(PERM_CHAT_ROOMS_MANAGE, json_only=True)
     def admin_clear_chat_room(room_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
-
         room = ChatRoom.query.get_or_404(room_id)
 
         try:
@@ -5730,6 +7308,12 @@ def create_app():
         try:
             message = ChatMessage.query.get_or_404(message_id)
             room = ChatRoom.query.get_or_404(message.room_id)
+            high_risk = _report_requires_immediate_hide(
+                'chat_message',
+                reason,
+                details=details,
+                content_excerpt=message.content or message.attachment_name or '',
+            )
 
             if not room.is_approved:
                 return jsonify({'error': 'Sala pendiente de aprobación'}), 403
@@ -5747,7 +7331,7 @@ def create_app():
             if existing:
                 existing.reason = reason
                 existing.details = details or None
-                existing.status = 'pending'
+                existing.status = 'reviewing' if high_risk else 'pending'
                 existing.admin_note = None
                 existing.resolved_at = None
                 existing.resolved_by = None
@@ -5758,11 +7342,11 @@ def create_app():
                     reporter_id=current_user.id,
                     reason=reason,
                     details=details or None,
-                    status='pending',
+                    status='reviewing' if high_risk else 'pending',
                 )
                 db.session.add(report)
 
-            if not getattr(message, 'is_deleted', False):
+            if high_risk and not getattr(message, 'is_deleted', False):
                 message.is_deleted = True
                 message.deleted_at = utc_now_naive()
                 message.deleted_by = current_user.id
@@ -5770,25 +7354,37 @@ def create_app():
 
             db.session.commit()
 
-            try:
-                socketio.emit('message_deleted', {
-                    'room_id': room.id,
-                    'message_id': message.id,
-                    'deleted_reason': 'reported',
-                    'created_at': message.created_at.isoformat() if message.created_at else None,
-                    'username': message.user.username if message.user else None,
-                    'message_type': message.message_type,
-                }, room=f'room_{room.id}')
-            except Exception as e:
-                if app.debug:
-                    print('DEBUG message_reported emit error:', e)
+            content_hidden = bool(getattr(message, 'is_deleted', False))
+            if content_hidden:
+                try:
+                    socketio.emit('message_deleted', {
+                        'room_id': room.id,
+                        'message_id': message.id,
+                        'deleted_reason': 'reported',
+                        'created_at': message.created_at.isoformat() if message.created_at else None,
+                        'username': message.user.username if message.user else None,
+                        'message_type': message.message_type,
+                    }, room=f'room_{room.id}')
+                except Exception as e:
+                    if app.debug:
+                        print('DEBUG message_reported emit error:', e)
+
+            if high_risk:
+                message_text = 'Reporte de alto riesgo enviado. El mensaje se ocultó preventivamente mientras lo revisamos.'
+            elif content_hidden:
+                message_text = 'Reporte enviado. El mensaje ya está oculto mientras el equipo lo revisa.'
+            else:
+                message_text = 'Reporte enviado a revisión. El mensaje seguirá visible hasta que el equipo lo revise.'
 
             return jsonify({
                 'success': True,
-                'message': 'Reporte enviado',
+                'message': message_text,
                 'report_id': report.id,
                 'room_id': room.id,
                 'message_id': message.id,
+                'status': report.status,
+                'high_risk': high_risk,
+                'hidden_immediately': content_hidden,
             })
         except Exception as e:
             db.session.rollback()
@@ -5816,18 +7412,24 @@ def create_app():
         try:
             comment = Comment.query.get_or_404(comment_id)
             post = Post.query.get_or_404(comment.post_id)
-            if comment.user_id == current_user.id and current_user.username != 'admin':
+            high_risk = _report_requires_immediate_hide(
+                'comment',
+                reason,
+                details=details,
+                content_excerpt=comment.content or '',
+            )
+            if comment.user_id == current_user.id and not user_is_protected_staff(current_user):
                 return jsonify({'error': 'No puedes reportar tu propio comentario.'}), 400
             if is_user_blocked_between(current_user.id, comment.user_id):
                 return jsonify({'error': 'No puedes reportar contenido de esta cuenta.'}), 403
-            if not is_public_post(post) and current_user.username != 'admin':
+            if not is_public_post(post) and not user_can_review_private_content(current_user):
                 return jsonify({'error': 'Publicación no disponible.'}), 404
 
             existing = CommentReport.query.filter_by(comment_id=comment.id, reporter_id=current_user.id).first()
             if existing:
                 existing.reason = reason
                 existing.details = details or None
-                existing.status = 'pending'
+                existing.status = 'reviewing' if high_risk else 'pending'
                 existing.admin_note = None
                 existing.resolved_at = None
                 existing.resolved_by = None
@@ -5838,22 +7440,33 @@ def create_app():
                     reporter_id=current_user.id,
                     reason=reason,
                     details=details or None,
-                    status='pending',
+                    status='reviewing' if high_risk else 'pending',
                 )
                 db.session.add(report)
 
-            comment.is_hidden = True
-            comment.hidden_at = utc_now_naive()
-            comment.hidden_by = current_user.id
-            comment.hidden_reason = 'reported'
-            db.session.add(comment)
+            if high_risk:
+                comment.is_hidden = True
+                comment.hidden_at = utc_now_naive()
+                comment.hidden_by = current_user.id
+                comment.hidden_reason = 'reported'
+                db.session.add(comment)
             db.session.commit()
+            content_hidden = bool(getattr(comment, 'is_hidden', False))
+            if high_risk:
+                message_text = 'Reporte de alto riesgo enviado. El comentario se ocultó preventivamente mientras lo revisamos.'
+            elif content_hidden:
+                message_text = 'Reporte enviado. El comentario ya está oculto mientras el equipo lo revisa.'
+            else:
+                message_text = 'Reporte enviado a revisión. El comentario seguirá visible hasta que el equipo lo revise.'
             return jsonify({
                 'success': True,
-                'message': 'Reporte enviado',
+                'message': message_text,
                 'report_id': report.id,
                 'comment_id': comment.id,
                 'post_id': post.id,
+                'status': report.status,
+                'high_risk': high_risk,
+                'hidden_immediately': content_hidden,
             })
         except Exception as e:
             db.session.rollback()
@@ -5870,12 +7483,12 @@ def create_app():
             message = ChatMessage.query.get_or_404(message_id)
             room = ChatRoom.query.get_or_404(message.room_id)
 
-            is_admin = current_user.username == 'admin'
+            is_admin = user_has_permission(current_user, PERM_CHAT_MESSAGES_MODERATE)
             is_owner = room.created_by == current_user.id
             is_sender = message.user_id == current_user.id
 
-            if message.user.username == 'admin' and not is_admin:
-                return jsonify({'error': 'No tienes permiso para eliminar mensajes del admin'}), 403
+            if user_is_protected_staff(message.user) and not is_admin:
+                return jsonify({'error': 'No tienes permiso para eliminar mensajes de una cuenta protegida'}), 403
 
             allowed = False
             if is_admin:
@@ -5924,16 +7537,15 @@ def create_app():
 
     @app.route('/admin/bulk_delete_users', methods=['POST'])
     @login_required
+    @permission_required(PERM_USERS_MANAGE, json_only=True)
     def admin_bulk_delete_users():
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
         data = request.get_json() or {}
         ids = data.get('ids') or []
         deleted = 0
         try:
             for uid in ids:
                 user = User.query.get(uid)
-                if not user or user.username == 'admin':
+                if not user or user_is_protected_staff(user):
                     continue
                 delete_user_and_related(user)
                 deleted += 1
@@ -5947,9 +7559,8 @@ def create_app():
 
     @app.route('/admin/bulk_delete_posts', methods=['POST'])
     @login_required
+    @permission_required(PERM_POSTS_MANAGE, json_only=True)
     def admin_bulk_delete_posts():
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
         data = request.get_json() or {}
         ids = data.get('ids') or []
         deleted = 0
@@ -5964,9 +7575,8 @@ def create_app():
 
     @app.route('/admin/bulk_restore_posts', methods=['POST'])
     @login_required
+    @permission_required(PERM_POSTS_MANAGE, json_only=True)
     def admin_bulk_restore_posts():
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
         data = request.get_json() or {}
         ids = data.get('ids') or []
         restored = 0
@@ -5983,9 +7593,8 @@ def create_app():
 
     @app.route('/admin/bulk_delete_chat_rooms', methods=['POST'])
     @login_required
+    @permission_required(PERM_CHAT_ROOMS_MANAGE, json_only=True)
     def admin_bulk_delete_chat_rooms():
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
         data = request.get_json() or {}
         ids = data.get('ids') or []
         deleted = 0
@@ -6000,9 +7609,8 @@ def create_app():
 
     @app.route('/admin/report_details/<int:post_id>')
     @login_required
+    @permission_required(PERM_REPORTS_REVIEW, json_only=True)
     def admin_report_details(post_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
         post = Post.query.get_or_404(post_id)
         author = post.author
         author_pic = url_for('static', filename='images/default_avatar.jpg')
@@ -6017,6 +7625,7 @@ def create_app():
         for c in post.comments:
             comments.append({
                 'username': c.author.username if c.author else 'unknown',
+                'is_super_admin': user_has_staff_badge(c.author) if getattr(c, 'author', None) else False,
                 'content': c.content,
                 'created_at': c.created_at.isoformat() if c.created_at else None,
             })
@@ -6028,12 +7637,27 @@ def create_app():
                 'reason': r.reason,
                 'details': r.details or '',
                 'reporter': r.reporter.username if r.reporter else 'unknown',
+                'reporter_is_super_admin': user_has_staff_badge(r.reporter) if getattr(r, 'reporter', None) else False,
                 'created_at': r.created_at.isoformat() if r.created_at else None,
                 'status': r.status or 'pending',
                 'admin_note': r.admin_note or '',
                 'resolved_at': r.resolved_at.isoformat() if r.resolved_at else None,
                 'resolved_by': r.resolver.username if getattr(r, 'resolver', None) else None,
             })
+
+        record_audit_event(
+            'report_details.view',
+            workspace='moderation',
+            target_user=author,
+            resource_type='post',
+            resource_id=post.id,
+            summary='Abrió el detalle sensible de una publicación reportada.',
+            details={
+                'reports_count': len(reports),
+                'comments_count': comments_count,
+                'likes_count': likes_count,
+            },
+        )
 
         return jsonify({
             'post': {
@@ -6043,7 +7667,8 @@ def create_app():
                 'created_at': post.created_at.isoformat() if post.created_at else None,
                 'author': {
                     'username': author.username if author else 'unknown',
-                    'profile_pic': author_pic
+                    'profile_pic': author_pic,
+                    'is_super_admin': user_has_staff_badge(author) if author else False,
                 },
                 'location': {
                     'name': post.location_name or '',
@@ -6061,9 +7686,8 @@ def create_app():
 
     @app.route('/admin/report/<int:report_id>/restore', methods=['POST'])
     @login_required
+    @permission_required(PERM_REPORTS_REVIEW, json_only=True)
     def admin_restore_post_report(report_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
         report = Report.query.get_or_404(report_id)
         post = report.post
         if not post:
@@ -6081,15 +7705,14 @@ def create_app():
 
     @app.route('/admin/report/<int:report_id>/strike', methods=['POST'])
     @login_required
+    @permission_required(PERM_REPORTS_REVIEW, json_only=True)
     def admin_strike_post_report(report_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
         report = Report.query.get_or_404(report_id)
         post = report.post
         if not post or not post.author:
             return jsonify({'error': 'La publicación ya no existe'}), 404
-        if post.author.username == 'admin':
-            return jsonify({'error': 'No puedes sancionar publicaciones del admin.'}), 400
+        if user_is_protected_staff(post.author):
+            return jsonify({'error': 'No puedes sancionar publicaciones de una cuenta protegida.'}), 400
         payload = request.get_json(silent=True) or request.form or {}
         admin_note = (payload.get('admin_note') or '').strip()
         strike_result = None
@@ -6136,9 +7759,8 @@ def create_app():
 
     @app.route('/admin/chat_report/<int:report_id>/restore', methods=['POST'])
     @login_required
+    @permission_required(PERM_REPORTS_REVIEW, json_only=True)
     def admin_restore_chat_report(report_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
         report = ChatMessageReport.query.get_or_404(report_id)
         message = report.message
         if not message:
@@ -6158,15 +7780,14 @@ def create_app():
 
     @app.route('/admin/chat_report/<int:report_id>/strike', methods=['POST'])
     @login_required
+    @permission_required(PERM_REPORTS_REVIEW, json_only=True)
     def admin_strike_chat_report(report_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
         report = ChatMessageReport.query.get_or_404(report_id)
         message = report.message
         if not message or not message.user:
             return jsonify({'error': 'El mensaje ya no existe'}), 404
-        if message.user.username == 'admin':
-            return jsonify({'error': 'No puedes sancionar mensajes del admin.'}), 400
+        if user_is_protected_staff(message.user):
+            return jsonify({'error': 'No puedes sancionar mensajes de una cuenta protegida.'}), 400
         payload = request.get_json(silent=True) or request.form or {}
         admin_note = (payload.get('admin_note') or '').strip()
         strike_result = None
@@ -6215,9 +7836,8 @@ def create_app():
 
     @app.route('/admin/comment_report/<int:report_id>/restore', methods=['POST'])
     @login_required
+    @permission_required(PERM_REPORTS_REVIEW, json_only=True)
     def admin_restore_comment_report(report_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
         report = CommentReport.query.get_or_404(report_id)
         comment = report.comment
         if not comment:
@@ -6236,15 +7856,14 @@ def create_app():
 
     @app.route('/admin/comment_report/<int:report_id>/strike', methods=['POST'])
     @login_required
+    @permission_required(PERM_REPORTS_REVIEW, json_only=True)
     def admin_strike_comment_report(report_id):
-        if current_user.username != 'admin':
-            return jsonify({'error': 'Acceso denegado'}), 403
         report = CommentReport.query.get_or_404(report_id)
         comment = report.comment
         if not comment or not comment.author:
             return jsonify({'error': 'El comentario ya no existe'}), 404
-        if comment.author.username == 'admin':
-            return jsonify({'error': 'No puedes sancionar comentarios del admin.'}), 400
+        if user_is_protected_staff(comment.author):
+            return jsonify({'error': 'No puedes sancionar comentarios de una cuenta protegida.'}), 400
         payload = request.get_json(silent=True) or request.form or {}
         admin_note = (payload.get('admin_note') or '').strip()
         strike_result = None
@@ -6324,6 +7943,7 @@ def create_app():
                     old_pic = (user.profile_pic or '').strip()
                     try:
                         file.save(save_path)
+                        strip_image_metadata_in_place(save_path)
                         if not sync_public_upload_to_storage(unique_name, local_path=save_path, mime_type=file.mimetype):
                             try:
                                 os.remove(save_path)
@@ -6358,6 +7978,7 @@ def create_app():
                     save_path = os.path.join(upload_folder, unique_name)
                     with open(save_path, 'wb') as f:
                         f.write(raw)
+                    strip_image_metadata_in_place(save_path)
                     if not sync_public_upload_to_storage(unique_name, local_path=save_path, mime_type=mime):
                         try:
                             os.remove(save_path)
@@ -6423,6 +8044,7 @@ def create_app():
                 new_name = f"{uuid4().hex}{ext}"
                 file_path = os.path.join(upload_folder, new_name)
                 file.save(file_path)
+                strip_image_metadata_in_place(file_path)
                 if not sync_public_upload_to_storage(new_name, local_path=file_path, mime_type=file.mimetype):
                     try:
                         os.remove(file_path)
@@ -6450,6 +8072,7 @@ def create_app():
                 file_path = os.path.join(upload_folder, new_name)
                 with open(file_path, 'wb') as f:
                     f.write(raw)
+                strip_image_metadata_in_place(file_path)
                 if not sync_public_upload_to_storage(new_name, local_path=file_path, mime_type=mime):
                     try:
                         os.remove(file_path)
@@ -6478,40 +8101,260 @@ def create_app():
                 print('DEBUG avatar api error:', e)
             return jsonify({'ok': False, 'error': 'No se pudo actualizar el avatar.'}), 500
 
-    @app.route('/user/<username>')
-    def user_profile(username):
-        user = User.query.filter_by(username=username).first_or_404()
-        if current_user.is_authenticated and current_user.id != user.id and is_user_blocked_between(current_user.id, user.id):
-            abort(404)
-        user_posts = (
+    def _build_user_profile_view_context(user, *, is_self: bool, page: int, per_page: int, viewer_can_review_private: bool):
+        user_posts_query = (
             Post.query.options(
                 selectinload(Post.author),
                 selectinload(Post.meta),
             )
             .filter_by(user_id=user.id)
             .order_by(Post.created_at.desc())
-            .all()
         )
-        now = datetime.now()
-        for p in user_posts:
-            p.can_delete = bool(p.created_at and (now - p.created_at) <= timedelta(hours=1))
-            p.is_pending = bool(getattr(p, 'publish_at', None) and getattr(p, 'publish_at') > now)
-        is_self = (current_user.is_authenticated and current_user.id == user.id)
-        if not is_self and (not current_user.is_authenticated or current_user.username != 'admin'):
-            user_posts = [p for p in user_posts if is_public_post(p)]
+        if not viewer_can_review_private:
+            user_posts_query = public_posts_query(user_posts_query)
+
+        posts_pagination = user_posts_query.paginate(page=page, per_page=per_page, error_out=False)
+        user_posts = posts_pagination.items
+        annotate_user_post_visibility_state(user_posts)
         enrich_posts_for_cards(user_posts, current_user)
-        report_count = len(user_posts)
-        total_likes = sum((getattr(p, 'likes_count', 0) for p in user_posts), 0)
-        total_comments = sum((getattr(p, 'comments_count', 0) for p in user_posts), 0)
-        return render_template(
+        report_count = posts_pagination.total
+
+        stats_cache_key = ('profile_stats', user.id, viewer_can_review_private)
+        cached_stats = get_runtime_cached_payload(stats_cache_key, 30) or {}
+        total_likes = cached_stats.get('total_likes')
+        total_comments = cached_stats.get('total_comments')
+        if total_likes is None or total_comments is None:
+            visible_posts_subquery = user_posts_query.order_by(None).with_entities(Post.id).subquery()
+            total_likes = (
+                db.session.query(func.count(Like.id))
+                .join(visible_posts_subquery, Like.post_id == visible_posts_subquery.c.id)
+                .scalar()
+                or 0
+            )
+            total_comments = (
+                db.session.query(func.count(Comment.id))
+                .join(visible_posts_subquery, Comment.post_id == visible_posts_subquery.c.id)
+                .scalar()
+                or 0
+            )
+            set_runtime_cached_payload(
+                stats_cache_key,
+                {'total_likes': int(total_likes), 'total_comments': int(total_comments)},
+                ttl_seconds=30,
+                max_entries=128,
+            )
+        html = render_template(
             'user_profile.html',
             user=user,
             posts=user_posts,
+            pagination=posts_pagination,
             report_count=report_count,
-            total_likes=total_likes,
-            total_comments=total_comments,
+            total_likes=int(total_likes or 0),
+            total_comments=int(total_comments or 0),
             is_self=is_self
         )
+        return html
+
+    def _build_safety_center_view_context():
+        maybe_process_overdue_checkins(current_user.id, ttl_seconds=30)
+        blocked_rows = (
+            UserBlock.query.options(selectinload(UserBlock.blocked))
+            .filter_by(blocker_id=current_user.id)
+            .order_by(UserBlock.created_at.desc())
+            .all()
+        )
+        blocked_users = []
+        for row in blocked_rows:
+            u = row.blocked
+            if not u:
+                continue
+            blocked_users.append({
+                'id': u.id,
+                'username': u.username,
+                'profile_pic': url_for('uploaded_file', filename=u.profile_pic) if u.profile_pic and u.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg'),
+                'is_muted': bool(row.is_muted),
+            })
+
+        contacts = (
+            SafetyContact.query
+            .filter_by(user_id=current_user.id)
+            .order_by(SafetyContact.is_primary.desc(), SafetyContact.created_at.desc())
+            .all()
+        )
+        active_checkin = (
+            SafetyCheckin.query
+            .filter_by(user_id=current_user.id, status='active')
+            .order_by(SafetyCheckin.started_at.desc())
+            .first()
+        )
+
+        avatar_tones = ['violet', 'rose', 'amber', 'emerald']
+        contacts_payload = []
+        for index, contact in enumerate(contacts):
+            contacts_payload.append({
+                'id': contact.id,
+                'name': contact.name,
+                'phone': contact.phone,
+                'relationship': contact.relationship or '',
+                'is_primary': bool(contact.is_primary),
+                'avatar_tone': avatar_tones[index % len(avatar_tones)],
+            })
+
+        weekday_names = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo']
+
+        def format_trip_when(dt_obj):
+            if not dt_obj:
+                return 'Sin fecha'
+            today = datetime.now().date()
+            yesterday = today - timedelta(days=1)
+            if dt_obj.date() == today:
+                day_label = 'Hoy'
+            elif dt_obj.date() == yesterday:
+                day_label = 'Ayer'
+            else:
+                day_label = weekday_names[dt_obj.weekday()]
+            time_label = dt_obj.strftime('%I:%M %p').lstrip('0')
+            return f'{day_label} · {time_label}'
+
+        def format_duration_label(start_dt, end_dt):
+            if not start_dt or not end_dt:
+                return 'Sin registro'
+            total_seconds = max(60, int((end_dt - start_dt).total_seconds()))
+            hours, remainder = divmod(total_seconds, 3600)
+            minutes = max(1, remainder // 60)
+            if hours:
+                if minutes:
+                    return f'{hours} h {minutes} min'
+                return f'{hours} h'
+            return f'{minutes} min'
+
+        history_limit = max(3, int(app.config.get('SAFETY_HISTORY_LIMIT', 6) or 6))
+        history_rows = (
+            SafetyCheckin.query
+            .filter(
+                SafetyCheckin.user_id == current_user.id,
+                SafetyCheckin.status.in_(['arrived', 'cancelled', 'expired']),
+            )
+            .order_by(
+                SafetyCheckin.arrived_at.desc(),
+                SafetyCheckin.cancelled_at.desc(),
+                SafetyCheckin.expires_at.desc(),
+                SafetyCheckin.started_at.desc(),
+                SafetyCheckin.id.desc(),
+            )
+            .limit(history_limit)
+            .all()
+        )
+
+        total_finished = (
+            SafetyCheckin.query
+            .filter(
+                SafetyCheckin.user_id == current_user.id,
+                SafetyCheckin.status.in_(['arrived', 'cancelled', 'expired']),
+            )
+            .count()
+        )
+
+        route_styles = ['office', 'metro', 'uni']
+        status_labels = {
+            'arrived': ('Finalizada', 'success'),
+            'cancelled': ('Cancelada', 'danger'),
+            'expired': ('Expirada', 'danger'),
+        }
+        trip_items = []
+        for index, checkin in enumerate(history_rows):
+            number = max(1, total_finished - index)
+            default_title = f'Trayecto {number}'
+            raw_title = (getattr(checkin, 'title', None) or '').strip()
+            destination = (checkin.destination or '').strip()
+            display_title = raw_title or destination or default_title
+            when_dt = checkin.arrived_at or checkin.cancelled_at or checkin.expires_at or checkin.started_at
+            finished_dt = checkin.arrived_at or checkin.cancelled_at or checkin.expires_at or checkin.started_at
+            status_label, status_variant = status_labels.get(checkin.status or 'arrived', ('Finalizada', 'success'))
+            trip_items.append({
+                'id': checkin.id,
+                'title': raw_title,
+                'default_title': default_title,
+                'display_title': display_title,
+                'destination': destination,
+                'when_label': format_trip_when(when_dt),
+                'route_style': route_styles[index % len(route_styles)],
+                'badge_label': 'Con destino' if destination else 'Sin destino claro',
+                'badge_variant': 'live' if destination else 'danger',
+                'duration_label': format_duration_label(checkin.started_at, finished_dt),
+                'contacts_label': '1 contacto' if (checkin.contact_name or checkin.contact_phone) else 'Sin contacto',
+                'status_label': status_label,
+                'status_variant': status_variant,
+            })
+
+        active_checkin_payload = None
+        if active_checkin:
+            active_checkin_payload = {
+                'id': active_checkin.id,
+                'destination': (active_checkin.destination or '').strip(),
+                'display_destination': (active_checkin.destination or '').strip() or 'Destino en progreso',
+                'started_at_iso': active_checkin.started_at.isoformat() if active_checkin.started_at else None,
+                'expires_at_iso': active_checkin.expires_at.isoformat() if active_checkin.expires_at else None,
+                'eta_minutes': int(active_checkin.eta_minutes or 30),
+                'contact_name': (active_checkin.contact_name or '').strip(),
+                'contact_phone': (active_checkin.contact_phone or '').strip(),
+                'latitude': float(active_checkin.latitude) if active_checkin.latitude is not None else None,
+                'longitude': float(active_checkin.longitude) if active_checkin.longitude is not None else None,
+            }
+
+        return render_template(
+            'safety.html',
+            blocked_users=blocked_users,
+            contacts=contacts,
+            contacts_payload=contacts_payload,
+            active_checkin=active_checkin,
+            active_checkin_payload=active_checkin_payload,
+            trip_items=trip_items,
+            initial_state='active' if active_checkin else 'idle',
+        )
+
+    @app.route('/user/<username>')
+    def user_profile(username):
+        user = User.query.filter_by(username=username).first_or_404()
+        if current_user.is_authenticated and current_user.id != user.id and is_user_blocked_between(current_user.id, user.id):
+            abort(404)
+        is_self = (current_user.is_authenticated and current_user.id == user.id)
+        page = request.args.get('page', 1, type=int)
+        viewer_id = current_user.id if current_user.is_authenticated else 0
+        page_cache_key = ('page_profile_shell', viewer_id, user.id, page)
+        cached_response = get_cached_html_page(page_cache_key, 90)
+        if cached_response is not None:
+            return cached_response
+        html = render_template(
+            'user_profile_shell.html',
+            user=user,
+            is_self=is_self,
+            page=page,
+        )
+        return set_cached_html_page(page_cache_key, html, ttl_seconds=90, max_entries=128)
+
+    @app.route('/user/<username>/content')
+    def user_profile_content(username):
+        user = User.query.filter_by(username=username).first_or_404()
+        if current_user.is_authenticated and current_user.id != user.id and is_user_blocked_between(current_user.id, user.id):
+            abort(404)
+        is_self = (current_user.is_authenticated and current_user.id == user.id)
+        page = request.args.get('page', 1, type=int)
+        per_page = app.config.get('PROFILE_POSTS_PAGE_SIZE', 12)
+        viewer_can_review_private = bool(is_self or (current_user.is_authenticated and user_can_review_private_content(current_user)))
+        viewer_id = current_user.id if current_user.is_authenticated else 0
+        page_cache_key = ('page_profile_content', viewer_id, user.id, page, per_page, viewer_can_review_private)
+        cached_response = get_cached_html_page(page_cache_key, 45)
+        if cached_response is not None:
+            return cached_response
+        html = _build_user_profile_view_context(
+            user,
+            is_self=is_self,
+            page=page,
+            per_page=per_page,
+            viewer_can_review_private=viewer_can_review_private,
+        )
+        return set_cached_html_page(page_cache_key, html, ttl_seconds=45, max_entries=128)
 
     @app.route('/api/user/block/<int:target_user_id>', methods=['POST'])
     @login_required
@@ -6522,7 +8365,7 @@ def create_app():
         target = User.query.get_or_404(target_user_id)
         if target.id == current_user.id:
             return jsonify({'error': 'No puedes bloquearte a ti misma.'}), 400
-        if target.username == 'admin':
+        if user_is_protected_staff(target):
             return jsonify({'error': 'No puedes bloquear esta cuenta.'}), 400
 
         relation = UserBlock.query.filter_by(blocker_id=current_user.id, blocked_id=target.id).first()
@@ -6554,7 +8397,7 @@ def create_app():
         target = User.query.get_or_404(target_user_id)
         if target.id == current_user.id:
             return jsonify({'error': 'No puedes silenciarte a ti misma.'}), 400
-        if target.username == 'admin':
+        if user_is_protected_staff(target):
             return jsonify({'error': 'No puedes silenciar esta cuenta.'}), 400
 
         relation = UserBlock.query.filter_by(blocker_id=current_user.id, blocked_id=target.id).first()
@@ -6598,168 +8441,39 @@ def create_app():
         if current_user.is_authenticated and not is_user_verified(current_user):
             flash(VERIFY_REQUIRED_MSG, 'info')
             return redirect(url_for('verify_identity'))
-        process_overdue_checkins(current_user.id)
-        blocked_rows = UserBlock.query.filter_by(blocker_id=current_user.id).order_by(UserBlock.created_at.desc()).all()
-        blocked_users = []
-        for row in blocked_rows:
-            u = row.blocked
-            if not u:
-                continue
-            blocked_users.append({
-                'id': u.id,
-                'username': u.username,
-                'profile_pic': url_for('uploaded_file', filename=u.profile_pic) if u.profile_pic and u.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg'),
-                'is_muted': bool(row.is_muted),
-            })
+        page_cache_key = ('page_safety_shell', current_user.id)
+        cached_response = get_cached_html_page(page_cache_key, 90)
+        if cached_response is not None:
+            return cached_response
+        html = render_template('safety_shell.html')
+        return set_cached_html_page(page_cache_key, html, ttl_seconds=90, max_entries=96)
 
-        contacts = SafetyContact.query.filter_by(user_id=current_user.id).order_by(SafetyContact.is_primary.desc(), SafetyContact.created_at.desc()).all()
-        active_checkin = SafetyCheckin.query.filter_by(user_id=current_user.id, status='active').order_by(SafetyCheckin.started_at.desc()).first()
-
-        # Historial de trayectos finalizados (arrived). Numeración por orden de llegada.
-        arrived_all = SafetyCheckin.query.filter_by(user_id=current_user.id, status='arrived').order_by(
-            SafetyCheckin.arrived_at.asc(),
-            SafetyCheckin.id.asc(),
-        ).all()
-        seq_map = {c.id: idx + 1 for idx, c in enumerate(arrived_all)}
-        arrived_recent = list(reversed(arrived_all))[:30]
-        trip_items = []
-        for c in arrived_recent:
-            n = seq_map.get(c.id, 1)
-            default_title = f"Trayecto {n}"
-            raw_title = (getattr(c, 'title', None) or '').strip()
-            display_title = raw_title or default_title
-            when_dt = c.arrived_at or c.started_at or c.expires_at
-            trip_items.append({
-                'id': c.id,
-                'title': raw_title,
-                'default_title': default_title,
-                'display_title': display_title,
-                'destination': c.destination or '',
-                'when_dt': when_dt,
-                'summary_url': url_for('checkin_summary', checkin_id=c.id),
-            })
-        return render_template(
-            'safety.html',
-            blocked_users=blocked_users,
-            contacts=contacts,
-            active_checkin=active_checkin,
-            trip_items=trip_items,
-        )
+    @app.route('/safety/content')
+    @login_required
+    def safety_center_content():
+        if current_user.is_authenticated and not is_user_verified(current_user):
+            flash(VERIFY_REQUIRED_MSG, 'info')
+            return redirect(url_for('verify_identity'))
+        page_cache_key = ('page_safety_content', current_user.id)
+        cached_response = get_cached_html_page(page_cache_key, 45)
+        if cached_response is not None:
+            return cached_response
+        html = _build_safety_center_view_context()
+        return set_cached_html_page(page_cache_key, html, ttl_seconds=45, max_entries=96)
 
     @app.route('/safety/checkin/<int:checkin_id>/summary')
     @login_required
     def checkin_summary(checkin_id: int):
+        """Compatibilidad: antes mostraba el resumen de ruta; ahora redirige a Safety."""
         if current_user.is_authenticated and not is_user_verified(current_user):
             flash(VERIFY_REQUIRED_MSG, 'info')
             return redirect(url_for('verify_identity'))
         checkin = SafetyCheckin.query.get_or_404(checkin_id)
-        if current_user.username != 'admin' and checkin.user_id != current_user.id:
+        if not user_has_permission(current_user, PERM_SAFETY_VIEW_ANY) and checkin.user_id != current_user.id:
             abort(403)
-
-        rows = CheckinRoutePoint.query.filter_by(checkin_id=checkin.id).order_by(
-            CheckinRoutePoint.recorded_at.asc(),
-            CheckinRoutePoint.id.asc(),
-        ).all()
-
-        points = []
-        for r in rows:
-            dt = r.recorded_at or r.created_at or utc_now_naive()
-            points.append({
-                'lat': float(r.latitude),
-                'lng': float(r.longitude),
-                'ts': dt,  # naive UTC
-            })
-
-        def haversine_m(lat1, lon1, lat2, lon2) -> float:
-            R = 6371000.0
-            d_lat = radians(lat2 - lat1)
-            d_lon = radians(lon2 - lon1)
-            a = sin(d_lat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(d_lon / 2) ** 2
-            c = 2 * asin(sqrt(a))
-            return R * c
-
-        total_m = 0.0
-        max_speed_kmh = 0.0
-        duration_sec = 0.0
-        segments = []
-
-        if len(points) >= 2:
-            start_ts = points[0]['ts']
-            end_ts = points[-1]['ts']
-            duration_sec = max(0.0, (end_ts - start_ts).total_seconds())
-
-            prev = points[0]
-            segment_window_sec = 60
-            seg_idx = 0
-            seg_start_ts = start_ts
-            seg_dist_m = 0.0
-            seg_first_ts = start_ts
-            seg_last_ts = start_ts
-
-            for curr in points[1:]:
-                dt_s = (curr['ts'] - prev['ts']).total_seconds()
-                if dt_s <= 0:
-                    prev = curr
-                    continue
-
-                d_m = haversine_m(prev['lat'], prev['lng'], curr['lat'], curr['lng'])
-                total_m += d_m
-
-                speed_kmh = (d_m / dt_s) * 3.6
-                if speed_kmh > max_speed_kmh:
-                    max_speed_kmh = speed_kmh
-
-                # Segmentación por ventanas de tiempo (aprox. 1 min)
-                if (prev['ts'] - seg_start_ts).total_seconds() >= segment_window_sec:
-                    seg_dur = max(0.0, (seg_last_ts - seg_first_ts).total_seconds())
-                    if seg_dur > 0:
-                        segments.append({
-                            'idx': seg_idx + 1,
-                            'start_ts': seg_first_ts,
-                            'end_ts': seg_last_ts,
-                            'distance_km': seg_dist_m / 1000.0,
-                            'speed_kmh': (seg_dist_m / seg_dur) * 3.6,
-                        })
-                    seg_idx += 1
-                    seg_start_ts = prev['ts']
-                    seg_dist_m = 0.0
-                    seg_first_ts = prev['ts']
-
-                seg_dist_m += d_m
-                seg_last_ts = curr['ts']
-                prev = curr
-
-            # cerrar último segmento
-            seg_dur = max(0.0, (seg_last_ts - seg_first_ts).total_seconds())
-            if seg_dur > 0 and seg_dist_m > 0:
-                segments.append({
-                    'idx': seg_idx + 1,
-                    'start_ts': seg_first_ts,
-                    'end_ts': seg_last_ts,
-                    'distance_km': seg_dist_m / 1000.0,
-                    'speed_kmh': (seg_dist_m / seg_dur) * 3.6,
-                })
-
-        distance_km = total_m / 1000.0
-        avg_speed_kmh = (distance_km / (duration_sec / 3600.0)) if duration_sec > 0 else 0.0
-
-        points_payload = []
-        for p in points:
-            ts_ms = int(p['ts'].replace(tzinfo=timezone.utc).timestamp() * 1000)
-            points_payload.append([p['lat'], p['lng'], ts_ms])
-
-        return render_template(
-            'checkin_summary.html',
-            checkin=checkin,
-            route_points=points_payload,
-            stats={
-                'distance_km': distance_km,
-                'duration_sec': duration_sec,
-                'avg_speed_kmh': avg_speed_kmh,
-                'max_speed_kmh': max_speed_kmh,
-            },
-            segments=segments,
-        )
+        if user_has_permission(current_user, PERM_SAFETY_VIEW_ANY) and checkin.user_id != current_user.id:
+            return redirect(url_for('safety_workspace'))
+        return redirect(url_for('safety_center'))
 
     @app.route('/emergency')
     def emergency_call():
@@ -6768,7 +8482,7 @@ def create_app():
             contacts_count = SafetyContact.query.filter_by(user_id=current_user.id).count()
         return render_template(
             'emergency.html',
-            emergency_number='8125898477',
+            emergency_number=get_emergency_number(),
             contacts_count=contacts_count,
         )
 
@@ -6780,7 +8494,7 @@ def create_app():
         payload = request.get_json(silent=True) or request.form or {}
         lat = parse_float(payload.get('lat'))
         lng = parse_float(payload.get('lng'))
-        emergency_number = '8125898477'
+        emergency_number = get_emergency_number()
 
         user_label = 'Una usuaria de Violeta'
         contacts = []
@@ -6794,8 +8508,17 @@ def create_app():
         sms_body, maps_url = build_emergency_message(user_label, lat, lng)
 
         sent_count = 0
+        whatsapp_sent_count = 0
+        sms_sent_count = 0
         for contact in contacts:
-            if send_sms_via_twilio(contact.phone, sms_body):
+            delivered = False
+            if send_whatsapp_via_twilio(contact.phone, sms_body):
+                delivered = True
+                whatsapp_sent_count += 1
+            elif send_sms_via_twilio(contact.phone, sms_body):
+                delivered = True
+                sms_sent_count += 1
+            if delivered:
                 sent_count += 1
 
         if current_user.is_authenticated and contacts:
@@ -6817,8 +8540,11 @@ def create_app():
             'emergency_number': emergency_number,
             'contacts_total': len(contacts),
             'contacts_notified': sent_count,
+            'contacts_notified_whatsapp': whatsapp_sent_count,
+            'contacts_notified_sms': sms_sent_count,
             'maps_url': maps_url,
-            'sms_auto_enabled': sent_count > 0,
+            'sms_auto_enabled': sms_sent_count > 0,
+            'whatsapp_auto_enabled': whatsapp_sent_count > 0,
             'message': 'Protocolo de emergencia activado.',
         })
 
@@ -6851,7 +8577,48 @@ def create_app():
         )
         db.session.add(contact)
         db.session.commit()
+        invalidate_runtime_response_cache('page_safety_content')
         return jsonify({'ok': True, 'contact_id': contact.id})
+
+    @app.route('/api/safety/contact/<int:contact_id>/update', methods=['POST'])
+    @login_required
+    def api_update_safety_contact(contact_id):
+        if current_user.is_authenticated and not is_user_verified(current_user):
+            return jsonify({'ok': False, 'error': VERIFY_REQUIRED_MSG}), 403
+
+        contact = SafetyContact.query.get_or_404(contact_id)
+        if contact.user_id != current_user.id:
+            return jsonify({'ok': False, 'error': 'Acceso denegado'}), 403
+
+        payload = request.get_json(silent=True) or request.form or {}
+        name = (payload.get('name') or '').strip()
+        relationship = (payload.get('relationship') or '').strip()
+        phone = normalize_phone_simple(payload.get('phone'))
+
+        if len(name) < 2:
+            return jsonify({'ok': False, 'error': 'Nombre invalido'}), 400
+        if not phone:
+            return jsonify({'ok': False, 'error': 'Telefono invalido. Usa un numero real.'}), 400
+
+        duplicate = (
+            SafetyContact.query
+            .filter(
+                SafetyContact.user_id == current_user.id,
+                SafetyContact.phone == phone,
+                SafetyContact.id != contact.id,
+            )
+            .first()
+        )
+        if duplicate:
+            return jsonify({'ok': False, 'error': 'Ese telefono ya existe'}), 400
+
+        contact.name = name
+        contact.phone = phone
+        contact.relationship = relationship or None
+        db.session.add(contact)
+        db.session.commit()
+        invalidate_runtime_response_cache('page_safety_content')
+        return jsonify({'ok': True})
 
     @app.route('/api/safety/contact/<int:contact_id>/delete', methods=['POST'])
     @login_required
@@ -6859,7 +8626,7 @@ def create_app():
         if current_user.is_authenticated and not is_user_verified(current_user):
             return jsonify({'ok': False, 'error': VERIFY_REQUIRED_MSG}), 403
         contact = SafetyContact.query.get_or_404(contact_id)
-        if contact.user_id != current_user.id and current_user.username != 'admin':
+        if contact.user_id != current_user.id and not user_has_permission(current_user, PERM_SAFETY_VIEW_ANY):
             return jsonify({'ok': False, 'error': 'Acceso denegado'}), 403
         was_primary = bool(contact.is_primary)
         owner_id = contact.user_id
@@ -6873,6 +8640,7 @@ def create_app():
                 db.session.add(nxt)
                 db.session.commit()
 
+        invalidate_runtime_response_cache('page_safety_content')
         return jsonify({'ok': True})
 
     @app.route('/api/safety/contact/<int:contact_id>/primary', methods=['POST'])
@@ -6888,6 +8656,7 @@ def create_app():
         contact.is_primary = True
         db.session.add(contact)
         db.session.commit()
+        invalidate_runtime_response_cache('page_safety_content')
         return jsonify({'ok': True})
 
     @app.route('/api/safety/checkin/start', methods=['POST'])
@@ -6935,11 +8704,17 @@ def create_app():
         )
         db.session.add(checkin)
         db.session.commit()
+        invalidate_runtime_response_cache('page_safety_content')
 
         return jsonify({
             'ok': True,
             'checkin_id': checkin.id,
+            'destination': (checkin.destination or '').strip(),
             'expires_at': checkin.expires_at.isoformat() if checkin.expires_at else None,
+            'started_at': checkin.started_at.isoformat() if checkin.started_at else None,
+            'eta_minutes': int(checkin.eta_minutes or eta_minutes),
+            'latitude': float(checkin.latitude) if checkin.latitude is not None else None,
+            'longitude': float(checkin.longitude) if checkin.longitude is not None else None,
             'message': f'Check-in iniciado por {eta_minutes} minutos.',
         })
 
@@ -6967,10 +8742,11 @@ def create_app():
         checkin.arrived_at = datetime.now()
         db.session.add(checkin)
         db.session.commit()
+        invalidate_runtime_response_cache('page_safety_content')
         return jsonify({
             'ok': True,
             'checkin_id': checkin.id,
-            'summary_url': url_for('checkin_summary', checkin_id=checkin.id),
+            'redirect_url': url_for('safety_center'),
             'message': 'Check-in cerrado. Marcado como llegada segura.',
         })
 
@@ -6987,6 +8763,7 @@ def create_app():
         checkin.cancelled_at = datetime.now()
         db.session.add(checkin)
         db.session.commit()
+        invalidate_runtime_response_cache('page_safety_content')
         return jsonify({'ok': True, 'message': 'Check-in cancelado.'})
 
     @app.route('/api/safety/checkin/<int:checkin_id>/title', methods=['POST'])
@@ -7000,7 +8777,7 @@ def create_app():
             title = title[:180]
 
         checkin = SafetyCheckin.query.get_or_404(checkin_id)
-        if current_user.username != 'admin' and checkin.user_id != current_user.id:
+        if not user_has_permission(current_user, PERM_SAFETY_VIEW_ANY) and checkin.user_id != current_user.id:
             return jsonify({'ok': False, 'error': 'Acceso denegado.'}), 403
         if checkin.status != 'arrived':
             return jsonify({'ok': False, 'error': 'Solo puedes renombrar trayectos finalizados.'}), 400
@@ -7008,6 +8785,7 @@ def create_app():
         checkin.title = title or None
         db.session.add(checkin)
         db.session.commit()
+        invalidate_runtime_response_cache('page_safety_content')
         return jsonify({'ok': True, 'title': checkin.title or ''})
 
     @app.route('/api/safety/checkin/<int:checkin_id>/route/point', methods=['POST'])
@@ -7026,7 +8804,7 @@ def create_app():
             return jsonify({'ok': False, 'error': 'Coordenadas inválidas.'}), 400
 
         checkin = SafetyCheckin.query.get_or_404(checkin_id)
-        if current_user.username != 'admin' and checkin.user_id != current_user.id:
+        if not user_has_permission(current_user, PERM_SAFETY_VIEW_ANY) and checkin.user_id != current_user.id:
             return jsonify({'ok': False, 'error': 'Acceso denegado.'}), 403
         if checkin.status != 'active':
             return jsonify({'ok': False, 'error': 'El check-in ya no está activo.'}), 400
@@ -7058,7 +8836,7 @@ def create_app():
         if current_user.is_authenticated and not is_user_verified(current_user):
             return jsonify({'ok': False, 'error': VERIFY_REQUIRED_MSG}), 403
         checkin = SafetyCheckin.query.get_or_404(checkin_id)
-        if current_user.username != 'admin' and checkin.user_id != current_user.id:
+        if not user_has_permission(current_user, PERM_SAFETY_VIEW_ANY) and checkin.user_id != current_user.id:
             return jsonify({'ok': False, 'error': 'Acceso denegado.'}), 403
 
         rows = CheckinRoutePoint.query.filter_by(checkin_id=checkin.id).order_by(
@@ -7078,6 +8856,20 @@ def create_app():
                 'accuracy_m': r.accuracy_m,
             })
 
+        if user_has_permission(current_user, PERM_SAFETY_VIEW_ANY) and checkin.user_id != current_user.id:
+            record_audit_event(
+                'safety.route_points.view',
+                workspace='safety',
+                target_user=checkin.user,
+                resource_type='safety_checkin',
+                resource_id=checkin.id,
+                summary='Consultó la ruta detallada de un check-in.',
+                details={
+                    'points_count': len(points),
+                    'checkin_status': checkin.status,
+                },
+            )
+
         return jsonify({
             'ok': True,
             'checkin': {
@@ -7090,16 +8882,26 @@ def create_app():
 
     @app.route('/admin/panic/<int:panic_id>/resolve', methods=['POST'])
     @login_required
+    @permission_required(PERM_SAFETY_RESOLVE_PANIC, json_only=True)
     def admin_resolve_panic(panic_id):
-        if current_user.username != 'admin':
-            return jsonify({'ok': False, 'error': 'Acceso denegado'}), 403
-
         event = PanicEvent.query.get_or_404(panic_id)
         event.status = 'resolved'
         event.resolved_at = datetime.now()
         event.resolved_by = current_user.id
         db.session.add(event)
         db.session.commit()
+        record_audit_event(
+            'panic.resolve',
+            workspace='safety',
+            target_user=event.user,
+            resource_type='panic_event',
+            resource_id=event.id,
+            summary='Marcó como resuelto un evento de pánico.',
+            details={
+                'status': event.status,
+                'contact_name': event.contact_name or '',
+            },
+        )
         return jsonify({'ok': True})
 
     # CLI helper para inicializar DB
@@ -7107,6 +8909,11 @@ def create_app():
     def init_db():
         ensure_startup_schema()
         print('Base de datos inicializada')
+
+    @app.cli.command('purge-audit-logs')
+    def purge_audit_logs_cli():
+        deleted = purge_expired_audit_logs()
+        print(f'Audit logs purgados: {deleted} (retención {audit_log_retention_days()} días)')
 
     @app.cli.command('geocode-missing')
     def geocode_missing():
@@ -7269,11 +9076,12 @@ def create_app():
         print(f'Listo. Posts actualizados: {updated}. Omitidos: {skipped}.')
 
     with app.app_context():
-        try:
-            ensure_startup_schema()
-        except Exception as e:
-            if app.debug:
-                print('DEBUG startup schema error:', e)
+        if app.config.get('RUN_STARTUP_SCHEMA_SYNC'):
+            try:
+                ensure_startup_schema()
+            except Exception as e:
+                if app.debug:
+                    print('DEBUG startup schema error:', e)
 
     return app, socketio
 
@@ -7289,7 +9097,8 @@ if __name__ == '__main__':
             ensure_folder = os.path.join(os.path.dirname(__file__), 'uploads')
             app.config['UPLOAD_FOLDER'] = ensure_folder
         os.makedirs(ensure_folder, exist_ok=True)
-        ensure_startup_schema()
+        if app.config.get('RUN_STARTUP_SCHEMA_SYNC'):
+            ensure_startup_schema()
     # Ejecutar con SocketIO (si no hay eventlet/gevent, usa Werkzeug). 
     # allow_unsafe_werkzeug=True evita el warning en modo desarrollo
     socketio.run(

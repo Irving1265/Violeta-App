@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container px-0">
+    <section id="deferredPageSkeleton" class="placeholder-glow py-4">
+        <div class="profile-header mb-4">
+            <div class="profile-cover"></div>
+            <div class="profile-info">
+                <span class="placeholder rounded-circle" style="width: 128px; height: 128px; display: inline-block;"></span>
+                <div class="w-100 mt-4">
+                    <span class="placeholder col-4 mb-3" style="height: 1.8rem;"></span>
+                    <span class="placeholder col-8 mb-2" style="height: 0.9rem;"></span>
+                    <span class="placeholder col-6 mb-4" style="height: 0.9rem;"></span>
+                </div>
+                <div class="profile-stats">
+                    {% for _ in range(3) %}
+                    <div class="stat-item">
+                        <span class="placeholder col-8 mb-2" style="height: 1.4rem;"></span>
+                        <span class="placeholder col-10" style="height: 0.8rem;"></span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 px-2">
+            {% for _ in range(6) %}
+            <div class="col-4">
+                <span class="placeholder d-block w-100" style="aspect-ratio: 1 / 1; border-radius: 18px;"></span>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <div id="deferredPageError" class="alert alert-danger" hidden>
+        No se pudo cargar el perfil. Recarga la página.
+    </div>
+
+    <div id="deferredPageMount" hidden aria-busy="true"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.DEFERRED_PAGE_CONFIG = {
+  mountId: 'deferredPageMount',
+  skeletonId: 'deferredPageSkeleton',
+  errorId: 'deferredPageError',
+  contentUrl: {{ url_for('user_profile_content', username=user.username, page=page)|tojson }},
+  scriptSrcs: [
+    {{ (url_for('static', filename='js/user_profile_page.js') ~ '?v=20260402-progressive-v1')|tojson }}
+  ],
+  initFn: 'initUserProfileEnhancements'
+};
+</script>
+<script defer src="{{ url_for('static', filename='js/deferred_page_loader.js') }}?v=20260402-progressive-v2"></script>
+{% endblock %}

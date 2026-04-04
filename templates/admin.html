@@ -1,6 +1,6 @@
-{% extends 'base.html' %}
-
-{% block content %}
+{% set active_tab = active_admin_tab|default(initial_admin_tab|default('users')) %}
+{% set admin_partial = admin_partial|default(false) %}
+{% if not admin_partial %}
 <div class="container-fluid px-0 px-md-3 px-xl-4 pb-5 admin-ops-page">
     <section class="admin-ops-topbar">
         <div class="admin-ops-topbar__title">
@@ -19,12 +19,12 @@
 
             <div class="admin-kpi-grid">
                 <article class="admin-kpi-card">
-                    <div class="admin-kpi-value">{{ users|length }}</div>
+                    <div class="admin-kpi-value">{{ total_users_count if total_users_count is defined else users|length }}</div>
                     <div class="admin-kpi-label">Usuarias totales</div>
                     <div class="admin-kpi-icon"><i class="fas fa-users"></i></div>
                 </article>
                 <article class="admin-kpi-card">
-                    <div class="admin-kpi-value">{{ posts|length }}</div>
+                    <div class="admin-kpi-value">{{ total_posts_count if total_posts_count is defined else posts|length }}</div>
                     <div class="admin-kpi-label">Posts</div>
                     <div class="admin-kpi-icon is-green"><i class="fas fa-images"></i></div>
                 </article>
@@ -68,22 +68,22 @@
 
     <section class="admin-tabs-panel">
         <div class="admin-tabs-scroll" id="adminTabs">
-            <button class="tab-btn active" onclick="switchTab('users')" id="tab-users" type="button">
+            <button class="tab-btn{% if active_tab == 'users' %} active{% endif %}" onclick="switchTab('users')" id="tab-users" type="button">
                 Usuarias
             </button>
-            <button class="tab-btn" onclick="switchTab('posts')" id="tab-posts" type="button">
+            <button class="tab-btn{% if active_tab == 'posts' %} active{% endif %}" onclick="switchTab('posts')" id="tab-posts" type="button">
                 Publicaciones
             </button>
-            <button class="tab-btn" onclick="switchTab('reportes')" id="tab-reportes" type="button">
+            <button class="tab-btn{% if active_tab == 'reportes' %} active{% endif %}" onclick="switchTab('reportes')" id="tab-reportes" type="button">
                 <span class="tab-dot"></span> Reportes
             </button>
-            <button class="tab-btn" onclick="switchTab('chats')" id="tab-chats" type="button">
+            <button class="tab-btn{% if active_tab == 'chats' %} active{% endif %}" onclick="switchTab('chats')" id="tab-chats" type="button">
                 Chats
             </button>
-            <button class="tab-btn" onclick="switchTab('verificaciones')" id="tab-verificaciones" type="button">
+            <button class="tab-btn{% if active_tab == 'verificaciones' %} active{% endif %}" onclick="switchTab('verificaciones')" id="tab-verificaciones" type="button">
                 Verificaciones
             </button>
-            <button class="tab-btn" onclick="switchTab('rutas')" id="tab-rutas" type="button">
+            <button class="tab-btn{% if active_tab == 'rutas' %} active{% endif %}" onclick="switchTab('rutas')" id="tab-rutas" type="button">
                 Rutas
             </button>
         </div>
@@ -97,13 +97,14 @@
             </button>
         </div>
     </section>
+{% endif %}
 
     <!-- Users Section -->
-    <div id="view-users" class="admin-view">
+    <div id="view-users" class="admin-view{% if active_tab != 'users' %} d-none{% endif %}">
         <div class="admin-data-card">
             <div class="admin-data-card__head">
                 <h3>Lista de usuarias recientes</h3>
-                <div class="small text-secondary">Mostrando {{ users|length }} usuarias</div>
+                <div class="small text-secondary">Mostrando {{ users|length }} de {{ total_users_count if total_users_count is defined else users|length }} usuarias</div>
             </div>
             <div class="admin-users-search-wrap">
                 <label class="admin-global-search">
@@ -134,11 +135,6 @@
                     </thead>
                     <tbody id="usersList">
                         {% for user in users %}
-                        {% set user_metrics = namespace(likes=0, comments=0) %}
-                        {% for up in user.posts %}
-                            {% set user_metrics.likes = user_metrics.likes + up.get_likes_count() %}
-                            {% set user_metrics.comments = user_metrics.comments + up.get_comments_count() %}
-                        {% endfor %}
                         <tr class="user-item">
                             <td class="admin-users-table__check">
                                 <input class="form-check-input user-select" type="checkbox" data-id="{{ user.id }}" {% if user.username=='admin' %}disabled{% endif %}>
@@ -146,7 +142,7 @@
                             <td>
                                 <div class="admin-user-cell">
                                     <img src="{{ url_for('uploaded_file', filename=user.profile_pic) if user.profile_pic and user.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
-                                        class="admin-user-cell__avatar" alt="Avatar">
+                                        class="admin-user-cell__avatar" alt="Avatar" loading="lazy" decoding="async">
                                     <div class="admin-user-cell__meta">
                                         <div class="admin-user-cell__name user-username">
                                             {{ user.username }}
@@ -167,7 +163,7 @@
                             <td>
                                 {% if user.username == 'admin' %}
                                 <span class="admin-status-pill is-active">Activo</span>
-                                {% elif user.posts|length > 0 %}
+                                {% elif user.post_count|default(0) > 0 %}
                                 <span class="admin-status-pill is-mid">En uso</span>
                                 {% else %}
                                 <span class="admin-status-pill is-off">Offline</span>
@@ -175,8 +171,8 @@
                             </td>
                             <td>
                                 <div class="admin-activity-pills">
-                                    <span class="admin-activity-pill"><i class="fas fa-images"></i> {{ user.posts|length }}</span>
-                                    <span class="admin-activity-pill"><i class="fas fa-heart"></i> {{ user_metrics.likes }}</span>
+                                    <span class="admin-activity-pill"><i class="fas fa-images"></i> {{ user.post_count|default(0) }}</span>
+                                    <span class="admin-activity-pill"><i class="fas fa-heart"></i> {{ user.like_count|default(0) }}</span>
                                 </div>
                             </td>
                             <td>{{ user.created_at.strftime('%d/%m/%Y') if user.created_at else 'N/A' }}</td>
@@ -207,20 +203,24 @@
                 </table>
             </div>
             <div class="admin-table-footer">
-                <div class="text-secondary small">Mostrando 1-{{ [users|length, 3]|min }} de {{ users|length }} usuarias</div>
-                <div class="admin-table-pagination">
-                    <button type="button">Prev</button>
-                    <button type="button" class="is-active">1</button>
-                    <button type="button">2</button>
-                    <button type="button">3</button>
-                    <button type="button">Next</button>
+                <div class="text-secondary small">Mostrando {{ users|length }} usuarias recientes de {{ total_users_count if total_users_count is defined else users|length }}</div>
+                {% if tab_total_pages|default(1) > 1 %}
+                <div class="d-flex align-items-center gap-2 ms-auto flex-wrap justify-content-end">
+                    <span class="small text-secondary">Página {{ tab_page }} de {{ tab_total_pages }}</span>
+                    {% if tab_has_prev %}
+                    <a href="{{ url_for('admin_panel', tab='users', page=tab_page - 1) }}" class="btn btn-outline-light btn-sm rounded-pill">Anterior</a>
+                    {% endif %}
+                    {% if tab_has_next %}
+                    <a href="{{ url_for('admin_panel', tab='users', page=tab_page + 1) }}" class="btn btn-outline-light btn-sm rounded-pill">Siguiente</a>
+                    {% endif %}
                 </div>
+                {% endif %}
             </div>
         </div>
     </div>
 
     <!-- Posts Section -->
-    <div id="view-posts" class="admin-view d-none">
+    <div id="view-posts" class="admin-view{% if active_tab != 'posts' %} d-none{% endif %}">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4">
             <h3 class="h5 mb-0 fw-bold text-white">Gestión de Publicaciones</h3>
             <div class="d-flex gap-2 w-100 w-md-auto">
@@ -248,8 +248,7 @@
         {% if posts %}
         <div class="row g-4" id="postsGrid">
             {% for post in posts %}
-            {% set is_reported = (post.meta and post.meta.show_public is not none and not post.meta.show_public) or
-            (post.reports and post.reports|length > 0) %}
+            {% set is_reported = post.is_reported_admin|default(false) %}
             <div class="col-12 col-sm-6 col-lg-4 col-xl-3 post-item">
                 <div class="flip-card h-100">
                     <div class="flip-card-inner h-100">
@@ -260,7 +259,7 @@
                                 <div class="position-relative ratio ratio-1x1">
                                     <img src="{{ url_for('uploaded_file', filename=post.image_filename) }}"
                                         class="object-fit-cover w-100 h-100 {% if is_reported %}reported-image{% endif %}"
-                                        alt="Post">
+                                        alt="Post" loading="lazy" decoding="async">
                                     {% if is_reported %}
                                     <div class="reported-overlay">
                                         <span class="reported-pill">Reportado</span>
@@ -292,7 +291,7 @@
                                 <div class="card-body p-3 d-flex flex-column h-100">
                                     <div class="d-flex align-items-center gap-2 mb-3">
                             <img src="{{ url_for('uploaded_file', filename=post.author.profile_pic) if post.author.profile_pic and post.author.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
-                                class="rounded-circle" width="24" height="24" alt="Author">
+                                class="rounded-circle" width="24" height="24" alt="Author" loading="lazy" decoding="async">
                             {% set post_admin_level = moderation_badge_level(post.author) %}
                             <span class="small fw-bold text-white post-author">{{ post.author.username }}{% if post_admin_level > 0 %}<span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if post_admin_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if post_admin_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if post_admin_level >= 2 else 'Usuaria con un strike' }}"><i class="fas fa-triangle-exclamation"></i></span>{% endif %}{% if post.author.username == 'admin' %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}</span>
                                         <span class="small text-muted ms-auto">{{ post.created_at.strftime('%d/%m') if
@@ -306,9 +305,8 @@
                                     <div
                                         class="d-flex justify-content-between align-items-center pt-2 border-top border-secondary mt-auto">
                                         <div class="d-flex gap-3 small text-secondary">
-                                            <span><i class="fas fa-heart me-1"></i> {{ post.get_likes_count() }}</span>
-                                            <span><i class="fas fa-comment me-1"></i> {{ post.get_comments_count()
-                                                }}</span>
+                                            <span><i class="fas fa-heart me-1"></i> {{ post.likes_count|default(0) }}</span>
+                                            <span><i class="fas fa-comment me-1"></i> {{ post.comments_count|default(0) }}</span>
                                         </div>
                                         <div class="d-flex align-items-center gap-2">
                                             <button class="btn btn-sm btn-ghost text-primary p-0 location-btn"
@@ -384,30 +382,44 @@
             <p>Aún no se han creado publicaciones en la plataforma.</p>
         </div>
         {% endif %}
+        {% if tab_total_pages|default(1) > 1 %}
+        <div class="admin-table-footer mt-4">
+            <div class="text-secondary small">Mostrando {{ posts|length if posts is defined else 0 }} de {{ total_posts_count if total_posts_count is defined else (posts|length if posts is defined else 0) }} publicaciones</div>
+            <div class="d-flex align-items-center gap-2 ms-auto flex-wrap justify-content-end">
+                <span class="small text-secondary">Página {{ tab_page }} de {{ tab_total_pages }}</span>
+                {% if tab_has_prev %}
+                <a href="{{ url_for('admin_panel', tab='posts', page=tab_page - 1) }}" class="btn btn-outline-light btn-sm rounded-pill">Anterior</a>
+                {% endif %}
+                {% if tab_has_next %}
+                <a href="{{ url_for('admin_panel', tab='posts', page=tab_page + 1) }}" class="btn btn-outline-light btn-sm rounded-pill">Siguiente</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Reports Section -->
-    <div id="view-reportes" class="admin-view d-none">
+    <div id="view-reportes" class="admin-view{% if active_tab != 'reportes' %} d-none{% endif %}">
         <div class="report-subtabs" id="reportSubtabs" role="tablist" aria-label="Subsecciones de reportes">
-            <button class="report-subtab-btn active" type="button" id="report-subtab-reportados" role="tab" aria-selected="true" onclick="switchReportsSubtab('reportados')">
+            <button class="report-subtab-btn{% if active_reports_subtab == 'reportados' %} active{% endif %}" type="button" id="report-subtab-reportados" role="tab" aria-selected="{{ 'true' if active_reports_subtab == 'reportados' else 'false' }}" onclick="switchReportsSubtab('reportados')">
                 Publicaciones reportadas
             </button>
-            <button class="report-subtab-btn" type="button" id="report-subtab-reportes-chat" role="tab" aria-selected="false" onclick="switchReportsSubtab('reportes-chat')">
+            <button class="report-subtab-btn{% if active_reports_subtab == 'reportes-chat' %} active{% endif %}" type="button" id="report-subtab-reportes-chat" role="tab" aria-selected="{{ 'true' if active_reports_subtab == 'reportes-chat' else 'false' }}" onclick="switchReportsSubtab('reportes-chat')">
                 Mensajes reportados
             </button>
-            <button class="report-subtab-btn" type="button" id="report-subtab-reportes-comentarios" role="tab" aria-selected="false" onclick="switchReportsSubtab('reportes-comentarios')">
+            <button class="report-subtab-btn{% if active_reports_subtab == 'reportes-comentarios' %} active{% endif %}" type="button" id="report-subtab-reportes-comentarios" role="tab" aria-selected="{{ 'true' if active_reports_subtab == 'reportes-comentarios' else 'false' }}" onclick="switchReportsSubtab('reportes-comentarios')">
                 Comentarios reportados
             </button>
         </div>
 
-        <div id="report-subview-reportados" class="report-subview" role="tabpanel" aria-labelledby="report-subtab-reportados">
+        <div id="report-subview-reportados" class="report-subview{% if active_reports_subtab != 'reportados' %} d-none{% endif %}" role="tabpanel" aria-labelledby="report-subtab-reportados">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4">
             <h3 class="h5 mb-0 fw-bold text-white">Publicaciones Reportadas</h3>
             <div class="small text-secondary">Restaura la publicación o manda un strike a la usuaria.</div>
         </div>
         <div class="row g-3" id="reportedGrid">
             {% set ns = namespace(has=false) %}
-            {% for post in posts %}
+            {% for post in reported_posts %}
             {% if (post.meta and post.meta.show_public is not none and not post.meta.show_public) or (post.reports and
             post.reports|length > 0) %}
             {% set ns.has = true %}
@@ -489,9 +501,9 @@
                         <img class="message-report-card__image" src="{{ url_for('uploaded_file', filename=post.image_filename) }}" alt="Publicación reportada">
                         <div class="small text-white mt-3">{{ post.caption or 'Sin descripción.' }}</div>
                         <div class="small text-secondary mt-2">
-                            <i class="fas fa-heart me-1"></i>{{ post.get_likes_count() }}
+                            <i class="fas fa-heart me-1"></i>{{ post.likes_count|default(0) }}
                             <span class="mx-2">·</span>
-                            <i class="fas fa-comment me-1"></i>{{ post.get_comments_count() }}
+                            <i class="fas fa-comment me-1"></i>{{ post.comments_count|default(0) }}
                         </div>
                     </div>
                     {% if report_ref and (report_ref.admin_note or report_ref.resolved_at) %}
@@ -529,7 +541,7 @@
 
         </div>
 
-        <div id="report-subview-reportes-chat" class="report-subview d-none" role="tabpanel" aria-labelledby="report-subtab-reportes-chat">
+        <div id="report-subview-reportes-chat" class="report-subview{% if active_reports_subtab != 'reportes-chat' %} d-none{% endif %}" role="tabpanel" aria-labelledby="report-subtab-reportes-chat">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4">
             <h3 class="h5 mb-0 fw-bold text-white">Mensajes reportados</h3>
             <div class="small text-secondary">Restaura el mensaje o manda un strike a la usuaria responsable.</div>
@@ -646,7 +658,7 @@
         {% endif %}
         </div>
 
-        <div id="report-subview-reportes-comentarios" class="report-subview d-none" role="tabpanel" aria-labelledby="report-subtab-reportes-comentarios">
+        <div id="report-subview-reportes-comentarios" class="report-subview{% if active_reports_subtab != 'reportes-comentarios' %} d-none{% endif %}" role="tabpanel" aria-labelledby="report-subtab-reportes-comentarios">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4">
             <h3 class="h5 mb-0 fw-bold text-white">Comentarios reportados</h3>
             <div class="small text-secondary">Los comentarios reportados permanecen en la sección de “Comentarios ocultos” hasta que decidas restaurarlos o sancionar a la usuaria.</div>
@@ -752,10 +764,10 @@
 
 
     <!-- Chats Section -->
-    <div id="view-verificaciones" class="admin-view d-none">
+    <div id="view-verificaciones" class="admin-view{% if active_tab != 'verificaciones' %} d-none{% endif %}">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4">
             <h3 class="h5 mb-0 fw-bold text-white">Verificaciones de identidad</h3>
-            <div class="text-secondary small">Pendientes: {{ pending_verifications|length if pending_verifications is defined else 0 }}</div>
+            <div class="text-secondary small">Pendientes: {{ pending_verifications_count if pending_verifications_count is defined else (pending_verifications|length if pending_verifications is defined else 0) }}</div>
         </div>
         {% if verifications %}
         <div class="row g-3">
@@ -800,11 +812,11 @@
         {% endif %}
     </div>
 
-    <div id="view-rutas" class="admin-view d-none">
+    <div id="view-rutas" class="admin-view{% if active_tab != 'rutas' %} d-none{% endif %}">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4">
             <h3 class="h5 mb-0 fw-bold text-white">Resumen de rutas</h3>
             <div class="text-secondary small">
-                Registros: {{ checkins|length if checkins is defined else 0 }}
+                Registros: {{ checkins_total_count if checkins_total_count is defined else (checkins|length if checkins is defined else 0) }}
             </div>
         </div>
 
@@ -836,8 +848,8 @@
                         <div class="d-flex flex-column align-items-start align-items-md-end gap-2">
                             {% set badge = 'success' if c.status == 'arrived' else 'warning' if c.status == 'active' else 'secondary' %}
                             <span class="badge bg-{{ badge }}">{{ c.status }}</span>
-                            <a class="btn btn-outline-light btn-sm rounded-pill" href="{{ url_for('checkin_summary', checkin_id=c.id) }}" target="_blank" rel="noopener">
-                                Ver resumen
+                            <a class="btn btn-outline-light btn-sm rounded-pill" href="{{ url_for('safety_workspace') }}" target="_blank" rel="noopener">
+                                Safety Ops
                             </a>
                         </div>
                     </div>
@@ -850,7 +862,7 @@
         {% endif %}
     </div>
 
-    <div id="view-chats" class="admin-view d-none">
+    <div id="view-chats" class="admin-view{% if active_tab != 'chats' %} d-none{% endif %}">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4">
             <h3 class="h5 mb-0 fw-bold text-white">Salas de Chat</h3>
         </div>
@@ -915,7 +927,7 @@
                                 <div class="small text-secondary">{{ room.description }}</div>
                                 {% endif %}
                                 <div class="small text-secondary">
-                                    {{ room.participants|length }} participantes · {{ room.messages|length }} mensajes
+                                    {{ room.participant_count|default(0) }} participantes · {{ room.message_count|default(0) }} mensajes
                                 </div>
                             </div>
                         </div>
@@ -940,2263 +952,10 @@
         </div>
     </div>
 
+{% if not admin_partial %}
 </div>
-
-<!-- Modals -->
-<!-- Edit Username Modal -->
-<div class="modal fade" id="editUsernameModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content bg-surface border border-secondary text-white">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title">Cambiar Username</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="editUsernameForm">
-                    <div class="mb-3">
-                        <label for="newUsername" class="form-label text-secondary">Nuevo Username</label>
-                        <input type="text" class="form-control bg-body border-secondary text-white" id="newUsername"
-                            required>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="saveUsername()">Guardar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Change Photo Modal -->
-<div class="modal fade" id="changePhotoModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content bg-surface border border-secondary text-white change-photo-modal">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title">Editar usuaria</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="changePhotoForm" enctype="multipart/form-data">
-                    <div class="change-photo-preview">
-                        <img id="changePhotoPreview" src="{{ url_for('static', filename='images/default_avatar.jpg') }}"
-                            alt="Preview">
-                    </div>
-                    <input type="file" class="d-none" id="photoFile" accept="image/*" required>
-                    <button type="button" class="btn btn-outline-light w-100 mt-3" id="photoPickBtn">
-                        <i class="fa-regular fa-image me-1"></i> Elegir foto
-                    </button>
-                    <div class="text-secondary small mt-2">JPG · PNG · hasta 10 MB</div>
-                    <div class="mt-3">
-                        <label for="changePhotoBio" class="form-label text-secondary">Descripción</label>
-                        <textarea id="changePhotoBio" class="form-control bg-body border-secondary text-white" rows="3"
-                            placeholder="Escribe una breve descripción..."></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="savePhoto()">Guardar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Change Photo Cropper Modal -->
-<div class="modal fade cropper-modal-dark" id="changePhotoCropperModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Ajustar Foto</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                    aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-0 bg-black">
-                <div class="img-container" style="height: 520px; overflow: hidden; position: relative;">
-                    <img id="changePhotoCropperImage" src="" alt="Imagen para recortar"
-                        style="max-width: 100%; display: block;">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-light" id="changePhotoChooseCropBtn">
-                    <i class="fa-regular fa-image me-1"></i> Elegir otra
-                </button>
-                <button type="button" class="violet-btn-primary" id="changePhotoApplyCropBtn">Aplicar Recorte</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Edit Coordinates Modal -->
-<div class="modal fade" id="coordsModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content bg-surface border border-secondary text-white">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title">Editar Coordenadas</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-danger d-none" id="coordsError"></div>
-                <form id="coordsForm">
-                    <div class="row g-3 mb-3">
-                        <div class="col-6">
-                            <label for="coordLat" class="form-label text-secondary">Latitud</label>
-                            <input type="number" class="form-control bg-body border-secondary text-white" id="coordLat"
-                                step="0.000001" required>
-                        </div>
-                        <div class="col-6">
-                            <label for="coordLng" class="form-label text-secondary">Longitud</label>
-                            <input type="number" class="form-control bg-body border-secondary text-white" id="coordLng"
-                                step="0.000001" required>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="coordLocationName" class="form-label text-secondary">Nombre del lugar</label>
-                        <input type="text" class="form-control bg-body border-secondary text-white"
-                            id="coordLocationName">
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <label for="coordCity" class="form-label text-secondary">Ciudad</label>
-                            <input type="text" class="form-control bg-body border-secondary text-white" id="coordCity">
-                        </div>
-                        <div class="col-6">
-                            <label for="coordCountry" class="form-label text-secondary">País</label>
-                            <input type="text" class="form-control bg-body border-secondary text-white"
-                                id="coordCountry">
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="saveCoords()">Guardar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Report Details Modal -->
-<div class="modal fade" id="reportDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content bg-surface border border-secondary text-white report-details-modal">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title">Detalle del reporte</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="report-details-grid">
-                    <div class="report-details-image">
-                        <img id="reportDetailsImage" src="" alt="Post">
-                    </div>
-                    <div class="report-details-info">
-                        <div class="report-details-author">
-                            <img id="reportDetailsAuthorPic" src="" alt="Autor">
-                            <div>
-                                <div id="reportDetailsAuthor" class="fw-bold text-white"></div>
-                                <div id="reportDetailsCreated" class="small text-secondary"></div>
-                            </div>
-                        </div>
-                        <div id="reportDetailsLocation" class="small text-secondary mt-2"></div>
-                        <div id="reportDetailsCaption" class="mt-2 text-white"></div>
-                        <div class="report-details-metrics mt-3">
-                            <span><i class="fas fa-heart me-1"></i> <span id="reportDetailsLikes"></span></span>
-                            <span><i class="fas fa-comment me-1"></i> <span
-                                    id="reportDetailsCommentsCount"></span></span>
-                        </div>
-                    </div>
-                </div>
-                <div class="report-details-section mt-4">
-                    <h6 class="text-white fw-bold">Reportes</h6>
-                    <div id="reportDetailsReports" class="report-details-list"></div>
-                </div>
-                <div class="report-details-section mt-4">
-                    <h6 class="text-white fw-bold">Comentarios</h6>
-                    <div id="reportDetailsComments" class="report-details-list"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<style>
-    .bg-surface {
-        background-color: var(--bg-surface) !important;
-    }
-
-    .bg-body {
-        background-color: var(--bg-body) !important;
-    }
-
-    .tab-btn {
-        color: var(--text-secondary);
-        background: transparent;
-        border: 1px solid transparent;
-        transition: all 0.3s ease;
-    }
-
-    .tab-btn:hover {
-        color: var(--text-main);
-        background: rgba(255, 255, 255, 0.05);
-    }
-
-    .tab-btn.active {
-        background: var(--primary-color);
-        color: white;
-        box-shadow: var(--shadow-md);
-    }
-
-    .user-item {
-        transition: transform 0.2s ease;
-    }
-
-    .user-item:hover {
-        transform: translateY(-2px);
-    }
-
-    .circle-icon-btn {
-        width: 36px;
-        height: 36px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
-    }
-
-    .reported-image {
-        filter: blur(6px);
-        transform: scale(1.02);
-    }
-
-    .reported-overlay {
-        position: absolute;
-        inset: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        pointer-events: none;
-        background: rgba(19, 17, 28, 0.35);
-    }
-
-    .reported-pill {
-        color: #ff4d4f;
-        font-weight: 800;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        font-size: 0.85rem;
-        text-shadow: 0 0 12px rgba(255, 77, 79, 0.6);
-        padding: 6px 14px;
-        border-radius: 999px;
-        border: 2px solid rgba(255, 77, 79, 0.7);
-        background: rgba(19, 17, 28, 0.55);
-        box-shadow: 0 0 12px rgba(255, 77, 79, 0.2);
-    }
-
-    .report-filters {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.85rem;
-        align-items: center;
-        justify-content: flex-end;
-        padding: 0.75rem 1rem;
-        border-radius: 18px;
-        background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(30, 27, 46, 0.7));
-        border: 1px solid rgba(139, 92, 246, 0.25);
-        box-shadow: var(--shadow-sm);
-        backdrop-filter: blur(6px);
-    }
-
-    .filter-block {
-        display: flex;
-        flex-direction: column;
-        gap: 0.35rem;
-        min-width: 210px;
-    }
-
-    .filter-label {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.45rem;
-        font-size: 0.75rem;
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        color: var(--text-secondary);
-    }
-
-    .filter-select-wrap {
-        position: relative;
-        border-radius: 999px;
-        background: rgba(19, 17, 28, 0.7);
-        border: 1px solid var(--border-color);
-        padding: 0.35rem 0.85rem;
-        display: flex;
-        align-items: center;
-    }
-
-    .filter-select-wrap::after {
-        content: '\f107';
-        font-family: "Font Awesome 5 Free";
-        font-weight: 900;
-        position: absolute;
-        right: 14px;
-        color: var(--text-secondary);
-        pointer-events: none;
-        font-size: 0.85rem;
-    }
-
-    .filter-select {
-        appearance: none;
-        background: transparent;
-        border: 0;
-        color: var(--text-main);
-        width: 100%;
-        font-weight: 600;
-        padding-right: 1.5rem;
-    }
-
-    .filter-select:focus {
-        outline: none;
-        box-shadow: none;
-    }
-
-    @media (max-width: 768px) {
-        .report-filters {
-            justify-content: center;
-            border-radius: var(--radius-md);
-        }
-
-        .filter-block {
-            width: 100%;
-        }
-    }
-
-    .flip-card {
-        perspective: 1200px;
-        position: relative;
-        min-height: 430px;
-    }
-
-    .flip-card-inner {
-        position: relative;
-        width: 100%;
-        height: 100%;
-        transition: transform 0.6s ease;
-        transform-style: preserve-3d;
-    }
-
-    .flip-card.is-flipped .flip-card-inner {
-        transform: rotateY(180deg);
-    }
-
-    .flip-card-front,
-    .flip-card-back {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        backface-visibility: hidden;
-    }
-
-    .flip-card-back {
-        transform: rotateY(180deg);
-    }
-
-    .location-map-link.disabled {
-        pointer-events: none;
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    .admin-ops-page {
-        --ops-bg: var(--bg-body);
-        --ops-bg-soft: var(--bg-surface);
-        --ops-border: rgba(124, 58, 237, 0.22);
-        --ops-border-strong: rgba(124, 58, 237, 0.5);
-        --ops-text: var(--text-main);
-        --ops-muted: var(--text-secondary);
-        --ops-violet: var(--primary-color);
-        --ops-violet-soft: var(--primary-light);
-        color: var(--ops-text);
-    }
-
-    .admin-priority-banner {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        margin-bottom: 0.9rem;
-        padding: 0.8rem 1rem;
-        border: 1px solid rgba(244, 63, 94, 0.35);
-        border-radius: 16px;
-        background: linear-gradient(90deg, rgba(244, 63, 94, 0.14), rgba(30, 27, 46, 0.9));
-        color: var(--text-main);
-    }
-
-    .admin-priority-banner__left {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.55rem;
-        font-size: 0.93rem;
-        flex-wrap: wrap;
-    }
-
-    .admin-priority-banner__left strong {
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--accent-color);
-    }
-
-    .admin-priority-banner__link {
-        border: 0;
-        background: transparent;
-        color: var(--primary-light);
-        font-weight: 700;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.45rem;
-        white-space: nowrap;
-    }
-
-    .admin-ops-topbar {
-        background: linear-gradient(135deg, rgba(30, 27, 46, 0.97), rgba(19, 17, 28, 0.95));
-        border: 1px solid var(--ops-border);
-        border-radius: 18px;
-        padding: 1rem 1.15rem;
-        margin-bottom: 1.1rem;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-    }
-
-    .admin-ops-topbar__title {
-        display: flex;
-        align-items: center;
-        gap: 0.9rem;
-        flex-wrap: wrap;
-    }
-
-    .admin-ops-topbar__title h1 {
-        margin: 0;
-        font-size: 2rem;
-        font-weight: 800;
-        color: var(--text-main);
-    }
-
-    .admin-system-pill {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 999px;
-        border: 1px solid rgba(52, 211, 153, 0.45);
-        background: rgba(6, 78, 59, 0.35);
-        color: var(--success);
-        font-size: 0.75rem;
-        font-weight: 800;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        padding: 0.35rem 0.75rem;
-    }
-
-    .admin-global-search {
-        position: relative;
-        min-width: 280px;
-        margin: 0;
-    }
-
-    .admin-global-search i {
-        position: absolute;
-        left: 0.95rem;
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--text-secondary);
-        font-size: 0.92rem;
-    }
-
-    .admin-global-search input {
-        width: 100%;
-        height: 44px;
-        border-radius: 999px;
-        border: 1px solid var(--ops-border);
-        background: rgba(19, 17, 28, 0.88);
-        color: var(--text-main);
-        padding: 0 1rem 0 2.6rem;
-        outline: none;
-    }
-
-    .admin-global-search input::placeholder {
-        color: var(--text-secondary);
-    }
-
-    .admin-global-search input:focus {
-        border-color: var(--ops-border-strong);
-        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
-    }
-
-    .admin-top-icon-btn {
-        width: 42px;
-        height: 42px;
-        border-radius: 999px;
-        border: 1px solid var(--ops-border);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        background: rgba(30, 27, 46, 0.9);
-        color: var(--text-main);
-    }
-
-    .admin-overview-grid {
-        display: grid;
-        grid-template-columns: minmax(360px, 1fr) minmax(520px, 1.9fr);
-        gap: 1rem;
-        margin-bottom: 1rem;
-    }
-
-    .admin-overview-left {
-        display: grid;
-        gap: 0.9rem;
-    }
-
-    .admin-welcome-card {
-        border: 1px solid rgba(139, 92, 246, 0.42);
-        background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
-        border-radius: 18px;
-        padding: 1.6rem;
-        box-shadow: 0 18px 42px rgba(109, 40, 217, 0.28);
-    }
-
-    .admin-welcome-card h2 {
-        margin: 0 0 0.4rem;
-        font-weight: 800;
-        font-size: 2.7rem;
-    }
-
-    .admin-welcome-card p {
-        margin: 0 0 1.2rem;
-        color: rgba(246, 242, 255, 0.88);
-    }
-
-    .admin-welcome-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.2);
-        color: #fff;
-        font-weight: 700;
-        text-decoration: none;
-        padding: 0.62rem 1rem;
-    }
-
-    .admin-kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.75rem;
-    }
-
-    .admin-kpi-card {
-        position: relative;
-        border-radius: 16px;
-        border: 1px solid var(--ops-border);
-        background: linear-gradient(150deg, rgba(30, 27, 46, 0.95), rgba(19, 17, 28, 0.93));
-        padding: 1.15rem 1rem;
-        overflow: hidden;
-    }
-
-    .admin-kpi-value {
-        font-size: 2.3rem;
-        line-height: 1;
-        font-weight: 800;
-        margin-bottom: 0.38rem;
-        color: var(--text-main);
-    }
-
-    .admin-kpi-label {
-        color: var(--text-secondary);
-        font-size: 0.85rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        font-weight: 700;
-    }
-
-    .admin-kpi-icon {
-        position: absolute;
-        top: 0.75rem;
-        right: 0.75rem;
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        border: 1px solid rgba(139, 92, 246, 0.35);
-        background: rgba(76, 29, 149, 0.38);
-        color: var(--primary-light);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .admin-kpi-icon.is-green {
-        border-color: rgba(34, 197, 94, 0.4);
-        background: rgba(6, 95, 70, 0.4);
-        color: var(--success);
-    }
-
-    .admin-kpi-icon.is-pink {
-        border-color: rgba(236, 72, 153, 0.45);
-        background: rgba(131, 24, 67, 0.45);
-        color: var(--accent-color);
-    }
-
-    .admin-kpi-icon.is-blue {
-        border-color: rgba(59, 130, 246, 0.45);
-        background: rgba(30, 64, 175, 0.45);
-        color: var(--info);
-    }
-
-    .admin-activity-card {
-        border-radius: 18px;
-        border: 1px solid var(--ops-border);
-        background: radial-gradient(circle at 20% 0%, rgba(124, 58, 237, 0.25), rgba(30, 27, 46, 0.95) 42%),
-            linear-gradient(145deg, rgba(30, 27, 46, 0.98), rgba(19, 17, 28, 0.94));
-        padding: 1.15rem 1.15rem 1.05rem;
-    }
-
-    .admin-activity-card__head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.8rem;
-        margin-bottom: 0.75rem;
-    }
-
-    .admin-activity-card__head h3 {
-        margin: 0;
-        font-size: 2.1rem;
-        font-weight: 800;
-        color: var(--text-main);
-    }
-
-    .admin-activity-card__head p {
-        margin: 0.22rem 0 0;
-        color: var(--text-secondary);
-    }
-
-    .admin-range-select {
-        border-radius: 10px;
-        border: 1px solid var(--ops-border);
-        background: rgba(19, 17, 28, 0.88);
-        color: var(--text-main);
-        padding: 0.4rem 0.65rem;
-        min-width: 132px;
-    }
-
-    .admin-activity-chart-wrap {
-        border-radius: 14px;
-        border: 1px solid rgba(45, 36, 56, 0.6);
-        background: rgba(19, 17, 28, 0.62);
-        padding: 0.75rem 0.8rem 0.55rem;
-    }
-
-    .admin-activity-chart {
-        width: 100%;
-        height: 300px;
-        display: block;
-    }
-
-    #adminActivityGrid line {
-        stroke: rgba(148, 139, 156, 0.22);
-        stroke-width: 1;
-    }
-
-    #adminActivitySeries path {
-        fill: none;
-        stroke-width: 3;
-        stroke-linejoin: round;
-        stroke-linecap: round;
-    }
-
-    #adminActivityDots circle {
-        fill: var(--bg-surface);
-        stroke-width: 2.2;
-    }
-
-    .admin-activity-xlabels {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.5rem;
-        color: var(--text-secondary);
-        font-size: 0.78rem;
-        margin-top: 0.35rem;
-    }
-
-    .admin-activity-legend {
-        margin-top: 0.65rem;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.45rem 0.65rem;
-    }
-
-    .admin-legend-item {
-        height: 28px;
-        border-radius: 999px;
-        border: 1px solid rgba(124, 58, 237, 0.28);
-        background: rgba(30, 27, 46, 0.66);
-        color: var(--text-main);
-        display: inline-flex;
-        align-items: center;
-        gap: 0.38rem;
-        padding: 0 0.62rem;
-        font-size: 0.78rem;
-    }
-
-    .admin-legend-swatch {
-        width: 9px;
-        height: 9px;
-        border-radius: 999px;
-        display: inline-block;
-    }
-
-    .admin-legend-total {
-        color: var(--text-secondary);
-        font-size: 0.73rem;
-    }
-
-    .admin-activity-updated {
-        margin-top: 0.55rem;
-        font-size: 0.72rem;
-        color: var(--text-secondary);
-    }
-
-    .admin-activity-chart-wrap.is-updating {
-        animation: adminChartRefresh 0.35s ease;
-    }
-
-    @keyframes adminChartRefresh {
-        0% {
-            opacity: 0.62;
-            transform: translateY(2px);
-        }
-        100% {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    .admin-tabs-panel {
-        border-radius: 18px;
-        border: 1px solid var(--ops-border);
-        background: linear-gradient(145deg, rgba(30, 27, 46, 0.96), rgba(19, 17, 28, 0.94));
-        padding: 0.8rem 0.9rem;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.95rem;
-        margin-bottom: 1rem;
-    }
-
-    .admin-tabs-scroll {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.42rem;
-        overflow-x: auto;
-        padding-bottom: 0.1rem;
-    }
-
-    .admin-ops-page .tab-btn {
-        border: 1px solid transparent;
-        background: rgba(30, 27, 46, 0.88);
-        color: var(--text-secondary);
-        border-radius: 12px;
-        height: 39px;
-        padding: 0 1rem;
-        font-weight: 700;
-        font-size: 0.92rem;
-        white-space: nowrap;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.42rem;
-        transition: all 0.25s ease;
-    }
-
-    .admin-ops-page .tab-btn:hover {
-        color: var(--text-main);
-        border-color: rgba(167, 139, 250, 0.35);
-    }
-
-    .admin-ops-page .tab-btn.active {
-        color: #fff;
-        border-color: rgba(167, 139, 250, 0.55);
-        background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
-        box-shadow: 0 12px 24px rgba(109, 40, 217, 0.3);
-    }
-
-    .tab-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 999px;
-        background: var(--accent-color);
-    }
-
-    .admin-tabs-tools {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.45rem;
-        flex-shrink: 0;
-    }
-
-    .admin-filter-box {
-        height: 39px;
-        padding: 0 0.85rem;
-        border-radius: 12px;
-        border: 1px solid var(--ops-border);
-        background: rgba(30, 27, 46, 0.72);
-        color: var(--text-secondary);
-        display: inline-flex;
-        align-items: center;
-        gap: 0.48rem;
-        margin: 0;
-        min-width: 205px;
-    }
-
-    .admin-filter-box span {
-        font-size: 0.88rem;
-    }
-
-    .admin-refresh-btn {
-        width: 39px;
-        height: 39px;
-        border-radius: 10px;
-        border: 1px solid var(--ops-border);
-        background: rgba(30, 27, 46, 0.78);
-        color: var(--text-secondary);
-    }
-
-    .admin-data-card {
-        border-radius: 18px;
-        border: 1px solid var(--ops-border);
-        background: linear-gradient(145deg, rgba(30, 27, 46, 0.98), rgba(19, 17, 28, 0.96));
-        overflow: hidden;
-    }
-
-    .admin-data-card__head {
-        padding: 1.1rem 1.3rem;
-        border-bottom: 1px solid rgba(45, 36, 56, 0.6);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-    }
-
-    .admin-data-card__head h3 {
-        margin: 0;
-        font-weight: 800;
-        color: var(--text-main);
-    }
-
-    .admin-users-search-wrap {
-        padding: 0.95rem 1.3rem 0.2rem;
-    }
-
-    .admin-users-search-wrap .admin-global-search {
-        width: 100%;
-        min-width: 0;
-        max-width: 430px;
-    }
-
-    .admin-table-bulk-toolbar {
-        margin: 0;
-        padding: 0.75rem 1.3rem;
-        border-bottom: 1px solid rgba(45, 36, 56, 0.55);
-        background: rgba(19, 17, 28, 0.55);
-    }
-
-    .admin-table-bulk-toolbar .bulk-check,
-    .admin-table-bulk-toolbar .bulk-count {
-        color: var(--text-secondary);
-    }
-
-    .admin-users-table {
-        margin: 0;
-        color: var(--text-main);
-    }
-
-    .admin-users-table th,
-    .admin-users-table td {
-        border-color: rgba(45, 36, 56, 0.6);
-        vertical-align: middle;
-        padding: 0.92rem 0.9rem;
-        white-space: nowrap;
-    }
-
-    .admin-users-table thead th {
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: var(--text-secondary);
-        font-weight: 700;
-        background: rgba(19, 17, 28, 0.78);
-    }
-
-    .admin-users-table tbody tr {
-        transition: background 0.22s ease;
-    }
-
-    .admin-users-table tbody tr:hover {
-        background: rgba(111, 76, 218, 0.08);
-    }
-
-    .admin-users-table__check {
-        width: 40px;
-        text-align: center;
-    }
-
-    .admin-user-cell {
-        display: flex;
-        align-items: center;
-        gap: 0.7rem;
-        min-width: 260px;
-    }
-
-    .admin-user-cell__avatar {
-        width: 46px;
-        height: 46px;
-        border-radius: 999px;
-        object-fit: cover;
-        border: 2px solid rgba(45, 36, 56, 0.85);
-    }
-
-    .admin-user-cell__name {
-        font-size: 1.08rem;
-        font-weight: 700;
-        color: var(--text-main);
-        display: inline-flex;
-        align-items: center;
-        gap: 0.28rem;
-    }
-
-    .admin-user-cell__email {
-        color: var(--text-secondary);
-        font-size: 0.88rem;
-    }
-
-    .admin-status-pill {
-        border-radius: 999px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 88px;
-        height: 30px;
-        padding: 0 0.72rem;
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        font-weight: 800;
-        border: 1px solid transparent;
-    }
-
-    .admin-status-pill.is-active {
-        color: var(--success);
-        background: rgba(5, 150, 105, 0.18);
-        border-color: rgba(16, 185, 129, 0.45);
-    }
-
-    .admin-status-pill.is-mid {
-        color: var(--warning);
-        background: rgba(180, 83, 9, 0.2);
-        border-color: rgba(251, 191, 36, 0.4);
-    }
-
-    .admin-status-pill.is-off {
-        color: var(--text-secondary);
-        background: rgba(75, 85, 99, 0.3);
-        border-color: rgba(156, 163, 175, 0.35);
-    }
-
-    .admin-status-pill.is-protected {
-        color: var(--text-secondary);
-        background: rgba(45, 36, 56, 0.66);
-        border-color: rgba(45, 36, 56, 0.92);
-    }
-
-    .admin-activity-pills {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.38rem;
-    }
-
-    .admin-activity-pill {
-        border-radius: 9px;
-        height: 30px;
-        padding: 0 0.6rem;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.33rem;
-        border: 1px solid rgba(45, 36, 56, 0.72);
-        background: rgba(30, 27, 46, 0.66);
-        color: var(--text-main);
-        font-size: 0.8rem;
-        font-weight: 700;
-    }
-
-    .admin-action-row {
-        display: inline-flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 0.4rem;
-    }
-
-    .admin-icon-action {
-        width: 34px;
-        height: 34px;
-        border: 1px solid rgba(124, 58, 237, 0.3);
-        border-radius: 10px;
-        background: rgba(30, 27, 46, 0.8);
-        color: var(--text-main);
-    }
-
-    .admin-icon-action.is-danger {
-        color: var(--accent-color);
-        border-color: rgba(248, 113, 113, 0.45);
-        background: rgba(127, 29, 29, 0.28);
-    }
-
-    .admin-table-footer {
-        padding: 0.9rem 1.25rem 1.05rem;
-        border-top: 1px solid rgba(45, 36, 56, 0.72);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.8rem;
-        flex-wrap: wrap;
-    }
-
-    .admin-table-pagination {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.3rem;
-    }
-
-    .admin-table-pagination button {
-        min-width: 34px;
-        height: 32px;
-        border-radius: 8px;
-        border: 1px solid rgba(45, 36, 56, 0.72);
-        background: rgba(30, 27, 46, 0.78);
-        color: var(--text-secondary);
-        font-size: 0.84rem;
-        padding: 0 0.52rem;
-    }
-
-    .admin-table-pagination button.is-active {
-        background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
-        border-color: rgba(167, 139, 250, 0.65);
-        color: white;
-    }
-
-    @media (max-width: 1199px) {
-        .admin-overview-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .admin-welcome-card h2,
-        .admin-activity-card__head h3 {
-            font-size: 2rem;
-        }
-    }
-
-    @media (max-width: 767px) {
-        .admin-priority-banner {
-            align-items: flex-start;
-            flex-direction: column;
-        }
-
-        .admin-ops-topbar {
-            flex-direction: column;
-            align-items: stretch;
-        }
-
-        .admin-global-search {
-            min-width: 0;
-            width: 100%;
-        }
-
-        .admin-kpi-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .admin-tabs-panel {
-            flex-direction: column;
-            align-items: stretch;
-        }
-
-        .admin-tabs-tools {
-            width: 100%;
-            justify-content: space-between;
-        }
-
-        .admin-filter-box {
-            min-width: 0;
-            flex: 1;
-        }
-
-        .admin-users-table th:nth-child(4),
-        .admin-users-table td:nth-child(4),
-        .admin-users-table th:nth-child(5),
-        .admin-users-table td:nth-child(5) {
-            display: none;
-        }
-    }
-
-</style>
-
-<script>
-    let currentUserId = null;
-    let currentCoordsPostId = null;
-    let currentCoordsButton = null;
-    let changePhotoCropFile = null;
-    let changePhotoCropper = null;
-    let changePhotoCropModal = null;
-    let changePhotoCropUrl = null;
-    const ADMIN_REPORT_PALETTE = ['#8b5cf6', '#a78bfa', '#f43f5e', '#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#14b8a6'];
-    const ADMIN_REPORT_COLOR_BY_REASON = {
-        'Poca iluminación': '#f59e0b',
-        'Banquetas en mal estado': '#3b82f6',
-        'Zonas inseguras': '#f43f5e',
-        'Baldíos': '#10b981',
-        'Baldios': '#10b981',
-    };
-    const ADMIN_ACTIVITY_STATE = {
-        days: 7,
-        timer: null,
-        requestId: 0,
-    };
-
-    function getGlobalSearchTerm() {
-        return (document.getElementById('adminGlobalFilter')?.value || '').trim().toLowerCase();
-    }
-
-    function normalizeRangeDays(val) {
-        const parsed = Number.parseInt(String(val || ''), 10);
-        if ([7, 15, 30].includes(parsed)) return parsed;
-        return 7;
-    }
-
-    function getReportSeriesColor(name, idx = 0) {
-        if (ADMIN_REPORT_COLOR_BY_REASON[name]) return ADMIN_REPORT_COLOR_BY_REASON[name];
-        return ADMIN_REPORT_PALETTE[idx % ADMIN_REPORT_PALETTE.length];
-    }
-
-    function buildChartXTicks(labels) {
-        if (!Array.isArray(labels) || labels.length === 0) return [];
-        if (labels.length <= 7) return labels;
-        const result = [];
-        const maxIdx = labels.length - 1;
-        for (let i = 0; i < 7; i++) {
-            const idx = Math.round((maxIdx * i) / 6);
-            if (!result.includes(labels[idx])) {
-                result.push(labels[idx]);
-            }
-        }
-        return result;
-    }
-
-    function animateSeriesPath(pathEl) {
-        if (!pathEl || typeof pathEl.getTotalLength !== 'function') return;
-        const total = pathEl.getTotalLength();
-        pathEl.style.strokeDasharray = `${total}`;
-        pathEl.style.strokeDashoffset = `${total}`;
-        requestAnimationFrame(() => {
-            pathEl.style.transition = 'stroke-dashoffset 460ms ease';
-            pathEl.style.strokeDashoffset = '0';
-        });
-        setTimeout(() => {
-            pathEl.style.strokeDasharray = '';
-            pathEl.style.strokeDashoffset = '';
-            pathEl.style.transition = '';
-        }, 540);
-    }
-
-    let currentReportsSubtab = 'reportados';
-
-    function applyReportsSubtabFilter() {
-        if (currentReportsSubtab === 'reportados') {
-            filterReportedPosts();
-        } else if (currentReportsSubtab === 'reportes-chat') {
-            filterReportedChatMessages();
-        } else if (currentReportsSubtab === 'reportes-comentarios') {
-            filterReportedComments();
-        }
-    }
-
-    function applyActiveTabFilter() {
-        const activeTabId = document.querySelector('#adminTabs .tab-btn.active')?.id;
-        if (activeTabId === 'tab-users') {
-            filterUsers();
-        } else if (activeTabId === 'tab-posts') {
-            filterPosts();
-        } else if (activeTabId === 'tab-reportes') {
-            applyReportsSubtabFilter();
-        }
-    }
-
-    function switchReportsSubtab(tabName) {
-        currentReportsSubtab = tabName;
-        document.querySelectorAll('.report-subtab-btn').forEach(btn => {
-            const isActive = btn.id === `report-subtab-${tabName}`;
-            btn.classList.toggle('active', isActive);
-            btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
-        });
-        document.querySelectorAll('.report-subview').forEach(view => view.classList.add('d-none'));
-        document.getElementById(`report-subview-${tabName}`)?.classList.remove('d-none');
-        applyReportsSubtabFilter();
-    }
-
-    function switchTab(tabName) {
-        // Hide all views
-        document.querySelectorAll('.admin-view').forEach(view => view.classList.add('d-none'));
-        // Show selected view
-        document.getElementById('view-' + tabName).classList.remove('d-none');
-
-        // Update buttons
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        document.getElementById('tab-' + tabName).classList.add('active');
-
-        if (tabName === 'reportes') {
-            switchReportsSubtab(currentReportsSubtab);
-            return;
-        }
-        applyActiveTabFilter();
-    }
-
-    function renderAdminActivityChart(payload, options = {}) {
-        const animate = !!options.animate;
-        const svg = document.getElementById('adminActivityChart');
-        const seriesGroup = document.getElementById('adminActivitySeries');
-        const dotsGroup = document.getElementById('adminActivityDots');
-        const gridGroup = document.getElementById('adminActivityGrid');
-        const labelsWrap = document.getElementById('adminActivityXLabels');
-        const legendWrap = document.getElementById('adminActivityLegend');
-        const subtitleEl = document.getElementById('adminActivitySubtitle');
-        const updatedEl = document.getElementById('adminActivityUpdatedAt');
-        const chartWrap = document.getElementById('adminActivityChartWrap');
-        if (!svg || !seriesGroup || !dotsGroup || !gridGroup) return;
-
-        const labels = Array.isArray(payload?.labels) ? payload.labels : [];
-        const categories = Array.isArray(payload?.categories) ? payload.categories : [];
-        const days = normalizeRangeDays(payload?.days || ADMIN_ACTIVITY_STATE.days);
-        const totalPosts = Number(payload?.total_posts || payload?.total_reports || 0);
-        const maxVal = Math.max(
-            1,
-            ...categories.flatMap((serie) => Array.isArray(serie.counts) ? serie.counts : [0]),
-        );
-        const width = 720;
-        const height = 300;
-        const left = 18;
-        const right = 14;
-        const top = 12;
-        const bottom = 28;
-        const innerW = width - left - right;
-        const innerH = height - top - bottom;
-        const pointCount = Math.max(labels.length, 2);
-        const stepX = innerW / (pointCount - 1);
-
-        if (chartWrap && animate) {
-            chartWrap.classList.remove('is-updating');
-            void chartWrap.offsetWidth;
-            chartWrap.classList.add('is-updating');
-            setTimeout(() => chartWrap.classList.remove('is-updating'), 400);
-        }
-
-        seriesGroup.innerHTML = '';
-        dotsGroup.innerHTML = '';
-
-        categories.forEach((serie, idx) => {
-            const counts = Array.isArray(serie.counts) ? serie.counts : [];
-            if (!counts.length) return;
-            const color = serie.color || getReportSeriesColor(serie.name || '', idx);
-            const points = counts.map((v, i) => {
-                const x = left + stepX * i;
-                const y = top + innerH - ((Number(v || 0) / maxVal) * innerH);
-                return { x, y, value: Number(v || 0) };
-            });
-            const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ');
-            const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            pathEl.setAttribute('d', d);
-            pathEl.setAttribute('stroke', color);
-            pathEl.setAttribute('data-series', serie.name || `Serie ${idx + 1}`);
-            seriesGroup.appendChild(pathEl);
-            if (animate) animateSeriesPath(pathEl);
-
-            points.forEach((p) => {
-                if (p.value <= 0) return;
-                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                dot.setAttribute('cx', p.x.toFixed(2));
-                dot.setAttribute('cy', p.y.toFixed(2));
-                dot.setAttribute('r', '3.6');
-                dot.setAttribute('stroke', color);
-                dotsGroup.appendChild(dot);
-            });
-        });
-
-        gridGroup.innerHTML = Array.from({ length: 5 }).map((_, idx) => {
-            const y = top + (innerH / 4) * idx;
-            return `<line x1="${left}" y1="${y.toFixed(2)}" x2="${left + innerW}" y2="${y.toFixed(2)}"></line>`;
-        }).join('');
-
-        if (labelsWrap) {
-            const ticks = buildChartXTicks(labels);
-            labelsWrap.innerHTML = ticks.map((lab) => `<span>${lab}</span>`).join('');
-        }
-
-        if (subtitleEl) {
-            subtitleEl.textContent = `${totalPosts} publicaciones categorizadas en los últimos ${days} días`;
-        }
-
-        if (legendWrap) {
-            if (!categories.length) {
-                legendWrap.innerHTML = `<span class="small text-secondary">Aún no hay publicaciones categorizadas en este rango.</span>`;
-            } else {
-                legendWrap.innerHTML = categories.map((serie, idx) => {
-                    const color = serie.color || getReportSeriesColor(serie.name || '', idx);
-                    return `
-                        <div class="admin-legend-item">
-                            <span class="admin-legend-swatch" style="background:${color}"></span>
-                            <span class="admin-legend-name">${serie.name}</span>
-                            <span class="admin-legend-total">${serie.total} pub.</span>
-                        </div>
-                    `;
-                }).join('');
-            }
-        }
-
-        if (updatedEl) {
-            const now = new Date(payload?.updated_at || Date.now());
-            updatedEl.textContent = `Actualizado: ${now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
-        }
-    }
-
-    function fetchAdminActivity(days, options = {}) {
-        const requestedDays = normalizeRangeDays(days || ADMIN_ACTIVITY_STATE.days);
-        const animate = !!options.animate;
-        const silent = !!options.silent;
-        ADMIN_ACTIVITY_STATE.days = requestedDays;
-        const reqId = ++ADMIN_ACTIVITY_STATE.requestId;
-        return fetch(`/admin/reports_timeseries?days=${requestedDays}&_ts=${Date.now()}`, { cache: 'no-store' })
-            .then((res) => {
-                if (!res.ok) throw new Error('No se pudo cargar la analítica');
-                return res.json();
-            })
-            .then((data) => {
-                if (reqId !== ADMIN_ACTIVITY_STATE.requestId) return;
-                renderAdminActivityChart(data, { animate });
-            })
-            .catch((err) => {
-                if (!silent) {
-                    console.error('admin reports chart error:', err);
-                }
-            });
-    }
-
-    function wireAdminActivityControls() {
-        const rangeSelect = document.getElementById('adminReportsRangeSelect');
-        if (rangeSelect) {
-            rangeSelect.addEventListener('change', () => {
-                const days = normalizeRangeDays(rangeSelect.value);
-                fetchAdminActivity(days, { animate: true });
-            });
-        }
-    }
-
-    function startAdminActivityAutoRefresh() {
-        if (ADMIN_ACTIVITY_STATE.timer) {
-            clearInterval(ADMIN_ACTIVITY_STATE.timer);
-        }
-        ADMIN_ACTIVITY_STATE.timer = setInterval(() => {
-            fetchAdminActivity(ADMIN_ACTIVITY_STATE.days, { animate: false, silent: true });
-        }, 45000);
-    }
-
-    function deleteUser(userId, username) {
-        if (confirm(`¿Estás segura de que quieres eliminar a la usuaria "${username}"? Esta acción no se puede deshacer.`)) {
-            fetch(`/admin/delete_user/${userId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token() }}'
-                }
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert(data.message);
-                        location.reload();
-                    } else {
-                        alert('Error: ' + data.error);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Error al eliminar usuaria');
-                });
-        }
-    }
-
-    function deletePost(postId) {
-        if (confirm('¿Estás seguro de que quieres eliminar esta publicación? Esta acción no se puede deshacer.')) {
-            fetch(`/admin/delete_post/${postId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token() }}'
-                }
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert(data.message);
-                        location.reload();
-                    } else {
-                        alert('Error: ' + data.error);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Error al eliminar publicación');
-                });
-        }
-    }
-
-    function restorePost(postId) {
-        if (confirm('¿Quieres restaurar esta publicación para que vuelva a mostrarse?')) {
-            fetch(`/admin/restore_post/${postId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token() }}'
-                }
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        location.reload();
-                    } else {
-                        alert('Error: ' + data.error);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Error al restaurar publicación');
-                });
-        }
-    }
-
-    function editUsername(userId, currentUsername) {
-        currentUserId = userId;
-        document.getElementById('newUsername').value = currentUsername;
-        new bootstrap.Modal(document.getElementById('editUsernameModal')).show();
-    }
-
-    function saveUsername() {
-        const newUsername = document.getElementById('newUsername').value.trim();
-        if (!newUsername) {
-            alert('El username no puede estar vacío');
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('new_username', newUsername);
-
-        fetch(`/admin/change_username/${currentUserId}`, {
-            method: 'POST',
-            body: formData
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error al cambiar username');
-            });
-    }
-
-    function changePhoto(userId, photoUrl, userBio) {
-        currentUserId = userId;
-        document.getElementById('photoFile').value = '';
-        changePhotoCropFile = null;
-        if (changePhotoCropUrl) {
-            URL.revokeObjectURL(changePhotoCropUrl);
-            changePhotoCropUrl = null;
-        }
-        const preview = document.getElementById('changePhotoPreview');
-        const bioInput = document.getElementById('changePhotoBio');
-        if (preview && photoUrl) {
-            preview.src = photoUrl;
-        }
-        if (bioInput) {
-            bioInput.value = userBio || '';
-        }
-        new bootstrap.Modal(document.getElementById('changePhotoModal')).show();
-    }
-
-    function savePhoto() {
-        const fileInput = document.getElementById('photoFile');
-        const fileToSend = changePhotoCropFile || fileInput.files[0];
-        const bioInput = document.getElementById('changePhotoBio');
-        const bioValue = bioInput ? bioInput.value.trim() : '';
-        if (!fileToSend && !bioValue) {
-            alert('Selecciona una imagen o agrega una descripción.');
-            return;
-        }
-
-        const formData = new FormData();
-        if (fileToSend) {
-            formData.append('photo', fileToSend);
-        }
-        formData.append('bio', bioValue);
-
-        fetch(`/admin/change_user_photo/${currentUserId}`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': '{{ csrf_token() }}'
-            },
-            body: formData
-        })
-            .then(async response => {
-                const isJson = response.headers.get('content-type')?.includes('application/json');
-                const data = isJson ? await response.json() : { success: false, error: 'Respuesta inválida' };
-                if (!response.ok || !data.success) {
-                    throw new Error(data.error || 'No se pudo cambiar la foto');
-                }
-                return data;
-            })
-            .then(() => location.reload())
-            .catch(error => {
-                console.error('Error:', error);
-                alert(error.message || 'Error al cambiar foto');
-            });
-    }
-
-    function approveChatRoom(roomId) {
-        fetch(`/admin/approve_chat_room/${roomId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token() }}'
-            }
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error al aprobar sala');
-            });
-    }
-
-    function deleteChatRoom(roomId) {
-        if (!confirm('¿Eliminar esta sala? Esta acción no se puede deshacer.')) return;
-        fetch(`/admin/delete_chat_room/${roomId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token() }}'
-            }
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error al eliminar sala');
-            });
-    }
-
-    (function () {
-        const fileInput = document.getElementById('photoFile');
-        const pickBtn = document.getElementById('photoPickBtn');
-        const preview = document.getElementById('changePhotoPreview');
-        const changeModalEl = document.getElementById('changePhotoModal');
-        const cropModalEl = document.getElementById('changePhotoCropperModal');
-        const cropImage = document.getElementById('changePhotoCropperImage');
-        const cropApplyBtn = document.getElementById('changePhotoApplyCropBtn');
-        const cropChooseBtn = document.getElementById('changePhotoChooseCropBtn');
-        let cropperReady = false;
-
-        function ensureCropperModal() {
-            if (cropperReady) return true;
-            if (!cropModalEl || !window.bootstrap || typeof Cropper === 'undefined') {
-                return false;
-            }
-            changePhotoCropModal = new bootstrap.Modal(cropModalEl, {
-                backdrop: false,
-                focus: false,
-                keyboard: true
-            });
-            cropModalEl.addEventListener('shown.bs.modal', () => {
-                if (!cropImage || typeof Cropper === 'undefined') return;
-                if (changePhotoCropper) changePhotoCropper.destroy();
-                changePhotoCropper = new Cropper(cropImage, {
-                    aspectRatio: 1,
-                    viewMode: 1,
-                    dragMode: 'crop',
-                    autoCropArea: 1,
-                    restore: false,
-                    guides: true,
-                    center: true,
-                    highlight: true,
-                    cropBoxMovable: true,
-                    cropBoxResizable: true,
-                    zoomable: true,
-                    zoomOnWheel: true,
-                    zoomOnTouch: true,
-                    toggleDragModeOnDblclick: false
-                });
-            });
-            cropModalEl.addEventListener('hidden.bs.modal', () => {
-                if (changePhotoCropper) {
-                    changePhotoCropper.destroy();
-                    changePhotoCropper = null;
-                }
-                if (changePhotoCropUrl) {
-                    URL.revokeObjectURL(changePhotoCropUrl);
-                    changePhotoCropUrl = null;
-                }
-                if (fileInput) fileInput.value = '';
-                const changeModalOpen = changeModalEl && changeModalEl.classList.contains('show');
-                const backdrops = document.querySelectorAll('.modal-backdrop');
-                if (changeModalOpen) {
-                    backdrops.forEach((bd, idx) => {
-                        if (idx > 0) bd.remove();
-                    });
-                    document.body.classList.add('modal-open');
-                } else {
-                    backdrops.forEach((bd) => bd.remove());
-                    document.body.classList.remove('modal-open');
-                    document.body.classList.remove('change-photo-open');
-                }
-            });
-            cropperReady = true;
-            return true;
-        }
-
-        function openCropper(file) {
-            if (!ensureCropperModal() || !cropImage) {
-                changePhotoCropFile = file;
-                if (preview) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                        preview.src = ev.target.result;
-                    };
-                    reader.readAsDataURL(file);
-                }
-                return;
-            }
-
-            changePhotoCropFile = file;
-            if (changePhotoCropUrl) {
-                URL.revokeObjectURL(changePhotoCropUrl);
-            }
-            changePhotoCropUrl = URL.createObjectURL(file);
-            cropImage.src = changePhotoCropUrl;
-            changePhotoCropModal.show();
-        }
-
-        if (cropApplyBtn) {
-            cropApplyBtn.addEventListener('click', () => {
-                if (!changePhotoCropper || !changePhotoCropFile) return;
-                const outputType = changePhotoCropFile.type === 'image/png' ? 'image/png' : 'image/jpeg';
-                const canvas = changePhotoCropper.getCroppedCanvas({
-                    width: 512,
-                    height: 512,
-                    fillColor: '#000'
-                });
-                if (!canvas) return;
-                const quality = outputType === 'image/jpeg' ? 0.92 : undefined;
-                canvas.toBlob((blob) => {
-                    if (!blob) return;
-                    changePhotoCropFile = new File([blob], changePhotoCropFile.name || `avatar-${Date.now()}.jpg`, { type: outputType });
-                    if (preview) {
-                        const url = URL.createObjectURL(blob);
-                        preview.src = url;
-                    }
-                    if (changePhotoCropModal) changePhotoCropModal.hide();
-                }, outputType, quality);
-            });
-        }
-
-        if (cropChooseBtn) {
-            cropChooseBtn.addEventListener('click', () => {
-                if (changePhotoCropModal) changePhotoCropModal.hide();
-                if (fileInput) fileInput.click();
-            });
-        }
-
-        if (pickBtn && fileInput) {
-            pickBtn.addEventListener('click', () => fileInput.click());
-            fileInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                openCropper(file);
-            });
-        }
-        if (changeModalEl) {
-            changeModalEl.addEventListener('show.bs.modal', () => {
-                document.body.classList.add('change-photo-open');
-            });
-            changeModalEl.addEventListener('hidden.bs.modal', () => {
-                document.body.classList.remove('change-photo-open');
-                changePhotoCropFile = null;
-                if (changePhotoCropUrl) {
-                    URL.revokeObjectURL(changePhotoCropUrl);
-                    changePhotoCropUrl = null;
-                }
-            });
-        }
-    })();
-
-    function requestAdminModerationNote(actionLabel) {
-        return (prompt(`Nota opcional para ${actionLabel}:`) || '').trim();
-    }
-
-    function runReportAction(url, options) {
-        const { confirmMessage, actionLabel, successFallback } = options;
-        if (confirmMessage && !confirm(confirmMessage)) return;
-        const adminNote = requestAdminModerationNote(actionLabel);
-        fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token() }}'
-            },
-            body: JSON.stringify({ admin_note: adminNote })
-        })
-            .then(r => r.json())
-            .then(data => {
-                if (!data.success) {
-                    alert('Error: ' + (data.error || 'No se pudo completar la acción.'));
-                    return;
-                }
-                alert(data.message || successFallback);
-                location.reload();
-            })
-            .catch(() => alert('Error al completar la acción.'));
-    }
-
-    function restorePostReport(reportId) {
-        runReportAction(`/admin/report/${reportId}/restore`, {
-            confirmMessage: '¿Restaurar esta publicación para que vuelva a mostrarse?',
-            actionLabel: 'restaurar la publicación',
-            successFallback: 'La publicación fue restaurada.'
-        });
-    }
-
-    function strikePostReport(reportId) {
-        runReportAction(`/admin/report/${reportId}/strike`, {
-            confirmMessage: '¿Mandar un strike a la usuaria responsable de esta publicación?',
-            actionLabel: 'mandar el strike a la usuaria por esta publicación',
-            successFallback: 'La publicación quedó sancionada.'
-        });
-    }
-
-    function filterReportedChatMessages() {
-        const term = getGlobalSearchTerm();
-        const items = document.querySelectorAll('.reported-chat-item');
-        items.forEach(item => {
-            const haystack = ((item.getAttribute('data-search') || '') + ' ' + (item.textContent || '')).toLowerCase();
-            item.classList.toggle('d-none', !!term && !haystack.includes(term));
-        });
-    }
-
-    function filterReportedComments() {
-        const term = getGlobalSearchTerm();
-        const items = document.querySelectorAll('.reported-comment-item');
-        items.forEach(item => {
-            const haystack = ((item.getAttribute('data-search') || '') + ' ' + (item.textContent || '')).toLowerCase();
-            item.classList.toggle('d-none', !!term && !haystack.includes(term));
-        });
-    }
-
-    function restoreChatMessageReport(reportId) {
-        runReportAction(`/admin/chat_report/${reportId}/restore`, {
-            confirmMessage: '¿Restaurar este mensaje para que vuelva a verse en el chat?',
-            actionLabel: 'restaurar el mensaje',
-            successFallback: 'El mensaje fue restaurado.'
-        });
-    }
-
-    function strikeChatMessageReport(reportId) {
-        runReportAction(`/admin/chat_report/${reportId}/strike`, {
-            confirmMessage: '¿Mandar un strike a la usuaria responsable de este mensaje?',
-            actionLabel: 'mandar el strike a la usuaria por este mensaje',
-            successFallback: 'El mensaje quedó sancionado.'
-        });
-    }
-
-    function restoreCommentReport(reportId) {
-        runReportAction(`/admin/comment_report/${reportId}/restore`, {
-            confirmMessage: '¿Restaurar este comentario para que vuelva a mostrarse?',
-            actionLabel: 'restaurar el comentario',
-            successFallback: 'El comentario fue restaurado.'
-        });
-    }
-
-    function strikeCommentReport(reportId) {
-        runReportAction(`/admin/comment_report/${reportId}/strike`, {
-            confirmMessage: '¿Mandar un strike a la usuaria responsable de este comentario?',
-            actionLabel: 'mandar el strike a la usuaria por este comentario',
-            successFallback: 'El comentario quedó sancionado.'
-        });
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('.edit-user-btn').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                const userId = btn.getAttribute('data-user-id');
-                const photoUrl = btn.getAttribute('data-photo-url');
-                const bio = btn.getAttribute('data-bio') || '';
-                changePhoto(userId, photoUrl, bio);
-            });
-        });
-    });
-
-    function updateLocationCardDisplay(triggerBtn) {
-        if (!triggerBtn) return;
-        const card = triggerBtn.closest('.flip-card');
-        const back = card ? card.querySelector('.post-location-back') : null;
-        if (!card || !back) return;
-
-        const lat = (triggerBtn.getAttribute('data-lat') || '').trim();
-        const lng = (triggerBtn.getAttribute('data-lng') || '').trim();
-        const locationName = (triggerBtn.getAttribute('data-location-name') || '').trim();
-        const city = (triggerBtn.getAttribute('data-city') || '').trim();
-        const country = (triggerBtn.getAttribute('data-country') || '').trim();
-
-        const nameEl = back.querySelector('.location-name-text');
-        if (nameEl) nameEl.textContent = locationName || 'Sin ubicación asignada';
-
-        const cityEl = back.querySelector('.location-city-text');
-        if (cityEl) cityEl.textContent = city;
-
-        const countryEl = back.querySelector('.location-country-text');
-        if (countryEl) countryEl.textContent = country;
-
-        const latEl = back.querySelector('.location-lat-text');
-        if (latEl) latEl.textContent = lat || '—';
-
-        const lngEl = back.querySelector('.location-lng-text');
-        if (lngEl) lngEl.textContent = lng || '—';
-
-        const mapLink = back.querySelector('.location-map-link');
-        if (mapLink) {
-            if (lat && lng) {
-                mapLink.href = `https://www.google.com/maps?q=${lat},${lng}`;
-                mapLink.classList.remove('disabled');
-            } else {
-                mapLink.href = '#';
-                mapLink.classList.add('disabled');
-            }
-        }
-    }
-
-    function toggleLocationView(button) {
-        const card = button.closest('.flip-card');
-        if (!card) return;
-        const triggerBtn = card.querySelector('.location-btn');
-        if (!triggerBtn) return;
-
-        const isFlipped = card.classList.toggle('is-flipped');
-        if (isFlipped) {
-            updateLocationCardDisplay(triggerBtn);
-        }
-    }
-
-    function openCoordsModal(button) {
-        // If button is passed directly (from onclick)
-        if (button.tagName) {
-            currentCoordsButton = button;
-        } else {
-            // Fallback if event delegation was used
-            currentCoordsButton = button.target.closest('button');
-        }
-
-        currentCoordsPostId = currentCoordsButton.getAttribute('data-post-id');
-        document.getElementById('coordsError').classList.add('d-none');
-
-        document.getElementById('coordLat').value = currentCoordsButton.getAttribute('data-lat') || '';
-        document.getElementById('coordLng').value = currentCoordsButton.getAttribute('data-lng') || '';
-        document.getElementById('coordLocationName').value = currentCoordsButton.getAttribute('data-location-name') || '';
-        document.getElementById('coordCity').value = currentCoordsButton.getAttribute('data-city') || '';
-        document.getElementById('coordCountry').value = currentCoordsButton.getAttribute('data-country') || '';
-
-        new bootstrap.Modal(document.getElementById('coordsModal')).show();
-    }
-
-    function saveCoords() {
-        const lat = parseFloat(document.getElementById('coordLat').value);
-        const lng = parseFloat(document.getElementById('coordLng').value);
-        const locationName = document.getElementById('coordLocationName').value.trim();
-        const city = document.getElementById('coordCity').value.trim();
-        const country = document.getElementById('coordCountry').value.trim();
-        const errorBox = document.getElementById('coordsError');
-
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-            errorBox.textContent = 'Debes ingresar coordenadas válidas.';
-            errorBox.classList.remove('d-none');
-            return;
-        }
-        errorBox.classList.add('d-none');
-
-        fetch(`/admin/update_post_location/${currentCoordsPostId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token() }}'
-            },
-            body: JSON.stringify({
-                latitude: lat,
-                longitude: lng,
-                location_name: locationName,
-                city,
-                country
-            })
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (!data.success) {
-                    errorBox.textContent = data.error || 'No se pudo actualizar la ubicación.';
-                    errorBox.classList.remove('d-none');
-                    return;
-                }
-
-                // Update data attributes on button
-                if (currentCoordsButton) {
-                    currentCoordsButton.setAttribute('data-lat', String(lat));
-                    currentCoordsButton.setAttribute('data-lng', String(lng));
-                    currentCoordsButton.setAttribute('data-location-name', locationName);
-                    currentCoordsButton.setAttribute('data-city', city);
-                    currentCoordsButton.setAttribute('data-country', country);
-                    updateLocationCardDisplay(currentCoordsButton);
-                }
-
-                bootstrap.Modal.getInstance(document.getElementById('coordsModal')).hide();
-                alert('Ubicación actualizada');
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                errorBox.textContent = 'Ocurrió un error guardando la ubicación.';
-                errorBox.classList.remove('d-none');
-            });
-    }
-
-    function filterUsers() {
-        const localTerm = (document.getElementById('userSearch')?.value || '').toLowerCase();
-        const searchTerm = (localTerm || getGlobalSearchTerm()).toLowerCase();
-        const items = document.querySelectorAll('.user-item');
-
-        items.forEach(item => {
-            const username = (item.querySelector('.user-username')?.textContent || '').toLowerCase();
-            const email = (item.querySelector('.user-email')?.textContent || '').toLowerCase();
-
-            if (username.includes(searchTerm) || email.includes(searchTerm)) {
-                item.classList.remove('d-none');
-            } else {
-                item.classList.add('d-none');
-            }
-        });
-    }
-
-    function filterPosts() {
-        const localTerm = (document.getElementById('postSearch')?.value || '').toLowerCase();
-        const searchTerm = (localTerm || getGlobalSearchTerm()).toLowerCase();
-        const items = document.querySelectorAll('.post-item');
-
-        items.forEach(item => {
-            const author = (item.querySelector('.post-author')?.textContent || '').toLowerCase();
-            const caption = item.querySelector('.post-caption')?.textContent.toLowerCase() || '';
-
-            if (author.includes(searchTerm) || caption.includes(searchTerm)) {
-                item.classList.remove('d-none');
-            } else {
-                item.classList.add('d-none');
-            }
-        });
-    }
-
-    function filterReportedPosts() {
-        const searchTerm = getGlobalSearchTerm();
-        const items = document.querySelectorAll('#reportedGrid .reported-item');
-
-        items.forEach(item => {
-            const haystack = ((item.getAttribute('data-search') || '') + ' ' + (item.textContent || '')).toLowerCase();
-            item.classList.toggle('d-none', !!searchTerm && !haystack.includes(searchTerm));
-        });
-    }
-
-    function getSelectedIds(selector) {
-        return Array.from(document.querySelectorAll(selector + ':checked'))
-            .map(el => el.getAttribute('data-id'))
-            .filter(Boolean);
-    }
-
-    function wireBulkSelection(selectAllId, itemSelector, countId) {
-        const selectAll = document.getElementById(selectAllId);
-        const countEl = document.getElementById(countId);
-        const items = document.querySelectorAll(itemSelector);
-        if (selectAll) {
-            selectAll.addEventListener('change', () => {
-                items.forEach(el => {
-                    if (!el.disabled) el.checked = selectAll.checked;
-                });
-                if (countEl) countEl.textContent = `${getSelectedIds(itemSelector).length} seleccionados`;
-            });
-        }
-        items.forEach(el => {
-            el.addEventListener('change', () => {
-                if (countEl) countEl.textContent = `${getSelectedIds(itemSelector).length} seleccionados`;
-            });
-        });
-        if (countEl) countEl.textContent = `${getSelectedIds(itemSelector).length} seleccionados`;
-    }
-
-    function bulkDeleteUsers() {
-        const ids = getSelectedIds('.user-select');
-        if (!ids.length) return alert('Selecciona usuarias para eliminar');
-        if (!confirm('¿Eliminar las usuarias seleccionadas?')) return;
-        fetch('/admin/bulk_delete_users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
-            body: JSON.stringify({ ids })
-        }).then(r => r.json()).then(data => {
-            if (!data.success) return alert('Error: ' + data.error);
-            location.reload();
-        }).catch(() => alert('Error al eliminar usuarias'));
-    }
-
-    function bulkDeletePosts() {
-        const ids = getSelectedIds('.post-select');
-        if (!ids.length) return alert('Selecciona publicaciones para eliminar');
-        if (!confirm('¿Eliminar las publicaciones seleccionadas?')) return;
-        fetch('/admin/bulk_delete_posts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
-            body: JSON.stringify({ ids })
-        }).then(r => r.json()).then(data => {
-            if (!data.success) return alert('Error: ' + data.error);
-            location.reload();
-        }).catch(() => alert('Error al eliminar publicaciones'));
-    }
-
-    function bulkDeleteChats() {
-        const ids = getSelectedIds('.chat-select');
-        if (!ids.length) return alert('Selecciona chats para eliminar');
-        if (!confirm('¿Eliminar los chats seleccionados?')) return;
-        fetch('/admin/bulk_delete_chat_rooms', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
-            body: JSON.stringify({ ids })
-        }).then(r => r.json()).then(data => {
-            if (!data.success) return alert('Error: ' + data.error);
-            location.reload();
-        }).catch(() => alert('Error al eliminar chats'));
-    }
-
-    function formatRelativeTime(dateStr) {
-        if (!dateStr) return '';
-        const diff = Date.now() - new Date(dateStr).getTime();
-        const minutes = Math.floor(diff / 60000);
-        if (minutes < 1) return 'Hace un momento';
-        if (minutes < 60) return `Hace ${minutes} min`;
-        const hours = Math.floor(minutes / 60);
-        if (hours < 24) return `Hace ${hours} hora${hours === 1 ? '' : 's'}`;
-        return 'Hace tiempo';
-    }
-
-    function openReportDetails(event, postId) {
-        if (event && event.target.closest('input,button,a,label')) return;
-        fetch(`/admin/report_details/${postId}`)
-            .then(r => r.json())
-            .then(data => {
-                if (data.error) {
-                    alert('Error: ' + data.error);
-                    return;
-                }
-                const post = data.post || {};
-                document.getElementById('reportDetailsImage').src = post.image_url || '';
-                document.getElementById('reportDetailsAuthorPic').src = post.author?.profile_pic || '';
-                const authorName = post.author?.username || 'unknown';
-                const authorEl = document.getElementById('reportDetailsAuthor');
-                authorEl.textContent = authorName;
-                if (authorName === 'admin') {
-                    const badge = document.createElement('span');
-                    badge.className = 'admin-badge admin-badge--xs';
-                    badge.title = 'Admin verificada';
-                    badge.setAttribute('aria-label', 'Admin verificada');
-                    badge.innerHTML = `<img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin">`;
-                    authorEl.appendChild(badge);
-                }
-                document.getElementById('reportDetailsCreated').textContent = post.created_at ? new Date(post.created_at).toLocaleString() : '';
-                const loc = post.location || {};
-                const locText = [loc.name, loc.city, loc.country].filter(Boolean).join(' · ');
-                document.getElementById('reportDetailsLocation').textContent = locText || 'Sin ubicación';
-                document.getElementById('reportDetailsCaption').textContent = post.caption || 'Sin descripción';
-                document.getElementById('reportDetailsLikes').textContent = post.likes_count ?? '0';
-                document.getElementById('reportDetailsCommentsCount').textContent = post.comments_count ?? '0';
-
-                const reportsEl = document.getElementById('reportDetailsReports');
-                const commentsEl = document.getElementById('reportDetailsComments');
-                reportsEl.innerHTML = '';
-                commentsEl.innerHTML = '';
-
-                if (data.reports && data.reports.length) {
-                    data.reports.forEach(r => {
-                        const item = document.createElement('div');
-                        item.className = 'report-detail-item';
-                        const reporterBadge = r.reporter === 'admin'
-                            ? `<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>`
-                            : '';
-                        const statusMap = {
-                            pending: { label: 'Pendiente', cls: 'bg-warning text-dark' },
-                            restored: { label: 'Restaurada', cls: 'bg-success text-white' },
-                            struck: { label: 'Strike aplicado', cls: 'bg-danger text-white' },
-                            dismissed: { label: 'Descartado', cls: 'bg-secondary text-white' },
-                        };
-                        const statusInfo = statusMap[r.status] || statusMap.pending;
-                        const resolutionText = r.resolved_at
-                            ? `<div class="small text-secondary mt-1">${r.resolved_by ? `Revisado por ${r.resolved_by}` : 'Revisado'} · ${formatRelativeTime(r.resolved_at)}</div>`
-                            : '';
-                        item.innerHTML = `
-                            <div class="d-flex align-items-center justify-content-between gap-2">
-                                <div class="fw-bold text-white">${r.reason}</div>
-                                <span class="badge ${statusInfo.cls}">${statusInfo.label}</span>
-                            </div>
-                            <div class="small text-secondary">Reportado por ${r.reporter}${reporterBadge} · ${formatRelativeTime(r.created_at)}</div>
-                            ${r.details ? `<div class="small text-white mt-1">${r.details}</div>` : ''}
-                            ${r.admin_note ? `<div class="small text-info mt-1"><strong>Nota admin:</strong> ${r.admin_note}</div>` : ''}
-                            ${resolutionText}
-                            <div class="d-flex flex-wrap gap-2 mt-2">
-                                <button class="btn btn-sm btn-outline-success" onclick="restorePostReport('${r.id}')">Restaurar</button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="strikePostReport('${r.id}')">Mandar un strike</button>
-                            </div>
-                        `;
-                        reportsEl.appendChild(item);
-                    });
-                } else {
-                    reportsEl.innerHTML = '<div class="text-muted small">Sin reportes.</div>';
-                }
-
-                if (data.comments && data.comments.length) {
-                    data.comments.forEach(c => {
-                        const item = document.createElement('div');
-                        item.className = 'report-detail-item';
-                        const badge = c.username === 'admin'
-                            ? `<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>`
-                            : '';
-                        item.innerHTML = `
-                            <div class="fw-bold text-white">${c.username}${badge}</div>
-                            <div class="small text-secondary">${formatRelativeTime(c.created_at)}</div>
-                            <div class="small text-white mt-1">${c.content}</div>
-                        `;
-                        commentsEl.appendChild(item);
-                    });
-                } else {
-                    commentsEl.innerHTML = '<div class="text-muted small">Sin comentarios.</div>';
-                }
-
-                new bootstrap.Modal(document.getElementById('reportDetailsModal')).show();
-            })
-            .catch(() => alert('Error al cargar el detalle'));
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        wireAdminActivityControls();
-        fetchAdminActivity(ADMIN_ACTIVITY_STATE.days, { animate: true });
-        startAdminActivityAutoRefresh();
-        wireBulkSelection('selectAllUsers', '.user-select', 'usersSelectedCount');
-        wireBulkSelection('selectAllPosts', '.post-select', 'postsSelectedCount');
-        wireBulkSelection('selectAllChats', '.chat-select', 'chatsSelectedCount');
-
-        const globalFilter = document.getElementById('adminGlobalFilter');
-        if (globalFilter) {
-            globalFilter.addEventListener('input', () => {
-                applyActiveTabFilter();
-            });
-        }
-
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                if (ADMIN_ACTIVITY_STATE.timer) {
-                    clearInterval(ADMIN_ACTIVITY_STATE.timer);
-                    ADMIN_ACTIVITY_STATE.timer = null;
-                }
-            } else {
-                fetchAdminActivity(ADMIN_ACTIVITY_STATE.days, { animate: false, silent: true });
-                startAdminActivityAutoRefresh();
-            }
-        });
-
-        window.addEventListener('beforeunload', () => {
-            if (ADMIN_ACTIVITY_STATE.timer) {
-                clearInterval(ADMIN_ACTIVITY_STATE.timer);
-                ADMIN_ACTIVITY_STATE.timer = null;
-            }
-        });
-    });
-
-    function approveVerification(reqId) {
-        if (!confirm('¿Aprobar esta verificación?')) return;
-        fetch(`/admin/verify/${reqId}/approve`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token() }}'
-            }
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert(data.error || 'No se pudo aprobar');
-                }
-            })
-            .catch(() => alert('Error al aprobar'));
-    }
-
-    function rejectVerification(reqId) {
-        if (!confirm('¿Rechazar esta verificación?')) return;
-        fetch(`/admin/verify/${reqId}/reject`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token() }}'
-            }
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert(data.error || 'No se pudo rechazar');
-                }
-            })
-            .catch(() => alert('Error al rechazar'));
-    }
-
-</script>
-{% endblock %}
+{% endif %}
+
+{% if not admin_partial %}
+{% include '_admin_modals.html' %}
+{% endif %}

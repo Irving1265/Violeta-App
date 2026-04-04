@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Prueba telefono 1 (Posts)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #6d47d9;
+            --primary-2: #4f31a6;
+            --primary-soft: #efe7fb;
+            --primary-soft-2: #e6d8f7;
+            --bg-modal: #fcf9ff;
+            --bg-step: #f4eefb;
+            --bg-page: #201a2b;
+            --bg-page-top: #2a2337;
+            --text-main: #231a32;
+            --text-soft: #706482;
+            --border: #e8def2;
+            --rose: #ef476f;
+            --safe-top: env(safe-area-inset-top);
+            --safe-bottom: env(safe-area-inset-bottom);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background:
+                radial-gradient(circle at top center, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 30%),
+                linear-gradient(180deg, var(--bg-page-top) 0%, var(--bg-page) 100%);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 24px 16px;
+            gap: 16px;
+            overflow: hidden;
+        }
+
+        .preview-toolbar {
+            width: min(430px, 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+        }
+
+        .preview-toolbar__label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .role-switch {
+            display: flex;
+            gap: 6px;
+            padding: 3px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .role-switch__btn {
+            border: 0;
+            border-radius: 999px;
+            padding: 8px 14px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.78);
+            background: transparent;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .role-switch__btn.active {
+            background: #ffffff;
+            color: #111111;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+        }
+
+        .pc-modal {
+            width: 100%;
+            max-width: 430px;
+            height: 100dvh;
+            max-height: 900px;
+            background: var(--bg-modal);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+        }
+
+        @media (min-width: 768px) {
+            .pc-modal {
+                height: 850px;
+                border-radius: 40px;
+            }
+        }
+
+        .pc-modal__header {
+            padding: calc(1rem + var(--safe-top)) 1.5rem 1rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            background: rgba(252, 249, 255, 0.9);
+            backdrop-filter: blur(12px);
+            z-index: 50;
+            flex-shrink: 0;
+        }
+
+        .pc-modal__body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem 1.5rem;
+            overflow: hidden;
+        }
+
+        .pc-stepper {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-shrink: 0;
+        }
+
+        .pc-stepper__segment {
+            height: 4px;
+            flex: 1;
+            background: #ddd3eb;
+            border-radius: 2px;
+            transition: all 0.25s ease;
+        }
+
+        .pc-stepper__segment.active {
+            background: var(--primary);
+        }
+
+        .pc-segmented-control {
+            background: #ece4f7;
+            padding: 3px;
+            border-radius: 12px;
+            display: flex;
+            margin-bottom: 1rem;
+            flex-shrink: 0;
+        }
+
+        .pc-segmented-btn {
+            flex: 1;
+            padding: 9px 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border-radius: 10px;
+            transition: all 0.2s ease;
+            border: 0;
+            background: transparent;
+            color: #695e7f;
+        }
+
+        .pc-segmented-btn.active {
+            background: white;
+            color: #111111;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+        }
+
+        .pc-role-banner {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 1rem;
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: var(--primary-soft);
+            color: var(--primary-2);
+            font-size: 0.84rem;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .pc-modal[data-role="user"] .pc-role-banner {
+            display: flex;
+        }
+
+        .pc-media-container {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            background: #000;
+            border-radius: 22px;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 1rem;
+            flex-shrink: 0;
+        }
+
+        .pc-upload-zone {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            text-align: center;
+            padding: 20px;
+            color: #84779a;
+            border: 2px dashed #d8c9ee;
+            background:
+                radial-gradient(circle at top center, rgba(109, 71, 217, 0.08), rgba(109, 71, 217, 0) 42%),
+                linear-gradient(180deg, #fcf9ff 0%, #f5eefb 100%);
+        }
+
+        #pcCameraVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: #0f0f10;
+        }
+
+        .pc-camera-guide {
+            margin-top: 10px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: var(--primary-soft);
+            color: var(--primary-2);
+            font-size: 0.76rem;
+            line-height: 1.4;
+            font-weight: 600;
+        }
+
+        .pc-modal__footer {
+            margin-top: auto;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(15px);
+            padding: 1rem 1.5rem calc(1rem + var(--safe-bottom));
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            flex-shrink: 0;
+            gap: 12px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: transform 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: 0;
+        }
+
+        .btn-primary:active {
+            transform: scale(0.96);
+            opacity: 0.9;
+        }
+
+        .btn-secondary {
+            color: var(--primary);
+            font-weight: 600;
+            border: 0;
+            background: transparent;
+        }
+
+        .btn-disabled {
+            background: #e5e5ea !important;
+            color: #8e8e93 !important;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .step-content {
+            display: none;
+            height: 100%;
+            flex-direction: column;
+        }
+
+        .step-content.active {
+            display: flex;
+        }
+
+        .shutter-btn {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            border: 4px solid #fff;
+            padding: 4px;
+            background: transparent;
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+            z-index: 20;
+        }
+
+        .shutter-btn:active {
+            transform: translateX(-50%) scale(0.9);
+        }
+
+        .shutter-btn__inner {
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            border-radius: 50%;
+        }
+
+        .pc-category-item {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 12px;
+            border-radius: 14px;
+            background: #f8f4fc;
+            border: 1px solid #eadff4;
+            color: #594f6e;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .pc-category-item input {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .pc-category-item:has(input:checked) {
+            background: var(--primary-soft);
+            border-color: rgba(109, 71, 217, 0.24);
+            color: var(--primary-2);
+        }
+
+        .pc-preview-chip {
+            margin-top: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary-2);
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+
+        .pc-location-notice {
+            background: var(--primary-soft);
+            color: var(--primary-2);
+        }
+
+        .pc-publish-panel {
+            display: grid;
+            gap: 10px;
+            padding: 14px;
+            border-radius: 16px;
+            background: #f8f4fc;
+            border: 1px solid #eadff4;
+        }
+
+        .pc-publish-options {
+            display: grid;
+            gap: 8px;
+        }
+
+        .pc-publish-option {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 12px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid #eadff4;
+            color: #594f6e;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .pc-publish-option input {
+            margin: 0;
+            accent-color: var(--primary);
+        }
+
+        .pc-publish-option:has(input:checked) {
+            background: var(--primary-soft);
+            border-color: rgba(109, 71, 217, 0.24);
+            color: var(--primary-2);
+        }
+
+        .pc-input {
+            width: 100%;
+            background: #ffffff;
+            border-radius: 12px;
+            border: 1px solid #eadff4;
+            padding: 12px 14px;
+            color: var(--text-main);
+            outline: none;
+        }
+
+        .pc-input:focus {
+            border-color: rgba(109, 71, 217, 0.34);
+            box-shadow: 0 0 0 3px rgba(109, 71, 217, 0.1);
+        }
+
+        .pc-modal[data-role="user"] .pc-publish-panel {
+            display: none;
+        }
+
+        @media (max-width: 767px) {
+            body {
+                padding: 0;
+                gap: 0;
+                background: var(--bg-page);
+            }
+
+            .preview-toolbar {
+                position: fixed;
+                top: calc(var(--safe-top) + 10px);
+                left: 12px;
+                right: 12px;
+                width: auto;
+                z-index: 200;
+            }
+
+            .pc-modal {
+                max-width: none;
+                border-radius: 0;
+                height: 100dvh;
+                max-height: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="preview-toolbar">
+        <span class="preview-toolbar__label">Preview mobile</span>
+        <div class="role-switch">
+            <button type="button" class="role-switch__btn active" data-role-toggle="admin">Admin</button>
+            <button type="button" class="role-switch__btn" data-role-toggle="user">Usuario comun</button>
+        </div>
+    </div>
+
+    <div class="pc-modal" data-role="admin" id="postPrototype">
+        <header class="pc-modal__header">
+            <div>
+                <h2 id="postCreateTitle" class="text-xl font-bold text-gray-900">Nueva publicacion</h2>
+                <p class="text-xs text-gray-500">Paso <span id="currentStepText">1</span> de 3</p>
+                <span class="pc-preview-chip" id="roleChip"><i class="fas fa-user-shield"></i> Vista Admin</span>
+            </div>
+            <button id="postCreateCloseBtn" class="text-gray-400 hover:text-gray-600 p-1">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </header>
+
+        <div class="pc-modal__body">
+            <div class="pc-stepper">
+                <div class="pc-stepper__segment active" data-step="1"></div>
+                <div class="pc-stepper__segment" data-step="2"></div>
+                <div class="pc-stepper__segment" data-step="3"></div>
+            </div>
+
+            <form id="postCreateForm" novalidate class="flex-1 flex flex-col overflow-hidden">
+                <section id="step1" class="step-content active">
+                    <div class="mb-3 flex-shrink-0">
+                        <h3 class="text-lg font-semibold leading-tight">Captura el momento</h3>
+                        <p class="text-xs text-gray-500" id="step1Copy">Sube una foto o tomala ahora.</p>
+                    </div>
+
+                    <div class="pc-role-banner" id="userOnlyNotice">
+                        <i class="fas fa-camera"></i>
+                        <span>Para usuario comun este paso es solo con camara. La foto debe tomarse en el momento.</span>
+                    </div>
+
+                    <div class="pc-segmented-control" id="modeControl">
+                        <button type="button" class="pc-segmented-btn active" data-mode="upload">Subir archivo</button>
+                        <button type="button" class="pc-segmented-btn" data-mode="camera">Camara</button>
+                    </div>
+
+                    <div class="pc-media-container" id="mediaContainer">
+                        <div id="panelUpload" class="h-full">
+                            <input type="file" id="pcFileInput" accept="image/*" class="hidden">
+                            <div class="pc-upload-zone" id="pcDropzone">
+                                <i class="fas fa-image text-4xl mb-3 text-gray-300"></i>
+                                <p class="text-sm font-medium text-gray-700">Toca para seleccionar</p>
+                                <p class="text-xs text-gray-400 mt-2">JPG, PNG o HEIC</p>
+                            </div>
+                        </div>
+
+                        <div id="panelCamera" class="hidden h-full">
+                            <video id="pcCameraVideo" autoplay playsinline muted></video>
+                            <canvas id="pcCameraCanvas" class="hidden"></canvas>
+
+                            <div id="cameraOverlay" class="absolute inset-0 flex items-center justify-center bg-black/40">
+                                <button type="button" id="pcCameraStartBtn" class="bg-white text-black px-6 py-3 rounded-full font-bold flex items-center gap-2">
+                                    <i class="fas fa-camera"></i> Activar
+                                </button>
+                            </div>
+
+                            <button type="button" id="pcCameraCaptureBtn" class="shutter-btn hidden">
+                                <div class="shutter-btn__inner"></div>
+                            </button>
+                        </div>
+
+                        <div id="pcPhotoPreviewCard" class="hidden absolute inset-0 bg-white z-30">
+                            <img src="" id="pcPreviewImage" class="w-full h-full object-cover">
+                            <button type="button" id="pcChangePhotoBtn" class="absolute bottom-4 right-4 bg-black/60 text-white px-3 py-2 rounded-full text-xs backdrop-blur-md">
+                                <i class="fas fa-redo mr-1"></i> Cambiar
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="pc-camera-guide hidden" id="pcCameraGuideNote">Centra el area a reportar y mantente quieta unos segundos antes de capturar.</div>
+
+                    <div class="mt-2 text-center flex-shrink-0">
+                        <p class="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Vista previa 1:1</p>
+                    </div>
+                </section>
+
+                <section id="step2" class="step-content overflow-y-auto pr-1">
+                    <div class="mb-4">
+                        <h3 class="text-lg font-semibold">Detalles del reporte</h3>
+                        <p class="text-sm text-gray-500">Describe el problema.</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-sm font-medium">Descripcion</label>
+                        </div>
+                        <textarea id="pcCaptionInput" rows="3" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none" placeholder="Escribe aqui..."></textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-sm font-medium">Categorias</label>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2" id="categoriesContainer">
+                            <label class="pc-category-item" data-value="Poca iluminación">
+                                <input type="checkbox" name="categories" value="Poca iluminación">
+                                <i class="fas fa-lightbulb text-sm"></i>
+                                <span class="text-[11px] font-medium">Poca luz</span>
+                            </label>
+                            <label class="pc-category-item" data-value="Banqueta en mal estado">
+                                <input type="checkbox" name="categories" value="Banqueta en mal estado">
+                                <i class="fas fa-road text-sm"></i>
+                                <span class="text-[11px] font-medium">Banqueta</span>
+                            </label>
+                            <label class="pc-category-item" data-value="Zona insegura">
+                                <input type="checkbox" name="categories" value="Zona insegura">
+                                <i class="fas fa-triangle-exclamation text-sm"></i>
+                                <span class="text-[11px] font-medium">Zona insegura</span>
+                            </label>
+                            <label class="pc-category-item" data-value="Punto ciego">
+                                <input type="checkbox" name="categories" value="Punto ciego">
+                                <i class="fas fa-eye-slash text-sm"></i>
+                                <span class="text-[11px] font-medium">Punto ciego</span>
+                            </label>
+                        </div>
+                        <p id="categoriesError" class="hidden mt-2 text-xs font-medium" style="color:#c2416c;">Selecciona al menos una categoria para continuar.</p>
+                    </div>
+
+                    <div class="mb-4 form-group pc-publish-panel" id="pcPublishPanel">
+                        <label class="text-sm font-medium">Publicacion</label>
+                        <p class="text-sm text-gray-500">Elige cuando se hara publica la publicacion.</p>
+                        <div class="pc-publish-options">
+                            <label class="pc-publish-option">
+                                <input type="radio" name="pcPublishMode" value="now" checked>
+                                <span>Publicar ahora</span>
+                            </label>
+                            <label class="pc-publish-option">
+                                <input type="radio" name="pcPublishMode" value="delay">
+                                <span>Publicar en 15 min</span>
+                            </label>
+                            <label class="pc-publish-option">
+                                <input type="radio" name="pcPublishMode" value="schedule">
+                                <span>Programar fecha y hora</span>
+                            </label>
+                        </div>
+                        <div class="hidden" id="pcPublishAtWrap">
+                            <label for="pcPublishAt" class="block text-sm font-medium mb-2">Fecha y hora</label>
+                            <input type="datetime-local" id="pcPublishAt" class="pc-input">
+                        </div>
+                        <p id="pcPublishError" class="hidden text-xs font-medium" style="color:#c2416c;"></p>
+                    </div>
+                </section>
+
+                <section id="step3" class="step-content">
+                    <div class="mb-4">
+                        <h3 class="text-lg font-semibold">Ubicacion</h3>
+                        <p class="text-sm text-gray-500">Donde sucede esto.</p>
+                    </div>
+                    <div class="pc-location-notice p-3 rounded-xl mb-4">
+                        <p id="pcLocationStatus" class="text-xs font-medium">Detectando ubicacion...</p>
+                    </div>
+                    <div class="flex-1 rounded-2xl flex items-center justify-center border min-h-[200px]" style="background:#f5eefb; border-color:#eadff4;">
+                        <i class="fas fa-map-marked-alt text-5xl" style="color:#c8b6e8;"></i>
+                    </div>
+                </section>
+            </form>
+        </div>
+
+        <footer class="pc-modal__footer">
+            <button type="button" class="btn-secondary" id="postCreateBackBtn" disabled>Atras</button>
+            <button type="button" class="btn-primary" id="postCreateNextBtn">Siguiente</button>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            let currentStep = 1;
+            let currentRole = "admin";
+            let currentMode = "upload";
+            let selectedFileBase64 = null;
+            let selectedFileMime = "";
+
+            const prototype = document.getElementById("postPrototype");
+            const btnNext = document.getElementById("postCreateNextBtn");
+            const btnBack = document.getElementById("postCreateBackBtn");
+            const stepText = document.getElementById("currentStepText");
+            const segments = document.querySelectorAll(".pc-stepper__segment");
+            const roleChip = document.getElementById("roleChip");
+            const step1Copy = document.getElementById("step1Copy");
+            const modeControl = document.getElementById("modeControl");
+            const panelUpload = document.getElementById("panelUpload");
+            const panelCamera = document.getElementById("panelCamera");
+            const previewCard = document.getElementById("pcPhotoPreviewCard");
+            const previewImage = document.getElementById("pcPreviewImage");
+            const cameraGuideNote = document.getElementById("pcCameraGuideNote");
+            const fileInput = document.getElementById("pcFileInput");
+            const dropzone = document.getElementById("pcDropzone");
+            const video = document.getElementById("pcCameraVideo");
+            const canvas = document.getElementById("pcCameraCanvas");
+            const cameraOverlay = document.getElementById("cameraOverlay");
+            const captureBtn = document.getElementById("pcCameraCaptureBtn");
+            const categoryInputs = document.querySelectorAll('input[name="categories"]');
+            const categoriesError = document.getElementById("categoriesError");
+            const publishModeInputs = document.querySelectorAll('input[name="pcPublishMode"]');
+            const publishAtWrap = document.getElementById("pcPublishAtWrap");
+            const publishAtInput = document.getElementById("pcPublishAt");
+
+            function stopCamera() {
+                if (video.srcObject) {
+                    video.srcObject.getTracks().forEach((track) => track.stop());
+                    video.srcObject = null;
+                }
+                captureBtn.classList.add("hidden");
+                cameraOverlay.classList.remove("hidden");
+            }
+
+            function updateCameraGuide() {
+                const shouldShow = currentMode === "camera" && previewCard.classList.contains("hidden");
+                cameraGuideNote.classList.toggle("hidden", !shouldShow);
+            }
+
+            function setMode(mode) {
+                currentMode = mode;
+                document.querySelectorAll(".pc-segmented-btn").forEach((button) => {
+                    button.classList.toggle("active", button.dataset.mode === mode);
+                });
+                panelUpload.classList.toggle("hidden", mode !== "upload");
+                panelCamera.classList.toggle("hidden", mode !== "camera");
+                if (mode !== "camera") {
+                    stopCamera();
+                }
+                updateCameraGuide();
+            }
+
+            function updateRoleUI() {
+                prototype.dataset.role = currentRole;
+                document.querySelectorAll("[data-role-toggle]").forEach((button) => {
+                    button.classList.toggle("active", button.dataset.roleToggle === currentRole);
+                });
+
+                if (currentRole === "admin") {
+                    roleChip.innerHTML = '<i class="fas fa-user-shield"></i> Vista Admin';
+                    step1Copy.textContent = "Sube una foto o tomala ahora.";
+                    modeControl.classList.remove("hidden");
+                    setMode(currentMode);
+                } else {
+                    roleChip.innerHTML = '<i class="fas fa-camera"></i> Vista Usuario comun';
+                    step1Copy.textContent = "Solo se permite camara. La captura debe hacerse en el momento.";
+                    modeControl.classList.add("hidden");
+                    setMode("camera");
+                    document.querySelector('input[name="pcPublishMode"][value="now"]').checked = true;
+                    publishAtInput.value = "";
+                }
+                updatePublishModeUI();
+            }
+
+            function hasSelectedCategories() {
+                return Array.from(categoryInputs).some((input) => input.checked);
+            }
+
+            function updateCategoryValidation(showError = false) {
+                const isValid = hasSelectedCategories();
+                const shouldShowError = showError && currentStep === 2 && !isValid;
+                categoriesError.classList.toggle("hidden", !shouldShowError);
+                return isValid;
+            }
+
+            function updatePublishModeUI() {
+                const currentPublishMode = document.querySelector('input[name="pcPublishMode"]:checked')?.value || "now";
+                publishAtWrap.classList.toggle("hidden", currentRole !== "admin" || currentPublishMode !== "schedule");
+            }
+
+            function updateUI() {
+                document.querySelectorAll(".step-content").forEach((el, idx) => {
+                    el.classList.toggle("active", idx + 1 === currentStep);
+                });
+
+                segments.forEach((seg, idx) => {
+                    seg.classList.toggle("active", idx < currentStep);
+                });
+
+                stepText.innerText = currentStep;
+                btnBack.disabled = currentStep === 1;
+                btnNext.innerText = currentStep === 3 ? "Publicar" : "Siguiente";
+
+                if (currentStep === 1 && !selectedFileBase64) {
+                    btnNext.classList.add("btn-disabled");
+                } else if (currentStep === 2 && !hasSelectedCategories()) {
+                    btnNext.classList.add("btn-disabled");
+                } else {
+                    btnNext.classList.remove("btn-disabled");
+                }
+
+                if (currentStep !== 2) {
+                    categoriesError.classList.add("hidden");
+                }
+            }
+
+            btnNext.addEventListener("click", () => {
+                if (currentStep === 1 && !selectedFileBase64) return;
+                if (currentStep === 2 && !updateCategoryValidation(true)) return;
+                if (currentStep < 3) {
+                    currentStep++;
+                    updateUI();
+                } else {
+                    alert("Reporte enviado");
+                }
+            });
+
+            btnBack.addEventListener("click", () => {
+                if (currentStep > 1) {
+                    currentStep--;
+                    updateUI();
+                }
+            });
+
+            dropzone.addEventListener("click", () => fileInput.click());
+            fileInput.addEventListener("change", (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                selectedFileMime = file.type;
+                const reader = new FileReader();
+                reader.onload = (loadEvent) => {
+                    selectedFileBase64 = loadEvent.target.result.split(",")[1];
+                    previewImage.src = loadEvent.target.result;
+                    previewCard.classList.remove("hidden");
+                    updateCameraGuide();
+                    updateUI();
+                };
+                reader.readAsDataURL(file);
+            });
+
+            document.getElementById("pcCameraStartBtn").addEventListener("click", async () => {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: "environment", aspectRatio: 1 }
+                    });
+                    video.srcObject = stream;
+                    cameraOverlay.classList.add("hidden");
+                    captureBtn.classList.remove("hidden");
+                } catch (error) {
+                    alert("Sin acceso a camara.");
+                }
+            });
+
+            captureBtn.addEventListener("click", () => {
+                const size = Math.min(video.videoWidth, video.videoHeight);
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(
+                    video,
+                    (video.videoWidth - size) / 2,
+                    (video.videoHeight - size) / 2,
+                    size,
+                    size,
+                    0,
+                    0,
+                    size,
+                    size
+                );
+
+                const dataUrl = canvas.toDataURL("image/jpeg");
+                selectedFileBase64 = dataUrl.split(",")[1];
+                selectedFileMime = "image/jpeg";
+                previewImage.src = dataUrl;
+                stopCamera();
+                previewCard.classList.remove("hidden");
+                updateCameraGuide();
+                updateUI();
+            });
+
+            document.getElementById("pcChangePhotoBtn").addEventListener("click", () => {
+                selectedFileBase64 = null;
+                previewCard.classList.add("hidden");
+                previewImage.removeAttribute("src");
+                fileInput.value = "";
+                updateCameraGuide();
+                updateUI();
+            });
+
+            document.querySelectorAll(".pc-segmented-btn").forEach((button) => {
+                button.addEventListener("click", () => {
+                    setMode(button.dataset.mode);
+                });
+            });
+
+            categoryInputs.forEach((input) => {
+                input.addEventListener("change", () => {
+                    updateCategoryValidation(false);
+                    updateUI();
+                });
+            });
+
+            publishModeInputs.forEach((input) => {
+                input.addEventListener("change", () => {
+                    updatePublishModeUI();
+                });
+            });
+
+            document.querySelectorAll("[data-role-toggle]").forEach((button) => {
+                button.addEventListener("click", () => {
+                    currentRole = button.dataset.roleToggle;
+                    updateRoleUI();
+                    updateUI();
+                });
+            });
+
+            updateRoleUI();
+            updateCameraGuide();
+            updatePublishModeUI();
+            updateUI();
+        });
+    </script>
+</body>
+</html>

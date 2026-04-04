@@ -20,7 +20,7 @@
             <i class="fas fa-triangle-exclamation"></i>
           </span>
           {% endif %}
-          {% if user.username == 'admin' %}<span class="admin-badge admin-badge--profile" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+          {% if user_has_staff_badge(user) %}<span class="admin-badge admin-badge--profile" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
         </h2>
         {% if user.bio %}
         <p class="mb-2">{{ user.bio }}</p>
@@ -81,13 +81,19 @@
       <a href="{{ url_for('post_detail', post_id=p.id) }}">
         <img src="{{ url_for('uploaded_file', filename=p.image_filename) }}" alt="Post">
         {% if p.is_pending %}
-        <div class="grid-pending-overlay">
-          <span>En proceso de publicación</span>
+        <div class="grid-pending-overlay"
+          title="Se publicará cuando pasen {{ safety_publish_policy.min_delay_minutes }} min y te alejes {{ safety_publish_policy.distance_meters }} m, o en máximo {{ safety_publish_policy.fallback_minutes }} min."
+          data-pending-post
+          data-min-ready-at="{{ p.pending_min_ready_at.isoformat() if p.pending_min_ready_at else '' }}"
+          data-fallback-at="{{ p.pending_fallback_at.isoformat() if p.pending_fallback_at else '' }}">
+          <span class="grid-pending-overlay__title">Pendiente</span>
+          <span class="grid-pending-overlay__status">Preparando publicación segura...</span>
+          <span class="grid-pending-overlay__meta">Regla: {{ safety_publish_policy.min_delay_minutes }} min + {{ safety_publish_policy.distance_meters }} m</span>
         </div>
         {% else %}
         <div class="grid-overlay">
-          <span><i class="fas fa-heart"></i> {{ p.get_likes_count() }}</span>
-          <span><i class="fas fa-comment"></i> {{ p.get_comments_count() }}</span>
+          <span><i class="fas fa-heart"></i> {{ p.likes_count|default(0) }}</span>
+          <span><i class="fas fa-comment"></i> {{ p.comments_count|default(0) }}</span>
         </div>
         {% endif %}
       </a>

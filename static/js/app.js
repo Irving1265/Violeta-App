@@ -107,11 +107,6 @@ async function submitReport(event) {
 
     const modal = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.hide();
-    if (postCard) {
-        postCard.dataset.reportPending = 'true';
-        postCard.style.opacity = '0.42';
-        postCard.style.pointerEvents = 'none';
-    }
 
     try {
         const response = await fetch(`/report_post/${postId}`, {
@@ -132,20 +127,15 @@ async function submitReport(event) {
             throw new Error(data.error || 'No se pudo enviar el reporte.');
         }
 
-        if (postCard) {
+        if (postCard && data.hidden_immediately) {
             postCard.remove();
         }
 
         const caseLabel = data.report_id ? ` Folio #${data.report_id}.` : '';
-        showAlert(`Gracias. Tu reporte fue enviado.${caseLabel}`, 'success');
+        showAlert(`${data.message || 'Gracias. Tu reporte fue enviado.'}${caseLabel}`, 'success');
         currentReportPostId = null;
     } catch (error) {
         console.error('Error submitting report:', error);
-        if (postCard) {
-            delete postCard.dataset.reportPending;
-            postCard.style.opacity = '';
-            postCard.style.pointerEvents = '';
-        }
         if (errorEl) {
             errorEl.textContent = error.message || 'Ocurrió un error al enviar el reporte.';
             errorEl.classList.remove('d-none');
@@ -248,7 +238,7 @@ function toggleComments(postId) {
 // Cargar comentarios de una publicación
 function canReportComment(comment) {
     if (!comment || !window.CURRENT_USER || !window.CURRENT_USER.is_authenticated) return false;
-    if (String(window.CURRENT_USER.username || '').toLowerCase() === 'admin') return true;
+    if (window.CURRENT_USER.is_super_admin) return true;
     return Number(window.CURRENT_USER.id) !== Number(comment.user_id);
 }
 
@@ -266,7 +256,7 @@ function buildCommentMarkup(comment, postId, options = {}) {
         ? getRelativeTime(comment.created_at)
         : new Date(comment.created_at).toLocaleString();
     const avatarSrc = comment.profile_pic || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.username)}&background=b565a7&color=fff&rounded=true&size=32`;
-    const reportBtnClass = String(window.CURRENT_USER?.username || '').toLowerCase() === 'admin'
+    const reportBtnClass = window.CURRENT_USER?.is_super_admin
         ? 'comment-report-btn comment-report-btn--always-visible'
         : 'comment-report-btn';
     const reportBtn = (!hidden && canReportComment(comment))
@@ -282,7 +272,7 @@ function buildCommentMarkup(comment, postId, options = {}) {
                 <div class="violet-comment-header">
                     <div class="violet-comment-identity">
                         <div class="violet-comment-name-row">
-                            <span class="violet-comment-username">${escapeHtml(comment.username)}${renderModerationBadge(comment.moderation_level)}${renderAdminBadge(comment.username)}</span>
+                            <span class="violet-comment-username">${escapeHtml(comment.username)}${renderModerationBadge(comment.moderation_level)}${renderAdminBadge(comment.is_super_admin)}</span>
                             ${reportBtn}
                         </div>
                     </div>
@@ -516,7 +506,6 @@ async function submitCommentReport(event) {
         const instance = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
         instance.hide();
     }
-    optimisticallyHideReportedComment(postId, commentId);
 
     try {
         const response = await fetch(`/api/comment/${commentId}/report`, {
@@ -537,10 +526,13 @@ async function submitCommentReport(event) {
             throw new Error(data.error || 'No se pudo enviar el reporte');
         }
 
+        if (data.hidden_immediately) {
+            optimisticallyHideReportedComment(postId, commentId);
+        }
         currentReportCommentId = null;
         currentReportCommentPostId = null;
         loadComments(postId, true);
-        notifyCommentAction(data.message || 'El comentario fue reportado correctamente.', 'success');
+        notifyCommentAction(data.message || 'El reporte fue enviado correctamente.', 'success');
     } catch (error) {
         if (errorEl) {
             errorEl.textContent = error.message || 'No se pudo enviar el reporte.';
@@ -587,8 +579,8 @@ function prefetchPostDetailComments() {
 
 document.addEventListener('DOMContentLoaded', prefetchPostDetailComments);
 
-function renderAdminBadge(username, sizeClass = 'admin-badge--xs') {
-    if (username !== 'admin') return '';
+function renderAdminBadge(isSuperAdmin, sizeClass = 'admin-badge--xs') {
+    if (!isSuperAdmin) return '';
     const cls = sizeClass ? ` ${sizeClass}` : '';
     return `<span class="admin-badge${cls}" title="Admin verificado" aria-label="Admin verificado"><img src="/static/images/admin_badge.svg" alt="Admin"></span>`;
 }
@@ -1592,11 +1584,18 @@ document.addEventListener('click', function (event) {
     function isModifiedEvent(e) { return e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0; }
     function isSameOrigin(href) { try { const u = new URL(href, window.location.href); return u.origin === window.location.origin; } catch (_) { return false; } }
     const prefetchedUrls = new Set();
+    let navServiceWorkerReady = null;
+
+    function normalizeSameOriginUrl(href) {
+        const url = new URL(href, window.location.href);
+        url.hash = '';
+        return url.toString();
+    }
 
     function prefetchDocument(href) {
         if (!href || href.startsWith('#') || href.startsWith('tel:') || href.startsWith('mailto:')) return;
         if (!isSameOrigin(href)) return;
-        const normalized = new URL(href, window.location.href).toString();
+        const normalized = normalizeSameOriginUrl(href);
         if (prefetchedUrls.has(normalized)) return;
         const link = document.createElement('link');
         link.rel = 'prefetch';
@@ -1621,32 +1620,121 @@ document.addEventListener('click', function (event) {
         return true;
     }
 
-    function animateOutAndNavigate(href) {
-        window.location.href = href;
+    function getNavigationCandidates() {
+        return Array.from(document.querySelectorAll('.sidebar-link, .bottom-nav .nav-item, .widget-card a, .brand-logo a'))
+            .filter(shouldPrefetchLink)
+            .map((link) => normalizeSameOriginUrl(link.href))
+            .filter((href, index, arr) => arr.indexOf(href) === index);
     }
+
+    function sendServiceWorkerPrefetch(urls) {
+        if (!Array.isArray(urls) || !urls.length || !('serviceWorker' in navigator)) return;
+        const payload = { type: 'VIOLETA_PREFETCH_NAV', urls };
+        const postToWorker = (worker) => {
+            if (worker) worker.postMessage(payload);
+        };
+        if (navigator.serviceWorker.controller) {
+            postToWorker(navigator.serviceWorker.controller);
+            return;
+        }
+        if (navServiceWorkerReady) {
+            navServiceWorkerReady.then((registration) => postToWorker(registration.active || registration.waiting || registration.installing)).catch(() => null);
+        }
+    }
+
+    function clearServiceWorkerNavigationCache() {
+        if (!('serviceWorker' in navigator)) return;
+        const payload = { type: 'VIOLETA_CLEAR_NAV_CACHE' };
+        const postToWorker = (worker) => {
+            if (worker) worker.postMessage(payload);
+        };
+        if (navigator.serviceWorker.controller) {
+            postToWorker(navigator.serviceWorker.controller);
+            return;
+        }
+        if (navServiceWorkerReady) {
+            navServiceWorkerReady.then((registration) => postToWorker(registration.active || registration.waiting || registration.installing)).catch(() => null);
+        }
+    }
+
+    function installSpeculationRules(urls) {
+        if (!Array.isArray(urls) || !urls.length) return;
+        if (typeof HTMLScriptElement === 'undefined' || typeof HTMLScriptElement.supports !== 'function') return;
+        if (!HTMLScriptElement.supports('speculationrules')) return;
+
+        const existing = document.getElementById('violeta-speculation-rules');
+        if (existing) existing.remove();
+
+        const script = document.createElement('script');
+        script.type = 'speculationrules';
+        script.id = 'violeta-speculation-rules';
+        script.textContent = JSON.stringify({
+            prerender: [{ urls: urls.slice(0, 4) }],
+            prefetch: [{ urls: urls.slice(0, 8) }],
+        });
+        document.head.appendChild(script);
+    }
+
+    function warmNavigationTarget(href) {
+        if (!href || !isSameOrigin(href)) return;
+        const normalized = normalizeSameOriginUrl(href);
+        prefetchDocument(normalized);
+        sendServiceWorkerPrefetch([normalized]);
+        installSpeculationRules([normalized]);
+    }
+
+    function registerNavigationServiceWorker() {
+        if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+        if (!(window.isSecureContext || window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')) {
+            return Promise.resolve(null);
+        }
+        navServiceWorkerReady = navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
+            .then(() => navigator.serviceWorker.ready)
+            .catch(() => null);
+        return navServiceWorkerReady;
+    }
+
+    function animateOutAndNavigate(href) {
+        const normalized = normalizeSameOriginUrl(href);
+        window.location.href = normalized;
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         const area = document.querySelector('.main-content');
         if (area) {
-            // animate entry
             requestAnimationFrame(() => { area.classList.add('page-anim-in'); });
         }
 
-        document.querySelectorAll('.sidebar-link, .bottom-nav .nav-item, .widget-card a, .brand-logo a').forEach((link) => {
-            if (shouldPrefetchLink(link)) prefetchDocument(link.href);
-        });
+        const navigationCandidates = getNavigationCandidates();
+        navigationCandidates.forEach((href) => prefetchDocument(href));
+        installSpeculationRules(navigationCandidates);
 
-        // Delegate clicks on nav and primary buttons/links
+        if (window.CURRENT_USER && window.CURRENT_USER.is_authenticated) {
+            registerNavigationServiceWorker().then(() => {
+                if (navigationCandidates.length) {
+                    sendServiceWorkerPrefetch(navigationCandidates);
+                    window.setTimeout(() => sendServiceWorkerPrefetch(navigationCandidates), 1500);
+                }
+            });
+        } else {
+            registerNavigationServiceWorker().then(() => clearServiceWorkerNavigationCache());
+        }
+
         document.addEventListener('click', function (e) {
             const target = e.target.closest('a, button');
             if (!target) return;
             if (target.dataset && target.dataset.noAnim === '1') return;
 
-            // Links: same origin and not anchor/hash/tel/mailto
             if (target.tagName === 'A') {
                 const href = target.getAttribute('href') || '';
                 if (!href || href.startsWith('#') || href.startsWith('tel:') || href.startsWith('mailto:')) return;
                 if (isModifiedEvent(e)) return;
                 if (!isSameOrigin(href)) return;
+                if (target.dataset && target.dataset.noPrefetch === '1') {
+                    clearServiceWorkerNavigationCache();
+                } else {
+                    warmNavigationTarget(href);
+                }
 
                 e.preventDefault();
                 animateOutAndNavigate(href);
@@ -1656,14 +1744,20 @@ document.addEventListener('click', function (event) {
         document.addEventListener('pointerenter', function (e) {
             const link = e.target.closest('a[href]');
             if (!shouldPrefetchLink(link)) return;
-            prefetchDocument(link.href);
+            warmNavigationTarget(link.href);
         }, true);
 
         document.addEventListener('focusin', function (e) {
             const link = e.target.closest('a[href]');
             if (!shouldPrefetchLink(link)) return;
-            prefetchDocument(link.href);
+            warmNavigationTarget(link.href);
         }, true);
+
+        document.addEventListener('touchstart', function (e) {
+            const link = e.target.closest('a[href]');
+            if (!shouldPrefetchLink(link)) return;
+            warmNavigationTarget(link.href);
+        }, { passive: true, capture: true });
     });
 })();
 

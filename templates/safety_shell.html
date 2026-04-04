@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_page.css') }}?v=20260403-safety-dest-desktop-v1">
+<style>
+    #deferredPageMount[hidden] {
+        display: none !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="safety-redesign-page">
+    <section id="deferredPageSkeleton" class="safety-shell-skeleton">
+        <div class="safety-shell-card p-4 placeholder-glow">
+            <span class="placeholder col-3 mb-2" style="height: 0.85rem;"></span>
+            <span class="placeholder col-6 mb-3" style="height: 2.2rem;"></span>
+            <span class="placeholder col-8" style="height: 0.9rem;"></span>
+        </div>
+
+        <div class="safety-shell-card p-4 placeholder-glow">
+            <span class="placeholder col-12 mb-3" style="height: 360px; border-radius: 24px;"></span>
+            <div class="row g-3">
+                <div class="col-12 col-xl-7">
+                    <span class="placeholder col-10 mb-2" style="height: 1rem;"></span>
+                    <span class="placeholder col-7 mb-3" style="height: 2rem;"></span>
+                    <span class="placeholder col-12 mb-2" style="height: 58px; border-radius: 18px;"></span>
+                    <span class="placeholder col-12" style="height: 58px; border-radius: 18px;"></span>
+                </div>
+                <div class="col-12 col-xl-5">
+                    <span class="placeholder col-12 mb-2" style="height: 72px; border-radius: 18px;"></span>
+                    <span class="placeholder col-12 mb-2" style="height: 72px; border-radius: 18px;"></span>
+                    <span class="placeholder col-9" style="height: 56px; border-radius: 18px;"></span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div id="deferredPageError" class="alert alert-danger" hidden>
+        No se pudo cargar Seguridad. Recarga la pagina.
+    </div>
+
+    <div id="deferredPageMount" hidden aria-busy="true"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.DEFERRED_PAGE_CONFIG = {
+  mountId: 'deferredPageMount',
+  skeletonId: 'deferredPageSkeleton',
+  errorId: 'deferredPageError',
+  contentUrl: {{ url_for('safety_center_content')|tojson }},
+  initFn: 'initSafetyPageEnhancements'
+};
+</script>
+<script defer src="{{ url_for('static', filename='js/safety_page.js') }}?v=20260403-safety-arrive-redirect-v1"></script>
+<script defer src="{{ url_for('static', filename='js/deferred_page_loader.js') }}?v=20260403-deferred-fix-v1"></script>
+{% endblock %}

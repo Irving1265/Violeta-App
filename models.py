@@ -21,6 +21,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    roles = db.Column(db.Text)
     profile_pic = db.Column(db.String(255), nullable=True)
     bio = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -42,6 +43,41 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    def role_set(self) -> set[str]:
+        raw = (self.roles or '').strip()
+        if not raw:
+            return set()
+        parts = set()
+        for chunk in raw.split(','):
+            role = chunk.strip().lower()
+            if role:
+                parts.add(role)
+        return parts
+
+    def has_role(self, role: str) -> bool:
+        normalized = (role or '').strip().lower()
+        if not normalized:
+            return False
+        return normalized in self.role_set()
+
+    def has_any_role(self, *roles: str) -> bool:
+        current = self.role_set()
+        if not current:
+            return False
+        for role in roles:
+            normalized = (role or '').strip().lower()
+            if normalized and normalized in current:
+                return True
+        return False
+
+    def set_roles(self, roles) -> None:
+        normalized = sorted({
+            str(role).strip().lower()
+            for role in (roles or [])
+            if str(role).strip()
+        })
+        self.roles = ','.join(normalized) if normalized else None
 
     def __repr__(self):
         return f'<User {self.username}>'
@@ -404,6 +440,33 @@ class ModerationStrike(db.Model):
 
     def __repr__(self):
         return f'<ModerationStrike {self.user_id}:{self.strike_number}:{self.source_type}>'
+
+
+class AuditLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    target_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    event_type = db.Column(db.String(64), nullable=False, index=True)
+    workspace = db.Column(db.String(64), index=True)
+    resource_type = db.Column(db.String(64))
+    resource_id = db.Column(db.Integer)
+    route = db.Column(db.String(255))
+    method = db.Column(db.String(10))
+    ip_address = db.Column(db.String(64))
+    user_agent = db.Column(db.String(255))
+    summary = db.Column(db.String(255))
+    details = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    actor = db.relationship('User', foreign_keys=[actor_id], backref=db.backref('audit_events', lazy=True))
+    target_user = db.relationship('User', foreign_keys=[target_user_id], backref=db.backref('targeted_audit_events', lazy=True))
+
+    __table_args__ = (
+        db.Index('ix_audit_log_workspace_created_at', 'workspace', 'created_at'),
+    )
+
+    def __repr__(self):
+        return f'<AuditLog {self.event_type}:{self.actor_id}:{self.created_at}>'
 
 
 # --- Verification ----------------------------------------------------

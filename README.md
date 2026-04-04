@@ -109,6 +109,7 @@ El diseño "Violeta" se centra en una estética nocturna y elegante, utilizando 
 Si vas a mover la app a una base administrada, revisa:
 
 - [Migración a PostgreSQL](./docs/postgresql.md)
+- [Gobernanza de datos y privacidad](./docs/data-governance.md)
 
 ---
 

@@ -1,0 +1,3176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Violeta Safety Redesign Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --violet: #8b5cf6;
+            --violet-dark: #7c3aed;
+            --violet-soft: #ede9fe;
+            --rose: #f43f5e;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #dc2626;
+            --ink: #1f1730;
+            --ink-soft: #5e5870;
+            --bg: #f7f3fc;
+            --surface: #ffffff;
+            --surface-soft: #f4effa;
+            --surface-muted: #eee8f7;
+            --border: #ddd4ed;
+            --dark-bg: #13111c;
+            --dark-surface: #1e1b2e;
+            --dark-border: #2d2438;
+            --shadow-lg: 0 28px 60px rgba(19, 17, 28, 0.18);
+            --shadow-md: 0 16px 34px rgba(19, 17, 28, 0.12);
+            --radius-xl: 28px;
+            --radius-lg: 22px;
+            --radius-md: 16px;
+            --radius-sm: 12px;
+            --bottom-nav-height: 65px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100%;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(139, 92, 246, 0.12), transparent 32%),
+                linear-gradient(180deg, #f8f5fd, #f2edf8);
+            color: var(--ink);
+        }
+
+        .preview-shell {
+            min-height: 100vh;
+            padding: 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .preview-toolbar {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .preview-toolbar__copy {
+            display: grid;
+            gap: 8px;
+            max-width: 760px;
+        }
+
+        .preview-kicker {
+            width: fit-content;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: rgba(139, 92, 246, 0.12);
+            color: var(--violet-dark);
+            font-size: 0.77rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .preview-title {
+            margin: 0;
+            font-size: clamp(1.7rem, 2vw, 2.3rem);
+            line-height: 1.06;
+            letter-spacing: -0.03em;
+        }
+
+        .preview-subtitle {
+            margin: 0;
+            color: var(--ink-soft);
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+
+        .preview-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .state-chip {
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.8);
+            color: var(--ink-soft);
+            font: inherit;
+            font-weight: 700;
+            padding: 11px 16px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: 0.2s ease;
+        }
+
+        .state-chip.is-active {
+            background: linear-gradient(135deg, var(--violet), var(--violet-dark));
+            border-color: transparent;
+            color: #fff;
+            box-shadow: 0 16px 26px rgba(124, 58, 237, 0.22);
+        }
+
+        .preview-grid {
+            display: grid;
+            grid-template-columns: minmax(320px, 414px) minmax(0, 1fr);
+            gap: 24px;
+            align-items: start;
+        }
+
+        .phone-frame {
+            background: #1b1626;
+            border-radius: 36px;
+            padding: 12px;
+            box-shadow: var(--shadow-lg);
+            position: sticky;
+            top: 24px;
+        }
+
+        .phone-screen {
+            min-height: 860px;
+            height: 860px;
+            background: var(--bg);
+            border-radius: 26px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .desktop-frame {
+            min-height: 860px;
+            border-radius: 28px;
+            overflow: hidden;
+            background: #efe7f9;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            display: grid;
+            grid-template-columns: 250px minmax(0, 1fr);
+        }
+
+        .desktop-sidebar {
+            background: var(--dark-bg);
+            color: #efe9f7;
+            padding: 26px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .desktop-brand {
+            font-size: 1.4rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        .desktop-nav {
+            display: grid;
+            gap: 8px;
+        }
+
+        .desktop-nav__item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            color: #bcaed1;
+            font-size: 0.96rem;
+        }
+
+        .desktop-nav__item.is-active {
+            background: rgba(139, 92, 246, 0.16);
+            color: #ffffff;
+        }
+
+        .desktop-emergency-btn {
+            width: 100%;
+            gap: 10px;
+            padding: 14px 18px;
+            justify-content: center;
+            background: linear-gradient(180deg, #ef4444, #dc2626);
+            color: #ffffff;
+            font-weight: 800;
+            box-shadow: 0 12px 24px rgba(220, 38, 38, 0.28);
+        }
+
+        .desktop-frame .sidebar {
+            background: var(--dark-bg);
+            color: #efe9f7;
+            padding: 26px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            border-right: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .desktop-frame .brand-logo {
+            font-size: 1.4rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            color: #ffffff;
+            margin: 0 0 6px;
+            display: block;
+            width: auto;
+            text-align: left;
+        }
+
+        .desktop-frame .sidebar-nav {
+            display: grid;
+            gap: 8px;
+        }
+
+        .desktop-frame .sidebar-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            color: #bcaed1;
+            font-size: 0.96rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: 0.18s ease;
+        }
+
+        .desktop-frame .sidebar-link:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #ffffff;
+        }
+
+        .desktop-frame .sidebar-link.active {
+            background: rgba(139, 92, 246, 0.16);
+            color: #ffffff;
+        }
+
+        .desktop-frame .sidebar-link i {
+            width: 22px;
+            text-align: center;
+            font-size: 1.05rem;
+        }
+
+        .desktop-frame .mt-auto {
+            margin-top: auto;
+        }
+
+        .desktop-frame .d-grid {
+            display: grid;
+        }
+
+        .desktop-frame .gap-2 {
+            gap: 0.5rem;
+        }
+
+        .desktop-frame .btn {
+            border: 0;
+            border-radius: 999px;
+            font: inherit;
+            font-weight: 800;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 14px 18px;
+            cursor: pointer;
+        }
+
+        .desktop-frame .btn-danger {
+            background: linear-gradient(180deg, #ef4444, #dc2626);
+            color: #ffffff;
+            box-shadow: 0 12px 24px rgba(220, 38, 38, 0.28);
+        }
+
+        .desktop-frame .w-100 {
+            width: 100%;
+        }
+
+        .desktop-main {
+            padding: 24px;
+            background:
+                radial-gradient(circle at top right, rgba(139, 92, 246, 0.12), transparent 28%),
+                linear-gradient(180deg, #faf7fd, #f3edf9);
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid rgba(139, 92, 246, 0.1);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+        }
+
+        .safety-mobile {
+            position: relative;
+            height: 100%;
+            padding-bottom: 0;
+            overflow: hidden;
+        }
+
+        .mobile-map {
+            height: 44%;
+            background:
+                radial-gradient(circle at 50% 30%, rgba(139, 92, 246, 0.18), transparent 28%),
+                linear-gradient(180deg, #ece4f8, #dfe8ef);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mobile-map::before,
+        .mobile-map::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            opacity: 0.65;
+        }
+
+        .mobile-map::before {
+            background:
+                linear-gradient(78deg, transparent 46%, rgba(255, 255, 255, 0.7) 47%, rgba(255, 255, 255, 0.7) 53%, transparent 54%),
+                linear-gradient(12deg, transparent 58%, rgba(255, 255, 255, 0.56) 59%, rgba(255, 255, 255, 0.56) 63%, transparent 64%),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.18) 1px, transparent 1px),
+                linear-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px);
+            background-size: auto, auto, 42px 42px, 42px 42px;
+        }
+
+        .mobile-topbar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            padding: 18px 16px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .topbar-btn,
+        .desktop-emergency-btn {
+            border: 0;
+            border-radius: 999px;
+            font: inherit;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .topbar-btn {
+            width: 42px;
+            height: 42px;
+            background: rgba(255, 255, 255, 0.88);
+            color: var(--ink);
+            box-shadow: 0 12px 24px rgba(19, 17, 28, 0.08);
+        }
+
+
+        .map-chip-group {
+            position: absolute;
+            left: 16px;
+            right: 16px;
+            top: 74px;
+            z-index: 9;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .map-chip {
+            background: rgba(255, 255, 255, 0.88);
+            color: var(--ink-soft);
+            border-radius: 999px;
+            padding: 9px 12px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            box-shadow: 0 10px 20px rgba(19, 17, 28, 0.06);
+        }
+
+        .map-pin,
+        .map-route {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .map-pin {
+            top: 32%;
+            width: 56px;
+            height: 56px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            color: #fff;
+            background: linear-gradient(135deg, var(--violet), var(--violet-dark));
+            box-shadow: 0 20px 40px rgba(124, 58, 237, 0.28);
+            z-index: 3;
+        }
+
+        .map-route {
+            top: 41%;
+            width: 6px;
+            height: 108px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, rgba(139, 92, 246, 0.18), rgba(139, 92, 246, 0.78));
+            z-index: 2;
+        }
+
+        .map-card-anchor {
+            position: absolute;
+            right: 16px;
+            bottom: 18px;
+            width: min(230px, calc(100% - 32px));
+            z-index: 4;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            padding: 14px;
+            box-shadow: 0 18px 34px rgba(19, 17, 28, 0.1);
+        }
+
+        .map-action-row {
+            position: absolute;
+            left: 16px;
+            right: 16px;
+            bottom: 16px;
+            z-index: 4;
+            display: flex;
+            gap: 10px;
+        }
+
+        .map-action-btn {
+            flex: 1;
+            min-height: 48px;
+            border: 0;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.94);
+            color: var(--ink);
+            font: inherit;
+            font-size: 0.9rem;
+            font-weight: 800;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 12px 22px rgba(19, 17, 28, 0.12);
+            cursor: pointer;
+        }
+
+        .map-action-btn--success {
+            background: #ecfdf5;
+            color: #047857;
+            border: 1px solid rgba(16, 185, 129, 0.22);
+        }
+
+        .map-action-btn--warn {
+            border: 1px solid rgba(139, 92, 246, 0.12);
+        }
+
+        .sheet {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: var(--bottom-nav-height);
+            z-index: 5;
+            background: var(--surface);
+            border-top-left-radius: 28px;
+            border-top-right-radius: 28px;
+            box-shadow: 0 -16px 36px rgba(19, 17, 28, 0.09);
+            padding: 18px 16px 18px;
+            min-height: 56%;
+        }
+
+        .sheet--active-route,
+        .sheet--idle-route {
+            bottom: var(--bottom-nav-height);
+            min-height: 0;
+            padding-bottom: 6px;
+            transition: transform 0.28s ease, box-shadow 0.28s ease;
+            will-change: transform;
+        }
+
+        .sheet--active-route.is-collapsed,
+        .sheet--idle-route.is-collapsed {
+            transform: translateY(calc(100% - var(--active-sheet-peek) - 15px));
+            box-shadow: 0 -10px 24px rgba(19, 17, 28, 0.08);
+            padding-top: 8px;
+            padding-bottom: 10px;
+        }
+
+        .sheet--active-route.is-collapsed .sheet-toggle-copy,
+        .sheet--idle-route.is-collapsed .sheet-toggle-copy {
+            margin: 0;
+            line-height: 1.1;
+        }
+
+        .sheet--active-route.is-collapsed .stack,
+        .sheet--idle-route.is-collapsed .stack {
+            margin-top: 20px;
+        }
+
+        .sheet--active-route.is-collapsed .sheet-handle,
+        .sheet--idle-route.is-collapsed .sheet-handle {
+            margin-bottom: 7px;
+        }
+
+        .sheet-handle {
+            width: 52px;
+            height: 5px;
+            background: #ddd4ed;
+            border-radius: 999px;
+            margin: 0 auto 16px;
+        }
+
+        .sheet-handle.is-interactive {
+            cursor: pointer;
+        }
+
+        .sheet-toggle-copy {
+            margin: -8px 0 14px;
+            text-align: center;
+            color: var(--ink-soft);
+            font-size: 0.75rem;
+            font-weight: 700;
+            line-height: 1.1;
+            cursor: pointer;
+            position: relative;
+            z-index: 1;
+        }
+
+        .section-label {
+            margin: 0 0 4px;
+            font-size: 0.77rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--ink-soft);
+        }
+
+        .headline {
+            margin: 0;
+            font-size: 1.55rem;
+            line-height: 1.08;
+            letter-spacing: -0.04em;
+        }
+
+        .subline {
+            margin: 8px 0 0;
+            color: var(--ink-soft);
+            font-size: 0.93rem;
+            line-height: 1.55;
+        }
+
+        .stack {
+            display: grid;
+            gap: 14px;
+        }
+
+        .input-card,
+        .status-card,
+        .quick-card,
+        .history-card,
+        .contact-card,
+        .mini-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+        }
+
+        .input-card {
+            padding: 14px;
+            display: grid;
+            gap: 12px;
+            background: var(--surface-soft);
+        }
+
+        .input-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--ink);
+        }
+
+        .input-field {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            border-radius: 16px;
+            padding: 14px;
+            color: var(--ink-soft);
+            font-size: 0.95rem;
+        }
+
+        .eta-row,
+        .quick-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .eta-pill,
+        .ghost-pill {
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 10px 14px;
+            font-size: 0.84rem;
+            font-weight: 700;
+            color: var(--ink-soft);
+            background: #fff;
+        }
+
+        .eta-pill.is-active {
+            background: var(--violet-soft);
+            border-color: rgba(139, 92, 246, 0.28);
+            color: var(--violet-dark);
+        }
+
+        .primary-btn,
+        .secondary-btn,
+        .neutral-btn {
+            width: 100%;
+            border: 0;
+            border-radius: 18px;
+            font: inherit;
+            font-weight: 800;
+            padding: 16px 18px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .primary-btn {
+            background: linear-gradient(135deg, var(--violet), var(--violet-dark));
+            color: #fff;
+            box-shadow: 0 18px 28px rgba(124, 58, 237, 0.22);
+        }
+
+        .secondary-btn {
+            background: #ecfdf5;
+            color: #047857;
+            border: 1px solid rgba(16, 185, 129, 0.22);
+        }
+
+        .neutral-btn {
+            background: #fff;
+            color: var(--ink);
+            border: 1px solid var(--border);
+        }
+
+        .status-card {
+            padding: 14px;
+            display: grid;
+            gap: 12px;
+            background: linear-gradient(180deg, #ffffff, #faf8fd);
+        }
+
+        .status-card__top {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .eta-big {
+            font-size: 2rem;
+            line-height: 1;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 20px;
+            border-radius: 999px;
+            font-size: 0.76rem;
+            font-weight: 800;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .badge--live {
+            background: #ecfdf5;
+            color: #047857;
+        }
+
+        .badge--secondary {
+            background: var(--surface-muted);
+            color: var(--ink-soft);
+        }
+
+        .metrics-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .metric-box {
+            padding: 12px;
+            border-radius: 16px;
+            background: var(--surface-soft);
+            border: 1px solid rgba(139, 92, 246, 0.08);
+        }
+
+        .metric-box__label {
+            color: var(--ink-soft);
+            font-size: 0.75rem;
+            margin-bottom: 4px;
+        }
+
+        .metric-box__value {
+            font-weight: 800;
+            font-size: 1rem;
+            color: var(--ink);
+        }
+
+        .support-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 18px;
+            background: var(--surface-soft);
+            border: 1px solid rgba(139, 92, 246, 0.08);
+        }
+
+        .contact-picker {
+            display: grid;
+            gap: 10px;
+        }
+
+        .contact-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+        }
+
+        .contact-row__left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .contact-row__meta {
+            display: grid;
+            gap: 2px;
+        }
+
+        .contact-row__name {
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: var(--ink);
+        }
+
+        .contact-row__hint {
+            font-size: 0.79rem;
+            color: var(--ink-soft);
+        }
+
+        .contact-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 98px;
+            padding: 9px 12px;
+            border-radius: 999px;
+            background: #fff;
+            border: 1px solid var(--border);
+            color: var(--ink-soft);
+            font-size: 0.78rem;
+            font-weight: 800;
+        }
+
+        .contact-toggle.is-on {
+            background: var(--violet-soft);
+            border-color: rgba(139, 92, 246, 0.22);
+            color: var(--violet-dark);
+        }
+
+        .avatar-stack {
+            display: flex;
+            align-items: center;
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            color: #fff;
+            font-size: 0.72rem;
+            font-weight: 800;
+            border: 2px solid #fff;
+            margin-left: -8px;
+        }
+
+        .avatar:first-child {
+            margin-left: 0;
+        }
+
+        .avatar--violet {
+            background: linear-gradient(135deg, var(--violet), #6d28d9);
+        }
+
+        .avatar--rose {
+            background: linear-gradient(135deg, #fb7185, #e11d48);
+        }
+
+        .avatar--blue {
+            background: linear-gradient(135deg, #60a5fa, #2563eb);
+        }
+
+        .history-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .history-card {
+            padding: 14px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .history-card__top {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .history-card__title {
+            font-size: 0.98rem;
+            font-weight: 700;
+            color: var(--ink);
+        }
+
+        .history-card__meta {
+            color: var(--ink-soft);
+            font-size: 0.82rem;
+        }
+
+        .history-stats {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            color: var(--ink-soft);
+            font-size: 0.8rem;
+        }
+
+        .footer-nav {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: var(--bottom-nav-height);
+            background: #1e1b2e;
+            border-top: 1px solid var(--dark-border);
+            box-shadow: 0 -4px 16px rgba(19, 17, 28, 0.24);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 15;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #948b9c;
+            font-size: 1.42rem;
+            padding: 0.5rem;
+            position: relative;
+        }
+
+        .nav-item.active {
+            color: var(--violet);
+        }
+
+        .nav-item.active::after {
+            content: "";
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 4px;
+            background: var(--violet);
+            border-radius: 999px;
+        }
+
+        .nav-item.center {
+            background: var(--danger);
+            color: #fff;
+            width: 52px;
+            height: 52px;
+            border-radius: 999px;
+            transform: translateY(-15px);
+            box-shadow: 0 14px 28px rgba(220, 38, 38, 0.34);
+        }
+
+        .desktop-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 20px;
+        }
+
+        .desktop-header__title {
+            margin: 0;
+            font-size: 2rem;
+            line-height: 1.04;
+            letter-spacing: -0.04em;
+        }
+
+        .desktop-header__sub {
+            margin: 8px 0 0;
+            color: var(--ink-soft);
+            max-width: 680px;
+            line-height: 1.6;
+        }
+
+        .desktop-header__copy {
+            display: grid;
+            gap: 4px;
+        }
+
+        .desktop-header__meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .desktop-meta-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.84);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            color: var(--ink-soft);
+            font-size: 0.84rem;
+            font-weight: 700;
+            box-shadow: 0 10px 20px rgba(19, 17, 28, 0.05);
+        }
+
+        .desktop-idle-grid,
+        .desktop-active-grid,
+        .desktop-history-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .desktop-idle-grid {
+            grid-template-columns: minmax(0, 1.12fr) 380px;
+            align-items: stretch;
+        }
+
+        .desktop-active-grid {
+            grid-template-columns: minmax(0, 1.35fr) 360px;
+            align-items: start;
+        }
+
+        .desktop-history-grid {
+            grid-template-columns: minmax(0, 1fr);
+            align-items: start;
+        }
+
+        .desktop-hero-card {
+            min-height: 560px;
+            position: relative;
+            overflow: hidden;
+            padding: 28px;
+            background:
+                radial-gradient(circle at 72% 22%, rgba(139, 92, 246, 0.22), transparent 18%),
+                linear-gradient(180deg, #f5eefb, #e9edf6);
+        }
+
+        .desktop-hero-card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(76deg, transparent 46%, rgba(255, 255, 255, 0.72) 47%, rgba(255, 255, 255, 0.72) 52%, transparent 53%),
+                linear-gradient(10deg, transparent 58%, rgba(255, 255, 255, 0.46) 59%, rgba(255, 255, 255, 0.46) 63%, transparent 64%),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.18) 1px, transparent 1px),
+                linear-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px);
+            background-size: auto, auto, 54px 54px, 54px 54px;
+            opacity: 0.72;
+        }
+
+        .desktop-hero-inner {
+            position: relative;
+            z-index: 2;
+            min-height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 24px;
+        }
+
+        .desktop-hero-copy {
+            display: grid;
+            gap: 12px;
+            max-width: 560px;
+        }
+
+        .desktop-hero-title {
+            margin: 0;
+            font-size: 2.5rem;
+            line-height: 0.98;
+            letter-spacing: -0.05em;
+            color: var(--ink);
+        }
+
+        .desktop-feature-list {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .desktop-feature-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.78);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            color: var(--ink-soft);
+            font-size: 0.83rem;
+            font-weight: 700;
+        }
+
+        .desktop-hero-footer {
+            display: grid;
+            gap: 14px;
+        }
+
+        .desktop-support-strip {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .desktop-support-card {
+            background: rgba(255, 255, 255, 0.84);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            border-radius: 18px;
+            padding: 16px;
+            box-shadow: 0 18px 34px rgba(19, 17, 28, 0.07);
+            display: grid;
+            gap: 8px;
+        }
+
+        .desktop-command-card {
+            padding: 24px;
+            display: grid;
+            gap: 18px;
+            align-content: start;
+        }
+
+        .desktop-command-title {
+            margin: 0;
+            font-size: 1.55rem;
+            line-height: 1.05;
+            letter-spacing: -0.04em;
+            color: var(--ink);
+        }
+
+        .desktop-secondary-links {
+            display: grid;
+            gap: 10px;
+        }
+
+        .desktop-rail {
+            display: grid;
+            gap: 18px;
+            align-content: start;
+        }
+
+        .desktop-status-card {
+            padding: 20px;
+            display: grid;
+            gap: 16px;
+        }
+
+        .desktop-layout {
+            display: grid;
+            gap: 18px;
+        }
+
+        .desktop-layout[data-state="idle"] {
+            grid-template-columns: minmax(0, 1.12fr) minmax(320px, 0.88fr);
+        }
+
+        .desktop-layout[data-state="active"] {
+            grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.65fr);
+        }
+
+        .desktop-layout[data-state="history"] {
+            grid-template-columns: minmax(0, 1fr) 320px;
+        }
+
+        .desktop-map-card {
+            min-height: 560px;
+            overflow: hidden;
+            position: relative;
+            background:
+                radial-gradient(circle at 58% 26%, rgba(139, 92, 246, 0.18), transparent 20%),
+                linear-gradient(180deg, #ebf0f6, #dce4ec);
+        }
+
+        .desktop-map-card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(76deg, transparent 46%, rgba(255, 255, 255, 0.68) 47%, rgba(255, 255, 255, 0.68) 52%, transparent 53%),
+                linear-gradient(10deg, transparent 58%, rgba(255, 255, 255, 0.48) 59%, rgba(255, 255, 255, 0.48) 63%, transparent 64%),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.18) 1px, transparent 1px),
+                linear-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px);
+            background-size: auto, auto, 50px 50px, 50px 50px;
+            opacity: 0.7;
+        }
+
+        .desktop-map-overlay {
+            position: absolute;
+            inset: 22px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 16px;
+            z-index: 2;
+        }
+
+        .desktop-top-actions,
+        .desktop-map-footer {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .desktop-floating-card {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            border-radius: 18px;
+            padding: 14px;
+            box-shadow: 0 18px 34px rgba(19, 17, 28, 0.09);
+        }
+
+        .desktop-form-card,
+        .desktop-side-stack {
+            display: grid;
+            gap: 18px;
+        }
+
+        .desktop-form-card {
+            padding: 22px;
+        }
+
+        .desktop-input {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            border-radius: 18px;
+            border: 1px solid var(--border);
+            padding: 14px 16px;
+            background: var(--surface-soft);
+            color: var(--ink-soft);
+            font-size: 0.96rem;
+        }
+
+        .desktop-side-card {
+            padding: 18px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .list-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: var(--surface-soft);
+        }
+
+        .link-btn {
+            border: 0;
+            background: transparent;
+            color: var(--violet-dark);
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .desktop-history-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .desktop-history-card {
+            padding: 18px 18px 18px 20px;
+            border-color: rgba(139, 92, 246, 0.12);
+            box-shadow: 0 20px 34px rgba(19, 17, 28, 0.08);
+        }
+
+        .desktop-history-card__grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 184px;
+            gap: 18px;
+            align-items: stretch;
+        }
+
+        .desktop-history-copy {
+            display: grid;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .desktop-history-copy .history-card__top {
+            align-items: flex-start;
+        }
+
+        .desktop-history-title-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .desktop-history-subline {
+            color: var(--ink-soft);
+            font-size: 0.88rem;
+            line-height: 1.45;
+        }
+
+        .desktop-history-metrics {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .desktop-history-metric {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: 999px;
+            background: var(--surface-soft);
+            border: 1px solid rgba(139, 92, 246, 0.1);
+            color: var(--ink-soft);
+            font-size: 0.79rem;
+            font-weight: 700;
+        }
+
+        .desktop-history-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .history-open-btn {
+            width: auto;
+            min-width: 164px;
+            padding: 12px 16px;
+            border-radius: 14px;
+            background: #fff;
+            color: var(--ink);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            box-shadow: none;
+        }
+
+        .desktop-history-note {
+            color: var(--ink-soft);
+            font-size: 0.82rem;
+        }
+
+        .desktop-mini-map {
+            height: 124px;
+            border-radius: 18px;
+            background:
+                linear-gradient(180deg, #ece4f8, #dbe5ee),
+                #e8eef6;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(139, 92, 246, 0.08);
+        }
+
+        .desktop-mini-map::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(80deg, transparent 44%, rgba(255, 255, 255, 0.66) 45%, rgba(255, 255, 255, 0.66) 51%, transparent 52%),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.18) 1px, transparent 1px),
+                linear-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px);
+            background-size: auto, 38px 38px, 38px 38px;
+        }
+
+        .desktop-mini-map__route-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+
+        .desktop-mini-map__route-base {
+            fill: none;
+            stroke: rgba(148, 163, 184, 0.45);
+            stroke-width: 9;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .desktop-mini-map__route-path {
+            fill: none;
+            stroke: rgba(124, 58, 237, 0.96);
+            stroke-width: 6;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .desktop-mini-map__dot {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+            z-index: 3;
+            box-shadow: 0 8px 18px rgba(19, 17, 28, 0.14);
+        }
+
+        .desktop-mini-map__dot--start {
+            background: #fff;
+            border: 3px solid var(--violet-dark);
+        }
+
+        .desktop-mini-map__dot--end {
+            background: #fff;
+            border: 3px solid #ef4444;
+        }
+
+        .desktop-mini-map--office .desktop-mini-map__dot--start {
+            left: 28px;
+            bottom: 22px;
+        }
+
+        .desktop-mini-map--office .desktop-mini-map__dot--end {
+            right: 22px;
+            top: 24px;
+        }
+
+        .desktop-mini-map--metro .desktop-mini-map__dot--start {
+            left: 34px;
+            top: 20px;
+        }
+
+        .desktop-mini-map--metro .desktop-mini-map__dot--end {
+            right: 22px;
+            bottom: 18px;
+        }
+
+        .desktop-mini-map--uni .desktop-mini-map__dot--start {
+            left: 22px;
+            bottom: 24px;
+        }
+
+        .desktop-mini-map--uni .desktop-mini-map__dot--end {
+            right: 16px;
+            top: 20px;
+        }
+
+        .contact-summary-card {
+            padding: 16px;
+            display: grid;
+            gap: 12px;
+            border-radius: 20px;
+            background: linear-gradient(180deg, #ffffff, #faf7fd);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            box-shadow: var(--shadow-md);
+        }
+
+        .contact-summary-card__top {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .contact-summary-card__value {
+            font-size: 1.9rem;
+            line-height: 1;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+            color: var(--ink);
+            margin-top: 4px;
+        }
+
+        .contact-summary-card__copy {
+            color: var(--ink-soft);
+            font-size: 0.9rem;
+            line-height: 1.55;
+        }
+
+        .contact-channel-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .contact-channel-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            background: #fff;
+            color: var(--ink-soft);
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .contact-list-v2 {
+            display: grid;
+            gap: 12px;
+        }
+
+        .contact-card-v2 {
+            padding: 14px;
+            display: grid;
+            gap: 12px;
+            border-radius: 18px;
+            background: linear-gradient(180deg, #ffffff, #faf7fd);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            box-shadow: var(--shadow-md);
+        }
+
+        .contact-card-v2__top {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .contact-card-v2__meta {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            min-width: 0;
+        }
+
+        .contact-card-v2__name {
+            font-size: 0.98rem;
+            font-weight: 800;
+            color: var(--ink);
+        }
+
+        .contact-card-v2__hint {
+            margin-top: 4px;
+            color: var(--ink-soft);
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }
+
+        .contact-card-v2__actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .history-overview-card {
+            padding: 14px;
+            display: grid;
+            gap: 12px;
+            border-radius: 20px;
+            background: linear-gradient(180deg, #ffffff, #faf7fd);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            box-shadow: var(--shadow-md);
+        }
+
+        .history-overview-card__top {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .history-overview-card__value {
+            font-size: 1.7rem;
+            line-height: 1;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+            color: var(--ink);
+            margin-top: 4px;
+        }
+
+        .history-route-card {
+            padding: 14px;
+            display: grid;
+            gap: 12px;
+            border-radius: 20px;
+            background: linear-gradient(180deg, #ffffff, #faf7fd);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            box-shadow: var(--shadow-md);
+        }
+
+        .history-route-card__grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 96px;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .history-route-map {
+            height: 88px;
+            border-radius: 18px;
+            background:
+                linear-gradient(180deg, #ece4f8, #dce7ef),
+                #e8eef6;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(139, 92, 246, 0.10);
+        }
+
+        .history-route-map::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(80deg, transparent 44%, rgba(255, 255, 255, 0.66) 45%, rgba(255, 255, 255, 0.66) 51%, transparent 52%),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.18) 1px, transparent 1px),
+                linear-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px);
+            background-size: auto, 28px 28px, 28px 28px;
+        }
+
+        .history-route-map__route-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+
+        .history-route-map__route-base {
+            fill: none;
+            stroke: rgba(148, 163, 184, 0.42);
+            stroke-width: 8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .history-route-map__route-path {
+            fill: none;
+            stroke: rgba(124, 58, 237, 0.94);
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .history-route-map__dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            z-index: 3;
+            box-shadow: 0 8px 18px rgba(19, 17, 28, 0.14);
+        }
+
+        .history-route-map__dot--start {
+            background: #fff;
+            border: 3px solid var(--violet-dark);
+        }
+
+        .history-route-map__dot--end {
+            background: #fff;
+            border: 3px solid #ef4444;
+        }
+
+        .history-route-map--office .history-route-map__dot--start {
+            left: 14px;
+            bottom: 18px;
+        }
+
+        .history-route-map--office .history-route-map__dot--end {
+            right: 14px;
+            top: 16px;
+        }
+
+        .history-route-map--metro .history-route-map__dot--start {
+            left: 18px;
+            top: 14px;
+        }
+
+        .history-route-map--metro .history-route-map__dot--end {
+            right: 16px;
+            bottom: 14px;
+        }
+
+        .history-route-map--uni .history-route-map__dot--start {
+            left: 14px;
+            bottom: 16px;
+        }
+
+        .history-route-map--uni .history-route-map__dot--end {
+            right: 12px;
+            top: 16px;
+        }
+
+        .desktop-contacts-layout-v2 {
+            display: grid;
+            grid-template-columns: 320px minmax(0, 1fr);
+            gap: 20px;
+            align-items: start;
+        }
+
+        .desktop-side-card--v2,
+        .desktop-list-card--v2 {
+            padding: 20px;
+            display: grid;
+            gap: 16px;
+        }
+
+        .desktop-contact-list-v2 {
+            display: grid;
+            gap: 14px;
+        }
+
+        .desktop-contact-row-v2 {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 16px;
+            padding: 16px;
+            border-radius: 18px;
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            background: linear-gradient(180deg, #ffffff, #faf7fd);
+        }
+
+        .desktop-contact-row-v2__meta {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            min-width: 0;
+        }
+
+        .desktop-contact-row-v2__actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            align-items: flex-start;
+        }
+
+        .desktop-history-overview-v2 {
+            padding: 18px;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .desktop-history-list-v2 {
+            display: grid;
+            gap: 16px;
+        }
+
+        .desktop-history-card--v2 .desktop-history-card__grid {
+            grid-template-columns: minmax(0, 1fr) 152px;
+        }
+
+        @media (max-width: 1180px) {
+            .desktop-contacts-layout-v2 {
+                grid-template-columns: 1fr;
+            }
+
+            .desktop-contact-row-v2 {
+                grid-template-columns: 1fr;
+            }
+
+            .desktop-contact-row-v2__actions {
+                justify-content: flex-start;
+            }
+
+            .desktop-history-card--v2 .desktop-history-card__grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .desktop-state {
+            display: none;
+        }
+
+        .desktop-state.is-visible,
+        .mobile-state.is-visible {
+            display: block;
+        }
+
+        .mobile-state {
+            display: none;
+            height: 100%;
+            position: relative;
+        }
+
+        .mobile-state--active,
+        .mobile-state--idle {
+            --active-sheet-peek: 38px;
+        }
+
+        .mobile-state--history,
+        .mobile-state--contacts {
+            background: var(--bg);
+            overflow-y: auto;
+            padding: 18px 16px calc(var(--bottom-nav-height) + 24px);
+        }
+
+        .mobile-state--active .mobile-map,
+        .mobile-state--idle .mobile-map {
+            height: calc(100% - var(--bottom-nav-height));
+        }
+
+        .mobile-state--active .map-action-row {
+            bottom: calc(var(--bottom-nav-height) + var(--active-sheet-peek) + 10px);
+        }
+
+        .mobile-state--active.is-sheet-collapsed .map-action-row {
+            bottom: calc(var(--bottom-nav-height) + var(--active-sheet-peek) - 35px);
+        }
+
+        .mobile-state--active .map-card-anchor {
+            bottom: calc(var(--bottom-nav-height) + 82px) !important;
+        }
+
+        .mobile-state--idle .map-card-anchor {
+            bottom: calc(var(--bottom-nav-height) + 82px) !important;
+        }
+
+        .mobile-state__header {
+            padding-top: 72px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .ghost-banner {
+            padding: 13px 14px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(139, 92, 246, 0.1);
+            color: var(--ink-soft);
+            font-size: 0.88rem;
+            line-height: 1.55;
+        }
+
+        .prototype-note {
+            margin-top: 6px;
+            color: var(--ink-soft);
+            font-size: 0.87rem;
+        }
+
+        .summary-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(19, 17, 28, 0.52);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            z-index: 3000;
+        }
+
+        .summary-modal-backdrop.is-visible {
+            display: flex;
+        }
+
+        .summary-modal {
+            width: min(560px, 100%);
+            background: #fff;
+            border-radius: 24px;
+            padding: 22px;
+            box-shadow: 0 28px 60px rgba(19, 17, 28, 0.28);
+            display: grid;
+            gap: 16px;
+        }
+
+        .summary-modal__top {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            align-items: flex-start;
+        }
+
+        .summary-modal__title {
+            margin: 0;
+            font-size: 1.45rem;
+            line-height: 1.05;
+            letter-spacing: -0.04em;
+            color: var(--ink);
+        }
+
+        .summary-modal__meta {
+            margin-top: 6px;
+            color: var(--ink-soft);
+            font-size: 0.9rem;
+        }
+
+        .summary-modal__metrics {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .summary-modal__metric {
+            background: var(--surface-soft);
+            border: 1px solid rgba(139, 92, 246, 0.1);
+            border-radius: 16px;
+            padding: 12px;
+        }
+
+        .summary-modal__metric-label {
+            font-size: 0.76rem;
+            color: var(--ink-soft);
+            margin-bottom: 4px;
+        }
+
+        .summary-modal__metric-value {
+            font-size: 0.96rem;
+            font-weight: 800;
+            color: var(--ink);
+        }
+
+        .summary-route-map {
+            position: relative;
+            height: 220px;
+            border-radius: 20px;
+            overflow: hidden;
+            background:
+                radial-gradient(circle at 72% 24%, rgba(139, 92, 246, 0.18), transparent 20%),
+                linear-gradient(180deg, #efe7f9, #dee7ef);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+        }
+
+        .summary-route-map::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(76deg, transparent 46%, rgba(255, 255, 255, 0.72) 47%, rgba(255, 255, 255, 0.72) 52%, transparent 53%),
+                linear-gradient(10deg, transparent 58%, rgba(255, 255, 255, 0.48) 59%, rgba(255, 255, 255, 0.48) 63%, transparent 64%),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.18) 1px, transparent 1px),
+                linear-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px);
+            background-size: auto, auto, 42px 42px, 42px 42px;
+            opacity: 0.74;
+        }
+
+        .summary-route-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+
+        .summary-route-base {
+            fill: none;
+            stroke: rgba(148, 163, 184, 0.45);
+            stroke-width: 10;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .summary-route-path {
+            fill: none;
+            stroke: var(--violet-dark);
+            stroke-width: 7;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: var(--route-length, 420);
+            stroke-dashoffset: var(--route-length, 420);
+        }
+
+        .summary-route-path.is-animating {
+            animation: summary-route-draw 2.4s ease forwards;
+        }
+
+        @keyframes summary-route-draw {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        .summary-route-marker,
+        .summary-route-dot {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            border-radius: 999px;
+            z-index: 3;
+        }
+
+        .summary-route-marker {
+            width: 14px;
+            height: 14px;
+            background: #fff;
+            border: 3px solid var(--violet-dark);
+            box-shadow: 0 10px 22px rgba(19, 17, 28, 0.18);
+        }
+
+        .summary-route-marker--end {
+            border-color: #ef4444;
+        }
+
+        .summary-route-dot {
+            width: 16px;
+            height: 16px;
+            background: var(--violet);
+            border: 3px solid #fff;
+            box-shadow: 0 12px 24px rgba(124, 58, 237, 0.28);
+            opacity: 0;
+        }
+
+        .summary-route-dot.is-visible {
+            opacity: 1;
+        }
+
+        .summary-route-label {
+            position: absolute;
+            z-index: 4;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            color: var(--ink-soft);
+            font-size: 0.78rem;
+            font-weight: 700;
+            box-shadow: 0 10px 20px rgba(19, 17, 28, 0.08);
+        }
+
+        .summary-route-label--start {
+            left: 14px;
+            bottom: 14px;
+        }
+
+        .summary-route-label--end {
+            right: 14px;
+            top: 14px;
+        }
+
+        .summary-modal__body {
+            color: var(--ink-soft);
+            font-size: 0.92rem;
+            line-height: 1.65;
+        }
+
+        @media (max-width: 1180px) {
+            .preview-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .phone-frame {
+                position: relative;
+                top: 0;
+                width: min(100%, 438px);
+                margin: 0 auto;
+            }
+
+            .desktop-frame {
+                min-height: auto;
+                grid-template-columns: 1fr;
+            }
+
+            .desktop-sidebar {
+                display: none;
+            }
+
+            .desktop-header {
+                flex-direction: column;
+            }
+
+            .desktop-idle-grid,
+            .desktop-active-grid,
+            .desktop-history-grid,
+            .desktop-support-strip {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .preview-shell {
+                padding: 18px;
+            }
+
+            .phone-screen {
+                min-height: 780px;
+                height: 780px;
+            }
+
+            .desktop-history-card__grid {
+                grid-template-columns: 1fr;
+            }
+
+            .desktop-main {
+                padding: 18px;
+            }
+
+            .desktop-hero-title {
+                font-size: 2.05rem;
+            }
+
+            .summary-modal__metrics {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="preview-shell">
+        <section class="preview-toolbar">
+            <div class="preview-toolbar__copy">
+                <span class="preview-kicker">Prototipo standalone · no integrado al producto</span>
+                <h1 class="preview-title">Safety rediseñado: propuesta v2 para Contactos e Historial</h1>
+                <p class="preview-subtitle">
+                    Esta versión toma la base visual que ya te funcionaba y replantea solo las pantallas de `Contactos` e `Historial`
+                    para hacerlas más claras, más compactas y más directas.
+                </p>
+            </div>
+            <div class="preview-controls" aria-label="Estados del prototipo">
+                <button class="state-chip" type="button" data-preview-state="idle">Sin trayecto</button>
+                <button class="state-chip" type="button" data-preview-state="active">Trayecto activo</button>
+                <button class="state-chip is-active" type="button" data-preview-state="contacts">Contactos</button>
+                <button class="state-chip" type="button" data-preview-state="history">Historial</button>
+            </div>
+        </section>
+
+        <section class="preview-grid">
+            <div class="phone-frame">
+                <div class="phone-screen">
+                    <div class="safety-mobile">
+                        <section class="mobile-state mobile-state--idle is-visible" data-state="idle">
+                            <div class="mobile-map">
+                                <div class="mobile-topbar">
+                                    <button class="topbar-btn" type="button" aria-label="Volver">
+                                        <i class="fa-solid fa-chevron-left"></i>
+                                    </button>
+                                </div>
+                                <div class="map-chip-group">
+                                    <span class="map-chip"><i class="fa-solid fa-user-group"></i> 2 contactos listos</span>
+                                </div>
+                                <div class="map-pin"><i class="fa-solid fa-location-dot"></i></div>
+                                <div class="map-card-anchor">
+                                    <div class="section-label">Antes de salir</div>
+                                    <div style="font-weight: 800; margin-bottom: 6px;">Elige destino y tiempo estimado</div>
+                                    <div style="font-size: 0.82rem; color: var(--ink-soft);">El seguimiento empieza solo cuando tú lo activas.</div>
+                                </div>
+                            </div>
+
+                            <div class="sheet sheet--idle-route" data-draggable-sheet="idle">
+                                <div class="sheet-handle is-interactive" data-sheet-toggle="idle"></div>
+                                <div class="sheet-toggle-copy" data-sheet-toggle="idle">Desliza o toca para bajar este panel</div>
+                                <div class="stack">
+                                    <div>
+                                        <p class="section-label">Safety</p>
+                                        <h2 class="headline">Inicia tu trayecto en un paso</h2>
+                                        <p class="subline">Primero destino y tiempo. Contactos, historial y emergencia quedan como apoyo.</p>
+                                    </div>
+
+                                    <article class="input-card">
+                                        <div class="input-title">
+                                            <i class="fa-solid fa-route" style="color: var(--violet-dark);"></i>
+                                            <span>Destino y ETA</span>
+                                        </div>
+                                        <div class="input-field">
+                                            <i class="fa-solid fa-magnifying-glass" style="color: var(--violet-dark);"></i>
+                                            <span>¿A dónde vas?</span>
+                                        </div>
+                                        <div class="eta-row">
+                                            <span class="eta-pill">15 min</span>
+                                            <span class="eta-pill is-active">30 min</span>
+                                            <span class="eta-pill">45 min</span>
+                                            <span class="eta-pill">60 min</span>
+                                        </div>
+                                    </article>
+
+                                    <article class="support-row">
+                                        <div>
+                                            <div class="section-label" style="margin-bottom: 6px;">Compartir con</div>
+                                            <div style="font-weight: 700;">Mamá y Hermana</div>
+                                            <div style="color: var(--ink-soft); font-size: 0.84rem;">Puedes editar contactos o decidir con quién compartir este trayecto.</div>
+                                        </div>
+                                        <button class="link-btn" type="button" data-preview-link="contacts">Editar</button>
+                                    </article>
+
+                                    <button class="primary-btn" type="button">
+                                        <i class="fa-solid fa-shield-heart"></i>
+                                        Comenzar trayecto
+                                    </button>
+
+                                    <button class="link-btn" type="button" data-preview-link="history" style="justify-self:start;">Ver historial</button>
+                                    <div class="prototype-note">Si necesitas ayuda inmediata, el botón rojo sigue en el menú inferior.</div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="mobile-state mobile-state--active" data-state="active">
+                            <div class="mobile-map">
+                                <div class="map-chip-group">
+                                    <span class="map-chip"><i class="fa-solid fa-circle" style="color: var(--success);"></i> Ubicación en vivo</span>
+                                    <span class="map-chip"><i class="fa-solid fa-eye"></i> 2 contactos acompañando</span>
+                                </div>
+                                <div class="map-pin"><i class="fa-solid fa-location-arrow"></i></div>
+                                <div class="map-route"></div>
+                                <div class="map-card-anchor">
+                                    <div class="section-label">Estado</div>
+                                    <div style="font-weight: 800; margin-bottom: 6px;">Trayecto activo hacia Casa de Ana</div>
+                                    <div style="font-size: 0.82rem; color: var(--ink-soft);">Tus contactos ya están viendo tu avance.</div>
+                                </div>
+                                <div class="map-action-row">
+                                    <button class="map-action-btn map-action-btn--success" type="button" data-arrive-safe="1">
+                                        <i class="fa-solid fa-check-circle"></i>
+                                        Ya llegué
+                                    </button>
+                                    <button class="map-action-btn map-action-btn--warn" type="button" data-cancel-trip="1">
+                                        <i class="fa-solid fa-xmark"></i>
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="sheet sheet--active-route" data-draggable-sheet="active">
+                                <div class="sheet-handle is-interactive" data-sheet-toggle="active"></div>
+                                <div class="sheet-toggle-copy" data-sheet-toggle="active">Desliza o toca para bajar este panel</div>
+                                <div class="stack">
+                                    <article class="status-card">
+                                        <div class="status-card__top">
+                                            <div>
+                                                <p class="section-label">Trayecto activo</p>
+                                                <div class="eta-big">18 min</div>
+                                                <div style="margin-top: 6px; font-weight: 700;">Llegada estimada a Casa de Ana</div>
+                                            </div>
+                                            <span class="badge badge--live"><i class="fa-solid fa-location-arrow"></i> En progreso</span>
+                                        </div>
+                                        <div class="metrics-row">
+                                            <div class="metric-box">
+                                                <div class="metric-box__label">Tiempo transcurrido</div>
+                                                <div class="metric-box__value">12 min</div>
+                                            </div>
+                                            <div class="metric-box">
+                                                <div class="metric-box__label">Distancia</div>
+                                                <div class="metric-box__value">2.8 km</div>
+                                            </div>
+                                        </div>
+                                    </article>
+
+                                    <article class="support-row">
+                                        <div>
+                                            <div style="font-weight: 700;">Acompañamiento activo</div>
+                                            <div style="color: var(--ink-soft); font-size: 0.84rem;">Mamá y Hermana pueden ver si sigues en ruta.</div>
+                                        </div>
+                                        <div class="avatar-stack">
+                                            <span class="avatar avatar--violet">MA</span>
+                                            <span class="avatar avatar--rose">HE</span>
+                                        </div>
+                                    </article>
+
+                                    <div class="ghost-banner">
+                                        Si algo cambia, puedes abrir emergencia de inmediato. Las acciones rápidas están en el mapa para que llegues o canceles sin confusión.
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="mobile-state mobile-state--contacts" data-state="contacts">
+                            <div class="mobile-topbar">
+                                <button class="topbar-btn" type="button" aria-label="Volver" data-preview-back="1">
+                                    <i class="fa-solid fa-chevron-left"></i>
+                                </button>
+                            </div>
+                            <div class="mobile-state__header">
+                                <div>
+                                    <p class="section-label">Seguridad</p>
+                                    <h2 class="headline" style="font-size: 1.65rem;">Red de confianza</h2>
+                                    <p class="subline">Primero eliges con quién compartir este trayecto. Después administras tus contactos guardados.</p>
+                                </div>
+
+                                <article class="contact-summary-card">
+                                    <div class="contact-summary-card__top">
+                                        <div>
+                                            <div class="section-label" style="margin-bottom: 6px;">Compartiendo este trayecto con</div>
+                                            <div class="contact-summary-card__value">2 contactos</div>
+                                        </div>
+                                        <div class="avatar-stack">
+                                            <span class="avatar avatar--violet">MA</span>
+                                            <span class="avatar avatar--rose">HE</span>
+                                        </div>
+                                    </div>
+                                    <div class="contact-summary-card__copy">Mamá y Hermana reciben ubicación y estado del trayecto.</div>
+                                    <div class="contact-channel-row">
+                                        <span class="contact-channel-pill"><i class="fa-brands fa-whatsapp"></i> WhatsApp</span>
+                                        <span class="contact-channel-pill"><i class="fa-solid fa-comment-dots"></i> SMS</span>
+                                    </div>
+                                </article>
+                            </div>
+
+                            <div class="stack" style="margin-top: 18px;">
+                                <div>
+                                    <p class="section-label">Tus contactos</p>
+                                    <p class="subline" style="margin-top: 4px;">Lista simple para compartir, editar o quitar contactos sin mezclar tareas.</p>
+                                </div>
+
+                                <div class="contact-list-v2">
+                                    <article class="contact-card-v2">
+                                        <div class="contact-card-v2__top">
+                                            <div class="contact-card-v2__meta">
+                                                <span class="avatar avatar--violet">MA</span>
+                                                <div>
+                                                    <div class="contact-card-v2__name">Mamá</div>
+                                                    <div class="contact-card-v2__hint">WhatsApp · Contacto prioritario · Compartiendo ahora</div>
+                                                </div>
+                                            </div>
+                                            <span class="contact-toggle is-on">Compartir</span>
+                                        </div>
+                                        <div class="contact-card-v2__actions">
+                                            <button class="ghost-pill" type="button">Editar</button>
+                                            <button class="ghost-pill" type="button">Eliminar</button>
+                                        </div>
+                                    </article>
+
+                                    <article class="contact-card-v2">
+                                        <div class="contact-card-v2__top">
+                                            <div class="contact-card-v2__meta">
+                                                <span class="avatar avatar--rose">HE</span>
+                                                <div>
+                                                    <div class="contact-card-v2__name">Hermana</div>
+                                                    <div class="contact-card-v2__hint">SMS · Acompañamiento · Compartiendo ahora</div>
+                                                </div>
+                                            </div>
+                                            <span class="contact-toggle is-on">Compartir</span>
+                                        </div>
+                                        <div class="contact-card-v2__actions">
+                                            <button class="ghost-pill" type="button">Editar</button>
+                                            <button class="ghost-pill" type="button">Eliminar</button>
+                                        </div>
+                                    </article>
+
+                                    <article class="contact-card-v2">
+                                        <div class="contact-card-v2__top">
+                                            <div class="contact-card-v2__meta">
+                                                <span class="avatar" style="background:#fce7f3; color:#be185d;">AL</span>
+                                                <div>
+                                                    <div class="contact-card-v2__name">Amiga Laura</div>
+                                                    <div class="contact-card-v2__hint">WhatsApp · Disponible para trayectos, pero no seleccionada</div>
+                                                </div>
+                                            </div>
+                                            <span class="contact-toggle">No compartir</span>
+                                        </div>
+                                        <div class="contact-card-v2__actions">
+                                            <button class="ghost-pill" type="button">Editar</button>
+                                            <button class="ghost-pill" type="button">Eliminar</button>
+                                        </div>
+                                    </article>
+                                </div>
+
+                                <button class="neutral-btn" type="button">
+                                    <i class="fa-solid fa-user-plus"></i>
+                                    Agregar contacto
+                                </button>
+
+                                <button class="primary-btn" type="button" data-preview-link="idle">
+                                    <i class="fa-solid fa-check"></i>
+                                    Guardar selección
+                                </button>
+                            </div>
+                        </section>
+
+                        <section class="mobile-state mobile-state--history" data-state="history">
+                            <div class="mobile-topbar">
+                                <button class="topbar-btn" type="button" aria-label="Volver" data-preview-back="1">
+                                    <i class="fa-solid fa-chevron-left"></i>
+                                </button>
+                            </div>
+                            <div class="mobile-state__header">
+                                <div>
+                                    <p class="section-label">Seguridad</p>
+                                    <h2 class="headline" style="font-size: 1.65rem;">Historial de trayectos</h2>
+                                    <p class="subline">Mismo contenido que en web: nombre, fecha, mapa pequeño, métricas y una sola acción.</p>
+                                </div>
+
+                                <article class="history-overview-card">
+                                    <div class="history-overview-card__top">
+                                        <div>
+                                            <div class="section-label" style="margin-bottom: 6px;">Resumen rápido</div>
+                                            <div class="history-overview-card__value">3 trayectos recientes</div>
+                                        </div>
+                                        <span class="badge badge--secondary"><i class="fa-solid fa-route"></i> Listos</span>
+                                    </div>
+                                    <div class="contact-summary-card__copy">Solo ves lo esencial y abres el resumen cuando de verdad lo necesitas.</div>
+                                </article>
+                            </div>
+
+                            <div class="stack" style="margin-top: 18px;">
+                                <article class="history-route-card">
+                                    <div class="history-route-card__grid">
+                                        <div>
+                                            <div class="history-card__top">
+                                                <div>
+                                                    <div class="history-card__title">Casa - Oficina</div>
+                                                    <div class="history-card__meta">Hoy · 8:10 AM</div>
+                                                </div>
+                                                <span class="badge badge--live"><i class="fa-solid fa-check"></i> Segura</span>
+                                            </div>
+                                            <div class="history-stats">
+                                                <span>22 min</span>
+                                                <span>4.2 km</span>
+                                                <span>11 km/h</span>
+                                            </div>
+                                        </div>
+                                        <div class="history-route-map history-route-map--office">
+                                            <svg class="history-route-map__route-svg" viewBox="0 0 96 88" preserveAspectRatio="none">
+                                                <path class="history-route-map__route-base" d="M 16 68 C 28 60, 38 44, 50 38 S 68 34, 82 18"></path>
+                                                <path class="history-route-map__route-path" d="M 16 68 C 28 60, 38 44, 50 38 S 68 34, 82 18"></path>
+                                            </svg>
+                                            <span class="history-route-map__dot history-route-map__dot--start"></span>
+                                            <span class="history-route-map__dot history-route-map__dot--end"></span>
+                                        </div>
+                                    </div>
+                                    <button class="neutral-btn" type="button" data-summary-open="1" data-summary-title="Casa - Oficina" data-summary-meta="Hoy · 8:10 AM" data-summary-badge="Llegada segura" data-summary-time="22 min" data-summary-distance="4.2 km" data-summary-extra="Vel. promedio 11 km/h">Abrir resumen</button>
+                                </article>
+
+                                <article class="history-route-card">
+                                    <div class="history-route-card__grid">
+                                        <div>
+                                            <div class="history-card__top">
+                                                <div>
+                                                    <div class="history-card__title">Metro Centro - Casa</div>
+                                                    <div class="history-card__meta">Ayer · 7:42 PM</div>
+                                                </div>
+                                                <span class="badge badge--secondary"><i class="fa-solid fa-bookmark"></i> Guardado</span>
+                                            </div>
+                                            <div class="history-stats">
+                                                <span>31 min</span>
+                                                <span>5.8 km</span>
+                                                <span>Guardado</span>
+                                            </div>
+                                        </div>
+                                        <div class="history-route-map history-route-map--metro">
+                                            <svg class="history-route-map__route-svg" viewBox="0 0 96 88" preserveAspectRatio="none">
+                                                <path class="history-route-map__route-base" d="M 16 16 C 28 22, 42 34, 48 48 S 64 66, 82 72"></path>
+                                                <path class="history-route-map__route-path" d="M 16 16 C 28 22, 42 34, 48 48 S 64 66, 82 72"></path>
+                                            </svg>
+                                            <span class="history-route-map__dot history-route-map__dot--start"></span>
+                                            <span class="history-route-map__dot history-route-map__dot--end"></span>
+                                        </div>
+                                    </div>
+                                    <button class="neutral-btn" type="button" data-summary-open="1" data-summary-title="Metro Centro - Casa" data-summary-meta="Ayer · 7:42 PM" data-summary-badge="Guardado" data-summary-time="31 min" data-summary-distance="5.8 km" data-summary-extra="Trayecto guardado">Abrir resumen</button>
+                                </article>
+
+                                <article class="history-route-card">
+                                    <div class="history-route-card__grid">
+                                        <div>
+                                            <div class="history-card__top">
+                                                <div>
+                                                    <div class="history-card__title">Universidad - Casa de Ana</div>
+                                                    <div class="history-card__meta">Lunes · 6:18 PM</div>
+                                                </div>
+                                                <span class="badge badge--secondary"><i class="fa-solid fa-user-group"></i> Acompañado</span>
+                                            </div>
+                                            <div class="history-stats">
+                                                <span>18 min</span>
+                                                <span>3.1 km</span>
+                                                <span>2 contactos</span>
+                                            </div>
+                                        </div>
+                                        <div class="history-route-map history-route-map--uni">
+                                            <svg class="history-route-map__route-svg" viewBox="0 0 96 88" preserveAspectRatio="none">
+                                                <path class="history-route-map__route-base" d="M 14 66 C 26 62, 34 44, 50 40 S 70 42, 84 20"></path>
+                                                <path class="history-route-map__route-path" d="M 14 66 C 26 62, 34 44, 50 40 S 70 42, 84 20"></path>
+                                            </svg>
+                                            <span class="history-route-map__dot history-route-map__dot--start"></span>
+                                            <span class="history-route-map__dot history-route-map__dot--end"></span>
+                                        </div>
+                                    </div>
+                                    <button class="neutral-btn" type="button" data-summary-open="1" data-summary-title="Universidad - Casa de Ana" data-summary-meta="Lunes · 6:18 PM" data-summary-badge="Resumen disponible" data-summary-time="18 min" data-summary-distance="3.1 km" data-summary-extra="2 contactos acompañando">Abrir resumen</button>
+                                </article>
+                            </div>
+                        </section>
+
+                        <nav class="footer-nav" aria-label="Navegación principal móvil">
+                            <span class="nav-item"><i class="fa-solid fa-house"></i></span>
+                            <span class="nav-item"><i class="fa-regular fa-compass"></i></span>
+                            <span class="nav-item center"><i class="fa-solid fa-phone"></i></span>
+                            <span class="nav-item"><i class="fa-regular fa-comment-dots"></i></span>
+                            <span class="nav-item active"><i class="fa-regular fa-user"></i></span>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+
+            <div class="desktop-frame">
+                <aside class="sidebar">
+                    <div class="brand-logo">
+                        Violeta
+                    </div>
+                    <nav class="sidebar-nav">
+                        <a href="/" class="sidebar-link">
+                            <i class="fa-solid fa-house"></i> Inicio
+                        </a>
+                        <a href="/admin" class="sidebar-link">
+                            <i class="fa-solid fa-user-shield"></i> Panel de admin
+                        </a>
+                        <a href="/hotspots" class="sidebar-link">
+                            <i class="fa-solid fa-compass"></i> Explorar
+                        </a>
+                        <a href="/chat" class="sidebar-link">
+                            <i class="fa-solid fa-comment-dots"></i> Chat
+                        </a>
+                        <a href="/safety" class="sidebar-link active">
+                            <i class="fa-solid fa-shield-heart"></i> Seguridad
+                        </a>
+                        <a href="/user/admin" class="sidebar-link">
+                            <i class="fa-solid fa-user"></i> Perfil
+                        </a>
+                        <a href="/logout" class="sidebar-link" data-no-prefetch="1">
+                            <i class="fa-solid fa-right-from-bracket"></i> Cerrar sesión
+                        </a>
+                    </nav>
+                    <div class="mt-auto d-grid gap-2">
+                        <a href="/emergency" class="btn btn-danger w-100" target="_blank" rel="noopener">
+                            <i class="fa-solid fa-phone"></i> Emergencia
+                        </a>
+                    </div>
+                </aside>
+
+                <main class="desktop-main">
+                    <section class="desktop-state is-visible" data-state="idle">
+                        <header class="desktop-header">
+                            <div class="desktop-header__copy">
+                                <p class="section-label">Safety</p>
+                                <h2 class="desktop-header__title">Configura tu trayecto y empieza</h2>
+                                <p class="desktop-header__sub">
+                                    La pantalla solo deja una acción principal visible: elegir destino, ajustar el tiempo y comenzar.
+                                </p>
+                            </div>
+                        </header>
+
+                        <div class="desktop-idle-grid">
+                            <section class="desktop-hero-card panel">
+                                <div class="desktop-hero-inner">
+                                    <div class="desktop-hero-copy">
+                                        <p class="section-label">Antes de salir</p>
+                                        <h3 class="desktop-hero-title">¿A dónde vas?</h3>
+                                        <p class="desktop-header__sub" style="margin:0; max-width: 560px;">
+                                            Usa esta pantalla para iniciar un trayecto acompañado. El mapa te da contexto y el panel derecho te deja configurarlo sin ruido.
+                                        </p>
+                                    </div>
+
+                                    <div class="desktop-hero-footer">
+                                        <div class="desktop-support-card" style="max-width: 360px;">
+                                            <div class="section-label">Qué haces aquí</div>
+                                            <div style="font-weight:800;">1. Elige destino</div>
+                                            <div style="font-weight:800;">2. Ajusta tiempo estimado</div>
+                                            <div style="font-weight:800;">3. Comienza trayecto</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <aside class="desktop-command-card panel">
+                                <div>
+                                    <p class="section-label">Comenzar trayecto</p>
+                                    <h3 class="desktop-command-title">Destino y tiempo estimado</h3>
+                                    <p class="subline">Lo único que necesitas completar antes de empezar.</p>
+                                </div>
+                                <div class="desktop-input">
+                                    <i class="fa-solid fa-location-dot" style="color: var(--violet-dark);"></i>
+                                    <span>Busca un destino o selecciona uno frecuente</span>
+                                </div>
+                                <div class="eta-row">
+                                    <span class="eta-pill">15 min</span>
+                                    <span class="eta-pill is-active">30 min</span>
+                                    <span class="eta-pill">45 min</span>
+                                    <span class="eta-pill">60 min</span>
+                                </div>
+                                <div class="list-row">
+                                    <div style="display:flex; align-items:center; gap:10px;">
+                                        <div class="avatar-stack">
+                                            <span class="avatar avatar--violet">MA</span>
+                                            <span class="avatar avatar--rose">HE</span>
+                                        </div>
+                                        <div>
+                                            <div style="font-weight:700;">Compartir con Mamá y Hermana</div>
+                                            <div style="font-size:0.82rem; color:var(--ink-soft);">Edita contactos guardados o decide con quién compartir este trayecto.</div>
+                                        </div>
+                                    </div>
+                                    <button class="link-btn" type="button" data-preview-link="contacts">Editar</button>
+                                </div>
+                                <button class="primary-btn" type="button">
+                                    <i class="fa-solid fa-shield-heart"></i>
+                                    Comenzar trayecto
+                                </button>
+                                <div class="prototype-note" style="margin:0;">Tus contactos reciben el seguimiento cuando comiences. El historial y la emergencia quedan disponibles sin competir con este paso.</div>
+                                <button class="link-btn" type="button" style="justify-self:start;" data-preview-link="history">Ver historial</button>
+                            </aside>
+                        </div>
+                    </section>
+
+                    <section class="desktop-state" data-state="active">
+                        <header class="desktop-header">
+                            <div class="desktop-header__copy">
+                                <p class="section-label">Trayecto activo</p>
+                                <h2 class="desktop-header__title">Sigue tu trayecto sin distracciones</h2>
+                                <p class="desktop-header__sub">
+                                    Durante un trayecto activo solo importan tres cosas: mapa, ETA y las acciones de llegada o cancelación.
+                                </p>
+                            </div>
+                        </header>
+
+                        <div class="desktop-active-grid">
+                            <section class="desktop-map-card panel">
+                                <div class="desktop-map-overlay">
+                                    <div class="desktop-top-actions">
+                                        <span class="badge badge--live"><i class="fa-solid fa-circle"></i> Ubicación en vivo</span>
+                                        <span class="badge badge--secondary"><i class="fa-solid fa-eye"></i> 2 contactos acompañando</span>
+                                    </div>
+                                    <div class="desktop-map-footer">
+                                        <div class="desktop-floating-card" style="max-width: 260px;">
+                                            <div class="section-label">Ruta actual</div>
+                                            <div style="font-weight:800; margin-bottom:6px;">Casa de Ana</div>
+                                            <div style="color: var(--ink-soft); font-size:0.84rem;">ETA 18 min · trayecto en seguimiento</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <aside class="desktop-rail">
+                                <section class="desktop-status-card panel">
+                                    <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+                                        <div>
+                                            <p class="section-label">Estado del trayecto</p>
+                                            <div style="font-size:1.5rem; font-weight:800; letter-spacing:-0.03em;">Todo en curso</div>
+                                        </div>
+                                        <span class="badge badge--live">Normal</span>
+                                    </div>
+                                    <div class="eta-big" style="font-size: 3rem;">18 min</div>
+                                    <div style="color: var(--ink-soft); margin-top: -8px;">ETA estimado hasta Casa de Ana</div>
+                                    <div class="metrics-row">
+                                        <div class="metric-box">
+                                            <div class="metric-box__label">Tiempo</div>
+                                            <div class="metric-box__value">12 min</div>
+                                        </div>
+                                        <div class="metric-box">
+                                            <div class="metric-box__label">Distancia</div>
+                                            <div class="metric-box__value">2.8 km</div>
+                                        </div>
+                                    </div>
+                                    <div class="desktop-secondary-links">
+                                        <button class="secondary-btn" type="button">
+                                            <i class="fa-solid fa-check-circle"></i>
+                                            Ya llegué con bien
+                                        </button>
+                                        <button class="neutral-btn" type="button">Cancelar trayecto</button>
+                                    </div>
+                                    <div class="prototype-note" style="margin:0;">2 contactos ya están acompañando este trayecto.</div>
+                                </section>
+                            </aside>
+                        </div>
+                    </section>
+
+                    <section class="desktop-state" data-state="contacts">
+                        <header class="desktop-header">
+                            <div class="desktop-header__copy">
+                                <p class="section-label">Red de confianza</p>
+                                <h2 class="desktop-header__title">Primero con quién compartes, luego cómo lo administras</h2>
+                                <p class="desktop-header__sub">
+                                    La propuesta separa la decisión del trayecto actual de la libreta de contactos, sin meter más pasos de los necesarios.
+                                </p>
+                            </div>
+                        </header>
+
+                        <div class="desktop-contacts-layout-v2">
+                            <section class="desktop-side-card desktop-side-card--v2 panel">
+                                <div>
+                                    <p class="section-label">Trayecto actual</p>
+                                    <div class="history-overview-card__value" style="font-size: 2rem;">Compartiendo con 2 contactos</div>
+                                    <div class="contact-summary-card__copy">Mamá y Hermana reciben seguimiento de este trayecto y saben si sigues en ruta.</div>
+                                </div>
+
+                                <div class="history-stats">
+                                    <span>Mamá</span>
+                                    <span>Hermana</span>
+                                </div>
+
+                                <div class="contact-channel-row">
+                                    <span class="contact-channel-pill"><i class="fa-brands fa-whatsapp"></i> WhatsApp</span>
+                                    <span class="contact-channel-pill"><i class="fa-solid fa-comment-dots"></i> SMS</span>
+                                </div>
+
+                                <button class="primary-btn" type="button" data-preview-link="idle">
+                                    <i class="fa-solid fa-check"></i>
+                                    Guardar selección
+                                </button>
+                                <button class="neutral-btn" type="button">
+                                    <i class="fa-solid fa-user-plus"></i>
+                                    Agregar contacto
+                                </button>
+                                <div class="prototype-note" style="margin: 0;">La columna derecha solo resuelve estado de compartir, edición y eliminación.</div>
+                            </section>
+
+                            <section class="desktop-list-card desktop-list-card--v2 panel">
+                                <div>
+                                    <p class="section-label">Tus contactos</p>
+                                    <h3 class="desktop-command-title" style="margin-bottom: 6px;">Lista simple, acciones claras</h3>
+                                    <p class="subline" style="margin: 0;">Mismo contenido que móvil: contacto, canal y una decisión rápida para este trayecto.</p>
+                                </div>
+
+                                <div class="desktop-contact-list-v2">
+                                    <article class="desktop-contact-row-v2">
+                                        <div class="desktop-contact-row-v2__meta">
+                                            <span class="avatar avatar--violet">MA</span>
+                                            <div>
+                                                <div class="contact-card-v2__name">Mamá</div>
+                                                <div class="contact-card-v2__hint">WhatsApp · Contacto prioritario · Compartiendo ahora</div>
+                                            </div>
+                                        </div>
+                                        <div class="desktop-contact-row-v2__actions">
+                                            <span class="contact-toggle is-on">Compartir</span>
+                                            <button class="ghost-pill" type="button">Editar</button>
+                                            <button class="ghost-pill" type="button">Eliminar</button>
+                                        </div>
+                                    </article>
+
+                                    <article class="desktop-contact-row-v2">
+                                        <div class="desktop-contact-row-v2__meta">
+                                            <span class="avatar avatar--rose">HE</span>
+                                            <div>
+                                                <div class="contact-card-v2__name">Hermana</div>
+                                                <div class="contact-card-v2__hint">SMS · Acompañamiento · Compartiendo ahora</div>
+                                            </div>
+                                        </div>
+                                        <div class="desktop-contact-row-v2__actions">
+                                            <span class="contact-toggle is-on">Compartir</span>
+                                            <button class="ghost-pill" type="button">Editar</button>
+                                            <button class="ghost-pill" type="button">Eliminar</button>
+                                        </div>
+                                    </article>
+
+                                    <article class="desktop-contact-row-v2">
+                                        <div class="desktop-contact-row-v2__meta">
+                                            <span class="avatar" style="background:#fce7f3; color:#be185d;">AL</span>
+                                            <div>
+                                                <div class="contact-card-v2__name">Amiga Laura</div>
+                                                <div class="contact-card-v2__hint">WhatsApp · Disponible para trayectos, pero no seleccionada</div>
+                                            </div>
+                                        </div>
+                                        <div class="desktop-contact-row-v2__actions">
+                                            <span class="contact-toggle">No compartir</span>
+                                            <button class="ghost-pill" type="button">Editar</button>
+                                            <button class="ghost-pill" type="button">Eliminar</button>
+                                        </div>
+                                    </article>
+                                </div>
+                            </section>
+                        </div>
+                    </section>
+
+                    <section class="desktop-state" data-state="history">
+                        <header class="desktop-header">
+                            <div class="desktop-header__copy">
+                                <p class="section-label">Historial</p>
+                                <h2 class="desktop-header__title">Historial más limpio, mismo contenido</h2>
+                                <p class="desktop-header__sub">
+                                    La versión web conserva exactamente lo mismo que móvil: trayecto, fecha, métricas clave, mini mapa y una sola acción.
+                                </p>
+                            </div>
+                        </header>
+
+                        <section class="desktop-history-overview-v2 panel">
+                            <div>
+                                <p class="section-label">Resumen rápido</p>
+                                <div class="history-overview-card__value" style="font-size: 2rem;">3 trayectos recientes</div>
+                                <div class="contact-summary-card__copy">La lista baja ruido visual y deja el detalle completo dentro de cada resumen.</div>
+                            </div>
+                            <div class="history-stats">
+                                <span>1 llegada segura</span>
+                                <span>1 guardado</span>
+                                <span>1 con acompañamiento</span>
+                            </div>
+                        </section>
+
+                        <section class="desktop-history-list-v2">
+                            <article class="desktop-history-card desktop-history-card--v2 panel">
+                                <div class="desktop-history-card__grid">
+                                    <div class="desktop-history-copy">
+                                        <div class="history-card__top">
+                                            <div>
+                                                <div class="desktop-history-title-row">
+                                                    <div class="history-card__title">Casa - Oficina</div>
+                                                    <span class="badge badge--live"><i class="fa-solid fa-check"></i> Segura</span>
+                                                </div>
+                                                <div class="history-card__meta">Hoy · 8:10 AM</div>
+                                            </div>
+                                        </div>
+                                        <div class="desktop-history-metrics">
+                                            <span class="desktop-history-metric"><i class="fa-regular fa-clock"></i> 22 min</span>
+                                            <span class="desktop-history-metric"><i class="fa-solid fa-route"></i> 4.2 km</span>
+                                            <span class="desktop-history-metric"><i class="fa-solid fa-gauge-high"></i> 11 km/h</span>
+                                        </div>
+                                        <div class="desktop-history-subline">Llegada segura y resumen disponible.</div>
+                                        <div class="desktop-history-footer">
+                                            <button class="neutral-btn history-open-btn" type="button" data-summary-open="1" data-summary-title="Casa - Oficina" data-summary-meta="Hoy · 8:10 AM" data-summary-badge="Llegada segura" data-summary-time="22 min" data-summary-distance="4.2 km" data-summary-extra="Vel. promedio 11 km/h">Abrir resumen</button>
+                                        </div>
+                                    </div>
+                                    <div class="history-route-map history-route-map--office">
+                                        <svg class="history-route-map__route-svg" viewBox="0 0 152 96" preserveAspectRatio="none">
+                                            <path class="history-route-map__route-base" d="M 24 74 C 46 66, 62 48, 82 42 S 106 38, 130 20"></path>
+                                            <path class="history-route-map__route-path" d="M 24 74 C 46 66, 62 48, 82 42 S 106 38, 130 20"></path>
+                                        </svg>
+                                        <span class="history-route-map__dot history-route-map__dot--start"></span>
+                                        <span class="history-route-map__dot history-route-map__dot--end"></span>
+                                    </div>
+                                </div>
+                            </article>
+
+                            <article class="desktop-history-card desktop-history-card--v2 panel">
+                                <div class="desktop-history-card__grid">
+                                    <div class="desktop-history-copy">
+                                        <div class="history-card__top">
+                                            <div>
+                                                <div class="desktop-history-title-row">
+                                                    <div class="history-card__title">Metro Centro - Casa</div>
+                                                    <span class="badge badge--secondary"><i class="fa-solid fa-bookmark"></i> Guardado</span>
+                                                </div>
+                                                <div class="history-card__meta">Ayer · 7:42 PM</div>
+                                            </div>
+                                        </div>
+                                        <div class="desktop-history-metrics">
+                                            <span class="desktop-history-metric"><i class="fa-regular fa-clock"></i> 31 min</span>
+                                            <span class="desktop-history-metric"><i class="fa-solid fa-route"></i> 5.8 km</span>
+                                            <span class="desktop-history-metric"><i class="fa-solid fa-bookmark"></i> Guardado</span>
+                                        </div>
+                                        <div class="desktop-history-subline">Trayecto guardado para consulta rápida.</div>
+                                        <div class="desktop-history-footer">
+                                            <button class="neutral-btn history-open-btn" type="button" data-summary-open="1" data-summary-title="Metro Centro - Casa" data-summary-meta="Ayer · 7:42 PM" data-summary-badge="Guardado" data-summary-time="31 min" data-summary-distance="5.8 km" data-summary-extra="Trayecto guardado">Abrir resumen</button>
+                                        </div>
+                                    </div>
+                                    <div class="history-route-map history-route-map--metro">
+                                        <svg class="history-route-map__route-svg" viewBox="0 0 152 96" preserveAspectRatio="none">
+                                            <path class="history-route-map__route-base" d="M 24 22 C 40 26, 58 42, 72 56 S 96 74, 126 80"></path>
+                                            <path class="history-route-map__route-path" d="M 24 22 C 40 26, 58 42, 72 56 S 96 74, 126 80"></path>
+                                        </svg>
+                                        <span class="history-route-map__dot history-route-map__dot--start"></span>
+                                        <span class="history-route-map__dot history-route-map__dot--end"></span>
+                                    </div>
+                                </div>
+                            </article>
+
+                            <article class="desktop-history-card desktop-history-card--v2 panel">
+                                <div class="desktop-history-card__grid">
+                                    <div class="desktop-history-copy">
+                                        <div class="history-card__top">
+                                            <div>
+                                                <div class="desktop-history-title-row">
+                                                    <div class="history-card__title">Universidad - Casa de Ana</div>
+                                                    <span class="badge badge--secondary"><i class="fa-solid fa-user-group"></i> Acompañado</span>
+                                                </div>
+                                                <div class="history-card__meta">Lunes · 6:18 PM</div>
+                                            </div>
+                                        </div>
+                                        <div class="desktop-history-metrics">
+                                            <span class="desktop-history-metric"><i class="fa-regular fa-clock"></i> 18 min</span>
+                                            <span class="desktop-history-metric"><i class="fa-solid fa-route"></i> 3.1 km</span>
+                                            <span class="desktop-history-metric"><i class="fa-solid fa-user-group"></i> 2 contactos</span>
+                                        </div>
+                                        <div class="desktop-history-subline">Dos contactos acompañaron este trayecto.</div>
+                                        <div class="desktop-history-footer">
+                                            <button class="neutral-btn history-open-btn" type="button" data-summary-open="1" data-summary-title="Universidad - Casa de Ana" data-summary-meta="Lunes · 6:18 PM" data-summary-badge="Resumen disponible" data-summary-time="18 min" data-summary-distance="3.1 km" data-summary-extra="2 contactos acompañando">Abrir resumen</button>
+                                        </div>
+                                    </div>
+                                    <div class="history-route-map history-route-map--uni">
+                                        <svg class="history-route-map__route-svg" viewBox="0 0 152 96" preserveAspectRatio="none">
+                                            <path class="history-route-map__route-base" d="M 22 72 C 42 66, 58 48, 78 42 S 104 42, 130 18"></path>
+                                            <path class="history-route-map__route-path" d="M 22 72 C 42 66, 58 48, 78 42 S 104 42, 130 18"></path>
+                                        </svg>
+                                        <span class="history-route-map__dot history-route-map__dot--start"></span>
+                                        <span class="history-route-map__dot history-route-map__dot--end"></span>
+                                    </div>
+                                </div>
+                            </article>
+                        </section>
+                    </section>
+                </main>
+            </div>
+        </section>
+
+        <div class="summary-modal-backdrop" id="summaryModal" aria-hidden="true">
+            <div class="summary-modal" role="dialog" aria-modal="true" aria-labelledby="summaryModalTitle">
+                <div class="summary-modal__top">
+                    <div>
+                        <p class="section-label" id="summaryModalBadge">Resumen</p>
+                        <h3 class="summary-modal__title" id="summaryModalTitle">Trayecto</h3>
+                        <div class="summary-modal__meta" id="summaryModalMeta">Fecha</div>
+                    </div>
+                    <button class="topbar-btn" type="button" aria-label="Cerrar resumen" id="summaryModalClose">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="summary-modal__metrics">
+                    <div class="summary-modal__metric">
+                        <div class="summary-modal__metric-label">Duración</div>
+                        <div class="summary-modal__metric-value" id="summaryMetricTime">--</div>
+                    </div>
+                    <div class="summary-modal__metric">
+                        <div class="summary-modal__metric-label">Distancia</div>
+                        <div class="summary-modal__metric-value" id="summaryMetricDistance">--</div>
+                    </div>
+                    <div class="summary-modal__metric">
+                        <div class="summary-modal__metric-label">Dato clave</div>
+                        <div class="summary-modal__metric-value" id="summaryMetricExtra">--</div>
+                    </div>
+                </div>
+
+                <div class="summary-route-map" aria-hidden="true">
+                    <svg class="summary-route-svg" viewBox="0 0 320 180" preserveAspectRatio="none">
+                        <path class="summary-route-base" id="summaryRouteBase" d=""></path>
+                        <path class="summary-route-path" id="summaryRoutePath" d=""></path>
+                    </svg>
+                    <div class="summary-route-marker" id="summaryRouteStart"></div>
+                    <div class="summary-route-marker summary-route-marker--end" id="summaryRouteEnd"></div>
+                    <div class="summary-route-dot" id="summaryRouteDot"></div>
+                    <div class="summary-route-label summary-route-label--start" id="summaryRouteStartLabel">Inicio</div>
+                    <div class="summary-route-label summary-route-label--end" id="summaryRouteEndLabel">Destino</div>
+                </div>
+
+                <div class="summary-modal__body">
+                    Este popup muestra cómo podría verse un resumen rápido del trayecto con mapa y recorrido animado, sin sacar a la usuaria de la pantalla actual.
+                </div>
+            </div>
+        </div>
+
+        <p class="prototype-note">
+            Archivo pensado para revisión visual local. No está conectado a Flask ni a ninguna ruta del producto.
+        </p>
+    </div>
+
+    <script>
+        (function () {
+            const buttons = Array.from(document.querySelectorAll('[data-preview-state]'));
+            const links = Array.from(document.querySelectorAll('[data-preview-link]'));
+            const backButtons = Array.from(document.querySelectorAll('[data-preview-back]'));
+            const arriveButtons = Array.from(document.querySelectorAll('[data-arrive-safe]'));
+            const cancelButtons = Array.from(document.querySelectorAll('[data-cancel-trip]'));
+            const draggableSheets = Array.from(document.querySelectorAll('[data-draggable-sheet]'));
+            const summaryButtons = Array.from(document.querySelectorAll('[data-summary-open]'));
+            const mobileStates = Array.from(document.querySelectorAll('.mobile-state'));
+            const desktopStates = Array.from(document.querySelectorAll('.desktop-state'));
+            const summaryModal = document.getElementById('summaryModal');
+            const summaryModalClose = document.getElementById('summaryModalClose');
+            const summaryTitle = document.getElementById('summaryModalTitle');
+            const summaryMeta = document.getElementById('summaryModalMeta');
+            const summaryBadge = document.getElementById('summaryModalBadge');
+            const summaryMetricTime = document.getElementById('summaryMetricTime');
+            const summaryMetricDistance = document.getElementById('summaryMetricDistance');
+            const summaryMetricExtra = document.getElementById('summaryMetricExtra');
+            const summaryRouteMap = document.querySelector('.summary-route-map');
+            const summaryRouteBase = document.getElementById('summaryRouteBase');
+            const summaryRoutePath = document.getElementById('summaryRoutePath');
+            const summaryRouteStart = document.getElementById('summaryRouteStart');
+            const summaryRouteEnd = document.getElementById('summaryRouteEnd');
+            const summaryRouteDot = document.getElementById('summaryRouteDot');
+            const summaryRouteStartLabel = document.getElementById('summaryRouteStartLabel');
+            const summaryRouteEndLabel = document.getElementById('summaryRouteEndLabel');
+            let currentState = '';
+            let previousState = 'idle';
+            let routeAnimationFrame = null;
+            let activeDrag = null;
+
+            const routeConfigs = {
+                'Casa - Oficina': {
+                    path: 'M 42 142 C 70 130, 88 108, 112 92 S 162 82, 196 72 S 244 46, 278 42',
+                    startLabel: 'Casa',
+                    endLabel: 'Oficina'
+                },
+                'Metro Centro - Casa': {
+                    path: 'M 58 34 C 92 46, 118 68, 132 92 S 164 126, 196 132 S 238 128, 270 148',
+                    startLabel: 'Metro',
+                    endLabel: 'Casa'
+                },
+                'Universidad - Casa de Ana': {
+                    path: 'M 34 120 C 72 108, 92 82, 118 78 S 172 98, 192 92 S 232 62, 286 50',
+                    startLabel: 'Universidad',
+                    endLabel: 'Casa de Ana'
+                }
+            };
+
+            function setState(nextState, options = {}) {
+                const remember = options.remember !== false;
+                if (nextState === currentState) {
+                    return;
+                }
+
+                if (remember) {
+                    previousState = currentState;
+                }
+                currentState = nextState;
+
+                buttons.forEach((button) => {
+                    button.classList.toggle('is-active', button.dataset.previewState === nextState);
+                });
+                mobileStates.forEach((section) => {
+                    section.classList.toggle('is-visible', section.dataset.state === nextState);
+                });
+                desktopStates.forEach((section) => {
+                    section.classList.toggle('is-visible', section.dataset.state === nextState);
+                });
+
+                if (nextState === 'active' || nextState === 'idle') {
+                    resetActiveSheetPosition();
+                }
+            }
+
+            buttons.forEach((button) => {
+                button.addEventListener('click', () => setState(button.dataset.previewState));
+            });
+
+            links.forEach((link) => {
+                link.addEventListener('click', () => setState(link.dataset.previewLink));
+            });
+
+            function resetActiveSheetPosition() {
+                draggableSheets.forEach((sheet) => {
+                    sheet.classList.remove('is-collapsed');
+                    sheet.style.transform = '';
+                    const host = sheet.closest('.mobile-state');
+                    if (host) {
+                        host.classList.remove('is-sheet-collapsed');
+                    }
+                });
+            }
+
+            function syncCollapsedState(sheet) {
+                const host = sheet.closest('.mobile-state');
+                if (!host) return;
+                host.classList.toggle('is-sheet-collapsed', sheet.classList.contains('is-collapsed'));
+            }
+
+            function getSheetCollapsedOffset(sheet) {
+                const host = sheet.closest('.mobile-state--active') || sheet;
+                const peek = parseFloat(getComputedStyle(host).getPropertyValue('--active-sheet-peek')) || 42;
+                return Math.max(0, sheet.offsetHeight - peek);
+            }
+
+            document.querySelectorAll('.desktop-frame .sidebar a').forEach((link) => {
+                link.addEventListener('click', (event) => {
+                    event.preventDefault();
+                });
+            });
+
+            backButtons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    const target = previousState || 'idle';
+                    setState(target, { remember: false });
+                });
+            });
+
+            draggableSheets.forEach((sheet) => {
+                const toggles = Array.from(sheet.querySelectorAll('[data-sheet-toggle]'));
+                if (!toggles.length) return;
+
+                toggles.forEach((toggle) => {
+                    toggle.addEventListener('pointerdown', (event) => {
+                        const collapsedOffset = getSheetCollapsedOffset(sheet);
+                        activeDrag = {
+                            sheet,
+                            startY: event.clientY,
+                            startOffset: sheet.classList.contains('is-collapsed') ? collapsedOffset : 0,
+                            collapsedOffset,
+                            moved: false
+                        };
+                        toggle.setPointerCapture(event.pointerId);
+                        sheet.style.transition = 'none';
+                    });
+                });
+            });
+
+            window.addEventListener('pointermove', (event) => {
+                if (!activeDrag) return;
+                const delta = event.clientY - activeDrag.startY;
+                if (Math.abs(event.clientY - activeDrag.startY) > 6) {
+                    activeDrag.moved = true;
+                }
+                const nextOffset = Math.max(0, Math.min(activeDrag.collapsedOffset, activeDrag.startOffset + delta));
+                activeDrag.sheet.style.transform = `translateY(${nextOffset}px)`;
+            });
+
+            window.addEventListener('pointerup', () => {
+                if (!activeDrag) return;
+                const transform = activeDrag.sheet.style.transform;
+                const match = transform.match(/translateY\(([\d.]+)px\)/);
+                const offset = match ? parseFloat(match[1]) : activeDrag.startOffset;
+                activeDrag.sheet.style.transition = '';
+                activeDrag.sheet.style.transform = '';
+                if (!activeDrag.moved) {
+                    activeDrag.sheet.classList.toggle('is-collapsed');
+                } else {
+                    activeDrag.sheet.classList.toggle('is-collapsed', offset > activeDrag.collapsedOffset / 2);
+                }
+                syncCollapsedState(activeDrag.sheet);
+                activeDrag = null;
+            });
+
+            arriveButtons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    alert('Se avisó a tus contactos que ya llegaste con bien.');
+                    resetActiveSheetPosition();
+                    setState('idle');
+                });
+            });
+
+            cancelButtons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    const confirmed = confirm('Si cancelas este trayecto, tus contactos dejarán de ver tu ubicación y Violeta dejará de acompañarte en esta ruta. ¿Seguro que quieres cancelarlo?');
+                    if (!confirmed) return;
+                    alert('El trayecto fue cancelado y se dejó de compartir tu seguimiento.');
+                    resetActiveSheetPosition();
+                    setState('idle');
+                });
+            });
+
+            function placeRouteNode(node, point) {
+                const scaleX = summaryRouteMap.clientWidth / 320;
+                const scaleY = summaryRouteMap.clientHeight / 180;
+                node.style.left = `${point.x * scaleX}px`;
+                node.style.top = `${point.y * scaleY}px`;
+            }
+
+            function animateRoute(totalLength) {
+                if (routeAnimationFrame) {
+                    cancelAnimationFrame(routeAnimationFrame);
+                }
+                summaryRouteDot.classList.add('is-visible');
+                const startTime = performance.now();
+                const duration = 2400;
+
+                function step(now) {
+                    const progress = Math.min((now - startTime) / duration, 1);
+                    const eased = 1 - Math.pow(1 - progress, 3);
+                    const point = summaryRoutePath.getPointAtLength(totalLength * eased);
+                    placeRouteNode(summaryRouteDot, point);
+
+                    if (progress < 1) {
+                        routeAnimationFrame = requestAnimationFrame(step);
+                    }
+                }
+
+                routeAnimationFrame = requestAnimationFrame(step);
+            }
+
+            function setRouteForSummary(title) {
+                const config = routeConfigs[title] || routeConfigs['Casa - Oficina'];
+                summaryRouteBase.setAttribute('d', config.path);
+                summaryRoutePath.setAttribute('d', config.path);
+                summaryRouteStartLabel.textContent = config.startLabel;
+                summaryRouteEndLabel.textContent = config.endLabel;
+
+                const totalLength = summaryRoutePath.getTotalLength();
+                summaryRoutePath.style.setProperty('--route-length', totalLength);
+                summaryRoutePath.classList.remove('is-animating');
+                void summaryRoutePath.getBoundingClientRect();
+                summaryRoutePath.classList.add('is-animating');
+
+                const startPoint = summaryRoutePath.getPointAtLength(0);
+                const endPoint = summaryRoutePath.getPointAtLength(totalLength);
+                placeRouteNode(summaryRouteStart, startPoint);
+                placeRouteNode(summaryRouteEnd, endPoint);
+                placeRouteNode(summaryRouteDot, startPoint);
+                animateRoute(totalLength);
+            }
+
+            function openSummary(button) {
+                summaryTitle.textContent = button.dataset.summaryTitle || 'Trayecto';
+                summaryMeta.textContent = button.dataset.summaryMeta || '';
+                summaryBadge.textContent = button.dataset.summaryBadge || 'Resumen';
+                summaryMetricTime.textContent = button.dataset.summaryTime || '--';
+                summaryMetricDistance.textContent = button.dataset.summaryDistance || '--';
+                summaryMetricExtra.textContent = button.dataset.summaryExtra || '--';
+                summaryModal.classList.add('is-visible');
+                summaryModal.setAttribute('aria-hidden', 'false');
+                requestAnimationFrame(() => {
+                    setRouteForSummary(button.dataset.summaryTitle || 'Casa - Oficina');
+                });
+            }
+
+            function closeSummary() {
+                if (routeAnimationFrame) {
+                    cancelAnimationFrame(routeAnimationFrame);
+                    routeAnimationFrame = null;
+                }
+                summaryRouteDot.classList.remove('is-visible');
+                summaryModal.classList.remove('is-visible');
+                summaryModal.setAttribute('aria-hidden', 'true');
+            }
+
+            summaryButtons.forEach((button) => {
+                button.addEventListener('click', () => openSummary(button));
+            });
+
+            summaryModalClose.addEventListener('click', closeSummary);
+            summaryModal.addEventListener('click', (event) => {
+                if (event.target === summaryModal) {
+                    closeSummary();
+                }
+            });
+
+            resetActiveSheetPosition();
+            setState('contacts');
+        })();
+    </script>
+</body>
+</html>

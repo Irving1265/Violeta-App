@@ -1,89 +1,55 @@
-<section class="pc-step" data-step-panel="3" aria-labelledby="postStepLocationTitle" hidden>
-    <header class="pc-step-header">
-        <span class="pc-step-header__badge">3</span>
-        <div class="pc-step-header__text">
-            <h3 id="postStepLocationTitle" class="pc-step-header__title">Ubicación</h3>
-            <p class="pc-step-header__subtitle">
-                Busca un lugar o usa tu ubicación actual antes de publicar.
-            </p>
+<section id="step3" class="pc-step step-content" data-step-panel="3" aria-labelledby="postStepLocationTitle" hidden>
+    <div class="pc-step-copy-block">
+        <h3 id="postStepLocationTitle" class="pc-step-copy-block__title">Ubicacion</h3>
+        <p class="pc-step-copy-block__subtitle">
+            {% if current_user.is_authenticated and current_user_can_override_content_controls %}
+            Confirma el punto del incidente antes de publicar.
+            {% else %}
+            Donde sucede esto.
+            {% endif %}
+        </p>
+    </div>
+
+    <div class="pc-step-scroll">
+        <div class="pc-location-notice pc-location-card__status" id="pcLocationStatus">
+            <span class="pc-location-card__status-icon" aria-hidden="true">
+                <i class="fas fa-location-arrow"></i>
+            </span>
+            <span class="pc-location-card__status-text">Detectando ubicacion...</span>
         </div>
-    </header>
 
-    <div class="pc-step-panel">
-        <div class="pc-mini-preview" aria-hidden="true">
-            <div class="pc-mini-preview__image" id="pcLocationPreviewWrapper">
-                <img src="" alt="" id="pcLocationPreviewImg">
-            </div>
-            <span class="pc-mini-preview__label">Preview</span>
-        </div>
-
-        <div class="pc-location-card">
-            <div class="pc-location-card__status" role="status" aria-live="polite" id="pcLocationStatus">
-                <span class="pc-location-card__status-icon" aria-hidden="true">
-                    <i class="fas fa-location-arrow"></i>
-                </span>
-                <span class="pc-location-card__status-text">Ubicación pendiente</span>
-            </div>
-
-            {% if current_user.is_authenticated and current_user.username == 'admin' %}
+        {% if current_user.is_authenticated and current_user_can_override_content_controls %}
+        <div class="pc-location-admin-stack">
             <div class="form-group">
-                <label for="pcLocationSearch">Buscar un lugar o dirección</label>
+                <label for="pcLocationSearch">Buscar lugar o direccion</label>
                 <div class="pc-input-with-button">
                     <input type="search" id="pcLocationSearch" name="location_search"
-                        placeholder="Buscar un lugar o dirección..." autocomplete="off"
-                        aria-describedby="pcLocationHelp pcLocationError">
-                    <button type="button" class="btn btn--secondary" id="pcLocationSearchBtn">
-                        Buscar
-                    </button>
+                        placeholder="Buscar un lugar o direccion..." autocomplete="off"
+                        aria-describedby="pcLocationError">
+                    <button type="button" class="btn-secondary pc-inline-action" id="pcLocationSearchBtn">Buscar</button>
                 </div>
-                <p id="pcLocationHelp" class="form-help">Puedes buscar un lugar o usar tu ubicación actual.</p>
-                <p id="pcLocationError" class="form-error" role="alert"></p>
-                <div id="pcLocationResults" class="pc-location-results" role="listbox" aria-live="polite"></div>
             </div>
 
             <div class="pc-location-switches">
                 <label class="pc-switch">
                     <input type="checkbox" id="pcUseCurrentLocation">
                     <span class="pc-switch__slider" aria-hidden="true"></span>
-                    <span class="pc-switch__label">Usar ubicación actual</span>
+                    <span class="pc-switch__label">Usar ubicacion actual</span>
                 </label>
                 <label class="pc-switch">
                     <input type="checkbox" id="pcHideLocation">
                     <span class="pc-switch__slider" aria-hidden="true"></span>
-                    <span class="pc-switch__label">Ocultar ubicación en la publicación</span>
+                    <span class="pc-switch__label">Ocultar ubicacion en la publicacion</span>
                 </label>
             </div>
 
-            <!-- Hidden input to signal JS that we are in admin mode with manual controls -->
             <input type="hidden" id="pcIsAdminCtx" value="true">
-            {% else %}
-            <!-- User is NOT admin: Force auto location -->
-            <div class="pc-location-notice">
-                <p class="form-help">Tu ubicación se detectará automáticamente.</p>
-                <p id="pcLocationError" class="form-error" role="alert"></p>
-            </div>
-            <div class="pc-location-switches">
-                <label class="pc-switch">
-                    <input type="radio" name="pcLocationVisibility" value="approx" id="pcLocationVisibilityApprox" checked>
-                    <span class="pc-switch__slider" aria-hidden="true"></span>
-                    <span class="pc-switch__label">Mostrar ubicación aproximada (recomendado)</span>
-                </label>
-                <label class="pc-switch">
-                    <input type="radio" name="pcLocationVisibility" value="hidden" id="pcLocationVisibilityHidden">
-                    <span class="pc-switch__slider" aria-hidden="true"></span>
-                    <span class="pc-switch__label">Ocultar ubicación exacta</span>
-                </label>
-            </div>
-            <input type="hidden" id="pcIsAdminCtx" value="false">
-            {% endif %}
 
-            {% if current_user.is_authenticated and current_user.username == 'admin' %}
             <div class="pc-admin-location-panel">
-                <h4 class="pc-admin-location-panel__title">Opciones avanzadas para administrador</h4>
                 <div class="pc-admin-location-panel__modes">
                     <label class="pc-admin-location-panel__radio">
                         <input type="radio" name="pcLocationMode" id="pcModePerson" value="person" checked>
-                        <span>Ubicación de la persona</span>
+                        <span>Ubicacion de la persona</span>
                     </label>
                     <label class="pc-admin-location-panel__radio">
                         <input type="radio" name="pcLocationMode" id="pcModeManual" value="manual">
@@ -103,34 +69,41 @@
                         <label for="pcManualAddress">Referencia o nombre del lugar</label>
                         <input type="text" id="pcManualAddress" maxlength="255" placeholder="Ej. Parque Fundidora">
                     </div>
-                    <div class="form-group pc-admin-location-panel__row">
-                        <div>
+                    <div class="pc-admin-location-panel__row">
+                        <div class="form-group">
                             <label for="pcManualCity">Ciudad</label>
                             <input type="text" id="pcManualCity" maxlength="100" placeholder="Monterrey">
                         </div>
-                        <div>
-                            <label for="pcManualCountry">País</label>
-                            <input type="text" id="pcManualCountry" maxlength="100" placeholder="México">
+                        <div class="form-group">
+                            <label for="pcManualCountry">Pais</label>
+                            <input type="text" id="pcManualCountry" maxlength="100" placeholder="Mexico">
                         </div>
                     </div>
-                    <p class="form-help">Estas coordenadas reemplazarán las detectadas automáticamente.</p>
                 </div>
             </div>
-            {% endif %}
-
-            <div class="pc-map-wrapper">
-                <div id="pcMap" class="pc-map" role="application" aria-label="Mapa de ubicación"></div>
-            </div>
-
-            <input type="hidden" id="pcLatInput" name="latitude">
-            <input type="hidden" id="pcLngInput" name="longitude">
-            <input type="hidden" id="pcAddressInput" name="address">
-            <input type="hidden" id="pcLocationNameInput" name="location_name">
-            <input type="hidden" id="pcCityInput" name="city">
-            <input type="hidden" id="pcCountryInput" name="country">
-            <input type="hidden" id="pcShowPublicInput" name="show_public" value="true">
-            <input type="hidden" id="pcLocSourceInput" name="loc_source" value="person">
-            <input type="hidden" id="pcLocationVisibilityInput" name="location_visibility" value="approx">
         </div>
+        {% else %}
+        <p class="form-help pc-location-helper-copy">La ubicacion quedara fijada con la captura, no desde donde terminas el reporte.</p>
+        <input type="hidden" id="pcIsAdminCtx" value="false">
+        {% endif %}
+
+        <p id="pcLocationError" class="form-error" role="alert"></p>
+        <div id="pcLocationResults" class="pc-location-results" role="listbox" aria-live="polite"></div>
+
+        <div class="pc-location-map-card">
+            <div class="pc-map-wrapper">
+                <div id="pcMap" class="pc-map" role="application" aria-label="Mapa de ubicacion"></div>
+            </div>
+        </div>
+
+        <input type="hidden" id="pcLatInput" name="latitude">
+        <input type="hidden" id="pcLngInput" name="longitude">
+        <input type="hidden" id="pcAddressInput" name="address">
+        <input type="hidden" id="pcLocationNameInput" name="location_name">
+        <input type="hidden" id="pcCityInput" name="city">
+        <input type="hidden" id="pcCountryInput" name="country">
+        <input type="hidden" id="pcShowPublicInput" name="show_public" value="true">
+        <input type="hidden" id="pcLocSourceInput" name="loc_source" value="person">
+        <input type="hidden" id="pcLocationVisibilityInput" name="location_visibility" value="exact">
     </div>
 </section>

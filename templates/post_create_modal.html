@@ -1,65 +1,50 @@
 {# Modal for creating a post in 3 steps #}
 <div id="postCreateOverlay" class="pc-overlay" hidden></div>
 
-<div id="postCreateModal" class="pc-modal" role="dialog" aria-labelledby="postCreateTitle" aria-modal="true"
-    aria-hidden="true" hidden>
-    <div class="pc-modal__surface">
-        <header class="pc-modal__header">
-            <div class="pc-modal__title-group">
-                <h2 id="postCreateTitle" class="pc-modal__title">Crear nueva publicación</h2>
-                <p class="pc-modal__subtitle">Comparte tu momento favorito y completa cada paso para publicarlo.</p>
-            </div>
-            <button type="button" class="pc-modal__close btn btn--ghost" id="postCreateCloseBtn"
-                aria-label="Cerrar modal">
-                <span aria-hidden="true">&times;</span>
-            </button>
-        </header>
+<div id="postCreateModal"
+    class="pc-modal"
+    role="dialog"
+    aria-labelledby="postCreateTitle"
+    aria-modal="true"
+    aria-hidden="true"
+    data-role="{% if current_user.is_authenticated and current_user_can_override_content_controls %}admin{% else %}user{% endif %}"
+    hidden>
+    <header class="pc-modal__header">
+        <div class="pc-modal__header-main">
+            <h2 id="postCreateTitle" class="pc-modal__title">Nueva publicacion</h2>
+            <p class="pc-modal__step-copy">Paso <span id="currentStepText">1</span> de 3</p>
+            <span class="pc-preview-chip" id="roleChip">
+                {% if current_user.is_authenticated and current_user_can_override_content_controls %}
+                <i class="fas fa-user-shield"></i> Vista Admin
+                {% else %}
+                <i class="fas fa-camera"></i> Vista Usuario comun
+                {% endif %}
+            </span>
+        </div>
+        <button type="button" class="pc-modal__close" id="postCreateCloseBtn" aria-label="Cerrar modal">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </header>
 
-        <form id="postCreateForm" class="pc-modal__body" novalidate>
+    <div class="pc-modal__body">
+        <div class="pc-stepper" aria-hidden="true">
+            <div class="pc-stepper__segment active" data-step="1"></div>
+            <div class="pc-stepper__segment" data-step="2"></div>
+            <div class="pc-stepper__segment" data-step="3"></div>
+        </div>
+
+        <form id="postCreateForm" class="pc-modal__form" novalidate>
             {% include '_step_photo.html' %}
             {% include '_step_caption.html' %}
             {% include '_step_location.html' %}
         </form>
-
-        <footer class="pc-modal__footer" id="postCreateFooter">
-            <div class="pc-modal__footer-left">
-                <button type="button" class="btn btn--secondary" id="postCreateBackBtn" disabled>
-                    Atrás
-                </button>
-            </div>
-            <div class="pc-modal__footer-center">
-                <span class="pc-validation-message" id="postCreateValidationMsg" role="status"
-                    aria-live="polite"></span>
-            </div>
-            <div class="pc-modal__footer-right">
-                <button type="button" class="btn btn--primary" id="postCreateNextBtn" data-action="next" disabled>
-                    Siguiente
-                </button>
-            </div>
-        </footer>
     </div>
-</div>
 
-<!-- Post Image Cropper Modal -->
-<div class="modal fade cropper-modal-dark" id="pcCropperModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Ajustar Foto</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                    aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-0 bg-black">
-                <div class="img-container" style="height: 520px; overflow: hidden; position: relative;">
-                    <img id="pcCropperImage" src="" alt="Imagen para recortar" style="max-width: 100%; display: block;">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-light" id="pcChooseCropFileBtn">
-                    <i class="fa-regular fa-image me-1"></i> Elegir otra
-                </button>
-                <button type="button" class="violet-btn-primary" id="pcApplyCropBtn">Aplicar Recorte</button>
-            </div>
+    <footer class="pc-modal__footer" id="postCreateFooter">
+        <div class="pc-modal__footer-meta">
+            <button type="button" class="btn-secondary" id="postCreateBackBtn" disabled>Atras</button>
+            <span class="pc-validation-message" id="postCreateValidationMsg" role="status" aria-live="polite"></span>
         </div>
-    </div>
+        <button type="button" class="btn-primary btn-disabled" id="postCreateNextBtn" data-action="next" disabled>Siguiente</button>
+    </footer>
 </div>

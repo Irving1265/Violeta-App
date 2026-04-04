@@ -12,6 +12,10 @@
     const nextBtn = document.getElementById('postCreateNextBtn');
     const closeBtn = document.getElementById('postCreateCloseBtn');
     const validationMsg = document.getElementById('postCreateValidationMsg');
+    const currentStepText = document.getElementById('currentStepText');
+    const stepSegments = Array.from(modal.querySelectorAll('.pc-stepper__segment'));
+    const stepMeta = document.getElementById('postCreateStepMeta');
+    const progressBar = document.getElementById('postCreateProgressBar');
 
     const dropzone = document.getElementById('pcDropzone');
     const fileInput = document.getElementById('pcFileInput');
@@ -23,6 +27,7 @@
     const previewSize = document.getElementById('pcPreviewFileSize');
     const uploadProgress = document.getElementById('pcUploadProgress');
     const uploadProgressBar = document.getElementById('pcUploadProgressBar');
+    const captureSourceInput = document.getElementById('pcCaptureSourceInput');
     const photoModeToggle = document.getElementById('pcPhotoModeToggle');
     const photoModeButtons = photoModeToggle ? Array.from(photoModeToggle.querySelectorAll('.pc-photo-mode-btn')) : [];
     const cameraPanel = document.getElementById('pcCameraPanel');
@@ -32,10 +37,14 @@
     const cameraCaptureBtn = document.getElementById('pcCameraCaptureBtn');
     const cameraRetakeBtn = document.getElementById('pcCameraRetakeBtn');
     const cameraPlaceholder = document.getElementById('pcCameraPlaceholder');
-    const cropperModalEl = document.getElementById('pcCropperModal');
-    const cropperImage = document.getElementById('pcCropperImage');
-    const cropperApplyBtn = document.getElementById('pcApplyCropBtn');
-    const cropperChooseBtn = document.getElementById('pcChooseCropFileBtn');
+    const cameraHelp = document.getElementById('pcCameraHelp');
+    const mobileCameraGuide = document.getElementById('pcMobileCameraGuide');
+    const captureStatusCard = document.getElementById('pcCaptureStatusCard');
+    const capturePhotoStatus = document.getElementById('pcCapturePhotoStatus');
+    const captureSourceStatus = document.getElementById('pcCaptureSourceStatus');
+    const captureMotionStatus = document.getElementById('pcCaptureMotionStatus');
+    const captureLocationStatus = document.getElementById('pcCaptureLocationStatus');
+    const captureStatusHint = document.getElementById('pcCaptureStatusHint');
 
     const inlinePreviewWrapper = document.getElementById('pcInlinePreviewWrapper');
     const inlinePreviewImg = document.getElementById('pcInlinePreviewImage');
@@ -59,7 +68,9 @@
     const allowCommentsToggle = document.getElementById('pcAllowComments');
 
     const locationStatus = document.getElementById('pcLocationStatus');
-    const locationStatusText = locationStatus.querySelector('.pc-location-card__status-text');
+    const locationStatusText = locationStatus
+        ? (locationStatus.querySelector('.pc-location-card__status-text') || locationStatus)
+        : null;
     const locationSearchInput = document.getElementById('pcLocationSearch');
     const locationSearchBtn = document.getElementById('pcLocationSearchBtn');
     const locationResults = document.getElementById('pcLocationResults');
@@ -86,6 +97,8 @@
 
     const isAdminCtx = document.getElementById('pcIsAdminCtx');
     const isAdmin = isAdminCtx ? isAdminCtx.value === 'true' : false;
+    const nativeBridge = window.VioletaNativeBridge || null;
+    const isNativeMobile = !isAdmin && !!(nativeBridge && typeof nativeBridge.isNativePlatform === 'function' && nativeBridge.isNativePlatform());
 
     const photoErrorsContainer = document.getElementById('postStepPhotoErrors');
 
@@ -95,15 +108,58 @@
     let isMapInitialized = false;
     let activeUploadTimer = null;
     let cameraStream = null;
+    let activeCameraFacingMode = 'environment';
     let currentPhotoMode = isAdmin ? 'upload' : 'camera';
-    let cropperInstance = null;
-    let cropperModal = null;
-    let pendingCropFile = null;
-    let pendingCropUrl = null;
+    let modalHideTimer = null;
+    const MAX_ALLOWED_WALKING_SPEED_MPS = 2.2;
+    const CAPTURE_MOTION_SAMPLE_MS = 2500;
+    const MAX_NATIVE_CAPTURE_DRIFT_METERS = 25;
+    const TOTAL_STEPS = 3;
+    const metroBbox = '-100.80,26.10,-99.90,25.30';
+    const allowedCities = new Set([
+        'monterrey',
+        'san pedro garza garcia', 'san pedro',
+        'san nicolas de los garza',
+        'guadalupe',
+        'apodaca',
+        'general escobedo', 'escobedo',
+        'pesqueria',
+        'santa catarina', 'sta catarina',
+        'garcia',
+        'juarez', 'ciudad benito juarez', 'benito juarez', 'cd benito juarez'
+    ]);
+
+    function applyNativeMobilePhotoUI() {
+        if (!isNativeMobile) {
+            return;
+        }
+        if (cameraVideo) {
+            cameraVideo.hidden = true;
+        }
+        if (cameraStartBtn) {
+            cameraStartBtn.textContent = 'Abrir cámara del teléfono';
+        }
+        if (cameraCaptureBtn) {
+            cameraCaptureBtn.hidden = true;
+            cameraCaptureBtn.disabled = true;
+        }
+        if (cameraPlaceholder) {
+            const label = cameraPlaceholder.querySelector('span');
+            if (label) {
+                label.textContent = 'Abre la camara nativa para capturar el reporte';
+            }
+        }
+        if (cameraHelp) {
+            cameraHelp.textContent = 'Usaremos la cámara nativa del teléfono. No se permiten archivos guardados.';
+        }
+    }
 
     const state = {
         file: null,
         fileObjectUrl: null,
+        captureSource: '',
+        captureFacingMode: '',
+        captureMirrorPreview: false,
         caption: '',
         alt: '',
         tags: [],
@@ -116,13 +172,23 @@
             country: '',
             showPublic: true,
             source: 'person',
-            visibility: isAdmin ? 'exact' : 'approx'
+            visibility: 'exact'
         },
         interaction: {
             allowLikes: true,
             allowComments: true,
-        }
+        },
+        captureContext: null,
     };
+
+    const previewImageTargets = [
+        previewImg,
+        inlinePreviewImg,
+        captionStepPreviewImg,
+        categoriesStepPreviewImg,
+        categoriesInlinePreviewImg,
+        locationStepPreviewImg,
+    ].filter(Boolean);
 
     function openModal() {
         if (typeof isUserVerified === 'function' && !isUserVerified()) {
@@ -131,15 +197,21 @@
             }
             return;
         }
+        if (modalHideTimer) {
+            window.clearTimeout(modalHideTimer);
+            modalHideTimer = null;
+        }
         resetWorkflow();
         modal.hidden = false;
         overlay.hidden = false;
-        // Force reflow
-        console.log(modal.offsetHeight);
-        
+        void modal.offsetWidth;
+        void overlay.offsetWidth;
+
         requestAnimationFrame(() => {
-            modal.classList.add('is-open');
-            overlay.classList.add('is-open');
+            requestAnimationFrame(() => {
+                modal.classList.add('is-open');
+                overlay.classList.add('is-open');
+            });
         });
 
         modal.setAttribute('aria-hidden', 'false');
@@ -149,21 +221,28 @@
         document.addEventListener('keydown', onKeydown);
         setTimeout(() => {
             modal.querySelector('[data-step-panel="1"]').focus();
-        }, 300); // reduced wait for animation
+        }, 380);
     }
 
     function closeModal() {
+        if (modalHideTimer) {
+            window.clearTimeout(modalHideTimer);
+            modalHideTimer = null;
+        }
         modal.classList.remove('is-open');
         overlay.classList.remove('is-open');
         modal.setAttribute('aria-hidden', 'true');
         stopCameraStream();
-        
-        setTimeout(() => {
+
+        modalHideTimer = window.setTimeout(() => {
             modal.hidden = true;
             overlay.hidden = true;
             document.body.style.overflow = '';
-            validationMsg.textContent = '';
-        }, 300); // Wait for transition
+            if (validationMsg) {
+                validationMsg.textContent = '';
+            }
+            modalHideTimer = null;
+        }, 420);
 
         document.removeEventListener('keydown', onKeydown);
     }
@@ -174,29 +253,36 @@
             state.fileObjectUrl = null;
         }
         state.file = null;
-        if (previewImg) previewImg.src = '';
-        if (inlinePreviewImg) inlinePreviewImg.src = '';
+        state.captureSource = '';
+        state.captureFacingMode = '';
+        state.captureMirrorPreview = false;
+        state.captureContext = null;
+        if (captureSourceInput) captureSourceInput.value = '';
+        clearImageSource(previewImg);
+        clearImageSource(inlinePreviewImg);
         if (inlinePreviewWrapper) inlinePreviewWrapper.classList.remove('has-image');
-        if (captionStepPreviewImg) captionStepPreviewImg.src = '';
-        if (categoriesStepPreviewImg) categoriesStepPreviewImg.src = '';
-        if (categoriesInlinePreviewImg) categoriesInlinePreviewImg.src = '';
+        clearImageSource(captionStepPreviewImg);
+        clearImageSource(categoriesStepPreviewImg);
+        clearImageSource(categoriesInlinePreviewImg);
         if (categoriesInlinePreviewWrapper) categoriesInlinePreviewWrapper.classList.remove('has-image');
-        if (locationStepPreviewImg) locationStepPreviewImg.src = '';
+        clearImageSource(locationStepPreviewImg);
         if (dropzone) {
             dropzone.classList.remove('is-dragover');
         }
         stopCameraStream();
+        syncCapturedPhotoMirror();
         if (cameraPanel) {
             cameraPanel.hidden = currentPhotoMode !== 'camera';
         }
         if (previewCard) previewCard.hidden = true;
+        syncPhotoStageVisibility();
         if (photoPreviewWrapper) photoPreviewWrapper.classList.remove('has-image');
         if (captionStepPreviewWrapper) captionStepPreviewWrapper.classList.remove('has-image');
         if (categoriesStepPreviewWrapper) categoriesStepPreviewWrapper.classList.remove('has-image');
         if (locationStepPreviewWrapper) locationStepPreviewWrapper.classList.remove('has-image');
         captionInput.value = '';
-        captionCounter.textContent = '0 / 500';
-        categoriesError.textContent = '';
+        if (captionCounter) captionCounter.textContent = '0 / 500';
+        if (categoriesError) categoriesError.textContent = '';
         if (publishError) publishError.textContent = '';
         if (publishAtInput) publishAtInput.value = '';
         if (allowLikesToggle) allowLikesToggle.checked = true;
@@ -219,13 +305,13 @@
         // Reset category checkboxes
         document.querySelectorAll('input[name="categories"]').forEach(checkbox => {
             checkbox.checked = false;
-            const container = checkbox.closest('.pc-category-checkbox');
+            const container = checkbox.closest('.pc-category-option');
             if (container) {
                 container.classList.remove('selected');
             }
         });
 
-        state.location = { lat: null, lng: null, address: '', city: '', country: '', showPublic: true, source: 'person', visibility: isAdmin ? 'exact' : 'approx' };
+        state.location = { lat: null, lng: null, address: '', city: '', country: '', showPublic: true, source: 'person', visibility: 'exact' };
         if (latInput) latInput.value = '';
         if (lngInput) lngInput.value = '';
         if (addressInput) addressInput.value = '';
@@ -243,9 +329,13 @@
         if (hideLocationToggle) hideLocationToggle.checked = false;
         if (useCurrentLocationToggle) useCurrentLocationToggle.checked = false;
         if (locationResults) locationResults.innerHTML = '';
-        locationError.textContent = '';
-        locationStatus.classList.remove('pc-location-card__status--success', 'pc-location-card__status--error');
-        locationStatusText.textContent = 'Ubicación pendiente';
+        if (locationError) locationError.textContent = '';
+        if (locationStatus) {
+            locationStatus.classList.remove('pc-location-card__status--success', 'pc-location-card__status--error');
+        }
+        if (locationStatusText) {
+            locationStatusText.textContent = 'Ubicación pendiente';
+        }
         if (locationModeInputs.length) {
             locationModeInputs.forEach(input => {
                 input.checked = input.value === 'person';
@@ -269,6 +359,64 @@
             uploadProgressBar.style.width = '0%';
         }
         setPhotoMode(isAdmin ? 'upload' : 'camera');
+        updateMobileCameraGuide();
+    }
+
+    function normalizeCameraFacingMode(value) {
+        const normalized = String(value || '').trim().toLowerCase();
+        if (normalized === 'user' || normalized === 'front' || normalized === 'frontal' || normalized === 'selfie') {
+            return 'user';
+        }
+        if (normalized === 'environment' || normalized === 'rear' || normalized === 'back' || normalized === 'trasera' || normalized === 'posterior') {
+            return 'environment';
+        }
+        return '';
+    }
+
+    function getStreamFacingMode(stream) {
+        const track = stream && typeof stream.getVideoTracks === 'function'
+            ? stream.getVideoTracks()[0]
+            : null;
+        if (!track) {
+            return '';
+        }
+        const settings = typeof track.getSettings === 'function' ? track.getSettings() : {};
+        const settingsFacingMode = normalizeCameraFacingMode(settings.facingMode);
+        if (settingsFacingMode) {
+            return settingsFacingMode;
+        }
+        const label = String(track.label || '').toLowerCase();
+        if (/(front|facetime|user|frontal|selfie)/.test(label)) {
+            return 'user';
+        }
+        if (/(back|rear|environment|trasera|posterior)/.test(label)) {
+            return 'environment';
+        }
+        return '';
+    }
+
+    function isFrontFacingMode(value) {
+        return normalizeCameraFacingMode(value) === 'user';
+    }
+
+    function syncLiveCameraMirror() {
+        if (!cameraPanel) {
+            return;
+        }
+        cameraPanel.classList.toggle('is-front-camera', isFrontFacingMode(activeCameraFacingMode));
+    }
+
+    function syncCapturedPhotoMirror() {
+        const shouldMirror = Boolean(state.file && state.captureMirrorPreview);
+        previewImageTargets.forEach((element) => {
+            element.classList.toggle('pc-preview-image--mirrored', shouldMirror);
+        });
+    }
+
+    function setCaptureMirrorState(options = {}) {
+        state.captureFacingMode = normalizeCameraFacingMode(options.facingMode);
+        state.captureMirrorPreview = Boolean(options.mirrorPreview);
+        syncCapturedPhotoMirror();
     }
 
     function getPublishMode() {
@@ -281,6 +429,118 @@
         if (!publishAtWrap) return;
         const mode = getPublishMode();
         publishAtWrap.hidden = mode !== 'schedule';
+    }
+
+    function updateMobileCameraGuide() {
+        if (!mobileCameraGuide) {
+            return;
+        }
+        const shouldShow = currentPhotoMode === 'camera' && !state.file;
+        mobileCameraGuide.hidden = !shouldShow;
+    }
+
+    function syncPhotoStageVisibility() {
+        [dropzone, cameraPanel, previewCard].forEach((element) => {
+            if (!element) {
+                return;
+            }
+            element.style.display = element.hidden ? 'none' : '';
+        });
+    }
+
+    function clearImageSource(element) {
+        if (!element) {
+            return;
+        }
+        element.removeAttribute('src');
+    }
+
+    function clearSelectedPhoto(options = {}) {
+        const resetCaptureLocation = Boolean(options.resetCaptureLocation);
+
+        if (activeUploadTimer) {
+            clearInterval(activeUploadTimer);
+            activeUploadTimer = null;
+        }
+        if (state.fileObjectUrl) {
+            URL.revokeObjectURL(state.fileObjectUrl);
+            state.fileObjectUrl = null;
+        }
+
+        state.file = null;
+        state.captureSource = '';
+        state.captureFacingMode = '';
+        state.captureMirrorPreview = false;
+        state.captureContext = null;
+
+        if (captureSourceInput) captureSourceInput.value = '';
+        if (fileInput) fileInput.value = '';
+        clearImageSource(previewImg);
+        if (previewName) previewName.textContent = 'Ninguna imagen seleccionada';
+        if (previewSize) previewSize.textContent = '';
+        clearImageSource(inlinePreviewImg);
+        clearImageSource(captionStepPreviewImg);
+        clearImageSource(categoriesStepPreviewImg);
+        clearImageSource(categoriesInlinePreviewImg);
+        clearImageSource(locationStepPreviewImg);
+        if (previewCard) previewCard.hidden = true;
+        if (photoPreviewWrapper) photoPreviewWrapper.classList.remove('has-image');
+        if (inlinePreviewWrapper) inlinePreviewWrapper.classList.remove('has-image');
+        if (captionStepPreviewWrapper) captionStepPreviewWrapper.classList.remove('has-image');
+        if (categoriesStepPreviewWrapper) categoriesStepPreviewWrapper.classList.remove('has-image');
+        if (categoriesInlinePreviewWrapper) categoriesInlinePreviewWrapper.classList.remove('has-image');
+        if (locationStepPreviewWrapper) locationStepPreviewWrapper.classList.remove('has-image');
+        if (dropzone) dropzone.classList.remove('is-dragover');
+
+        if (uploadProgress) {
+            uploadProgress.hidden = true;
+        }
+        if (uploadProgressBar) {
+            uploadProgressBar.style.width = '0%';
+        }
+
+        stopCameraStream();
+        syncCapturedPhotoMirror();
+        syncPhotoStageVisibility();
+
+        if (resetCaptureLocation) {
+            state.location = {
+                ...state.location,
+                lat: null,
+                lng: null,
+                address: '',
+                city: '',
+                country: '',
+                source: 'person',
+            };
+            if (latInput) latInput.value = '';
+            if (lngInput) lngInput.value = '';
+            if (addressInput) addressInput.value = '';
+            if (locationNameInput) locationNameInput.value = '';
+            if (cityHiddenInput) cityHiddenInput.value = '';
+            if (countryHiddenInput) countryHiddenInput.value = '';
+            if (locationError) locationError.textContent = '';
+            if (locationResults) locationResults.innerHTML = '';
+            if (locationStatus) {
+                locationStatus.classList.remove('pc-location-card__status--success', 'pc-location-card__status--error');
+            }
+            if (locationStatusText) {
+                locationStatusText.textContent = 'Ubicación pendiente';
+            }
+            if (marker && map) {
+                marker.setLatLng([25.6866, -100.3161]);
+                map.setView([25.6866, -100.3161], 13);
+            }
+            setLocationMode('person');
+        }
+
+        if (validationMsg) {
+            validationMsg.textContent = '';
+        }
+        setPhotoError('');
+        syncPhotoStageVisibility();
+        renderCaptureStatus();
+        updateFooterState();
     }
 
     function onKeydown(event) {
@@ -311,6 +571,7 @@
             const isActive = step === currentStep;
             panel.hidden = !isActive;
             panel.classList.toggle('is-active', isActive);
+            panel.classList.toggle('active', isActive);
             if (isActive) {
                 panel.setAttribute('tabindex', '-1');
                 panel.focus({ preventScroll: false });
@@ -320,25 +581,149 @@
         });
 
         backBtn.disabled = currentStep === 1;
+        backBtn.hidden = currentStep === 1;
         nextBtn.dataset.action = currentStep === 3 ? 'submit' : 'next';
         nextBtn.textContent = currentStep === 3 ? 'Publicar' : 'Siguiente';
+        if (currentStepText) {
+            currentStepText.textContent = String(currentStep);
+        }
+        if (stepSegments.length) {
+            stepSegments.forEach((segment, index) => {
+                segment.classList.toggle('active', index < currentStep);
+            });
+        }
+        if (stepMeta) {
+            stepMeta.textContent = `Paso ${currentStep} de ${TOTAL_STEPS}`;
+        }
+        if (progressBar) {
+            progressBar.style.width = `${(currentStep / TOTAL_STEPS) * 100}%`;
+        }
         updateFooterState();
+        renderCaptureStatus();
 
         if (currentStep === 3) {
             if (!isMapInitialized) {
                 initializeMap();
             }
-            // Enforce auto location for non-admins
             if (!isAdmin) {
-                fetchCurrentLocation();
+                if (state.captureContext && state.captureContext.lat != null && state.captureContext.lng != null) {
+                    freezeIncidentLocationFromCapture(state.captureContext);
+                } else {
+                    state.location.lat = null;
+                    state.location.lng = null;
+                    state.location.address = '';
+                    if (latInput) latInput.value = '';
+                    if (lngInput) lngInput.value = '';
+                    if (addressInput) addressInput.value = '';
+                    if (locationNameInput) locationNameInput.value = '';
+                    if (locationStatus) {
+                        locationStatus.classList.remove('pc-location-card__status--success');
+                        locationStatus.classList.add('pc-location-card__status--error');
+                    }
+                    if (locationStatusText) {
+                        locationStatusText.textContent = 'La ubicación debe capturarse al tomar la foto.';
+                    }
+                    updateFooterState();
+                }
             }
         }
     }
 
     function updateFooterState() {
         const { valid, message } = validateStep(currentStep, { silent: true });
-        validationMsg.textContent = message || '';
+        if (validationMsg) {
+            validationMsg.textContent = message || '';
+        }
         nextBtn.disabled = !valid;
+        nextBtn.classList.toggle('btn-disabled', !valid);
+        backBtn.classList.toggle('btn-disabled', backBtn.disabled);
+    }
+
+    function humanizeCaptureSource(source) {
+        if (source === 'camera') {
+            return isNativeMobile ? 'Cámara del teléfono' : 'Cámara en vivo';
+        }
+        if (source === 'upload') {
+            return 'Archivo cargado';
+        }
+        return 'Pendiente';
+    }
+
+    function humanizeMotionState(motionState) {
+        if (motionState === 'stationary') return 'Detenida';
+        if (motionState === 'walking') return 'Caminando';
+        if (motionState === 'blocked') return 'No permitido';
+        if (motionState === 'unknown') return 'Sin confirmar';
+        return 'Sin validar';
+    }
+
+    function renderCaptureStatus() {
+        if (!captureStatusCard) return;
+        const motionState = state.captureContext?.motionState || '';
+        const hasLocation = state.captureContext && state.captureContext.lat != null && state.captureContext.lng != null;
+        const isReady = !!state.file && (!!isAdmin || (state.captureSource === 'camera' && hasLocation && ['stationary', 'walking'].includes(motionState)));
+        const photoError = (photoErrorsContainer?.textContent || '').trim();
+
+        if (capturePhotoStatus) {
+            capturePhotoStatus.textContent = state.file ? 'Lista' : 'Pendiente';
+        }
+        if (captureSourceStatus) {
+            captureSourceStatus.textContent = humanizeCaptureSource(state.captureSource);
+        }
+        if (captureMotionStatus) {
+            captureMotionStatus.textContent = isAdmin && !state.captureContext
+                ? 'No aplica'
+                : humanizeMotionState(motionState);
+        }
+        if (captureLocationStatus) {
+            captureLocationStatus.textContent = hasLocation
+                ? 'Fijada al capturar'
+                : isAdmin && state.file
+                    ? 'Se define después'
+                    : 'Pendiente';
+        }
+
+        let hint = '';
+        if (photoError) {
+            hint = photoError;
+        } else if (isReady) {
+            hint = 'La foto ya está lista. Revisa la vista previa y continúa al siguiente paso.';
+        } else if (state.file) {
+            hint = 'La foto se guardó, pero aún falta confirmar alguna condición de captura.';
+        } else if (currentPhotoMode === 'upload') {
+            hint = 'Selecciona o arrastra un archivo para continuar.';
+        } else {
+            hint = 'Abre la cámara, toma la foto y espera la validación de ubicación y movimiento.';
+        }
+        if (captureStatusHint) {
+            captureStatusHint.textContent = hint;
+        }
+        captureStatusCard.classList.toggle('is-ready', !!isReady);
+        if (changePhotoBtn) {
+            changePhotoBtn.textContent = 'Cambiar';
+        }
+        updateMobileCameraGuide();
+    }
+
+    function normLocationToken(value) {
+        return (value || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    }
+
+    function getLocationCity(address = {}) {
+        return address.city
+            || address.town
+            || address.village
+            || address.municipality
+            || address.city_district
+            || address.county
+            || '';
+    }
+
+    function isAllowedMetroAddress(address = {}) {
+        const cityName = getLocationCity(address);
+        const inAllowedCity = cityName ? allowedCities.has(normLocationToken(cityName)) : false;
+        const inNuevoLeon = address.state ? normLocationToken(address.state).includes('nuevo leon') : true;
+        return inAllowedCity && inNuevoLeon;
     }
 
     function syncLocationHiddenFields() {
@@ -376,9 +761,9 @@
             });
         }
         if (marker && marker.dragging) {
-            if (nextMode === 'manual' && marker.dragging.disable) {
+            if ((!isAdmin || nextMode === 'manual' || nextMode === 'capture') && marker.dragging.disable) {
                 marker.dragging.disable();
-            } else if (nextMode !== 'manual' && marker.dragging.enable) {
+            } else if (isAdmin && nextMode !== 'manual' && marker.dragging.enable) {
                 marker.dragging.enable();
             }
         }
@@ -430,7 +815,9 @@
     function handleNext() {
         const validation = validateStep(currentStep);
         if (!validation.valid) {
-            validationMsg.textContent = validation.message || '';
+            if (validationMsg) {
+                validationMsg.textContent = validation.message || '';
+            }
             return;
         }
         if (currentStep < 3) {
@@ -449,6 +836,29 @@
                 }
                 return { valid: false, message: 'Selecciona una imagen válida.' };
             }
+            if (!isAdmin) {
+                const captureLat = state.captureContext?.lat;
+                const captureLng = state.captureContext?.lng;
+                const motionState = state.captureContext?.motionState;
+                if (state.captureSource !== 'camera') {
+                    if (!silent) {
+                        setPhotoError('Para publicar debes tomar la foto en el momento con la cámara.');
+                    }
+                    return { valid: false, message: 'Toma la foto con la cámara para continuar.' };
+                }
+                if (captureLat == null || captureLng == null) {
+                    if (!silent) {
+                        setPhotoError('Necesitamos la ubicación exacta de donde tomaste la foto.');
+                    }
+                    return { valid: false, message: 'Confirma la ubicación al momento de tomar la foto.' };
+                }
+                if (!['stationary', 'walking'].includes(motionState)) {
+                    if (!silent) {
+                        setPhotoError('Solo puedes reportar si estás detenida o caminando al tomar la foto.');
+                    }
+                    return { valid: false, message: 'La captura debe hacerse estando detenida o caminando.' };
+                }
+            }
             setPhotoError('');
             return { valid: true };
         }
@@ -463,7 +873,7 @@
                 message = 'Debes seleccionar al menos una categoría.';
             }
 
-            categoriesError.textContent = '';
+            if (categoriesError) categoriesError.textContent = '';
             if (publishError) publishError.textContent = '';
 
             if (isAdmin) {
@@ -478,10 +888,10 @@
 
             if (message) {
                 if (!silent) {
-                    categoriesError.textContent = message;
+                    if (categoriesError) categoriesError.textContent = message;
                     if (publishError && message.includes('programar')) {
                         publishError.textContent = message;
-                        categoriesError.textContent = '';
+                        if (categoriesError) categoriesError.textContent = '';
                     }
                 }
                 return { valid: false, message };
@@ -493,17 +903,22 @@
         }
         if (step === 3) {
             const { lat, lng, address } = state.location;
-            if (lat == null || lng == null || !address) {
+            const allowMissingAddressFromCapture = !isAdmin && !!(state.captureContext && lat != null && lng != null);
+            if (lat == null || lng == null || (!address && !allowMissingAddressFromCapture)) {
                 const message = 'Selecciona una ubicación válida antes de publicar.';
                 if (!silent) {
-                    locationError.textContent = message;
-                    locationStatus.classList.remove('pc-location-card__status--success');
-                    locationStatus.classList.add('pc-location-card__status--error');
-                    locationStatusText.textContent = message;
+                    if (locationError) locationError.textContent = message;
+                    if (locationStatus) {
+                        locationStatus.classList.remove('pc-location-card__status--success');
+                        locationStatus.classList.add('pc-location-card__status--error');
+                    }
+                    if (locationStatusText) {
+                        locationStatusText.textContent = message;
+                    }
                 }
                 return { valid: false, message };
             }
-            locationError.textContent = '';
+            if (locationError) locationError.textContent = '';
             return { valid: true };
         }
         return { valid: true };
@@ -511,11 +926,16 @@
 
     function submit() {
         nextBtn.disabled = true;
-        validationMsg.textContent = 'Enviando publicación...';
+        if (validationMsg) {
+            validationMsg.textContent = 'Enviando publicación...';
+        }
 
         const formData = new FormData();
         if (state.file) {
             formData.append('image', state.file);
+        }
+        if (state.captureSource) {
+            formData.append('capture_source', state.captureSource);
         }
         formData.append('caption', state.caption);
 
@@ -530,7 +950,32 @@
         if (state.location.country) formData.append('country', state.location.country);
         formData.append('loc_source', state.location.source);
         formData.append('show_public', state.location.showPublic);
-        formData.append('location_visibility', state.location.visibility || (isAdmin ? 'exact' : 'approx'));
+        formData.append('location_visibility', state.location.visibility || 'exact');
+        if (state.captureContext) {
+            formData.append('capture_latitude', state.captureContext.lat);
+            formData.append('capture_longitude', state.captureContext.lng);
+            if (state.captureContext.takenAt) {
+                formData.append('capture_taken_at', state.captureContext.takenAt);
+            }
+            if (state.captureContext.motionState) {
+                formData.append('capture_motion_state', state.captureContext.motionState);
+            }
+            if (state.captureContext.accuracy != null) {
+                formData.append('capture_accuracy', state.captureContext.accuracy);
+            }
+            if (state.captureContext.speedMps != null) {
+                formData.append('capture_speed_mps', state.captureContext.speedMps);
+            }
+            if (state.location.address) {
+                formData.append('capture_location_name', state.location.address);
+            }
+            if (state.location.city) {
+                formData.append('capture_city', state.location.city);
+            }
+            if (state.location.country) {
+                formData.append('capture_country', state.location.country);
+            }
+        }
 
         state.interaction.allowLikes = allowLikesToggle ? !!allowLikesToggle.checked : true;
         state.interaction.allowComments = allowCommentsToggle ? !!allowCommentsToggle.checked : true;
@@ -551,12 +996,17 @@
 
         function showPublishDelayNotice() {
             if (isAdmin) return;
+            const policy = window.VIOLETA_SAFETY_PUBLISH_POLICY || {
+                min_delay_minutes: 15,
+                distance_meters: 200,
+                fallback_minutes: 60
+            };
             const noticeHtml = `
                 <div style="display:flex;gap:10px;align-items:flex-start;">
                     <i class="fas fa-shield-alt" style="font-size:1.2rem;margin-top:2px;"></i>
                     <div>
                         <strong>Por seguridad tuya</strong>
-                        <div style="font-size:0.9rem;opacity:0.9;margin-top:2px;">Tu publicación se hará pública en 15 min.</div>
+                        <div style="font-size:0.9rem;opacity:0.9;margin-top:2px;">Tu publicación se hará pública cuando pasen ${policy.min_delay_minutes} min y estés al menos a ${policy.distance_meters} m del punto del reporte, o en máximo ${policy.fallback_minutes} min.</div>
                     </div>
                 </div>
             `;
@@ -565,7 +1015,7 @@
             } else if (typeof showAlert === 'function') {
                 showAlert(noticeHtml, 'info');
             } else {
-                alert('Por seguridad tuya, tu publicación se hará pública en 15 min.');
+                alert(`Tu publicación se hará pública cuando pasen ${policy.min_delay_minutes} min y estés al menos a ${policy.distance_meters} m del punto del reporte, o en máximo ${policy.fallback_minutes} min.`);
             }
         }
 
@@ -574,6 +1024,7 @@
             if (noticeShown) return;
             noticeShown = true;
             closeModal();
+            window.dispatchEvent(new Event('violeta:safety-publish-created'));
             setTimeout(showPublishDelayNotice, 300);
         };
 
@@ -607,7 +1058,9 @@
             })
             .catch(error => {
                 console.error('Error:', error);
-                validationMsg.textContent = 'Ocurrió un error al publicar. Inténtalo de nuevo.';
+                if (validationMsg) {
+                    validationMsg.textContent = 'Ocurrió un error al publicar. Inténtalo de nuevo.';
+                }
                 nextBtn.disabled = false;
             });
     }
@@ -616,6 +1069,7 @@
         if (photoErrorsContainer) {
             photoErrorsContainer.textContent = message;
         }
+        renderCaptureStatus();
     }
 
     function formatFileSize(bytes) {
@@ -625,24 +1079,11 @@
         return `${(bytes / Math.pow(1024, exponent)).toFixed(1)} ${units[exponent]}`;
     }
 
-    function openCropper(file) {
-        if (!cropperModalEl || !cropperImage || typeof Cropper === 'undefined' || !cropperModal) {
-            commitFile(file);
-            return;
-        }
-        stopCameraStream();
-        pendingCropFile = file;
-        if (pendingCropUrl) {
-            URL.revokeObjectURL(pendingCropUrl);
-        }
-        pendingCropUrl = URL.createObjectURL(file);
-        cropperImage.src = pendingCropUrl;
-        cropperModal.show();
-    }
-
-    function commitFile(file) {
+    function commitFile(file, source = '') {
         setPhotoError('');
         state.file = file;
+        state.captureSource = source || '';
+        if (captureSourceInput) captureSourceInput.value = state.captureSource;
 
         if (state.fileObjectUrl) {
             URL.revokeObjectURL(state.fileObjectUrl);
@@ -651,14 +1092,15 @@
         state.fileObjectUrl = objectUrl;
 
         previewImg.src = objectUrl;
-        previewName.textContent = file.name;
-        previewSize.textContent = formatFileSize(file.size);
-        inlinePreviewImg.src = objectUrl;
+        if (previewName) previewName.textContent = file.name;
+        if (previewSize) previewSize.textContent = formatFileSize(file.size);
+        if (inlinePreviewImg) inlinePreviewImg.src = objectUrl;
         if (inlinePreviewWrapper) inlinePreviewWrapper.classList.add('has-image');
         if (captionStepPreviewImg) captionStepPreviewImg.src = objectUrl;
         if (categoriesStepPreviewImg) categoriesStepPreviewImg.src = objectUrl;
         if (categoriesInlinePreviewImg) categoriesInlinePreviewImg.src = objectUrl;
         if (locationStepPreviewImg) locationStepPreviewImg.src = objectUrl;
+        syncCapturedPhotoMirror();
         if (photoPreviewWrapper) photoPreviewWrapper.classList.add('has-image');
         if (captionStepPreviewWrapper) captionStepPreviewWrapper.classList.add('has-image');
         if (categoriesStepPreviewWrapper) categoriesStepPreviewWrapper.classList.add('has-image');
@@ -666,15 +1108,22 @@
         if (dropzone) dropzone.hidden = true;
         if (cameraPanel) cameraPanel.hidden = true;
         previewCard.hidden = false;
+        syncPhotoStageVisibility();
 
         simulateUploadProgress();
         updateFooterState();
         renderPreviewCard();
+        renderCaptureStatus();
     }
 
-    function handleFiles(files) {
+    function handleFiles(files, source = '', options = {}) {
         const file = files && files[0];
         if (!file) return;
+
+        if (!isAdmin && source !== 'camera') {
+            setPhotoError('Para publicar debes tomar la foto en el momento con la cámara.');
+            return;
+        }
 
         if (!['image/jpeg', 'image/png'].includes(file.type)) {
             setPhotoError('Usa JPG o PNG.');
@@ -686,7 +1135,11 @@
             return;
         }
 
-        openCropper(file);
+        setCaptureMirrorState({
+            facingMode: source === 'camera' ? options.facingMode : '',
+            mirrorPreview: source === 'camera' ? options.mirrorPreview : false,
+        });
+        commitFile(file, source);
     }
 
     function simulateUploadProgress() {
@@ -728,6 +1181,160 @@
         }
     }
 
+    function wait(ms) {
+        return new Promise((resolve) => {
+            window.setTimeout(resolve, ms);
+        });
+    }
+
+    function toFiniteNumber(value) {
+        const num = Number(value);
+        return Number.isFinite(num) ? num : null;
+    }
+
+    function haversineDistanceMeters(lat1, lng1, lat2, lng2) {
+        const radius = 6371000;
+        const toRad = (deg) => deg * Math.PI / 180;
+        const dLat = toRad(lat2 - lat1);
+        const dLng = toRad(lng2 - lng1);
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+            + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2))
+            * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return radius * c;
+    }
+
+    function extractPositionSpeed(position) {
+        const directSpeed = toFiniteNumber(position?.raw?.coords?.speed);
+        if (directSpeed != null && directSpeed >= 0) {
+            return directSpeed;
+        }
+        return toFiniteNumber(position?.speed);
+    }
+
+    function extractPositionTimestamp(position) {
+        const rawTimestamp = position?.timestamp ?? position?.raw?.timestamp;
+        const numericTimestamp = toFiniteNumber(rawTimestamp);
+        if (numericTimestamp != null && numericTimestamp > 0) {
+            return numericTimestamp;
+        }
+        const parsedTimestamp = Date.parse(String(rawTimestamp || ''));
+        if (Number.isFinite(parsedTimestamp)) {
+            return parsedTimestamp;
+        }
+        return Date.now();
+    }
+
+    function classifyMotionState(speedMps) {
+        if (!Number.isFinite(speedMps) || speedMps == null || speedMps < 0) {
+            return null;
+        }
+        if (speedMps <= 0.8) {
+            return 'stationary';
+        }
+        if (speedMps <= MAX_ALLOWED_WALKING_SPEED_MPS) {
+            return 'walking';
+        }
+        return 'blocked';
+    }
+
+    function buildCaptureContext(position, extra = {}) {
+        const speedMps = toFiniteNumber(extra.speedMps != null ? extra.speedMps : extractPositionSpeed(position));
+        return {
+            lat: position.lat,
+            lng: position.lng,
+            accuracy: toFiniteNumber(position.accuracy),
+            timestamp: extractPositionTimestamp(position),
+            takenAt: new Date(extractPositionTimestamp(position)).toISOString(),
+            speedMps,
+            motionState: extra.motionState || classifyMotionState(speedMps) || 'unknown',
+            sampleDistanceMeters: toFiniteNumber(extra.sampleDistanceMeters),
+            source: extra.source || position.source || 'browser',
+        };
+    }
+
+    function freezeIncidentLocationFromCapture(captureContext) {
+        state.captureContext = captureContext;
+        state.location.source = 'capture';
+        if (locSourceInput) {
+            locSourceInput.value = 'capture';
+        }
+        if (marker && marker.dragging && marker.dragging.disable) {
+            marker.dragging.disable();
+        }
+        updateLocation({
+            lat: captureContext.lat,
+            lng: captureContext.lng,
+            address: captureContext.address || '',
+        }, !captureContext.address);
+        if (locationStatus) {
+            locationStatus.classList.add('pc-location-card__status--success');
+            locationStatus.classList.remove('pc-location-card__status--error');
+        }
+        if (locationStatusText) {
+            locationStatusText.textContent = captureContext.address
+                ? `Ubicación del reporte: ${captureContext.address}`
+                : 'Estamos confirmando la ubicación de donde tomaste la foto.';
+        }
+        renderCaptureStatus();
+    }
+
+    async function getFreshCapturePosition() {
+        if (!nativeBridge || typeof nativeBridge.getCurrentPosition !== 'function') {
+            throw new Error('No pudimos acceder a la ubicacion del dispositivo.');
+        }
+        return nativeBridge.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+        });
+    }
+
+    async function resolveCaptureContext() {
+        if (validationMsg) {
+            validationMsg.textContent = 'Confirmando que estas a pie o detenida...';
+        }
+        const firstPosition = await getFreshCapturePosition();
+        let speedMps = extractPositionSpeed(firstPosition);
+        let motionState = classifyMotionState(speedMps);
+        let selectedPosition = firstPosition;
+        let sampledDistanceMeters = null;
+
+        if (!motionState) {
+            await wait(CAPTURE_MOTION_SAMPLE_MS);
+            const secondPosition = await getFreshCapturePosition();
+            const elapsedSeconds = Math.max(
+                CAPTURE_MOTION_SAMPLE_MS / 1000,
+                (extractPositionTimestamp(secondPosition) - extractPositionTimestamp(firstPosition)) / 1000
+            );
+            sampledDistanceMeters = haversineDistanceMeters(
+                Number(firstPosition.lat),
+                Number(firstPosition.lng),
+                Number(secondPosition.lat),
+                Number(secondPosition.lng)
+            );
+            speedMps = sampledDistanceMeters / Math.max(1, elapsedSeconds);
+            motionState = classifyMotionState(speedMps);
+            selectedPosition = secondPosition;
+        }
+
+        const captureContext = buildCaptureContext(selectedPosition, {
+            motionState: motionState || 'unknown',
+            sampleDistanceMeters: sampledDistanceMeters,
+            speedMps,
+        });
+
+        if (captureContext.motionState === 'blocked') {
+            throw new Error('Por seguridad, solo puedes reportar si estas detenida o caminando al tomar la foto.');
+        }
+        if (captureContext.lat == null || captureContext.lng == null) {
+            throw new Error('Necesitamos la ubicacion exacta de donde tomaste la foto.');
+        }
+
+        freezeIncidentLocationFromCapture(captureContext);
+        return captureContext;
+    }
+
     function initializeMap() {
         if (typeof L === 'undefined') {
             console.warn('Leaflet no está disponible. El mapa no se inicializará.');
@@ -742,9 +1349,9 @@
             maxZoom: 19
         }).addTo(map);
 
-        marker = L.marker([25.6866, -100.3161], { draggable: state.location.source !== 'manual' }).addTo(map);
+        marker = L.marker([25.6866, -100.3161], { draggable: isAdmin && state.location.source !== 'manual' }).addTo(map);
         marker.on('moveend', (event) => {
-            if (state.location.source === 'manual') {
+            if (state.location.source === 'manual' || (!isAdmin && state.location.source === 'capture')) {
                 event.target.setLatLng([state.location.lat || 25.6866, state.location.lng || -100.3161]);
                 return;
             }
@@ -753,20 +1360,90 @@
         });
 
         isMapInitialized = true;
-        if (state.location.source === 'manual' && marker.dragging && marker.dragging.disable) {
+        if ((!isAdmin || state.location.source === 'manual') && marker.dragging && marker.dragging.disable) {
             marker.dragging.disable();
         }
 
-        // Initialize location state with default marker position
-        const { lat, lng } = marker.getLatLng();
-        updateLocation({ lat, lng }, true);
+        // Initialize location state with default marker position only for admin or when capture already froze location.
+        if (isAdmin || state.captureContext) {
+            const { lat, lng } = marker.getLatLng();
+            updateLocation({ lat, lng }, true);
+        }
     }
 
-    function updateLocation({ lat, lng, address }, shouldReverse = false) {
+    async function captureWithNativeCamera() {
+        if (!isNativeMobile || !nativeBridge || typeof nativeBridge.capturePhoto !== 'function') {
+            return false;
+        }
+        setPhotoError('');
+        if (cameraStartBtn) {
+            cameraStartBtn.disabled = true;
+        }
+        try {
+            const preCaptureContext = await resolveCaptureContext();
+            const nativeCapture = await nativeBridge.capturePhoto({
+                filenamePrefix: 'captura',
+                quality: 92,
+            });
+            if (!nativeCapture || !nativeCapture.file) {
+                return false;
+            }
+            try {
+                const postCapturePosition = await getFreshCapturePosition();
+                const driftMeters = haversineDistanceMeters(
+                    Number(preCaptureContext.lat),
+                    Number(preCaptureContext.lng),
+                    Number(postCapturePosition.lat),
+                    Number(postCapturePosition.lng)
+                );
+                if (driftMeters > MAX_NATIVE_CAPTURE_DRIFT_METERS) {
+                    throw new Error('Nos movimos demasiado mientras tomabas la foto. Vuelve a intentarlo desde el punto exacto.');
+                }
+                freezeIncidentLocationFromCapture(buildCaptureContext(postCapturePosition, {
+                    motionState: preCaptureContext.motionState,
+                    speedMps: preCaptureContext.speedMps,
+                    sampleDistanceMeters: driftMeters,
+                    source: 'native',
+                }));
+            } catch (driftError) {
+                const msg = String(driftError?.message || '');
+                if (msg) {
+                    throw driftError;
+                }
+            }
+            handleFiles([nativeCapture.file], 'camera', {
+                facingMode: nativeCapture.facingMode || 'environment',
+                mirrorPreview: Boolean(nativeCapture.mirrorPreview),
+            });
+            return true;
+        } catch (error) {
+            const message = (error && error.message ? String(error.message) : '').toLowerCase();
+            if (message.includes('cancel')) {
+                return false;
+            }
+            setPhotoError(error?.message || 'No pudimos abrir la camara del dispositivo. Intentalo de nuevo.');
+            return false;
+        } finally {
+            if (validationMsg) {
+                validationMsg.textContent = '';
+            }
+            if (cameraStartBtn) {
+                cameraStartBtn.disabled = false;
+            }
+        }
+    }
+
+    function updateLocation({ lat, lng, address, city, country }, shouldReverse = false) {
         state.location.lat = lat;
         state.location.lng = lng;
         latInput.value = lat != null ? String(lat) : '';
         lngInput.value = lng != null ? String(lng) : '';
+        if (typeof city === 'string') {
+            state.location.city = city;
+        }
+        if (typeof country === 'string') {
+            state.location.country = country;
+        }
 
         if (marker && lat != null && lng != null) {
             marker.setLatLng([lat, lng]);
@@ -779,14 +1456,26 @@
             if (locationNameInput) {
                 locationNameInput.value = address;
             }
-            locationStatus.classList.add('pc-location-card__status--success');
-            locationStatus.classList.remove('pc-location-card__status--error');
-            locationStatusText.textContent = `Ubicación detectada: ${address}`;
+            if (locationStatus) {
+                locationStatus.classList.add('pc-location-card__status--success');
+                locationStatus.classList.remove('pc-location-card__status--error');
+            }
+            if (locationStatusText) {
+                locationStatusText.textContent = !isAdmin && state.location.source === 'capture'
+                    ? `Ubicación del reporte: ${address}`
+                    : `Ubicación detectada: ${address}`;
+            }
             renderLocationResultMessage('');
         } else if (shouldReverse && lat != null && lng != null) {
             reverseGeocode(lat, lng).then((result) => {
                 if (result) {
-                    updateLocation({ lat, lng, address: result.address }, false);
+                    updateLocation({
+                        lat,
+                        lng,
+                        address: result.address,
+                        city: result.city || '',
+                        country: result.country || ''
+                    }, false);
                 }
             });
         }
@@ -825,7 +1514,13 @@
                 button.setAttribute('role', 'option');
                 button.addEventListener('click', () => {
                     setLocationMode('person');
-                    updateLocation({ lat: item.lat, lng: item.lng, address: item.label }, false);
+                    updateLocation({
+                        lat: item.lat,
+                        lng: item.lng,
+                        address: item.label,
+                        city: item.city || '',
+                        country: item.country || ''
+                    }, false);
                     renderLocationResultMessage('');
                 });
                 if (locationResults) locationResults.appendChild(button);
@@ -837,45 +1532,43 @@
 
     function handleUseCurrentLocationToggle() {
         if (!useCurrentLocationToggle.checked) {
-            locationStatus.classList.remove('pc-location-card__status--error', 'pc-location-card__status--success');
-            locationStatusText.textContent = 'Ubicación pendiente';
+            if (locationStatus) {
+                locationStatus.classList.remove('pc-location-card__status--error', 'pc-location-card__status--success');
+            }
+            if (locationStatusText) {
+                locationStatusText.textContent = 'Ubicación pendiente';
+            }
             return;
         }
         fetchCurrentLocation();
     }
 
-    function fetchCurrentLocation() {
+    async function fetchCurrentLocation() {
         setLocationMode('person');
-        locationStatusText.textContent = 'Obteniendo ubicación actual...';
-        if (!navigator.geolocation) {
-            locationStatus.classList.add('pc-location-card__status--error');
-            locationStatusText.textContent = 'Geolocalización no soportada.';
-            if (useCurrentLocationToggle) useCurrentLocationToggle.checked = false;
-            return;
+        if (locationStatusText) {
+            locationStatusText.textContent = 'Obteniendo ubicación actual...';
         }
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
-                updateLocation({ lat: latitude, lng: longitude }, true);
-                if (useCurrentLocationToggle) useCurrentLocationToggle.checked = true;
-            },
-            (error) => {
-                console.warn('Geolocation error:', error);
+        try {
+            const position = await getFreshCapturePosition();
+
+            updateLocation({ lat: position.lat, lng: position.lng }, true);
+            if (useCurrentLocationToggle) useCurrentLocationToggle.checked = true;
+        } catch (error) {
+            console.warn('Geolocation error:', error);
+            if (locationStatus) {
                 locationStatus.classList.add('pc-location-card__status--error');
-                // Customize error message based on error code if needed
-                if (error.code === error.PERMISSION_DENIED) {
-                    locationStatusText.textContent = 'Permiso de ubicación denegado. Es necesario para publicar.';
-                } else {
-                    locationStatusText.textContent = 'No pudimos obtener tu ubicación. Inténtalo de nuevo.';
-                }
-                if (useCurrentLocationToggle) useCurrentLocationToggle.checked = false;
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 5 * 60 * 1000
             }
-        );
+            if (error && Number(error.code) === 1) {
+                if (locationStatusText) {
+                    locationStatusText.textContent = 'Permiso de ubicacion denegado. Es necesario para publicar.';
+                }
+            } else {
+                if (locationStatusText) {
+                    locationStatusText.textContent = 'No pudimos obtener tu ubicacion. Intentalo de nuevo.';
+                }
+            }
+            if (useCurrentLocationToggle) useCurrentLocationToggle.checked = false;
+        }
     }
 
     function handleHideLocationToggle() {
@@ -893,28 +1586,46 @@
     }
 
     function geocode(query) {
-        // TODO: Reemplazar con llamada real a un servicio de geocodificación.
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                const sample = [
-                    { label: `${query} · Centro, Monterrey`, lat: 25.6741, lng: -100.309 },
-                    { label: `${query} · San Pedro Garza García`, lat: 25.657, lng: -100.402 },
-                    { label: `${query} · Guadalupe`, lat: 25.672, lng: -100.245 }
-                ];
-                resolve(sample);
-            }, 600);
-        });
+        const trimmed = String(query || '').trim();
+        if (!trimmed) {
+            return Promise.resolve([]);
+        }
+        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=mx&accept-language=es&bounded=1&viewbox=${metroBbox}&q=${encodeURIComponent(trimmed)}&limit=8`;
+        return fetch(url, { headers: { Accept: 'application/json' } })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('No se pudo consultar la ubicacion.');
+                }
+                return response.json();
+            })
+            .then((list) => {
+                return (list || [])
+                    .filter((item) => isAllowedMetroAddress(item.address || {}))
+                    .map((item) => ({
+                        label: item.display_name,
+                        lat: parseFloat(item.lat),
+                        lng: parseFloat(item.lon),
+                        city: getLocationCity(item.address || {}),
+                        country: item.address?.country || ''
+                    }));
+            });
     }
 
     function reverseGeocode(lat, lng) {
-        // TODO: Reemplazar con llamada real a un servicio de reverse geocoding.
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                resolve({
-                    address: `Coordenadas ${lat.toFixed(4)}, ${lng.toFixed(4)}`
-                });
-            }, 500);
-        });
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&accept-language=es&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=18`;
+        return fetch(url, { headers: { Accept: 'application/json' } })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('No se pudo resolver la direccion.');
+                }
+                return response.json();
+            })
+            .then((result) => ({
+                address: result.display_name || `Coordenadas ${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`,
+                city: getLocationCity(result.address || {}),
+                country: result.address?.country || ''
+            }))
+            .catch(() => null);
     }
 
     function setPhotoMode(mode) {
@@ -932,14 +1643,21 @@
         if (nextMode !== 'camera') {
             stopCameraStream();
         }
+        syncPhotoStageVisibility();
         photoModeButtons.forEach(btn => {
             const isActive = btn.dataset.mode === nextMode;
             btn.classList.toggle('is-active', isActive);
             btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
         });
+        updateMobileCameraGuide();
+        renderCaptureStatus();
     }
 
     function startCameraStream() {
+        if (isNativeMobile) {
+            captureWithNativeCamera();
+            return;
+        }
         if (!cameraVideo) return;
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             setPhotoError('Tu navegador no permite usar la cámara.');
@@ -949,12 +1667,22 @@
         navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
             .then((stream) => {
                 cameraStream = stream;
+                activeCameraFacingMode = getStreamFacingMode(stream) || 'environment';
+                syncLiveCameraMirror();
                 cameraVideo.srcObject = stream;
                 cameraVideo.play().catch(() => {});
                 if (cameraPlaceholder) cameraPlaceholder.hidden = true;
-                if (cameraCaptureBtn) cameraCaptureBtn.disabled = false;
+                if (cameraCaptureBtn) {
+                    cameraCaptureBtn.hidden = false;
+                    cameraCaptureBtn.disabled = false;
+                }
+                if (cameraRetakeBtn) {
+                    cameraRetakeBtn.hidden = true;
+                }
             })
             .catch(() => {
+                activeCameraFacingMode = 'environment';
+                syncLiveCameraMirror();
                 setPhotoError('No pudimos acceder a la cámara. Permite el acceso e inténtalo de nuevo.');
             });
     }
@@ -967,39 +1695,79 @@
         if (cameraVideo) {
             cameraVideo.srcObject = null;
         }
-        if (cameraCaptureBtn) cameraCaptureBtn.disabled = true;
+        activeCameraFacingMode = 'environment';
+        syncLiveCameraMirror();
+        if (cameraCaptureBtn) {
+            cameraCaptureBtn.disabled = true;
+            cameraCaptureBtn.hidden = true;
+        }
         if (cameraPlaceholder) cameraPlaceholder.hidden = false;
     }
 
     function captureFromCamera() {
+        if (isNativeMobile) {
+            captureWithNativeCamera();
+            return;
+        }
         if (!cameraVideo || !cameraCanvas) return;
         if (!cameraStream) {
             startCameraStream();
             return;
         }
-        const width = cameraVideo.videoWidth || 1280;
-        const height = cameraVideo.videoHeight || 720;
-        const ctx = cameraCanvas.getContext('2d');
-        cameraCanvas.width = width;
-        cameraCanvas.height = height;
-        ctx.drawImage(cameraVideo, 0, 0, width, height);
-        cameraCanvas.toBlob((blob) => {
-            if (!blob) {
-                setPhotoError('No se pudo capturar la foto.');
-                return;
-            }
-            const file = new File([blob], `captura-${Date.now()}.jpg`, { type: 'image/jpeg' });
-            handleFiles([file]);
-            stopCameraStream();
-            if (cameraRetakeBtn) cameraRetakeBtn.hidden = true;
-        }, 'image/jpeg', 0.92);
+        if (cameraCaptureBtn) {
+            cameraCaptureBtn.disabled = true;
+        }
+        resolveCaptureContext()
+            .then(() => {
+                const width = cameraVideo.videoWidth || 1280;
+                const height = cameraVideo.videoHeight || 720;
+                const ctx = cameraCanvas.getContext('2d');
+                const shouldMirrorCapture = isFrontFacingMode(activeCameraFacingMode);
+                cameraCanvas.width = width;
+                cameraCanvas.height = height;
+                ctx.save();
+                if (shouldMirrorCapture) {
+                    ctx.translate(width, 0);
+                    ctx.scale(-1, 1);
+                }
+                ctx.drawImage(cameraVideo, 0, 0, width, height);
+                ctx.restore();
+                cameraCanvas.toBlob((blob) => {
+                    if (!blob) {
+                        setPhotoError('No se pudo capturar la foto.');
+                        if (cameraCaptureBtn) cameraCaptureBtn.disabled = false;
+                        return;
+                    }
+                    const file = new File([blob], `captura-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                    handleFiles([file], 'camera', {
+                        facingMode: activeCameraFacingMode,
+                        mirrorPreview: false,
+                    });
+                    stopCameraStream();
+                    if (cameraRetakeBtn) cameraRetakeBtn.hidden = true;
+                    if (validationMsg) {
+                        validationMsg.textContent = '';
+                    }
+                }, 'image/jpeg', 0.92);
+            })
+            .catch((error) => {
+                setPhotoError(error?.message || 'No pudimos confirmar tu ubicacion al tomar la foto.');
+                if (validationMsg) {
+                    validationMsg.textContent = '';
+                }
+                if (cameraCaptureBtn) {
+                    cameraCaptureBtn.disabled = false;
+                }
+            });
     }
 
 
 
     function onCaptionInput() {
         const value = captionInput.value || '';
-        captionCounter.textContent = `${value.length} / 500`;
+        if (captionCounter) {
+            captionCounter.textContent = `${value.length} / 500`;
+        }
         state.caption = value.trim();
         renderPreviewCard();
         updateFooterState();
@@ -1028,24 +1796,31 @@
                 if (currentPhotoMode !== 'upload') return;
                 event.preventDefault();
                 dropzone.classList.remove('is-dragover');
-                handleFiles(event.dataTransfer.files);
+                handleFiles(event.dataTransfer.files, 'upload');
             });
         }
         if (changePhotoBtn) {
             changePhotoBtn.addEventListener('click', () => {
-                if (currentPhotoMode === 'camera' || !isAdmin) {
-                    setPhotoMode('camera');
-                    if (cameraPanel) cameraPanel.hidden = false;
-                    startCameraStream();
-                    return;
+                const shouldResetCaptureLocation = !isAdmin || state.location.source === 'capture' || !!state.captureContext;
+
+                clearSelectedPhoto({ resetCaptureLocation: shouldResetCaptureLocation });
+                if (previewCard) {
+                    previewCard.hidden = true;
                 }
-                if (fileInput) fileInput.click();
+                clearImageSource(previewImg);
+                if (fileInput) {
+                    fileInput.value = '';
+                }
+                setPhotoMode('camera');
+                updateMobileCameraGuide();
+                updateFooterState();
+                startCameraStream();
             });
         }
         if (fileInput) {
             fileInput.addEventListener('change', (event) => {
                 if (currentPhotoMode !== 'upload') return;
-                handleFiles(event.target.files);
+                handleFiles(event.target.files, 'upload');
             });
         }
 
@@ -1073,93 +1848,12 @@
             });
         }
 
-        if (cropperModalEl && window.bootstrap) {
-            cropperModal = new bootstrap.Modal(cropperModalEl, {
-                backdrop: false,
-                focus: false,
-                keyboard: true
-            });
-            cropperModalEl.addEventListener('shown.bs.modal', () => {
-                if (!cropperImage || typeof Cropper === 'undefined') return;
-                if (cropperInstance) cropperInstance.destroy();
-                cropperInstance = new Cropper(cropperImage, {
-                    aspectRatio: 1,
-                    viewMode: 1,
-                    dragMode: 'crop',
-                    autoCropArea: 1,
-                    restore: false,
-                    guides: true,
-                    center: true,
-                    highlight: true,
-                    cropBoxMovable: true,
-                    cropBoxResizable: true,
-                    zoomable: true,
-                    zoomOnWheel: true,
-                    zoomOnTouch: true,
-                    toggleDragModeOnDblclick: false
-                });
-            });
-            cropperModalEl.addEventListener('hidden.bs.modal', () => {
-                if (cropperInstance) {
-                    cropperInstance.destroy();
-                    cropperInstance = null;
-                }
-                if (pendingCropUrl) {
-                    URL.revokeObjectURL(pendingCropUrl);
-                    pendingCropUrl = null;
-                }
-                pendingCropFile = null;
-                if (fileInput) fileInput.value = '';
-                if (document.querySelector('.pc-modal.is-open')) {
-                    document.body.classList.add('modal-open');
-                }
-            });
-        }
-
-        if (cropperApplyBtn) {
-            cropperApplyBtn.addEventListener('click', () => {
-                if (!cropperInstance || !pendingCropFile) return;
-                const outputType = pendingCropFile.type === 'image/png' ? 'image/png' : 'image/jpeg';
-                const canvas = cropperInstance.getCroppedCanvas({
-                    width: 1080,
-                    height: 1080,
-                    fillColor: '#000'
-                });
-                if (!canvas) {
-                    setPhotoError('No se pudo procesar la imagen.');
-                    return;
-                }
-                const quality = outputType === 'image/jpeg' ? 0.92 : undefined;
-                canvas.toBlob((blob) => {
-                    if (!blob) {
-                        setPhotoError('No se pudo recortar la imagen.');
-                        return;
-                    }
-                    const croppedFile = new File([blob], pendingCropFile.name || `foto-${Date.now()}.jpg`, { type: outputType });
-                    commitFile(croppedFile);
-                    cropperModal.hide();
-                }, outputType, quality);
-            });
-        }
-
-        if (cropperChooseBtn) {
-            cropperChooseBtn.addEventListener('click', () => {
-                if (cropperModal) cropperModal.hide();
-                if (!isAdmin || currentPhotoMode === 'camera') {
-                    setPhotoMode('camera');
-                    startCameraStream();
-                    return;
-                }
-                if (fileInput) fileInput.click();
-            });
-        }
-
         captionInput.addEventListener('input', onCaptionInput);
 
         // Category checkboxes
         document.querySelectorAll('input[name="categories"]').forEach(checkbox => {
             checkbox.addEventListener('change', () => {
-                const container = checkbox.closest('.pc-category-checkbox');
+                const container = checkbox.closest('.pc-category-option') || checkbox.closest('.pc-category-item');
                 if (container) {
                     container.classList.toggle('selected', checkbox.checked);
                 }
@@ -1218,6 +1912,7 @@
     }
 
     bindEvents();
+    applyNativeMobilePhotoUI();
     updateStepUI();
     setLocationMode(state.location.source);
     setPhotoMode(isAdmin ? 'upload' : 'camera');

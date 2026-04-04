@@ -1,0 +1,56 @@
+<section class="admin-overview-grid">
+    <div class="admin-overview-left">
+        <article class="admin-welcome-card">
+            <h2>Hola, Admin</h2>
+            <p>Resumen de actividad en tiempo real.</p>
+            <a href="{{ url_for('index') }}" class="admin-welcome-link"><i class="fas fa-arrow-left"></i> Volver al inicio</a>
+        </article>
+
+        <div class="admin-kpi-grid">
+            <article class="admin-kpi-card">
+                <div class="admin-kpi-value">{{ total_users_count }}</div>
+                <div class="admin-kpi-label">Usuarias totales</div>
+                <div class="admin-kpi-icon"><i class="fas fa-users"></i></div>
+            </article>
+            <article class="admin-kpi-card">
+                <div class="admin-kpi-value">{{ total_posts_count }}</div>
+                <div class="admin-kpi-label">Posts</div>
+                <div class="admin-kpi-icon is-green"><i class="fas fa-images"></i></div>
+            </article>
+            <article class="admin-kpi-card">
+                <div class="admin-kpi-value">{{ total_likes }}</div>
+                <div class="admin-kpi-label">Likes</div>
+                <div class="admin-kpi-icon is-pink"><i class="fas fa-heart"></i></div>
+            </article>
+            <article class="admin-kpi-card">
+                <div class="admin-kpi-value">{{ total_comments }}</div>
+                <div class="admin-kpi-label">Comentarios</div>
+                <div class="admin-kpi-icon is-blue"><i class="fas fa-comments"></i></div>
+            </article>
+        </div>
+    </div>
+
+    <article class="admin-activity-card">
+        <div class="admin-activity-card__head">
+            <div>
+                <h3>Actividad de la Plataforma</h3>
+                <p id="adminActivitySubtitle">Publicaciones por categoría (últimos 7 días)</p>
+            </div>
+            <select class="admin-range-select" id="adminReportsRangeSelect" aria-label="Rango de tiempo">
+                <option value="7" selected>Últimos 7 días</option>
+                <option value="15">Últimos 15 días</option>
+                <option value="30">Últimos 30 días</option>
+            </select>
+        </div>
+        <div class="admin-activity-chart-wrap" id="adminActivityChartWrap">
+            <svg class="admin-activity-chart" id="adminActivityChart" viewBox="0 0 720 300" preserveAspectRatio="none">
+                <g id="adminActivityGrid"></g>
+                <g id="adminActivitySeries"></g>
+                <g id="adminActivityDots"></g>
+            </svg>
+            <div class="admin-activity-xlabels" id="adminActivityXLabels"></div>
+        </div>
+        <div class="admin-activity-legend" id="adminActivityLegend"></div>
+        <div class="admin-activity-updated" id="adminActivityUpdatedAt"></div>
+    </article>
+</section>

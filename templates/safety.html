@@ -1,2585 +1,550 @@
-{% extends 'base.html' %}
-
-{% block styles %}
-<style>
-  .tactical-safety-page {
-    padding: 0.9rem 0.65rem 5.5rem;
-    color: #eef2ff;
-  }
-
-  .tactical-command-header {
-    border-radius: 18px;
-    border: 1px solid rgba(139, 92, 246, 0.34);
-    background: linear-gradient(130deg, rgba(4, 5, 14, 0.96), rgba(18, 13, 40, 0.9) 52%, rgba(83, 38, 167, 0.38));
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.36), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-    padding: 1.1rem 1.2rem;
-    margin-bottom: 0.95rem;
-  }
-
-  .tactical-live-indicator {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    border: 1px solid rgba(16, 185, 129, 0.4);
-    border-radius: 999px;
-    padding: 0.22rem 0.65rem;
-    font-size: 0.78rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: #38f6b6;
-    background: rgba(6, 26, 19, 0.55);
-  }
-
-  .tactical-live-indicator::before {
-    content: '';
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #12f0a9;
-    box-shadow: 0 0 12px rgba(18, 240, 169, 0.9);
-  }
-
-  .tactical-header-title {
-    margin: 0.38rem 0 0.2rem;
-    font-size: clamp(1.55rem, 2.7vw, 2.35rem);
-    line-height: 1.08;
-    font-weight: 900;
-    color: #f8fafc;
-  }
-
-  .tactical-header-sub {
-    color: rgba(226, 232, 240, 0.72);
-    margin: 0;
-    font-size: 0.98rem;
-  }
-
-  .tactical-header-tools {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    gap: 0.6rem;
-  }
-
-  .tactical-sync-box {
-    min-width: 132px;
-    border-radius: 12px;
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    background: rgba(7, 8, 19, 0.5);
-    padding: 0.46rem 0.7rem;
-    text-align: right;
-  }
-
-  .tactical-sync-label {
-    font-size: 0.66rem;
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
-    color: rgba(148, 163, 184, 0.7);
-  }
-
-  .tactical-sync-time {
-    display: block;
-    margin-top: 0.12rem;
-    font-size: 1.53rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    color: #e5e7eb;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .tactical-header-btn {
-    border: 1px solid rgba(148, 163, 184, 0.28);
-    background: rgba(15, 23, 42, 0.56);
-    color: #dbeafe;
-    border-radius: 12px;
-    padding: 0.62rem 1rem;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    font-size: 0.8rem;
-  }
-
-  .tactical-header-btn:hover {
-    border-color: rgba(167, 139, 250, 0.58);
-    color: #f8fafc;
-    background: rgba(30, 41, 59, 0.72);
-  }
-
-  .tactical-header-btn--primary {
-    border-color: rgba(139, 92, 246, 0.72);
-    background: linear-gradient(120deg, #7c3aed, #8b5cf6);
-    color: #fff;
-    box-shadow: 0 10px 22px rgba(124, 58, 237, 0.32);
-  }
-
-  .tactical-header-btn--primary:hover {
-    background: linear-gradient(120deg, #8b5cf6, #9333ea);
-    color: #fff;
-  }
-
-  .tactical-main-grid {
-    display: grid;
-    grid-template-columns: minmax(310px, 360px) minmax(0, 1fr);
-    gap: 0.95rem;
-    align-items: stretch;
-  }
-
-  .tactical-left-col,
-  .tactical-map-col {
-    min-height: 0;
-  }
-
-  .tactical-left-col {
-    display: flex;
-    flex-direction: column;
-    gap: 0.95rem;
-  }
-
-  .tactical-metric-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.55rem;
-  }
-
-  .tactical-metric-card {
-    border-radius: 12px;
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    background: linear-gradient(160deg, rgba(8, 12, 25, 0.92), rgba(11, 10, 29, 0.82));
-    padding: 0.65rem 0.72rem;
-  }
-
-  .tactical-metric-label {
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: rgba(148, 163, 184, 0.8);
-  }
-
-  .tactical-metric-value {
-    margin-top: 0.22rem;
-    font-size: 2rem;
-    line-height: 1;
-    font-weight: 900;
-    letter-spacing: 0.02em;
-    color: #f8fafc;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .tactical-metric-value span,
-  .tactical-metric-value small {
-    font-size: 0.96rem;
-    font-weight: 700;
-    color: rgba(203, 213, 225, 0.84);
-  }
-
-  .tactical-metric-foot {
-    margin-top: 0.2rem;
-    font-size: 0.76rem;
-    color: rgba(148, 163, 184, 0.82);
-  }
-
-  .tactical-side-card {
-    border-radius: 16px;
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    background: linear-gradient(180deg, rgba(7, 10, 20, 0.96), rgba(6, 8, 17, 0.9));
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
-    overflow: hidden;
-  }
-
-  .tactical-side-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.55rem;
-    padding: 0.9rem 1rem 0.8rem;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.14);
-  }
-
-  .tactical-side-title {
-    margin: 0;
-    font-size: 1.15rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    font-weight: 900;
-    color: #f8fafc;
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-  }
-
-  .tactical-side-title i {
-    color: #8b5cf6;
-  }
-
-  .tactical-head-action {
-    border: 1px solid rgba(148, 163, 184, 0.26);
-    border-radius: 10px;
-    background: rgba(30, 41, 59, 0.34);
-    color: #c4b5fd;
-    font-weight: 800;
-    font-size: 0.8rem;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    padding: 0.36rem 0.52rem;
-  }
-
-  .tactical-head-action:hover {
-    border-color: rgba(139, 92, 246, 0.6);
-    color: #f5f3ff;
-  }
-
-  .tactical-contact-form {
-    padding: 0.85rem 1rem 0.25rem;
-    display: grid;
-    gap: 0.45rem;
-  }
-
-  .tactical-input {
-    border: 1px solid rgba(148, 163, 184, 0.25) !important;
-    background: rgba(15, 23, 42, 0.42) !important;
-    color: #f8fafc !important;
-    border-radius: 10px !important;
-    box-shadow: none !important;
-  }
-
-  .tactical-input::placeholder {
-    color: rgba(148, 163, 184, 0.75);
-  }
-
-  .tactical-input:focus {
-    border-color: rgba(139, 92, 246, 0.6) !important;
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2) !important;
-  }
-
-  .tactical-add-btn {
-    border: 1px solid rgba(139, 92, 246, 0.52);
-    border-radius: 10px;
-    background: linear-gradient(120deg, #7c3aed, #8b5cf6);
-    color: #fff;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-size: 0.76rem;
-    padding: 0.5rem 0.7rem;
-  }
-
-  .tactical-add-btn:hover {
-    background: linear-gradient(120deg, #8b5cf6, #9333ea);
-    color: #fff;
-  }
-
-  .tactical-contact-list {
-    padding: 0.6rem 1rem 0.95rem;
-    display: grid;
-    gap: 0.55rem;
-  }
-
-  .tactical-contact-item {
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    border-radius: 12px;
-    background: rgba(15, 23, 42, 0.42);
-    padding: 0.65rem 0.7rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.65rem;
-  }
-
-  .tactical-contact-main {
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.58rem;
-    flex: 1;
-  }
-
-  .tactical-contact-avatar {
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(140deg, #312e81, #8b5cf6);
-    color: #fff;
-    font-size: 0.75rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    flex: 0 0 34px;
-  }
-
-  .tactical-contact-name {
-    margin: 0;
-    color: #f8fafc;
-    font-size: 0.93rem;
-    font-weight: 700;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .tactical-contact-meta {
-    margin: 0;
-    color: rgba(148, 163, 184, 0.86);
-    font-size: 0.75rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .tactical-contact-actions {
-    display: flex;
-    gap: 0.35rem;
-    flex-wrap: wrap;
-  }
-
-  .tactical-contact-btn {
-    border-radius: 8px;
-    border: 1px solid rgba(148, 163, 184, 0.28);
-    background: rgba(15, 23, 42, 0.5);
-    color: #e2e8f0;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-    padding: 0.3rem 0.45rem;
-  }
-
-  .tactical-contact-btn:hover {
-    border-color: rgba(139, 92, 246, 0.65);
-    color: #fff;
-  }
-
-  .tactical-contact-btn--danger:hover {
-    border-color: rgba(239, 68, 68, 0.7);
-    color: #fecaca;
-  }
-
-  .tactical-history-wrap {
-    padding: 0.8rem 1rem 0.95rem;
-    max-height: min(50vh, 520px);
-    overflow: auto;
-  }
-
-  .tactical-history-wrap::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .tactical-history-wrap::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.26);
-    border-radius: 999px;
-  }
-
-  .tactical-trip-accordion .accordion-item {
-    background: rgba(15, 23, 42, 0.4) !important;
-    border: 1px solid rgba(148, 163, 184, 0.2) !important;
-    border-radius: 12px !important;
-    margin-bottom: 0.55rem;
-    overflow: hidden;
-  }
-
-  .tactical-trip-accordion .accordion-button {
-    background: transparent !important;
-    color: #f8fafc !important;
-    box-shadow: none !important;
-    padding: 0.72rem 0.78rem !important;
-  }
-
-  .tactical-trip-head {
-    width: 100%;
-    display: grid;
-    grid-template-columns: 42px minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 0.62rem;
-  }
-
-  .tactical-trip-mini-line {
-    width: 42px;
-    height: 42px;
-    border-radius: 8px;
-    border: 1px solid rgba(139, 92, 246, 0.35);
-    background:
-      radial-gradient(circle at 20% 25%, rgba(167, 139, 250, 0.9), rgba(167, 139, 250, 0.12) 50%, rgba(0, 0, 0, 0) 55%),
-      linear-gradient(135deg, rgba(76, 29, 149, 0.4), rgba(30, 41, 59, 0.2));
-    position: relative;
-    overflow: hidden;
-  }
-
-  .tactical-trip-mini-line::after {
-    content: '';
-    position: absolute;
-    inset: 9px;
-    border-radius: 8px;
-    border-left: 2px solid rgba(139, 92, 246, 0.88);
-    transform: rotate(40deg) translateX(5px);
-    transform-origin: center;
-  }
-
-  .tactical-trip-title {
-    color: #f8fafc;
-    font-size: 0.95rem;
-    font-weight: 800;
-    line-height: 1.1;
-    text-transform: none;
-  }
-
-  .tactical-trip-time {
-    color: rgba(148, 163, 184, 0.84);
-    font-size: 0.72rem;
-    margin-top: 0.14rem;
-  }
-
-  .tactical-trip-destination {
-    color: rgba(148, 163, 184, 0.92);
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    border-radius: 999px;
-    padding: 0.18rem 0.48rem;
-    font-size: 0.68rem;
-    max-width: 150px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .tactical-trip-body {
-    padding: 0.65rem;
-  }
-
-  .tactical-trip-stats {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.45rem;
-    margin-bottom: 0.65rem;
-  }
-
-  .tactical-trip-stat {
-    border-radius: 10px;
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    background: rgba(15, 23, 42, 0.35);
-    padding: 0.42rem 0.5rem;
-  }
-
-  .tactical-trip-stat .label {
-    color: rgba(148, 163, 184, 0.85);
-    font-size: 0.67rem;
-  }
-
-  .tactical-trip-stat .value {
-    color: #f8fafc;
-    font-size: 0.86rem;
-    font-weight: 700;
-  }
-
-  .tactical-trip-map {
-    height: 170px;
-    border-radius: 12px;
-  }
-
-  .tactical-map-col {
-    border-radius: 18px;
-    border: 1px solid rgba(148, 163, 184, 0.25);
-    background: linear-gradient(180deg, rgba(5, 8, 16, 0.98), rgba(3, 5, 12, 0.95));
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
-    padding: 0.7rem;
-    min-height: min(81vh, 860px);
-    display: flex;
-    flex-direction: column;
-    gap: 0.55rem;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .tactical-map-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.55rem;
-    flex-wrap: wrap;
-  }
-
-  .tactical-map-live {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    border-radius: 10px;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    background: rgba(15, 23, 42, 0.56);
-    padding: 0.36rem 0.58rem;
-    color: #f8fafc;
-    font-size: 0.74rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    font-weight: 700;
-  }
-
-  .tactical-map-live::before {
-    content: '';
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #fb7185;
-    box-shadow: 0 0 10px rgba(251, 113, 133, 0.75);
-  }
-
-  .tactical-map-actions {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .tactical-map-icon-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    border: 1px solid rgba(148, 163, 184, 0.36);
-    background: rgba(15, 23, 42, 0.63);
-    color: rgba(226, 232, 240, 0.9);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.88rem;
-  }
-
-  .tactical-map-icon-btn:hover {
-    color: #fff;
-    border-color: rgba(139, 92, 246, 0.66);
-  }
-
-  .tactical-map-stage {
-    position: relative;
-    flex: 1;
-    min-height: 420px;
-    border-radius: 16px;
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    overflow: hidden;
-    background: #02040b;
-  }
-
-  .tactical-map-wrap,
-  .tactical-map-placeholder {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-  }
-
-  .tactical-main-map {
-    width: 100%;
-    height: 100%;
-    border-radius: 0;
-    border: 0;
-    background: #03050f;
-  }
-
-  .tactical-map-placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 1rem;
-    color: rgba(226, 232, 240, 0.82);
-    background:
-      radial-gradient(circle at 85% 20%, rgba(139, 92, 246, 0.25), rgba(0, 0, 0, 0) 35%),
-      linear-gradient(180deg, rgba(6, 10, 22, 0.95), rgba(2, 4, 9, 0.96));
-    border-radius: 0;
-  }
-
-  .tactical-map-grid-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    pointer-events: none;
-    background:
-      repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.10) 0px, rgba(148, 163, 184, 0.10) 1px, transparent 1px, transparent 76px),
-      repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.10) 0px, rgba(148, 163, 184, 0.10) 1px, transparent 1px, transparent 76px),
-      linear-gradient(180deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.3));
-    mix-blend-mode: screen;
-    opacity: 0.38;
-  }
-
-  .tactical-bottom-controls {
-    position: absolute;
-    left: 14px;
-    right: 14px;
-    bottom: 14px;
-    z-index: 3;
-    border-radius: 14px;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    background: rgba(2, 6, 23, 0.88);
-    backdrop-filter: blur(8px);
-    padding: 0.52rem;
-    display: grid;
-    grid-template-columns: minmax(84px, 120px) minmax(0, 1fr) auto;
-    gap: 0.5rem;
-    align-items: center;
-  }
-
-  .tactical-eta {
-    min-height: 48px;
-    border-radius: 11px;
-    border: 1px solid rgba(148, 163, 184, 0.24);
-    background: rgba(15, 23, 42, 0.62);
-    padding: 0.34rem 0.5rem;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.08rem;
-  }
-
-  .tactical-eta-label {
-    font-size: 0.62rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: rgba(148, 163, 184, 0.8);
-  }
-
-  .tactical-eta-value,
-  .tactical-eta select {
-    color: #f8fafc;
-    font-weight: 900;
-    letter-spacing: 0.04em;
-    font-size: 1.2rem;
-    line-height: 1;
-    border: 0;
-    background: transparent;
-    padding: 0;
-    box-shadow: none;
-    outline: none;
-  }
-
-  .tactical-eta select option {
-    background: #111827;
-    color: #f8fafc;
-    font-size: 0.9rem;
-  }
-
-  .tactical-destination-input {
-    min-height: 48px;
-    border-radius: 11px;
-    border: 1px solid rgba(148, 163, 184, 0.24);
-    background: rgba(15, 23, 42, 0.62);
-    color: #f8fafc;
-    padding: 0.55rem 0.75rem;
-    font-size: 0.9rem;
-    font-weight: 700;
-    box-shadow: none;
-  }
-
-  .tactical-destination-input::placeholder {
-    color: rgba(148, 163, 184, 0.7);
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    font-size: 0.78rem;
-  }
-
-  .tactical-route-action {
-    min-height: 48px;
-    border-radius: 11px;
-    border: 1px solid rgba(139, 92, 246, 0.75);
-    background: linear-gradient(120deg, #7c3aed, #8b5cf6);
-    color: #fff;
-    font-weight: 900;
-    font-size: 0.9rem;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    padding: 0.5rem 0.95rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.4rem;
-    box-shadow: 0 12px 28px rgba(124, 58, 237, 0.38);
-    white-space: nowrap;
-  }
-
-  .tactical-route-action:hover {
-    background: linear-gradient(120deg, #8b5cf6, #9333ea);
-    color: #fff;
-  }
-
-  .tactical-active-actions {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .tactical-active-actions .btn {
-    min-height: 46px;
-    border-radius: 11px;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    padding: 0.5rem 0.75rem;
-  }
-
-  .tactical-status-bar {
-    margin-top: 0.1rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem 0.75rem;
-    justify-content: space-between;
-    align-items: center;
-    color: rgba(148, 163, 184, 0.92);
-    font-size: 0.78rem;
-  }
-
-  .tactical-segments-box {
-    border-radius: 14px;
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    background: rgba(3, 7, 18, 0.85);
-    padding: 0.62rem;
-  }
-
-  .tactical-segments-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.6rem;
-    margin-bottom: 0.45rem;
-    color: #cbd5e1;
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-  }
-
-  .tactical-segments-head a {
-    color: #8b5cf6;
-    text-decoration: none;
-    font-weight: 800;
-    letter-spacing: 0.09em;
-    font-size: 0.72rem;
-  }
-
-  .tactical-segments-head a:hover {
-    color: #c4b5fd;
-  }
-
-  .tactical-segments-list {
-    max-height: 130px;
-    overflow: auto;
-    display: grid;
-    gap: 0.36rem;
-  }
-
-  .tactical-segments-list::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .tactical-segments-list::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.24);
-    border-radius: 999px;
-  }
-
-  .tactical-admin-panel {
-    margin-top: 0.6rem;
-  }
-
-  .tactical-admin-panel .admin-sim-controls {
-    background: rgba(15, 23, 42, 0.62);
-    border: 1px solid rgba(148, 163, 184, 0.24);
-    border-radius: 12px;
-    padding: 0.58rem;
-  }
-
-  .tactical-admin-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.42rem;
-  }
-
-  .tactical-empty-msg {
-    padding: 1rem;
-    color: rgba(148, 163, 184, 0.86);
-    font-size: 0.84rem;
-  }
-
-  /* App-theme alignment: remove metallic/cyber look, keep Violeta style */
-  .tactical-safety-page {
-    color: var(--text-main);
-  }
-
-  .tactical-command-header {
-    border-color: rgba(124, 58, 237, 0.28);
-    background: linear-gradient(120deg, rgba(34, 27, 59, 0.96), rgba(27, 22, 47, 0.96) 60%, rgba(124, 58, 237, 0.22));
-    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
-  }
-
-  .tactical-live-indicator {
-    border-color: rgba(34, 197, 94, 0.32);
-    color: #6ee7b7;
-    background: rgba(6, 78, 59, 0.22);
-    letter-spacing: 0.08em;
-  }
-
-  .tactical-live-indicator::before {
-    background: #10b981;
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
-  }
-
-  .tactical-header-sub,
-  .tactical-sync-label,
-  .tactical-metric-label,
-  .tactical-metric-foot,
-  .tactical-trip-time,
-  .tactical-contact-meta,
-  .tactical-status-bar {
-    color: var(--text-secondary);
-  }
-
-  .tactical-header-btn {
-    border-color: var(--border-color);
-    background: rgba(255, 255, 255, 0.03);
-    color: var(--text-main);
-    letter-spacing: 0.02em;
-    text-transform: none;
-  }
-
-  .tactical-header-btn:hover {
-    border-color: rgba(124, 58, 237, 0.55);
-    background: rgba(124, 58, 237, 0.12);
-  }
-
-  .tactical-header-btn--primary {
-    border-color: rgba(124, 58, 237, 0.65);
-    background: linear-gradient(120deg, var(--primary-color), var(--primary-dark));
-    box-shadow: 0 10px 20px rgba(124, 58, 237, 0.28);
-  }
-
-  .tactical-sync-box,
-  .tactical-metric-card,
-  .tactical-side-card,
-  .tactical-map-col,
-  .tactical-map-stage,
-  .tactical-segments-box,
-  .tactical-trip-stat,
-  .tactical-contact-item,
-  .tactical-bottom-controls,
-  .tactical-eta,
-  .tactical-destination-input,
-  .tactical-map-icon-btn,
-  .tactical-map-live,
-  .tactical-head-action {
-    border-color: var(--border-color);
-    background: var(--bg-surface);
-    box-shadow: none;
-  }
-
-  .tactical-metric-value,
-  .tactical-trip-title,
-  .tactical-contact-name,
-  .tactical-side-title,
-  .tactical-header-title {
-    color: var(--text-main);
-  }
-
-  .tactical-side-title,
-  .tactical-segments-head,
-  .tactical-map-live,
-  .tactical-metric-label,
-  .tactical-eta-label,
-  .tactical-destination-input::placeholder {
-    letter-spacing: 0.06em;
-  }
-
-  .tactical-side-title,
-  .tactical-segments-head,
-  .tactical-map-live {
-    text-transform: none;
-  }
-
-  .tactical-side-title i,
-  .tactical-segments-head a,
-  .tactical-map-icon-btn:hover,
-  .tactical-head-action,
-  .tactical-head-action:hover {
-    color: var(--primary-light, #a78bfa);
-  }
-
-  .tactical-head-action {
-    text-transform: none;
-    letter-spacing: 0.02em;
-  }
-
-  .tactical-input {
-    border-color: var(--border-color) !important;
-    background: rgba(255, 255, 255, 0.02) !important;
-    color: var(--text-main) !important;
-  }
-
-  .tactical-input:focus {
-    border-color: rgba(124, 58, 237, 0.55) !important;
-    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.18) !important;
-  }
-
-  .tactical-add-btn,
-  .tactical-route-action {
-    border-color: rgba(124, 58, 237, 0.65);
-    background: linear-gradient(120deg, var(--primary-color), var(--primary-dark));
-    text-transform: none;
-    letter-spacing: 0.02em;
-  }
-
-  .tactical-add-btn:hover,
-  .tactical-route-action:hover {
-    background: linear-gradient(120deg, var(--primary-dark), var(--primary-color));
-  }
-
-  .tactical-contact-btn {
-    border-color: var(--border-color);
-    background: rgba(255, 255, 255, 0.02);
-    color: var(--text-main);
-    text-transform: none;
-    letter-spacing: 0.01em;
-  }
-
-  .tactical-contact-btn:hover {
-    border-color: rgba(124, 58, 237, 0.52);
-    background: rgba(124, 58, 237, 0.12);
-  }
-
-  .tactical-contact-btn--danger:hover {
-    border-color: rgba(239, 68, 68, 0.55);
-    color: #fecaca;
-    background: rgba(239, 68, 68, 0.08);
-  }
-
-  .tactical-trip-mini-line {
-    border-color: rgba(124, 58, 237, 0.38);
-    background:
-      radial-gradient(circle at 20% 25%, rgba(167, 139, 250, 0.52), rgba(167, 139, 250, 0.1) 46%, rgba(0, 0, 0, 0) 60%),
-      linear-gradient(135deg, rgba(76, 29, 149, 0.28), rgba(51, 65, 85, 0.14));
-  }
-
-  .tactical-trip-mini-line::after {
-    border-left-color: rgba(167, 139, 250, 0.72);
-  }
-
-  .tactical-map-stage {
-    background: #130f22;
-  }
-
-  .tactical-main-map {
-    background: #1b1630;
-  }
-
-  .tactical-map-placeholder {
-    color: var(--text-secondary);
-    background:
-      radial-gradient(circle at 85% 20%, rgba(124, 58, 237, 0.18), rgba(0, 0, 0, 0) 35%),
-      linear-gradient(180deg, rgba(30, 27, 46, 0.95), rgba(24, 20, 38, 0.95));
-  }
-
-  .tactical-map-grid-overlay {
-    opacity: 0.16;
-    mix-blend-mode: normal;
-    background:
-      repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.08) 0px, rgba(148, 163, 184, 0.08) 1px, transparent 1px, transparent 78px),
-      repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.08) 0px, rgba(148, 163, 184, 0.08) 1px, transparent 1px, transparent 78px);
-  }
-
-  .tactical-eta select option {
-    background: #1a1530;
-    color: var(--text-main);
-  }
-
-  .tactical-admin-panel .admin-sim-controls {
-    background: rgba(255, 255, 255, 0.02);
-    border-color: var(--border-color);
-  }
-
-  .admin-sim-config-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-    gap: 0.55rem;
-  }
-
-  .admin-sim-speed-col {
-    min-width: 148px;
-  }
-
-  .admin-sim-speed-col .admin-sim-speed-input {
-    margin-left: 0;
-    max-width: 96px;
-    text-align: right;
-  }
-
-  /* Keep admin joystick visible above map controls */
-  .admin-sim-overlay {
-    position: absolute;
-    top: 84px;
-    left: 12px;
-    bottom: auto;
-    right: auto;
-    z-index: 2100;
-    pointer-events: auto;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.35rem;
-  }
-
-  .admin-sim-overlay-label {
-    border-radius: 999px;
-    border: 1px solid rgba(124, 58, 237, 0.42);
-    background: rgba(15, 23, 42, 0.8);
-    color: #e9d5ff;
-    font-size: 0.64rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    line-height: 1;
-    padding: 0.2rem 0.48rem;
-    pointer-events: none;
-  }
-
-  .admin-joystick {
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-    border-color: rgba(124, 58, 237, 0.42);
-  }
-
-  .admin-joystick-knob {
-    background: linear-gradient(145deg, #8b5cf6, #7c3aed);
-    border-color: rgba(255, 255, 255, 0.92);
-  }
-
-  /* Final Violeta pass: softer surfaces, less metallic/tactical effect */
-  .tactical-command-header {
-    background: var(--bg-surface);
-    border-color: var(--border-color);
-    box-shadow: var(--shadow-md);
-  }
-
-  .tactical-live-indicator {
-    background: rgba(16, 185, 129, 0.14);
-    border-color: rgba(16, 185, 129, 0.32);
-    color: #6ee7b7;
-    letter-spacing: 0.03em;
-  }
-
-  .tactical-sync-box,
-  .tactical-metric-card,
-  .tactical-side-card,
-  .tactical-map-col,
-  .tactical-map-stage,
-  .tactical-segments-box,
-  .tactical-trip-stat,
-  .tactical-contact-item,
-  .tactical-bottom-controls,
-  .tactical-eta,
-  .tactical-destination-input,
-  .tactical-map-icon-btn,
-  .tactical-map-live,
-  .tactical-head-action {
-    background: var(--bg-surface);
-    border-color: var(--border-color);
-    box-shadow: none;
-  }
-
-  .tactical-metric-card,
-  .tactical-contact-item,
-  .tactical-trip-stat,
-  .tactical-input,
-  .tactical-destination-input,
-  .tactical-head-action,
-  .tactical-map-icon-btn {
-    background: rgba(255, 255, 255, 0.02);
-  }
-
-  .tactical-map-col {
-    background: var(--bg-surface);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .tactical-map-stage {
-    background: #1f1a30;
-    border-color: rgba(124, 58, 237, 0.22);
-  }
-
-  .tactical-main-map {
-    background: #221c34;
-  }
-
-  .tactical-map-placeholder {
-    color: var(--text-secondary);
-    background: linear-gradient(180deg, rgba(30, 27, 46, 0.9), rgba(30, 27, 46, 0.96));
-  }
-
-  .tactical-map-grid-overlay {
-    opacity: 0.08;
-    mix-blend-mode: normal;
-    background:
-      repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.07) 0px, rgba(148, 163, 184, 0.07) 1px, transparent 1px, transparent 84px),
-      repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.07) 0px, rgba(148, 163, 184, 0.07) 1px, transparent 1px, transparent 84px);
-  }
-
-  .tactical-map-live {
-    background: rgba(124, 58, 237, 0.14);
-    border-color: rgba(124, 58, 237, 0.34);
-    color: var(--text-main);
-  }
-
-  .tactical-map-live::before {
-    background: var(--primary-color);
-    box-shadow: 0 0 8px rgba(139, 92, 246, 0.55);
-  }
-
-  .tactical-header-btn,
-  .tactical-head-action,
-  .tactical-contact-btn,
-  .tactical-map-icon-btn {
-    color: var(--text-main);
-    text-transform: none;
-    letter-spacing: 0.01em;
-  }
-
-  .tactical-header-btn:hover,
-  .tactical-head-action:hover,
-  .tactical-contact-btn:hover,
-  .tactical-map-icon-btn:hover {
-    border-color: rgba(124, 58, 237, 0.52);
-    background: rgba(124, 58, 237, 0.12);
-  }
-
-  .tactical-header-btn--primary,
-  .tactical-add-btn,
-  .tactical-route-action {
-    background: linear-gradient(120deg, var(--primary-color), var(--primary-dark));
-    border-color: rgba(124, 58, 237, 0.62);
-    box-shadow: 0 8px 18px rgba(124, 58, 237, 0.24);
-  }
-
-  .tactical-header-btn--primary:hover,
-  .tactical-add-btn:hover,
-  .tactical-route-action:hover {
-    background: linear-gradient(120deg, var(--primary-dark), var(--primary-color));
-  }
-
-  .tactical-input:focus,
-  .tactical-destination-input:focus {
-    border-color: rgba(124, 58, 237, 0.55) !important;
-    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.16) !important;
-  }
-
-  .tactical-trip-mini-line {
-    border-color: rgba(124, 58, 237, 0.3);
-    background: linear-gradient(145deg, rgba(124, 58, 237, 0.18), rgba(30, 27, 46, 0.38));
-  }
-
-  .tactical-trip-mini-line::after {
-    border-left-color: rgba(167, 139, 250, 0.68);
-  }
-
-  .tactical-side-title,
-  .tactical-segments-head,
-  .tactical-map-live,
-  .tactical-metric-label,
-  .tactical-eta-label,
-  .tactical-destination-input::placeholder {
-    letter-spacing: 0.03em;
-  }
-
-  .tactical-eta select option {
-    background: var(--bg-surface);
-    color: var(--text-main);
-  }
-
-  @media (max-width: 1200px) {
-    .tactical-main-grid {
-      grid-template-columns: minmax(280px, 330px) minmax(0, 1fr);
-    }
-
-    .tactical-metric-value {
-      font-size: 1.58rem;
-    }
-  }
-
-  @media (max-width: 992px) {
-    .tactical-main-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .tactical-map-col {
-      min-height: 640px;
-    }
-
-    .tactical-history-wrap {
-      max-height: none;
-    }
-
-    .tactical-bottom-controls {
-      grid-template-columns: 1fr;
-      gap: 0.45rem;
-    }
-
-    .tactical-active-actions {
-      width: 100%;
-      justify-content: stretch;
-    }
-
-    .tactical-active-actions .btn,
-    .tactical-route-action {
-      width: 100%;
-    }
-  }
-
-  @media (max-width: 768px) {
-    .tactical-command-header {
-      padding: 0.9rem;
-    }
-
-    .tactical-header-tools {
-      justify-content: flex-start;
-    }
-
-    .tactical-sync-box {
-      text-align: left;
-      min-width: 0;
-    }
-
-    .tactical-metric-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .tactical-map-col {
-      min-height: 560px;
-    }
-
-    .tactical-map-stage {
-      min-height: 420px;
-    }
-
-    .tactical-map-grid-overlay {
-      opacity: 0.3;
-    }
-
-    .tactical-trip-head {
-      grid-template-columns: 36px minmax(0, 1fr);
-    }
-
-    .tactical-trip-destination {
-      display: none;
-    }
-
-    .tactical-trip-map {
-      height: 150px;
-    }
-
-    .admin-sim-overlay {
-      top: 78px;
-      left: 10px;
-    }
-
-    .admin-sim-overlay-label {
-      font-size: 0.58rem;
-      padding: 0.16rem 0.38rem;
-    }
-
-    .admin-sim-config-row {
-      grid-template-columns: 1fr;
-      gap: 0.5rem;
-    }
-
-    .admin-sim-speed-col {
-      min-width: 0;
-    }
-
-    .admin-sim-speed-col .admin-sim-speed-input {
-      max-width: 120px;
-    }
-  }
-</style>
-{% endblock %}
-
-{% block content %}
-<div class="tactical-safety-page">
-  <section class="tactical-command-header">
-    <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
-      <div>
-        <span class="tactical-live-indicator">Sistema activo // online</span>
-        <h1 class="tactical-header-title">Centro de Comando</h1>
-        <p class="tactical-header-sub">Monitoreo táctico en tiempo real. Protocolos de seguridad habilitados.</p>
-      </div>
-
-      <div class="tactical-header-tools">
-        <div class="tactical-sync-box">
-          <span class="tactical-sync-label">Último sync</span>
-          <strong class="tactical-sync-time" id="tacticalSyncClock">--:--:--</strong>
+{% set safety_payload = {
+  'currentUserId': current_user.id if current_user.is_authenticated else none,
+  'initialState': initial_state,
+  'contacts': contacts_payload,
+  'activeCheckin': active_checkin_payload,
+  'tripItems': trip_items,
+  'endpoints': {
+    'createContact': url_for('api_add_safety_contact'),
+    'startCheckin': url_for('api_start_checkin'),
+    'arriveCheckin': url_for('api_arrived_checkin'),
+    'cancelCheckin': url_for('api_cancel_checkin'),
+  }
+} %}
+
+<div class="safety-redesign-page" id="safetyRedesignPage" data-initial-state="{{ initial_state }}">
+  <script id="safetyPageData" type="application/json">{{ safety_payload|tojson }}</script>
+
+  <section class="safety-mobile" aria-label="Safety en telefono">
+    <section class="mobile-state mobile-state--idle {% if initial_state == 'idle' %}is-visible{% endif %}" data-state="idle">
+      <div class="mobile-map">
+        <div class="mobile-topbar">
+          <button class="topbar-btn" type="button" aria-label="Volver a inicio" onclick="window.location.href='{{ url_for('index') }}'">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
         </div>
-        {% if current_user.username == 'admin' %}
-        <a href="{{ url_for('admin_panel') }}" class="tactical-header-btn text-decoration-none" title="Panel admin">
-          <i class="fas fa-history me-1"></i> Log
-        </a>
-        {% else %}
-        <button type="button" class="tactical-header-btn" title="Registro de actividad">
-          <i class="fas fa-history me-1"></i> Log
-        </button>
-        {% endif %}
-        <a href="{{ url_for('verify_identity') }}" class="tactical-header-btn tactical-header-btn--primary text-decoration-none">
-          <i class="fas fa-shield-heart me-1"></i> Verificar
-        </a>
+        <div class="map-chip-group">
+          <span class="map-chip">
+            <i class="fa-solid fa-user-group"></i>
+            <span data-ready-chip-copy>0 contactos listos</span>
+          </span>
+        </div>
+        <div class="map-pin"><i class="fa-solid fa-location-dot"></i></div>
+        <div class="map-card-anchor">
+          <div class="section-label">Antes de salir</div>
+          <div class="map-card-title">Elige destino y tiempo estimado</div>
+          <div class="map-card-copy">El seguimiento empieza solo cuando tu lo activas.</div>
+        </div>
       </div>
-    </div>
-  </section>
 
-  <div class="tactical-main-grid">
-    <div class="tactical-left-col">
-      <section class="tactical-metric-grid">
-        <article class="tactical-metric-card">
-          <div class="tactical-metric-label">Velocidad</div>
-          <div class="tactical-metric-value"><span id="myRouteSpeed">--</span> <small>km/h</small></div>
-        </article>
-        <article class="tactical-metric-card">
-          <div class="tactical-metric-label">Distancia</div>
-          <div class="tactical-metric-value"><span id="myRouteDistance">0.00</span> <small>km</small></div>
-        </article>
-        <article class="tactical-metric-card">
-          <div class="tactical-metric-label">Tiempo</div>
-          <div class="tactical-metric-value" id="myRouteElapsed">--</div>
-          <div class="tactical-metric-foot">Tramos: <span id="myRouteSegmentsCount">0</span></div>
-        </article>
-      </section>
+      <div class="sheet sheet--idle-route" data-draggable-sheet="idle">
+        <div class="sheet-handle is-interactive" data-sheet-toggle="idle"></div>
+        <div class="sheet-toggle-copy" data-sheet-toggle="idle">Desliza o toca para bajar este panel</div>
+        <div class="stack">
+          <div>
+            <p class="section-label">Safety</p>
+            <h2 class="headline">Inicia tu trayecto en un paso</h2>
+            <p class="subline">Primero destino y tiempo. Contactos, historial y emergencia quedan como apoyo.</p>
+          </div>
 
-      <section class="tactical-side-card">
-        <div class="tactical-side-head">
-          <h2 class="tactical-side-title"><i class="fas fa-user-shield"></i> Red de confianza</h2>
-          <button
-            class="tactical-head-action"
-            type="button"
-            title="Mostrar/ocultar formulario"
-            onclick="document.getElementById('safetyContactForm')?.classList.toggle('d-none')">
-            <i class="fas fa-plus"></i>
+          <article class="input-card">
+            <div class="input-title">
+              <i class="fa-solid fa-route"></i>
+              <span>Destino y ETA</span>
+            </div>
+            <label class="input-field">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" placeholder="¿A donde vas?" data-destination-input="mobile">
+            </label>
+            <div class="eta-row" data-eta-group="mobile">
+              <button class="eta-pill is-active" type="button" data-eta-value="30">30 min</button>
+              <button class="eta-pill" type="button" data-eta-value="60">1 hora</button>
+              <button class="eta-pill" type="button" data-eta-value="180">Tiempo indefinido</button>
+            </div>
+          </article>
+
+          <article class="support-row">
+            <div>
+              <div class="section-label support-label">Compartir con</div>
+              <div class="support-title" data-share-summary-title="mobile">Nadie por ahora</div>
+              <div class="support-copy" data-share-summary-count="mobile">Agrega o selecciona contactos para este trayecto.</div>
+            </div>
+            <div class="avatar-stack" data-share-summary-avatars="mobile"></div>
+            <button class="link-btn" type="button" data-preview-link="contacts">Editar</button>
+          </article>
+
+          <button class="primary-btn" type="button" data-start-checkin>
+            <i class="fa-solid fa-shield-heart"></i>
+            Comenzar trayecto
+          </button>
+
+          <button class="link-btn" type="button" data-preview-link="history">Ver historial</button>
+          <div class="prototype-note" data-safety-status></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mobile-state mobile-state--active {% if initial_state == 'active' %}is-visible{% endif %}" data-state="active">
+      <div class="mobile-map">
+        <div class="map-chip-group">
+          <span class="map-chip">
+            <i class="fa-solid fa-circle map-chip-live"></i>
+            <span>Ubicacion en vivo</span>
+          </span>
+          <span class="map-chip">
+            <i class="fa-solid fa-eye"></i>
+            <span data-active-share-count>0 contactos acompanando</span>
+          </span>
+        </div>
+        <div class="map-pin"><i class="fa-solid fa-location-arrow"></i></div>
+        <div class="map-route"></div>
+        <div class="map-card-anchor">
+          <div class="section-label">Estado</div>
+          <div class="map-card-title">Trayecto activo hacia <span data-active-destination-inline>tu destino</span></div>
+          <div class="map-card-copy">Tus contactos ya estan viendo tu avance.</div>
+        </div>
+        <div class="map-action-row">
+          <button class="map-action-btn map-action-btn--success" type="button" data-arrive-safe>
+            <i class="fa-solid fa-check-circle"></i>
+            Ya llegue
+          </button>
+          <button class="map-action-btn map-action-btn--warn" type="button" data-cancel-trip>
+            <i class="fa-solid fa-xmark"></i>
+            Cancelar
+          </button>
+        </div>
+      </div>
+
+      <div class="sheet sheet--active-route" data-draggable-sheet="active">
+        <div class="sheet-handle is-interactive" data-sheet-toggle="active"></div>
+        <div class="sheet-toggle-copy" data-sheet-toggle="active">Desliza o toca para bajar este panel</div>
+        <div class="stack">
+          <article class="status-card">
+            <div class="status-card__top">
+              <div>
+                <p class="section-label">Trayecto activo</p>
+                <div class="eta-big" data-active-eta-big>--</div>
+                <div class="status-emphasis">Llegada estimada a <span data-active-destination>tu destino</span></div>
+              </div>
+              <span class="badge badge--live"><i class="fa-solid fa-location-arrow"></i> En progreso</span>
+            </div>
+            <div class="metrics-row">
+              <div class="metric-box">
+                <div class="metric-box__label">Tiempo transcurrido</div>
+                <div class="metric-box__value" data-active-elapsed>--</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-box__label">Tiempo configurado</div>
+                <div class="metric-box__value" data-active-total>--</div>
+              </div>
+            </div>
+          </article>
+
+          <article class="support-row">
+            <div>
+              <div class="support-title">Acompanamiento activo</div>
+              <div class="support-copy" data-active-support-copy>Tus contactos pueden ver si sigues en ruta.</div>
+            </div>
+            <div class="avatar-stack" data-share-summary-avatars="active-mobile"></div>
+          </article>
+
+          <div class="ghost-banner">
+            Si algo cambia, puedes abrir emergencia de inmediato. Las acciones rapidas estan en el mapa para que llegues o canceles sin confusion.
+          </div>
+          <div class="prototype-note" data-safety-status></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mobile-state mobile-state--contacts {% if initial_state == 'contacts' %}is-visible{% endif %}" data-state="contacts">
+      <div class="mobile-topbar">
+        <button class="topbar-btn" type="button" aria-label="Volver" data-preview-back>
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+      </div>
+      <div class="mobile-state__header">
+        <div>
+          <p class="section-label">Seguridad</p>
+          <h2 class="headline mobile-headline">Red de confianza</h2>
+          <p class="subline">Aqui agregas, editas o eliminas contactos y decides con quien compartir el trayecto actual.</p>
+        </div>
+
+        <article class="input-card">
+          <div class="input-title input-title--split">
+            <span class="input-title__copy">
+              <i class="fa-solid fa-share-nodes"></i>
+              <span>Compartiendo este trayecto con</span>
+            </span>
+            <div class="avatar-stack" data-share-summary-avatars="contacts-mobile"></div>
+          </div>
+          <div class="history-stats" data-share-summary-list="mobile"></div>
+          <div class="prototype-note no-margin" data-share-summary-count="mobile"></div>
+        </article>
+      </div>
+
+      <div class="stack state-stack">
+        <div class="contact-filter-row">
+          <button class="filter-pill is-active" type="button" data-contact-filter="all">Todos</button>
+          <button class="filter-pill" type="button" data-contact-filter="favorites">Favoritos</button>
+          <button class="ghost-pill" type="button" data-contact-create>
+            <i class="fa-solid fa-user-plus"></i> Nuevo contacto
           </button>
         </div>
 
-        <form id="safetyContactForm" class="tactical-contact-form">
-          <input type="text" class="form-control tactical-input" id="contactName" placeholder="Nombre" required>
-          <input type="text" class="form-control tactical-input" id="contactPhone" placeholder="Teléfono (10 dígitos)">
-          <input type="text" class="form-control tactical-input" id="contactRel" placeholder="Relación (opcional)">
-          <button type="submit" class="tactical-add-btn">Agregar contacto</button>
-        </form>
+        <div data-contact-list="mobile"></div>
+        <div class="prototype-note no-margin" data-safety-status></div>
+      </div>
+    </section>
 
-        <div class="tactical-contact-list" id="contactListWrap">
-          {% if contacts %}
-            {% for c in contacts %}
-            <article class="tactical-contact-item" data-contact-id="{{ c.id }}">
-              <div class="tactical-contact-main">
-                <div class="tactical-contact-avatar">{{ (c.name[:2] if c.name else 'CT')|upper }}</div>
-                <div class="min-w-0">
-                  <p class="tactical-contact-name">{{ c.name }}</p>
-                  <p class="tactical-contact-meta">{{ c.phone }}{% if c.relationship %} · {{ c.relationship }}{% endif %}{% if c.is_primary %} · Prioridad{% endif %}</p>
-                </div>
-              </div>
-              <div class="tactical-contact-actions">
-                {% if not c.is_primary %}
-                <button class="tactical-contact-btn" type="button" onclick="setPrimaryContact({{ c.id }})">Principal</button>
-                {% endif %}
-                <button class="tactical-contact-btn tactical-contact-btn--danger" type="button" onclick="deleteContact({{ c.id }})">Eliminar</button>
-              </div>
-            </article>
-            {% endfor %}
-          {% else %}
-            <div class="small text-secondary" id="noContactMsg">Sin contactos registrados.</div>
-          {% endif %}
-        </div>
-      </section>
-
-      <section class="tactical-side-card">
-        <div class="tactical-side-head">
-          <h2 class="tactical-side-title"><i class="fas fa-timeline"></i> Historial de trayectos</h2>
-          <span class="tactical-head-action">Ver todo</span>
-        </div>
-
-        <div class="tactical-history-wrap">
-          {% if trip_items and trip_items|length %}
-          <div class="accordion trip-history-accordion tactical-trip-accordion" id="tripHistoryAccordion">
-            {% for t in trip_items %}
-            <div class="accordion-item">
-              <h2 class="accordion-header" id="tripHeading{{ t.id }}">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tripCollapse{{ t.id }}" aria-expanded="false" aria-controls="tripCollapse{{ t.id }}">
-                  <div class="tactical-trip-head">
-                    <div class="tactical-trip-mini-line" aria-hidden="true"></div>
-                    <div style="min-width:0;">
-                      <div class="tactical-trip-title" id="tripTitleHeader{{ t.id }}">{{ t.display_title }}</div>
-                      <div class="tactical-trip-time">{% if t.when_dt %}{{ t.when_dt.strftime('%d %b · %I:%M %p') }}{% else %}—{% endif %}</div>
-                    </div>
-                    <div class="tactical-trip-destination">{{ t.destination or 'Sin destino' }}</div>
-                  </div>
-                </button>
-              </h2>
-              <div id="tripCollapse{{ t.id }}" class="accordion-collapse collapse" aria-labelledby="tripHeading{{ t.id }}" data-bs-parent="#tripHistoryAccordion" data-checkin-id="{{ t.id }}">
-                <div class="accordion-body tactical-trip-body">
-                  <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2 mb-3">
-                    <div class="small text-secondary" style="min-width: 52px;">Título</div>
-                    <input
-                      class="form-control form-control-sm tactical-input"
-                      id="tripTitleInput{{ t.id }}"
-                      value="{{ t.display_title }}"
-                      data-default-title="{{ t.default_title }}"
-                      placeholder="{{ t.default_title }}">
-                    <button class="btn btn-primary btn-sm" type="button" data-trip-save-title="{{ t.id }}">Guardar</button>
-                  </div>
-                  <div class="small text-secondary mb-2" id="tripTitleSaveStatus{{ t.id }}"></div>
-
-                  <div class="tactical-trip-stats">
-                    <div class="tactical-trip-stat">
-                      <div class="label">Distancia</div>
-                      <div class="value"><span id="tripDistance{{ t.id }}">--</span> km</div>
-                    </div>
-                    <div class="tactical-trip-stat">
-                      <div class="label">Duración</div>
-                      <div class="value" id="tripDuration{{ t.id }}">--</div>
-                    </div>
-                    <div class="tactical-trip-stat">
-                      <div class="label">Vel. promedio</div>
-                      <div class="value"><span id="tripAvgSpeed{{ t.id }}">--</span> km/h</div>
-                    </div>
-                    <div class="tactical-trip-stat">
-                      <div class="label">Vel. máxima</div>
-                      <div class="value"><span id="tripMaxSpeed{{ t.id }}">--</span> km/h</div>
-                    </div>
-                  </div>
-
-                  <div id="tripMap{{ t.id }}" class="my-route-map tactical-trip-map" data-checkin-id="{{ t.id }}"></div>
-                  <div class="small text-secondary mt-2" id="tripStatus{{ t.id }}">Preparando reproducción…</div>
-
-                  <div class="mt-3">
-                    <div class="small text-secondary mb-2">Tramos (km/h)</div>
-                    <div class="d-flex flex-column gap-2" id="tripSegments{{ t.id }}">
-                      <div class="small text-secondary">Abre este trayecto para ver sus tramos.</div>
-                    </div>
-                  </div>
-
-                  <div class="mt-3 d-flex justify-content-end">
-                    <a class="btn btn-outline-light btn-sm rounded-pill" href="{{ t.summary_url }}" target="_blank" rel="noopener">
-                      Abrir resumen
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {% endfor %}
-          </div>
-          {% else %}
-          <div class="tactical-empty-msg">Aún no has registrado trayectos.</div>
-          {% endif %}
-        </div>
-      </section>
-    </div>
-
-    <section class="tactical-map-col">
-      <div class="tactical-map-top">
-        <span class="tactical-map-live">Live view // sat-link</span>
-        <div class="tactical-map-actions">
-          <button type="button" class="tactical-map-icon-btn" title="Capas"><i class="fas fa-layer-group"></i></button>
-          <button type="button" class="tactical-map-icon-btn" title="Ajustes"><i class="fas fa-crosshairs"></i></button>
+    <section class="mobile-state mobile-state--history {% if initial_state == 'history' %}is-visible{% endif %}" data-state="history">
+      <div class="mobile-topbar">
+        <button class="topbar-btn" type="button" aria-label="Volver" data-preview-back>
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+      </div>
+      <div class="mobile-state__header">
+        <div>
+          <p class="section-label">Seguridad</p>
+          <h2 class="headline mobile-headline">Historial de trayectos</h2>
+          <p class="subline">Sin acordeones pesados. Solo lista clara, resumen rapido y entrada al detalle.</p>
         </div>
       </div>
 
-      <div class="tactical-map-stage">
-        {% if active_checkin %}
-        <div class="my-route-map-wrap tactical-map-wrap">
-          <div id="myRouteMap" class="my-route-map tactical-main-map" data-checkin-id="{{ active_checkin.id }}"></div>
-          {% if current_user.is_authenticated and (current_user.username|string|lower == 'admin') %}
-          <div class="admin-sim-overlay">
-            <div class="admin-sim-overlay-label">Admin joystick</div>
-            <div id="adminSimJoystick" class="admin-joystick" role="application" aria-label="Joystick para mover ubicación">
-              <div class="admin-joystick-knob" aria-hidden="true"></div>
+      <div class="stack state-stack" data-history-list="mobile"></div>
+    </section>
+  </section>
+
+  <section class="safety-desktop" aria-label="Safety en escritorio">
+    <main class="desktop-main">
+    <section class="desktop-state {% if initial_state == 'idle' %}is-visible{% endif %}" data-state="idle">
+      <header class="desktop-header">
+        <div class="desktop-header__copy">
+          <p class="section-label">Safety</p>
+          <h2 class="desktop-header__title">Configura tu trayecto y empieza</h2>
+          <p class="desktop-header__sub">La pantalla deja una accion principal visible: elegir destino, ajustar el tiempo y comenzar.</p>
+        </div>
+      </header>
+
+      <div class="desktop-idle-grid">
+        <section class="desktop-hero-card panel">
+          <div class="desktop-hero-inner">
+            <div class="desktop-hero-copy">
+              <p class="section-label">Antes de salir</p>
+              <h3 class="desktop-hero-title">¿A donde vas?</h3>
+              <p class="desktop-header__sub desktop-zero-margin">Usa esta pantalla para iniciar un trayecto acompanado. El mapa te da contexto y el panel derecho te deja configurarlo sin ruido.</p>
+            </div>
+
+            <div class="desktop-hero-footer">
+              <div class="desktop-support-card">
+                <div class="section-label">Que haces aqui</div>
+                <div class="desktop-flow-line">1. Elige destino</div>
+                <div class="desktop-flow-line">2. Ajusta tiempo estimado</div>
+                <div class="desktop-flow-line">3. Comienza trayecto</div>
+              </div>
             </div>
           </div>
-          {% endif %}
-        </div>
-        {% else %}
-        <div class="tactical-map-placeholder">
-          <div>
-            <h3 class="h5 fw-bold text-white mb-2">Ruta inactiva</h3>
-            <p class="mb-0">Define un destino y presiona <strong>Iniciar Ruta</strong> para activar el seguimiento en vivo.</p>
+        </section>
+
+        <aside class="desktop-command-card panel">
+          <article class="desktop-destination-card">
+            <div class="desktop-dest-card-header">
+              <h3 class="desktop-destination-card__title">Configura tu destino</h3>
+              <p class="desktop-destination-card__sub">Busca un lugar en Monterrey o activa el modo sin destino.</p>
+            </div>
+            <div class="desktop-destination-row">
+              <div class="desktop-destination-field">
+                <div class="desktop-dest-shell" data-destination-shell="desktop">
+                  <div class="desktop-dest-icon-slot" aria-hidden="true">
+                    <i class="fa-solid fa-location-dot" id="inputIcon"></i>
+                  </div>
+                  <input
+                    id="desktopDestinationInput"
+                    class="desktop-dest-input"
+                    type="search"
+                    placeholder="Buscar destino"
+                    autocomplete="off"
+                    aria-autocomplete="list"
+                    aria-controls="desktopDestinationResults"
+                    aria-expanded="false"
+                    aria-label="Buscar destino"
+                    data-destination-input="desktop"
+                    data-default-placeholder="Buscar destino">
+                </div>
+                <div id="desktopDestinationResults" class="destination-search-results desktop-dest-results" role="listbox" aria-label="Sugerencias de destino" hidden>
+                  <div class="destination-search-results__head">
+                    <span>Lugares en Monterrey</span>
+                  </div>
+                  <div class="destination-search-results__list desktop-dest-results-list" data-destination-results-list></div>
+                </div>
+              </div>
+              <button
+                id="noDestinationBtn"
+                class="destination-mode-btn desktop-dest-toggle"
+                type="button"
+                data-destination-toggle="desktop"
+                aria-pressed="false"
+                aria-label="Sin destino"
+                title="Sin destino">
+                <i class="fa-solid fa-ban" id="toggleIcon"></i>
+              </button>
+            </div>
+            <div class="desktop-destination-support">
+              <div id="statusBox" class="destination-status-box" data-destination-status-box data-theme="default">
+                <p id="statusHint" class="destination-helper" data-destination-helper>
+                  <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                  <span>Escribe para buscar puntos de interés en la ciudad.</span>
+                </p>
+              </div>
+            </div>
+          </article>
+          <div class="eta-row" data-eta-group="desktop">
+            <button class="eta-pill is-active" type="button" data-eta-value="30">30 min</button>
+            <button class="eta-pill" type="button" data-eta-value="60">1 hora</button>
+            <button class="eta-pill" type="button" data-eta-value="180">Tiempo indefinido</button>
           </div>
-        </div>
-        {% endif %}
-
-        <div class="tactical-map-grid-overlay" aria-hidden="true"></div>
-
-        <div class="tactical-bottom-controls">
-          <div class="tactical-eta">
-            <span class="tactical-eta-label">ETA</span>
-            {% if active_checkin %}
-            <span class="tactical-eta-value" id="checkinRemainingLabel" data-expires="{{ active_checkin.expires_at.isoformat() if active_checkin.expires_at else '' }}">--:--</span>
-            {% else %}
-            <select id="checkinEta" aria-label="Seleccionar ETA">
-              <option value="15">15m</option>
-              <option value="30" selected>30m</option>
-              <option value="45">45m</option>
-              <option value="60">60m</option>
-              <option value="90">90m</option>
-            </select>
-            {% endif %}
+          <div class="list-row">
+            <div>
+              <div class="section-label support-label">Compartir con</div>
+              <div class="support-title" data-share-summary-title="desktop">Nadie por ahora</div>
+              <div class="support-copy" data-share-summary-count="desktop">Puedes editar contactos o decidir con quien compartir este trayecto.</div>
+            </div>
+            <div class="avatar-stack" data-share-summary-avatars="desktop"></div>
+            <button class="link-btn" type="button" data-preview-link="contacts">Editar</button>
           </div>
+          <button class="primary-btn" type="button" data-start-checkin>
+            <i class="fa-solid fa-shield-heart"></i>
+            Comenzar trayecto
+          </button>
+          <div class="prototype-note no-margin" data-safety-status></div>
+          <button class="link-btn" type="button" data-preview-link="history">Ver historial</button>
+        </aside>
+      </div>
+    </section>
 
-          <input
-            type="text"
-            id="checkinDestination"
-            class="form-control tactical-destination-input"
-            placeholder="Destino táctico..."
-            value="{{ active_checkin.destination if active_checkin else '' }}"
-            {% if active_checkin %}readonly{% endif %}>
+    <section class="desktop-state {% if initial_state == 'active' %}is-visible{% endif %}" data-state="active">
+      <header class="desktop-header">
+        <div class="desktop-header__copy">
+          <p class="section-label">Trayecto activo</p>
+          <h2 class="desktop-header__title">Sigue tu trayecto sin distracciones</h2>
+          <p class="desktop-header__sub">Durante un trayecto activo solo importan tres cosas: mapa, ETA y las acciones de llegada o cancelacion.</p>
+        </div>
+      </header>
 
-          <input type="text" id="checkinNote" class="d-none" placeholder="Nota opcional">
+      <div class="desktop-active-grid">
+        <section class="desktop-map-card panel">
+          <div class="desktop-live-map" data-active-live-map aria-label="Mapa del trayecto activo"></div>
+          <div class="desktop-map-overlay">
+            <div class="desktop-top-actions">
+              <span class="badge badge--live"><i class="fa-solid fa-circle"></i> Ubicacion en vivo</span>
+              <span class="badge badge--secondary"><i class="fa-solid fa-eye"></i> <span data-active-share-count>0 contactos acompanando</span></span>
+            </div>
+            <div class="desktop-map-footer">
+              <div class="desktop-floating-card">
+                <div class="section-label">Ruta actual</div>
+                <div class="desktop-floating-title" data-active-destination-inline>Tu destino</div>
+                <div class="desktop-floating-copy">ETA <span data-active-eta-inline>--</span> · trayecto en seguimiento</div>
+              </div>
+            </div>
+          </div>
+        </section>
 
-          <div id="checkinStartWrap" {% if active_checkin %}class="d-none"{% else %}class="d-flex"{% endif %}>
-            <button class="tactical-route-action" type="button" id="startCheckinBtn">
-              <i class="fas fa-play"></i> Iniciar Ruta
+        <aside class="desktop-rail">
+          <section class="desktop-status-card panel">
+            <div class="desktop-status-top">
+              <div>
+                <p class="section-label">Estado del trayecto</p>
+                <div class="desktop-status-title">Todo en curso</div>
+              </div>
+              <span class="badge badge--live">Normal</span>
+            </div>
+            <div class="eta-big desktop-eta-big" data-active-eta-big>--</div>
+            <div class="desktop-muted-line">ETA estimado hasta <span data-active-destination>tu destino</span></div>
+            <div class="metrics-row">
+              <div class="metric-box">
+                <div class="metric-box__label">Tiempo</div>
+                <div class="metric-box__value" data-active-elapsed>--</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-box__label">Configurado</div>
+                <div class="metric-box__value" data-active-total>--</div>
+              </div>
+            </div>
+            <div class="desktop-secondary-links">
+              <button class="secondary-btn" type="button" data-arrive-safe>
+                <i class="fa-solid fa-check-circle"></i>
+                Ya llegue con bien
+              </button>
+              <button class="neutral-btn" type="button" data-cancel-trip>Cancelar trayecto</button>
+            </div>
+            <div class="prototype-note no-margin" data-safety-status></div>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section class="desktop-state {% if initial_state == 'contacts' %}is-visible{% endif %}" data-state="contacts">
+      <div class="desktop-back-wrap">
+        <button class="ghost-pill" type="button" data-preview-back>
+          <i class="fa-solid fa-chevron-left"></i> Volver
+        </button>
+      </div>
+      <header class="desktop-header">
+        <div class="desktop-header__copy">
+          <p class="section-label">Red de confianza</p>
+          <h2 class="desktop-header__title">Gestiona tus contactos y elige con quien compartir</h2>
+          <p class="desktop-header__sub">Esta vista concentra todo lo relacionado con contactos: agregar, editar, eliminar y decidir quien recibe el trayecto actual.</p>
+        </div>
+      </header>
+
+      <div class="desktop-active-grid">
+        <section class="desktop-side-card panel">
+          <div class="section-label">Contactos guardados</div>
+          <div class="contact-filter-row desktop-filter-row">
+            <button class="filter-pill is-active" type="button" data-contact-filter="all">Todos</button>
+            <button class="filter-pill" type="button" data-contact-filter="favorites">Favoritos</button>
+            <button class="ghost-pill" type="button" data-contact-create>
+              <i class="fa-solid fa-user-plus"></i> Nuevo contacto
             </button>
           </div>
+          <div data-contact-list="desktop"></div>
+        </section>
 
-          <div id="checkinActiveWrap" {% if active_checkin %}class="tactical-active-actions"{% else %}class="d-none"{% endif %}>
-            {% if active_checkin %}
-            <button class="btn btn-success" type="button" id="checkinArrivedBtn"><i class="fas fa-check me-1"></i> Ya llegué</button>
-            <button class="btn btn-outline-light" type="button" id="checkinCancelBtn">Cancelar</button>
-            {% endif %}
-          </div>
-        </div>
+        <aside class="desktop-rail">
+          <section class="desktop-side-card panel">
+            <div class="section-label">Compartiendo este trayecto con</div>
+            <div class="support-title" data-share-summary-title="desktop-side">Nadie por ahora</div>
+            <div class="support-copy desktop-copy-block">Aqui decides quien recibe el seguimiento del trayecto actual sin mezclarlo con el resto del flujo.</div>
+            <div class="avatar-stack" data-share-summary-avatars="contacts-desktop"></div>
+            <div class="prototype-note no-margin" data-share-summary-count="desktop-side"></div>
+            <div class="prototype-note no-margin" data-safety-status></div>
+          </section>
+        </aside>
       </div>
-
-      <div class="tactical-status-bar">
-        <div id="checkinStatus">&nbsp;</div>
-        <div id="myRouteStatus">
-	          {% if active_checkin %}
-	            {% if current_user.is_authenticated and (current_user.username|string|lower == 'admin') %}
-	              Modo prueba: inicio precargado con tu ubicación actual. Ajusta coordenadas o usa joystick/tap para simular.
-	            {% else %}
-	              Registrando ruta en tiempo real…
-	            {% endif %}
-          {% else %}
-            Inicia un check-in para activar el rastreo de ruta.
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="tactical-segments-box">
-        <div class="tactical-segments-head">
-          <span>Velocidad por tramo</span>
-          {% if active_checkin %}
-          <a href="{{ url_for('checkin_summary', checkin_id=active_checkin.id) }}" target="_blank" rel="noopener">Ver resumen</a>
-          {% endif %}
-        </div>
-        <div id="myRouteSegments" class="tactical-segments-list">
-          {% if active_checkin %}
-          <div class="small text-secondary">Aún no hay tramos registrados.</div>
-          {% else %}
-          <div class="small text-secondary">Se mostrarán aquí los tramos cuando inicies una ruta.</div>
-          {% endif %}
-        </div>
-      </div>
-
-	      {% if active_checkin and current_user.is_authenticated and (current_user.username|string|lower == 'admin') %}
-	      <div class="tactical-admin-panel">
-	        <div class="admin-sim-controls">
-	          <div class="admin-sim-header">
-	            <div class="admin-sim-title">
-	              <i class="fa-solid fa-gamepad admin-sim-title-icon" aria-hidden="true"></i>
-	              Simulador (admin)
-	            </div>
-	          </div>
-
-	          <div class="admin-sim-config-row">
-	            <div class="admin-sim-start">
-	              <div class="admin-sim-label mb-1">Inicio</div>
-	              <div class="tactical-admin-grid">
-	                <input
-	                  type="number"
-	                  class="form-control form-control-sm admin-sim-start-input"
-	                  id="adminSimStartLat"
-	                  min="-90" max="90" step="0.000001"
-	                  inputmode="decimal"
-	                  placeholder="Lat"
-	                  aria-label="Latitud de inicio">
-	                <input
-	                  type="number"
-	                  class="form-control form-control-sm admin-sim-start-input"
-	                  id="adminSimStartLng"
-	                  min="-180" max="180" step="0.000001"
-	                  inputmode="decimal"
-	                  placeholder="Lng"
-	                  aria-label="Longitud de inicio">
-	              </div>
-	            </div>
-
-	            <div class="admin-sim-speed-col">
-	              <label class="admin-sim-label" for="adminSimSpeedKmh">Velocidad</label>
-	              <div class="admin-sim-speed-row">
-	                <input
-	                  type="number"
-	                  class="form-control form-control-sm admin-sim-speed-input"
-	                  id="adminSimSpeedKmh"
-	                  min="0" max="60" step="0.5" value="6"
-	                  inputmode="decimal"
-	                  aria-label="Velocidad simulada en km/h">
-	                <div class="admin-sim-unit" aria-hidden="true">km/h</div>
-	              </div>
-	            </div>
-	          </div>
-
-	          <div class="admin-sim-divider" aria-hidden="true"></div>
-
-	          <button type="button" class="admin-sim-btn admin-sim-btn--primary w-100 mt-2" id="adminSimSetStartBtn">
-	            Establecer inicio
-	          </button>
-	        </div>
-	      </div>
-	      {% endif %}
     </section>
+
+    <section class="desktop-state {% if initial_state == 'history' %}is-visible{% endif %}" data-state="history">
+      <div class="desktop-back-wrap">
+        <button class="ghost-pill" type="button" data-preview-back>
+          <i class="fa-solid fa-chevron-left"></i> Volver
+        </button>
+      </div>
+      <header class="desktop-header">
+        <div class="desktop-header__copy">
+          <p class="section-label">Historial</p>
+          <h2 class="desktop-header__title">Historial simple y directo</h2>
+          <p class="desktop-header__sub">Cada trayecto muestra solo lo necesario: nombre, fecha, resumen corto y una accion principal.</p>
+        </div>
+      </header>
+
+      <div class="desktop-history-grid">
+        <section class="desktop-history-list" data-history-list="desktop"></section>
+      </div>
+    </section>
+    </main>
+  </section>
+
+  <div class="summary-modal-backdrop" id="summaryModal" aria-hidden="true">
+    <div class="summary-modal" role="dialog" aria-modal="true" aria-labelledby="summaryModalTitle">
+      <div class="summary-modal__top">
+        <div>
+          <p class="section-label" id="summaryModalBadge">Resumen</p>
+          <h3 class="summary-modal__title" id="summaryModalTitle">Trayecto</h3>
+          <div class="summary-modal__meta" id="summaryModalMeta">Fecha</div>
+        </div>
+        <button class="topbar-btn" type="button" aria-label="Cerrar resumen" id="summaryModalClose">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="summary-modal__metrics">
+        <div class="summary-modal__metric">
+          <div class="summary-modal__metric-label">Duracion</div>
+          <div class="summary-modal__metric-value" id="summaryMetricTime">--</div>
+        </div>
+        <div class="summary-modal__metric">
+          <div class="summary-modal__metric-label">Destino</div>
+          <div class="summary-modal__metric-value" id="summaryMetricDestination">--</div>
+        </div>
+        <div class="summary-modal__metric">
+          <div class="summary-modal__metric-label">Dato clave</div>
+          <div class="summary-modal__metric-value" id="summaryMetricExtra">--</div>
+        </div>
+      </div>
+
+      <div class="summary-route-map" aria-hidden="true">
+        <svg class="summary-route-svg" viewBox="0 0 320 180" preserveAspectRatio="none">
+          <path class="summary-route-base" id="summaryRouteBase" d=""></path>
+          <path class="summary-route-path" id="summaryRoutePath" d=""></path>
+        </svg>
+        <div class="summary-route-marker" id="summaryRouteStart"></div>
+        <div class="summary-route-marker summary-route-marker--end" id="summaryRouteEnd"></div>
+        <div class="summary-route-dot" id="summaryRouteDot"></div>
+        <div class="summary-route-label summary-route-label--start" id="summaryRouteStartLabel">Inicio</div>
+        <div class="summary-route-label summary-route-label--end" id="summaryRouteEndLabel">Destino</div>
+      </div>
+
+      <div class="summary-modal__body" id="summaryModalBody">
+        Este popup muestra un resumen rapido del trayecto con mapa y recorrido animado, sin sacarte de la pantalla actual.
+      </div>
+    </div>
+  </div>
+
+  <div class="contact-modal-backdrop" id="contactEditorModal" aria-hidden="true">
+    <div class="contact-modal" role="dialog" aria-modal="true" aria-labelledby="contactEditorTitle">
+      <div class="summary-modal__top">
+        <div>
+          <p class="section-label" id="contactEditorEyebrow">Editar contacto</p>
+          <h3 class="summary-modal__title" id="contactEditorTitle">Contacto</h3>
+          <div class="summary-modal__meta">Actualiza nombre, parentesco y telefono.</div>
+        </div>
+        <button class="topbar-btn" type="button" aria-label="Cerrar edicion" id="contactEditorClose">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form class="contact-form" id="contactEditorForm">
+        <div class="contact-field">
+          <label for="contactNameInput">Nombre</label>
+          <input id="contactNameInput" name="name" type="text" autocomplete="name" placeholder="Ej. Mama">
+        </div>
+        <div class="contact-field">
+          <label for="contactRelationInput">Parentesco o relacion</label>
+          <input id="contactRelationInput" name="relation" type="text" autocomplete="off" placeholder="Ej. Hermana, Tia, Amiga">
+        </div>
+        <div class="contact-field">
+          <label for="contactPhoneInput">Numero de telefono</label>
+          <input id="contactPhoneInput" name="phone" type="tel" inputmode="numeric" pattern="[0-9]*" autocomplete="tel-national" placeholder="8181234567">
+        </div>
+        <div class="contact-field">
+          <label>Foto de perfil</label>
+          <div class="avatar-picker" id="contactAvatarPicker"></div>
+        </div>
+
+        <div class="contact-modal__actions">
+          <button class="neutral-btn" type="button" id="contactEditorDelete">Eliminar contacto</button>
+          <button class="primary-btn" type="submit">
+            <i class="fa-solid fa-check"></i>
+            Guardar cambios
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="confirm-modal-backdrop" id="contactDeleteModal" aria-hidden="true">
+    <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="contactDeleteTitle">
+      <div>
+        <p class="section-label">Eliminar contacto</p>
+        <h3 class="summary-modal__title" id="contactDeleteTitle">¿Segura que quieres eliminar este contacto?</h3>
+        <div class="summary-modal__meta" id="contactDeleteMeta">Este cambio tambien lo quitara del trayecto actual si estaba compartiendo.</div>
+      </div>
+      <div class="confirm-modal__actions">
+        <button class="neutral-btn" type="button" id="contactDeleteCancel">Cancelar</button>
+        <button class="primary-btn" type="button" id="contactDeleteConfirm">
+          <i class="fa-solid fa-trash-can"></i>
+          Eliminar contacto
+        </button>
+      </div>
+    </div>
   </div>
 </div>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const clockEl = document.getElementById('tacticalSyncClock');
-  if (!clockEl) return;
-
-  const draw = () => {
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(now.getMinutes()).padStart(2, '0');
-    const ss = String(now.getSeconds()).padStart(2, '0');
-    clockEl.textContent = `${hh}:${mm}:${ss}`;
-  };
-
-  draw();
-  setInterval(draw, 1000);
-});
-
-function formatRemaining(sec) {
-  const s = Math.max(0, Number(sec) || 0);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const r = s % 60;
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${r}s`;
-  return `${r}s`;
-}
-
-async function unblockFromSafety(userId){
-  try {
-    const response = await fetch(`/api/user/unblock/${userId}`, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' }
-    });
-    const data = await response.json();
-    if (!response.ok || !data.ok) {
-      alert(data.error || 'No se pudo desbloquear la cuenta');
-      return;
-    }
-    window.location.reload();
-  } catch (e) {
-    alert('No se pudo desbloquear la cuenta');
-  }
-}
-
-async function setPrimaryContact(contactId) {
-  const response = await fetch(`/api/safety/contact/${contactId}/primary`, {
-    method: 'POST',
-    headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' }
-  });
-  const data = await response.json();
-  if (!response.ok || !data.ok) {
-    alert(data.error || 'No se pudo actualizar el contacto principal');
-    return;
-  }
-  window.location.reload();
-}
-
-async function deleteContact(contactId) {
-  const response = await fetch(`/api/safety/contact/${contactId}/delete`, {
-    method: 'POST',
-    headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' }
-  });
-  const data = await response.json();
-  if (!response.ok || !data.ok) {
-    alert(data.error || 'No se pudo eliminar el contacto');
-    return;
-  }
-  window.location.reload();
-}
-
-const safetyContactForm = document.getElementById('safetyContactForm');
-if (safetyContactForm) {
-  safetyContactForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const name = document.getElementById('contactName')?.value?.trim() || '';
-    const phone = document.getElementById('contactPhone')?.value?.trim() || '';
-    const relationship = document.getElementById('contactRel')?.value?.trim() || '';
-    const response = await fetch('/api/safety/contact', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-      },
-      body: JSON.stringify({ name, phone, relationship })
-    });
-    const data = await response.json();
-    if (!response.ok || !data.ok) {
-      alert(data.error || 'No se pudo guardar el contacto');
-      return;
-    }
-    window.location.reload();
-  });
-}
-
-const checkinRemainingLabel = document.getElementById('checkinRemainingLabel');
-if (checkinRemainingLabel) {
-  const expiresAt = new Date(checkinRemainingLabel.dataset.expires || '').getTime();
-  const updateCheckinTimer = () => {
-    if (!expiresAt) return;
-    const secs = Math.floor((expiresAt - Date.now()) / 1000);
-    checkinRemainingLabel.textContent = formatRemaining(secs);
-    if (secs <= 0) {
-      checkinRemainingLabel.textContent = '0s';
-      setTimeout(() => window.location.reload(), 1000);
-    }
-  };
-  updateCheckinTimer();
-  setInterval(updateCheckinTimer, 1000);
-}
-
-async function sendCheckinWithGeo(payload) {
-  const send = (lat = null, lng = null) => fetch('/api/safety/checkin/start', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-    },
-    body: JSON.stringify({ ...payload, lat, lng })
-  }).then(async (r) => ({ ok: r.ok, data: await r.json() }));
-
-  if (!navigator.geolocation) return send(null, null);
-
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => resolve(await send(pos.coords.latitude, pos.coords.longitude)),
-      async () => resolve(await send(null, null)),
-      { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 }
-    );
-  });
-}
-
-const startCheckinBtn = document.getElementById('startCheckinBtn');
-if (startCheckinBtn) {
-  startCheckinBtn.addEventListener('click', async () => {
-    const destination = document.getElementById('checkinDestination')?.value?.trim() || '';
-    const note = document.getElementById('checkinNote')?.value?.trim() || '';
-    const etaMinutes = Number(document.getElementById('checkinEta')?.value || '30');
-    const statusEl = document.getElementById('checkinStatus');
-    startCheckinBtn.disabled = true;
-    const out = await sendCheckinWithGeo({ destination, note, eta_minutes: etaMinutes });
-    startCheckinBtn.disabled = false;
-    if (!out.ok || !out.data.ok) {
-      if (statusEl) {
-        statusEl.textContent = out.data.error || 'No se pudo iniciar el check-in.';
-        statusEl.classList.add('text-danger');
-      }
-      return;
-    }
-    if (statusEl) {
-      statusEl.textContent = out.data.message || 'Check-in iniciado.';
-      statusEl.classList.remove('text-danger');
-      statusEl.classList.add('text-success');
-    }
-    setTimeout(() => window.location.reload(), 1000);
-  });
-}
-
-const checkinArrivedBtn = document.getElementById('checkinArrivedBtn');
-if (checkinArrivedBtn) {
-  checkinArrivedBtn.addEventListener('click', async () => {
-    if (typeof window.__stopMyRouteTracker === 'function') {
-      try { window.__stopMyRouteTracker(); } catch (e) {}
-    }
-    const statusEl = document.getElementById('checkinStatus');
-    const response = await fetch('/api/safety/checkin/arrived', {
-      method: 'POST',
-      headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' }
-    });
-    const data = await response.json();
-    if (!response.ok || !data.ok) {
-      if (statusEl) statusEl.textContent = data.error || 'No se pudo cerrar el check-in.';
-      return;
-    }
-    if (statusEl) statusEl.textContent = data.message || 'Llegada confirmada.';
-    if (data.summary_url) {
-      window.location.href = data.summary_url;
-      return;
-    }
-    setTimeout(() => window.location.reload(), 1000);
-  });
-}
-
-const checkinCancelBtn = document.getElementById('checkinCancelBtn');
-if (checkinCancelBtn) {
-  checkinCancelBtn.addEventListener('click', async () => {
-    if (typeof window.__stopMyRouteTracker === 'function') {
-      try { window.__stopMyRouteTracker(); } catch (e) {}
-    }
-    const statusEl = document.getElementById('checkinStatus');
-    const response = await fetch('/api/safety/checkin/cancel', {
-      method: 'POST',
-      headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' }
-    });
-    const data = await response.json();
-    if (!response.ok || !data.ok) {
-      if (statusEl) statusEl.textContent = data.error || 'No se pudo cancelar.';
-      return;
-    }
-    if (statusEl) statusEl.textContent = data.message || 'Check-in cancelado.';
-    setTimeout(() => window.location.reload(), 1000);
-  });
-}
-
-// --- Mi ruta (dibujo en mapa conforme avanza el check-in) --------------------
-document.addEventListener('DOMContentLoaded', () => {
-  const mapEl = document.getElementById('myRouteMap');
-  if (!mapEl) return;
-  if (!window.L) return;
-
-  const checkinId = mapEl.dataset.checkinId;
-  if (!checkinId) return;
-
-  const isAdmin = !!(window.CURRENT_USER && String(window.CURRENT_USER.username || '').toLowerCase() === 'admin');
-  const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
-  const statusEl = document.getElementById('myRouteStatus');
-  const speedEl = document.getElementById('myRouteSpeed');
-  const distEl = document.getElementById('myRouteDistance');
-  const elapsedEl = document.getElementById('myRouteElapsed');
-  const segCountEl = document.getElementById('myRouteSegmentsCount');
-  const segWrap = document.getElementById('myRouteSegments');
-
-  const state = {
-    startTs: null,
-    points: [],
-    totalM: 0,
-    lastPoint: null,
-    watchId: null,
-    userInteracted: false,
-    segments: new Map(),
-    segmentWindowMs: 30000,
-    lastSentAt: 0,
-    lastSentPoint: null,
-  };
-
-  const setStatus = (msg, danger = false) => {
-    if (!statusEl) return;
-    statusEl.textContent = msg;
-    statusEl.classList.toggle('text-danger', !!danger);
-    if (!danger) statusEl.classList.remove('text-danger');
-  };
-
-  const toRad = (deg) => (deg * Math.PI) / 180;
-  const haversineM = (lat1, lon1, lat2, lon2) => {
-    const R = 6371000;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.asin(Math.sqrt(a));
-    return R * c;
-  };
-
-  const formatHms = (secs) => {
-    const s = Math.max(0, Math.floor(Number(secs) || 0));
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const r = s % 60;
-    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
-    return `${m}:${String(r).padStart(2, '0')}`;
-  };
-
-  const map = L.map(mapEl, { zoomControl: true, attributionControl: false });
-  map.on('dragstart zoomstart', () => { state.userInteracted = true; });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    subdomains: ['a', 'b', 'c'],
-  }).addTo(map);
-
-  const routeLine = L.polyline([], { color: '#FEC04F', weight: 5, opacity: 0.95 }).addTo(map);
-  const cursorIcon = L.divIcon({
-    className: '',
-    html: '<div style="width:12px;height:12px;border-radius:50%;background:#FEC04F;border:2px solid #ffffff;box-shadow:0 4px 12px rgba(0,0,0,0.35);"></div>',
-    iconSize: [16, 16],
-    iconAnchor: [8, 8],
-  });
-  // Leaflet solo agrega el handler de dragging si `draggable` es true al crear el marker.
-  // Para admin queremos poder simular movimiento arrastrando; para usuarios normales no.
-  const cursor = L.marker([0, 0], { icon: cursorIcon, draggable: isAdmin, keyboard: false });
-  let cursorAdded = false;
-
-  // Admin simulation handlers (so stopWatch can detach them).
-	  const onAdminDragEnd = () => {
-	    try {
-	      const ll = cursor.getLatLng();
-	      pushPoint(ll.lat, ll.lng, Date.now(), null, null, false, true);
-	    } catch (e) {}
-	  };
-		  const onAdminMapClick = (ev) => {
-		    if (!ev || !ev.latlng) return;
-		    pushPoint(ev.latlng.lat, ev.latlng.lng, Date.now(), null, null, false, true);
-		  };
-
-	  // Admin joystick simulation (optional): move the marker continuously with a joystick + speed control.
-	  let joystickTimer = null;
-	  let joystickLastTick = 0;
-		  let joystickPointerId = null;
-		  let joystickNx = 0; // [-1..1]
-		  let joystickNy = 0; // [-1..1]
-
-		  const adminSpeedInput = document.getElementById('adminSimSpeedKmh');
-		  const adminStartLatInput = document.getElementById('adminSimStartLat');
-		  const adminStartLngInput = document.getElementById('adminSimStartLng');
-		  const adminSetStartBtn = document.getElementById('adminSimSetStartBtn');
-		  const adminJoystick = document.getElementById('adminSimJoystick');
-		  const adminJoyStatus = document.getElementById('adminSimJoystickStatus');
-		  const adminJoyStatusText = document.getElementById('adminSimJoystickStatusText');
-
-		  const setJoyStatus = (text) => {
-		    const el = adminJoyStatusText || adminJoyStatus;
-		    if (el) el.textContent = text;
-		    if (adminJoyStatus) {
-		      const t = String(text || '');
-		      adminJoyStatus.classList.toggle('is-moving', /moviendo/i.test(t));
-		    }
-		  };
-
-		  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-		  const getAdminSpeedKmh = () => {
-		    const raw = Number(adminSpeedInput?.value ?? 0);
-		    return Number.isFinite(raw) ? clamp(raw, 0, 60) : 0;
-		  };
-
-		  const setAdminSpeedKmh = (v) => {
-		    const nv = Number.isFinite(Number(v)) ? clamp(Number(v), 0, 60) : 0;
-		    if (adminSpeedInput) adminSpeedInput.value = String(nv);
-		  };
-
-			  if (isAdmin && adminSpeedInput) {
-			    adminSpeedInput.addEventListener('input', () => setAdminSpeedKmh(adminSpeedInput.value));
-			    // Normaliza el valor inicial (clamp).
-			    setAdminSpeedKmh(getAdminSpeedKmh());
-			  }
-
-		  const setAdminStartInputs = (lat, lng) => {
-		    if (adminStartLatInput) adminStartLatInput.value = Number(lat).toFixed(6);
-		    if (adminStartLngInput) adminStartLngInput.value = Number(lng).toFixed(6);
-		  };
-
-		  const primeAdminStartInputsFromCurrent = () => {
-		    if (!isAdmin) return;
-		    if (state.points.length) return;
-
-		    const fallbackFromMap = () => {
-		      try {
-		        const c = map.getCenter();
-		        if (Number.isFinite(c.lat) && Number.isFinite(c.lng)) {
-		          setAdminStartInputs(c.lat, c.lng);
-		          return true;
-		        }
-		      } catch (e) {}
-		      return false;
-		    };
-
-		    if (!navigator.geolocation) {
-		      if (!fallbackFromMap()) {
-		        setAdminStartInputs(25.6866, -100.3161);
-		      }
-		      return;
-		    }
-
-		    navigator.geolocation.getCurrentPosition(
-		      (pos) => {
-		        const lat = Number(pos.coords?.latitude);
-		        const lng = Number(pos.coords?.longitude);
-		        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-		          if (!fallbackFromMap()) setAdminStartInputs(25.6866, -100.3161);
-		          return;
-		        }
-		        setAdminStartInputs(lat, lng);
-		        if (!state.userInteracted) {
-		          try { map.setView([lat, lng], 16); } catch (e) {}
-		        }
-		        setStatus('Inicio precargado con tu ubicación actual. Presiona "Establecer inicio" para fijarlo.');
-		      },
-		      () => {
-		        if (!fallbackFromMap()) setAdminStartInputs(25.6866, -100.3161);
-		      },
-		      { enableHighAccuracy: true, maximumAge: 0, timeout: 9000 }
-		    );
-		  };
-
-			  const setAdminStartPoint = (lat, lng, tsMs, accuracyM = null) => {
-			    if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) {
-			      setStatus('Coordenadas inválidas.', true);
-			      return;
-			    }
-			    const nlat = Number(lat);
-			    const nlng = Number(lng);
-			    if (nlat < -90 || nlat > 90 || nlng < -180 || nlng > 180) {
-			      setStatus('Coordenadas fuera de rango.', true);
-			      return;
-			    }
-			    if (state.points.length) {
-			      setStatus('Este trayecto ya inició. Para cambiar el inicio, crea un nuevo check-in.', true);
-			      return;
-			    }
-			    setAdminStartInputs(nlat, nlng);
-			    pushPoint(nlat, nlng, tsMs || Date.now(), null, accuracyM, false, true);
-			    setStatus('Inicio establecido. Ahora puedes moverte con el joystick, arrastrar el marcador o tocar el mapa.');
-			  };
-
-			  if (isAdmin && adminSetStartBtn) {
-			    adminSetStartBtn.addEventListener('click', () => {
-			      const lat = Number(adminStartLatInput?.value);
-			      const lng = Number(adminStartLngInput?.value);
-			      setAdminStartPoint(lat, lng, Date.now(), null);
-			    });
-			  }
-
-			  if (isAdmin && (adminStartLatInput || adminStartLngInput) && adminSetStartBtn) {
-			    const onEnter = (ev) => {
-			      if (ev.key !== 'Enter') return;
-			      try { ev.preventDefault(); } catch (e) {}
-			      try { adminSetStartBtn.click(); } catch (e) {}
-			    };
-			    try { adminStartLatInput?.addEventListener('keydown', onEnter); } catch (e) {}
-			    try { adminStartLngInput?.addEventListener('keydown', onEnter); } catch (e) {}
-			  }
-
-		  const resetJoystickUi = () => {
-		    if (!adminJoystick) return;
-		    joystickNx = 0;
-	    joystickNy = 0;
-	    adminJoystick.style.setProperty('--jx', '0px');
-	    adminJoystick.style.setProperty('--jy', '0px');
-	  };
-
-		  const stopJoystick = () => {
-		    if (joystickTimer) {
-		      try { clearInterval(joystickTimer); } catch (e) {}
-		    }
-		    joystickTimer = null;
-		    joystickPointerId = null;
-		    resetJoystickUi();
-		    setJoyStatus('Arrastra el joystick sobre el mapa para moverte. Suelta para detener.');
-		  };
-
-	  const stepJoystick = (dtS) => {
-	    if (!isAdmin) return;
-	    if (!cursorAdded) return;
-	    const speedKmh = getAdminSpeedKmh();
-	    if (!(speedKmh > 0)) return;
-
-	    const mag = Math.min(1, Math.hypot(joystickNx, joystickNy));
-	    if (mag < 0.07) return; // deadzone
-
-	    const speedMps = (speedKmh * 1000) / 3600;
-	    // East/North meters for this tick. joystickNy is positive down, so north is -ny.
-	    const eastM = speedMps * dtS * joystickNx;
-	    const northM = speedMps * dtS * (-joystickNy);
-
-	    try {
-	      const ll = cursor.getLatLng();
-	      const latRad = toRad(ll.lat);
-	      const dLat = northM / 111111;
-	      const denom = 111111 * Math.cos(latRad);
-	      const dLng = denom ? (eastM / denom) : 0;
-	      const nextLat = ll.lat + dLat;
-	      const nextLng = ll.lng + dLng;
-	      const effSpeed = speedKmh * mag;
-	      pushPoint(nextLat, nextLng, Date.now(), effSpeed, null, false, true);
-	    } catch (e) {}
-	  };
-
-	  const startJoystick = () => {
-	    if (joystickTimer) return;
-	    joystickLastTick = (window.performance && typeof window.performance.now === 'function') ? window.performance.now() : Date.now();
-	    joystickTimer = setInterval(() => {
-	      const now = (window.performance && typeof window.performance.now === 'function') ? window.performance.now() : Date.now();
-	      const dtS = Math.max(0.02, (now - joystickLastTick) / 1000);
-	      joystickLastTick = now;
-	      stepJoystick(dtS);
-	    }, 120);
-	  };
-
-	  const updateJoystickFromPointer = (ev) => {
-	    if (!adminJoystick) return;
-	    const rect = adminJoystick.getBoundingClientRect();
-	    const cx = rect.left + rect.width / 2;
-	    const cy = rect.top + rect.height / 2;
-	    const knobEl = adminJoystick.querySelector('.admin-joystick-knob');
-	    const knobRect = knobEl ? knobEl.getBoundingClientRect() : { width: 28, height: 28 };
-	    const knobR = Math.max(10, (Math.min(knobRect.width, knobRect.height) / 2) || 14);
-	    const maxR = Math.max(10, (Math.min(rect.width, rect.height) / 2) - knobR - 6);
-
-	    let dx = (ev.clientX - cx);
-	    let dy = (ev.clientY - cy);
-	    const dist = Math.hypot(dx, dy);
-	    if (dist > maxR) {
-	      const s = maxR / dist;
-	      dx *= s;
-	      dy *= s;
-	    }
-
-	    // Normalize [-1..1]
-	    joystickNx = clamp(dx / maxR, -1, 1);
-	    joystickNy = clamp(dy / maxR, -1, 1);
-
-	    adminJoystick.style.setProperty('--jx', `${dx.toFixed(1)}px`);
-	    adminJoystick.style.setProperty('--jy', `${dy.toFixed(1)}px`);
-	  };
-
-	  if (isAdmin && adminJoystick) {
-	    resetJoystickUi();
-
-		    adminJoystick.addEventListener('pointerdown', (ev) => {
-		      try { ev.preventDefault(); } catch (e) {}
-		      if (joystickPointerId != null) return;
-		      joystickPointerId = ev.pointerId;
-		      try { adminJoystick.setPointerCapture(ev.pointerId); } catch (e) {}
-		      updateJoystickFromPointer(ev);
-		      startJoystick();
-		      setJoyStatus('Moviendo…');
-		    });
-
-	    adminJoystick.addEventListener('pointermove', (ev) => {
-	      if (joystickPointerId == null || ev.pointerId !== joystickPointerId) return;
-	      try { ev.preventDefault(); } catch (e) {}
-	      updateJoystickFromPointer(ev);
-	    });
-
-	    const end = (ev) => {
-	      if (joystickPointerId == null) return;
-	      if (ev && ev.pointerId != null && ev.pointerId !== joystickPointerId) return;
-	      try { ev.preventDefault(); } catch (e) {}
-	      try { adminJoystick.releasePointerCapture(joystickPointerId); } catch (e) {}
-	      stopJoystick();
-	    };
-	    adminJoystick.addEventListener('pointerup', end);
-	    adminJoystick.addEventListener('pointercancel', end);
-	    adminJoystick.addEventListener('lostpointercapture', () => stopJoystick());
-	  }
-
-	  const updateElapsed = () => {
-	    if (state.startTs == null || !elapsedEl) return;
-	    elapsedEl.textContent = formatHms((Date.now() - state.startTs) / 1000);
-	  };
-
-  const renderSegments = () => {
-    if (!segWrap) return;
-    const segs = Array.from(state.segments.values()).sort((a, b) => a.idx - b.idx);
-    const last = segs.slice(-6);
-    if (!last.length) {
-      segWrap.innerHTML = '<div class="small text-secondary">Aún no hay tramos registrados.</div>';
-      return;
-    }
-    segWrap.innerHTML = last.map((seg) => {
-      const durS = Math.max(1, (seg.endTs - seg.startTs) / 1000);
-      const km = seg.distM / 1000;
-      const speed = (km / (durS / 3600));
-      const a = formatHms((seg.startTs - state.startTs) / 1000);
-      const b = formatHms((seg.endTs - state.startTs) / 1000);
-      return `
-        <div class="p-2 rounded" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-          <div class="d-flex align-items-center justify-content-between gap-2">
-            <div class="small text-secondary">Tramo ${seg.idx + 1} · ${a}-${b}</div>
-            <div class="fw-semibold text-white">${Number.isFinite(speed) ? speed.toFixed(1) : '0.0'} km/h</div>
-          </div>
-          <div class="small text-secondary">${km.toFixed(2)} km</div>
-        </div>
-      `;
-    }).join('');
-  };
-
-  const updateMetrics = () => {
-    updateElapsed();
-    if (distEl) distEl.textContent = (state.totalM / 1000).toFixed(2);
-    if (speedEl) speedEl.textContent = state.lastPoint && Number.isFinite(state.lastPoint.speedKmh) ? state.lastPoint.speedKmh.toFixed(1) : '--';
-    if (segCountEl) segCountEl.textContent = String(state.segments.size);
-    renderSegments();
-  };
-
-	  const maybeSendPoint = async (p) => {
-	    const now = Date.now();
-	    const movedM = state.lastSentPoint ? haversineM(state.lastSentPoint.lat, state.lastSentPoint.lng, p.lat, p.lng) : Infinity;
-	    // Throttle: en admin (modo prueba) guardamos mas seguido para que el resumen quede mas fiel.
-	    const throttleMs = isAdmin ? 1000 : 5000;
-	    const minMoveM = isAdmin ? 3 : 20;
-	    if (now - state.lastSentAt < throttleMs && movedM < minMoveM) return;
-	    state.lastSentAt = now;
-	    state.lastSentPoint = { lat: p.lat, lng: p.lng };
-	    try {
-      await fetch(`/api/safety/checkin/${checkinId}/route/point`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrf,
-        },
-        body: JSON.stringify({
-          lat: p.lat,
-          lng: p.lng,
-          ts_ms: p.ts,
-          speed_kmh: p.speedKmh,
-          accuracy_m: p.accuracyM,
-        }),
-      });
-    } catch (e) {
-      // Silencioso: si falla, seguimos dibujando localmente.
-    }
-  };
-
-	  const pushPoint = (lat, lng, tsMs, speedKmh, accuracyM, fromServer = false, force = false) => {
-	    const ts = Number(tsMs) || Date.now();
-	    const p = {
-	      lat: Number(lat),
-	      lng: Number(lng),
-      ts,
-      speedKmh: (speedKmh != null && Number.isFinite(Number(speedKmh))) ? Number(speedKmh) : null,
-      accuracyM: (accuracyM != null && Number.isFinite(Number(accuracyM))) ? Number(accuracyM) : null,
-    };
-
-    if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) return;
-    if (state.startTs == null) state.startTs = ts;
-
-	    if (state.lastPoint) {
-	      const dM = haversineM(state.lastPoint.lat, state.lastPoint.lng, p.lat, p.lng);
-	      const dtS = Math.max(0.001, (p.ts - state.lastPoint.ts) / 1000);
-	      // Evita ruido GPS (solo para puntos del live tracking)
-	      if (!fromServer && !force && dM < 2) return;
-
-      state.totalM += dM;
-
-      if (p.speedKmh == null || !Number.isFinite(p.speedKmh)) {
-        p.speedKmh = (dM / dtS) * 3.6;
-      }
-
-      const segIdx = Math.floor((state.lastPoint.ts - state.startTs) / state.segmentWindowMs);
-      let seg = state.segments.get(segIdx);
-      if (!seg) {
-        seg = { idx: segIdx, startTs: state.lastPoint.ts, endTs: p.ts, distM: 0 };
-        state.segments.set(segIdx, seg);
-      }
-      seg.distM += dM;
-      seg.endTs = p.ts;
-    }
-
-    state.points.push(p);
-    state.lastPoint = p;
-
-    const ll = [p.lat, p.lng];
-    routeLine.addLatLng(ll);
-    if (!cursorAdded) {
-      cursor.setLatLng(ll).addTo(map);
-      cursorAdded = true;
-      map.setView(ll, 16);
-	    } else {
-	      cursor.setLatLng(ll);
-	      if (!state.userInteracted) {
-	        if (isAdmin) {
-	          map.panTo(ll, { animate: false });
-	        } else {
-	          map.panTo(ll, { animate: true, duration: 0.25 });
-	        }
-	      }
-	    }
-
-    updateMetrics();
-    if (!fromServer) maybeSendPoint(p);
-  };
-
-  const loadExisting = async () => {
-    try {
-      const resp = await fetch(`/api/safety/checkin/${checkinId}/route/points`);
-      const data = await resp.json();
-      if (!resp.ok || !data.ok) return;
-      if (Array.isArray(data.points)) {
-        data.points.forEach((pt) => pushPoint(pt.lat, pt.lng, pt.ts_ms, pt.speed_kmh, pt.accuracy_m, true));
-      }
-      if (state.points.length >= 2) {
-        try {
-          map.fitBounds(routeLine.getBounds(), { padding: [18, 18] });
-        } catch (e) {}
-      }
-    } catch (e) {
-      // ignore
-    }
-  };
-
-	  const startWatch = () => {
-	    if (isAdmin) {
-	      if (!state.points.length) {
-	        setStatus('Modo prueba (admin): inicio precargado. Ajusta coordenadas o usa joystick/tap para simular movimiento.');
-	        const fallback = [25.6866, -100.3161];
-	        try { map.setView(fallback, 14); } catch (e) {}
-	        primeAdminStartInputsFromCurrent();
-	      } else {
-	        setStatus('Modo prueba (admin): usa el joystick, arrastra el marcador o toca el mapa para simular tu ubicación.');
-	      }
-	      try { cursor.dragging.enable(); } catch (e) {}
-	      try { cursor.on('dragend', onAdminDragEnd); } catch (e) {}
-	      try { map.on('click', onAdminMapClick); } catch (e) {}
-	      return;
-	    }
-
-    if (!navigator.geolocation) {
-      setStatus('Geolocalización no disponible en este dispositivo.', true);
-      return;
-    }
-
-    setStatus('Registrando ruta…');
-    state.watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const lat = pos.coords?.latitude;
-        const lng = pos.coords?.longitude;
-        if (lat == null || lng == null) return;
-        const speedKmh = (pos.coords?.speed != null && Number.isFinite(pos.coords.speed)) ? (pos.coords.speed * 3.6) : null;
-        const accuracyM = (pos.coords?.accuracy != null && Number.isFinite(pos.coords.accuracy)) ? pos.coords.accuracy : null;
-        pushPoint(lat, lng, pos.timestamp, speedKmh, accuracyM, false);
-      },
-      (err) => {
-        setStatus(err?.message || 'No se pudo obtener tu ubicación.', true);
-      },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-    );
-  };
-
-  const stopWatch = () => {
-    if (state.watchId != null && navigator.geolocation) {
-      try { navigator.geolocation.clearWatch(state.watchId); } catch (e) {}
-    }
-    state.watchId = null;
-
-	    // Admin simulation: detach handlers and disable dragging.
-	    if (isAdmin) {
-	      try { cursor.off('dragend', onAdminDragEnd); } catch (e) {}
-	      try { map.off('click', onAdminMapClick); } catch (e) {}
-	      try { cursor.dragging.disable(); } catch (e) {}
-	      stopJoystick();
-	    }
-	  };
-
-  // Exponer para que los botones "Ya llegué / Cancelar" detengan el tracking.
-  window.__stopMyRouteTracker = stopWatch;
-  window.addEventListener('beforeunload', stopWatch);
-
-  // Timer de UI (por si no llegan puntos constantemente)
-  setInterval(updateElapsed, 1000);
-
-  // Pintar lo que ya exista y empezar a seguir.
-  loadExisting().finally(() => startWatch());
-});
-
-// --- Historial de trayectos (acordeón + resumen animado) ---------------------
-document.addEventListener('DOMContentLoaded', () => {
-  const accordion = document.getElementById('tripHistoryAccordion');
-  if (!accordion) return;
-  if (!window.L) return;
-
-  const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
-  const initialized = new Set();
-
-  const toRad = (deg) => (deg * Math.PI) / 180;
-  const haversineM = (lat1, lon1, lat2, lon2) => {
-    const R = 6371000;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.asin(Math.sqrt(a));
-    return R * c;
-  };
-
-  const formatHms = (secs) => {
-    const s = Math.max(0, Math.floor(Number(secs) || 0));
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const r = s % 60;
-    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
-    return `${m}:${String(r).padStart(2, '0')}`;
-  };
-  const formatDuration = (secs) => {
-    const s = Math.max(0, Math.floor(Number(secs) || 0));
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const r = s % 60;
-    if (h > 0) return `${h}h ${m}m`;
-    if (m > 0) return `${m}m ${r}s`;
-    return `${r}s`;
-  };
-
-  const setText = (id, value) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = value;
-  };
-
-  async function initTripSummary(checkinId) {
-    const mapEl = document.getElementById(`tripMap${checkinId}`);
-    if (!mapEl) return;
-
-    const statusEl = document.getElementById(`tripStatus${checkinId}`);
-    const segWrap = document.getElementById(`tripSegments${checkinId}`);
-    if (statusEl) statusEl.textContent = 'Cargando ruta…';
-
-    let data;
-    try {
-      const resp = await fetch(`/api/safety/checkin/${checkinId}/route/points`);
-      data = await resp.json();
-      if (!resp.ok || !data.ok) {
-        if (statusEl) statusEl.textContent = data?.error || 'No se pudo cargar la ruta.';
-        return;
-      }
-    } catch (e) {
-      if (statusEl) statusEl.textContent = 'No se pudo cargar la ruta.';
-      return;
-    }
-
-    const pts = Array.isArray(data.points) ? data.points : [];
-    const coords = pts.map(p => [Number(p.lat), Number(p.lng), Number(p.ts_ms || 0)]).filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]) && Number.isFinite(p[2]));
-
-    const map = L.map(mapEl, { zoomControl: true, attributionControl: false });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, subdomains: ['a', 'b', 'c'] }).addTo(map);
-    setTimeout(() => { try { map.invalidateSize(); } catch (e) {} }, 0);
-
-    if (coords.length < 2) {
-      if (statusEl) statusEl.textContent = 'Aún no hay suficientes puntos para reproducir la ruta.';
-      map.setView([25.6866, -100.3161], 12);
-      setText(`tripDistance${checkinId}`, '0.00');
-      setText(`tripDuration${checkinId}`, '0s');
-      setText(`tripAvgSpeed${checkinId}`, '0.0');
-      setText(`tripMaxSpeed${checkinId}`, '0.0');
-      if (segWrap) segWrap.innerHTML = '<div class="small text-secondary">Sin tramos para mostrar.</div>';
-      return;
-    }
-
-    const startTs = coords[0][2];
-    const endTs = coords[coords.length - 1][2];
-    const durationSec = Math.max(0, (endTs - startTs) / 1000);
-
-    let totalM = 0;
-    let maxSpeed = 0;
-    const segWinMs = 60000;
-    const segMap = new Map();
-
-    for (let i = 1; i < coords.length; i++) {
-      const a = coords[i - 1];
-      const b = coords[i];
-      const dtS = (b[2] - a[2]) / 1000;
-      if (!(dtS > 0)) continue;
-      const dM = haversineM(a[0], a[1], b[0], b[1]);
-      totalM += dM;
-      const sp = (dM / dtS) * 3.6;
-      if (sp > maxSpeed) maxSpeed = sp;
-
-      const idx = Math.floor((a[2] - startTs) / segWinMs);
-      let seg = segMap.get(idx);
-      if (!seg) {
-        seg = { idx, startTs: a[2], endTs: b[2], distM: 0 };
-        segMap.set(idx, seg);
-      }
-      seg.distM += dM;
-      seg.endTs = b[2];
-    }
-
-    const distanceKm = totalM / 1000;
-    const avgSpeed = durationSec > 0 ? (distanceKm / (durationSec / 3600)) : 0;
-
-    setText(`tripDistance${checkinId}`, distanceKm.toFixed(2));
-    setText(`tripDuration${checkinId}`, formatDuration(durationSec));
-    setText(`tripAvgSpeed${checkinId}`, Number.isFinite(avgSpeed) ? avgSpeed.toFixed(1) : '0.0');
-    setText(`tripMaxSpeed${checkinId}`, Number.isFinite(maxSpeed) ? maxSpeed.toFixed(1) : '0.0');
-
-    const segs = Array.from(segMap.values()).sort((x, y) => x.idx - y.idx);
-    if (segWrap) {
-      if (!segs.length) {
-        segWrap.innerHTML = '<div class="small text-secondary">Sin tramos para mostrar.</div>';
-      } else {
-        const shown = segs.slice(0, 18);
-        segWrap.innerHTML = shown.map((seg) => {
-          const durS = Math.max(1, (seg.endTs - seg.startTs) / 1000);
-          const km = seg.distM / 1000;
-          const sp = (km / (durS / 3600));
-          const a = formatHms((seg.startTs - startTs) / 1000);
-          const b = formatHms((seg.endTs - startTs) / 1000);
-          return `
-            <div class="p-2 rounded" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-              <div class="d-flex align-items-center justify-content-between gap-2">
-                <div class="small text-secondary">Tramo ${seg.idx + 1} · ${a}-${b}</div>
-                <div class="fw-semibold text-white">${Number.isFinite(sp) ? sp.toFixed(1) : '0.0'} km/h</div>
-              </div>
-              <div class="small text-secondary">${km.toFixed(2)} km</div>
-            </div>
-          `;
-        }).join('');
-      }
-    }
-
-    const lineCoords = coords.map(p => [p[0], p[1]]);
-    const full = L.polyline(lineCoords, { color: '#a78bfa', weight: 5, opacity: 0.22 }).addTo(map);
-    const anim = L.polyline([], { color: '#FEC04F', weight: 5, opacity: 0.95 }).addTo(map);
-    const marker = L.circleMarker(lineCoords[0], { radius: 6, color: '#ffffff', weight: 2, fillColor: '#FEC04F', fillOpacity: 1 }).addTo(map);
-
-    try { map.fitBounds(full.getBounds(), { padding: [18, 18] }); } catch (e) {}
-
-    if (statusEl) statusEl.textContent = 'Reproduciendo ruta…';
-    let i = 0;
-    const step = Math.max(1, Math.floor(lineCoords.length / 220));
-    const tickMs = 18;
-    const timer = setInterval(() => {
-      if (i >= lineCoords.length) {
-        clearInterval(timer);
-        if (statusEl) statusEl.textContent = 'Ruta completa.';
-        return;
-      }
-      for (let k = 0; k < step && i < lineCoords.length; k++, i++) {
-        anim.addLatLng(lineCoords[i]);
-      }
-      marker.setLatLng(lineCoords[Math.max(0, i - 1)]);
-    }, tickMs);
-  }
-
-  accordion.addEventListener('shown.bs.collapse', (e) => {
-    const collapseEl = e.target;
-    const checkinId = collapseEl?.getAttribute?.('data-checkin-id');
-    if (!checkinId) return;
-    if (initialized.has(checkinId)) return;
-    initialized.add(checkinId);
-    initTripSummary(checkinId);
-  });
-
-  document.querySelectorAll('[data-trip-save-title]').forEach((btn) => {
-    btn.addEventListener('click', async (e) => {
-      e.preventDefault();
-      const id = btn.getAttribute('data-trip-save-title');
-      if (!id) return;
-      const input = document.getElementById(`tripTitleInput${id}`);
-      const status = document.getElementById(`tripTitleSaveStatus${id}`);
-      const header = document.getElementById(`tripTitleHeader${id}`);
-      const raw = (input && 'value' in input) ? String(input.value || '') : '';
-      const next = raw.trim();
-      const def = input?.getAttribute?.('data-default-title') || `Trayecto`;
-
-      if (status) status.textContent = 'Guardando…';
-      try {
-        const resp = await fetch(`/api/safety/checkin/${id}/title`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-          body: JSON.stringify({ title: next })
-        });
-        const data = await resp.json();
-        if (!resp.ok || !data.ok) {
-          if (status) status.textContent = data?.error || 'No se pudo guardar el título.';
-          return;
-        }
-        const finalTitle = (data.title || '').trim() || def;
-        if (header) header.textContent = finalTitle;
-        if (input) input.value = finalTitle;
-        if (status) status.textContent = 'Título actualizado.';
-        setTimeout(() => { if (status) status.textContent = ''; }, 1500);
-      } catch (err) {
-        if (status) status.textContent = 'No se pudo guardar el título.';
-      }
-    });
-  });
-});
-</script>
-{% endblock %}

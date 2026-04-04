@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_page.css') }}?v=20260402-perf-v4">
+<style>
+    .deferred-shell-skeleton .placeholder {
+        border-radius: 999px;
+    }
+
+    .deferred-shell-card {
+        border-radius: var(--radius-md);
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 1rem;
+    }
+ </style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 px-md-3 px-xl-4 pb-5 admin-ops-page">
+    <section class="admin-ops-topbar">
+        <div class="admin-ops-topbar__title">
+            <h1>Panel de Operaciones</h1>
+        </div>
+    </section>
+
+    <div id="deferredPageError" class="alert alert-danger" hidden>
+        No se pudo cargar por completo el panel. Recarga la página.
+    </div>
+
+    <section id="adminOverviewSkeleton" class="deferred-shell-skeleton">
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-xxl-8">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="deferred-shell-card placeholder-glow">
+                            <span class="placeholder col-4 mb-3" style="height: 1.8rem;"></span>
+                            <span class="placeholder col-7" style="height: 0.9rem;"></span>
+                        </div>
+                    </div>
+                    {% for _ in range(4) %}
+                    <div class="col-6 col-xl-3">
+                        <div class="deferred-shell-card placeholder-glow">
+                            <span class="placeholder col-7 mb-3" style="height: 1.8rem;"></span>
+                            <span class="placeholder col-8" style="height: 0.8rem;"></span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="col-12 col-xxl-4">
+                <div class="deferred-shell-card placeholder-glow h-100">
+                    <span class="placeholder col-5 mb-3" style="height: 1.2rem;"></span>
+                    <span class="placeholder col-12 mb-3" style="height: 220px; border-radius: 24px;"></span>
+                    <span class="placeholder col-10 mb-2" style="height: 0.9rem;"></span>
+                    <span class="placeholder col-8" style="height: 0.9rem;"></span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div id="adminOverviewMount" hidden aria-busy="true"></div>
+
+    <section class="admin-tabs-panel">
+        <div class="admin-tabs-scroll" id="adminTabs">
+            <button class="tab-btn{% if active_admin_tab == 'users' %} active{% endif %}" onclick="switchTab('users')" id="tab-users" type="button">
+                Usuarias
+            </button>
+            <button class="tab-btn{% if active_admin_tab == 'posts' %} active{% endif %}" onclick="switchTab('posts')" id="tab-posts" type="button">
+                Publicaciones
+            </button>
+            <button class="tab-btn{% if active_admin_tab == 'reportes' %} active{% endif %}" onclick="switchTab('reportes')" id="tab-reportes" type="button">
+                <span class="tab-dot"></span> Reportes
+            </button>
+            <button class="tab-btn{% if active_admin_tab == 'chats' %} active{% endif %}" onclick="switchTab('chats')" id="tab-chats" type="button">
+                Chats
+            </button>
+            <button class="tab-btn{% if active_admin_tab == 'verificaciones' %} active{% endif %}" onclick="switchTab('verificaciones')" id="tab-verificaciones" type="button">
+                Verificaciones
+            </button>
+            <button class="tab-btn{% if active_admin_tab == 'rutas' %} active{% endif %}" onclick="switchTab('rutas')" id="tab-rutas" type="button">
+                Rutas
+            </button>
+        </div>
+        <div class="admin-tabs-tools">
+            <label class="admin-filter-box" for="adminGlobalFilter">
+                <i class="fas fa-filter"></i>
+                <span>Filtrar resultados...</span>
+            </label>
+            <button class="admin-refresh-btn" onclick="location.reload()" title="Refrescar" type="button">
+                <i class="fas fa-rotate-right"></i>
+            </button>
+        </div>
+    </section>
+
+    <section id="adminTabContentSkeleton" class="deferred-shell-card placeholder-glow mb-4">
+        {% for _ in range(5) %}
+        <span class="placeholder col-12 mb-3" style="height: 54px; border-radius: 18px;"></span>
+        {% endfor %}
+    </section>
+
+    <div id="adminTabContentMount" hidden aria-busy="true"></div>
+</div>
+
+{% include '_admin_modals.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.ADMIN_PAGE_CONFIG = {
+  csrfToken: {{ csrf_token()|tojson }},
+  adminBadgeUrl: {{ url_for('static', filename='images/admin_badge.svg')|tojson }},
+  activeReportsSubtab: {{ active_reports_subtab|tojson }}
+};
+window.DEFERRED_PAGE_CONFIG = {
+  errorId: 'deferredPageError',
+  fragments: [
+    {
+      mountId: 'adminOverviewMount',
+      skeletonId: 'adminOverviewSkeleton',
+      contentUrl: {{ url_for('admin_panel_overview')|tojson }}
+    },
+    {
+      mountId: 'adminTabContentMount',
+      skeletonId: 'adminTabContentSkeleton',
+      contentUrl: {{ url_for('admin_panel_tab_content', tab=active_admin_tab, reports_subtab=active_reports_subtab, page=active_page_number|default(1))|tojson }}
+    }
+  ],
+  scriptSrc: {{ (url_for('static', filename='js/admin_page.js') ~ '?v=20260402-perf-v5')|tojson }},
+  initFn: 'initAdminPageEnhancements'
+};
+</script>
+<script defer src="{{ url_for('static', filename='js/deferred_page_loader.js') }}?v=20260402-progressive-v2"></script>
+{% endblock %}

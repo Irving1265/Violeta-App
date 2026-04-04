@@ -59,6 +59,10 @@ class Config:
     SQLALCHEMY_DATABASE_URI = _database_url()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = _engine_options(SQLALCHEMY_DATABASE_URI)
+    RUN_STARTUP_SCHEMA_SYNC = _env_bool(
+        'RUN_STARTUP_SCHEMA_SYNC',
+        SQLALCHEMY_DATABASE_URI.startswith('sqlite'),
+    )
 
     # Configuración de archivos
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
@@ -86,6 +90,18 @@ class Config:
     # Cache compartido opcional para producción.
     REDIS_URL = (os.environ.get('REDIS_URL') or '').strip()
     CACHE_NAMESPACE = (os.environ.get('CACHE_NAMESPACE') or 'violeta').strip()
+
+    # Paginación y límites de vistas pesadas.
+    FEED_PAGE_SIZE = max(1, int(os.environ.get('FEED_PAGE_SIZE') or 3))
+    PROFILE_POSTS_PAGE_SIZE = max(1, int(os.environ.get('PROFILE_POSTS_PAGE_SIZE') or 12))
+    ADMIN_USERS_LIMIT = max(5, int(os.environ.get('ADMIN_USERS_LIMIT') or 8))
+    ADMIN_POSTS_LIMIT = max(6, int(os.environ.get('ADMIN_POSTS_LIMIT') or 6))
+    ADMIN_REPORTED_POSTS_LIMIT = max(6, int(os.environ.get('ADMIN_REPORTED_POSTS_LIMIT') or 8))
+    ADMIN_CHAT_ROOMS_LIMIT = max(5, int(os.environ.get('ADMIN_CHAT_ROOMS_LIMIT') or 8))
+    ADMIN_REPORTS_LIMIT = max(5, int(os.environ.get('ADMIN_REPORTS_LIMIT') or 8))
+    ADMIN_VERIFICATIONS_LIMIT = max(5, int(os.environ.get('ADMIN_VERIFICATIONS_LIMIT') or 8))
+    ADMIN_CHECKINS_LIMIT = max(5, int(os.environ.get('ADMIN_CHECKINS_LIMIT') or 10))
+    ADMIN_PANIC_EVENTS_LIMIT = max(5, int(os.environ.get('ADMIN_PANIC_EVENTS_LIMIT') or 8))
 
     # Configuración de correo (para OTP y recuperación)
     MAIL_DELIVERY_METHOD = (os.environ.get('MAIL_DELIVERY_METHOD') or '').strip().lower()

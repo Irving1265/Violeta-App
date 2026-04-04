@@ -720,7 +720,7 @@
 {% set status_key = (checkin.status or '')|lower %}
 {% set status_label = 'Completado' if status_key == 'arrived' else ('En curso' if status_key == 'active' else ('Cancelado' if status_key == 'cancelled' else 'Pendiente')) %}
 {% set status_class = 'is-complete' if status_key == 'arrived' else ('is-active' if status_key == 'active' else ('is-cancelled' if status_key == 'cancelled' else 'is-other')) %}
-{% set is_admin_summary = current_user.is_authenticated and (current_user.username|string|lower == 'admin') %}
+{% set is_admin_summary = current_user_is_super_admin %}
 
 <div class="route-summary-page">
   <section class="route-summary-header">

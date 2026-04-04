@@ -1,0 +1,176 @@
+<!-- Modals -->
+<!-- Edit Username Modal -->
+<div class="modal fade" id="editUsernameModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-surface border border-secondary text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Cambiar Username</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editUsernameForm">
+                    <div class="mb-3">
+                        <label for="newUsername" class="form-label text-secondary">Nuevo Username</label>
+                        <input type="text" class="form-control bg-body border-secondary text-white" id="newUsername"
+                            required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveUsername()">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Change Photo Modal -->
+<div class="modal fade" id="changePhotoModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-surface border border-secondary text-white change-photo-modal">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Editar usuaria</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="changePhotoForm" enctype="multipart/form-data">
+                    <div class="change-photo-preview">
+                        <img id="changePhotoPreview" src="{{ url_for('static', filename='images/default_avatar.jpg') }}"
+                            alt="Preview">
+                    </div>
+                    <input type="file" class="d-none" id="photoFile" accept="image/*" required>
+                    <button type="button" class="btn btn-outline-light w-100 mt-3" id="photoPickBtn">
+                        <i class="fa-regular fa-image me-1"></i> Elegir foto
+                    </button>
+                    <div class="text-secondary small mt-2">JPG · PNG · hasta 10 MB</div>
+                    <div class="mt-3">
+                        <label for="changePhotoBio" class="form-label text-secondary">Descripción</label>
+                        <textarea id="changePhotoBio" class="form-control bg-body border-secondary text-white" rows="3"
+                            placeholder="Escribe una breve descripción..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="savePhoto()">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Change Photo Cropper Modal -->
+<div class="modal fade cropper-modal-dark" id="changePhotoCropperModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajustar Foto</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0 bg-black">
+                <div class="img-container" style="height: 520px; overflow: hidden; position: relative;">
+                    <img id="changePhotoCropperImage" src="" alt="Imagen para recortar"
+                        style="max-width: 100%; display: block;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-light" id="changePhotoChooseCropBtn">
+                    <i class="fa-regular fa-image me-1"></i> Elegir otra
+                </button>
+                <button type="button" class="violet-btn-primary" id="changePhotoApplyCropBtn">Aplicar Recorte</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Coordinates Modal -->
+<div class="modal fade" id="coordsModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-surface border border-secondary text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Editar Coordenadas</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger d-none" id="coordsError"></div>
+                <form id="coordsForm">
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label for="coordLat" class="form-label text-secondary">Latitud</label>
+                            <input type="number" class="form-control bg-body border-secondary text-white" id="coordLat"
+                                step="0.000001" required>
+                        </div>
+                        <div class="col-6">
+                            <label for="coordLng" class="form-label text-secondary">Longitud</label>
+                            <input type="number" class="form-control bg-body border-secondary text-white" id="coordLng"
+                                step="0.000001" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="coordLocationName" class="form-label text-secondary">Nombre del lugar</label>
+                        <input type="text" class="form-control bg-body border-secondary text-white"
+                            id="coordLocationName">
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label for="coordCity" class="form-label text-secondary">Ciudad</label>
+                            <input type="text" class="form-control bg-body border-secondary text-white" id="coordCity">
+                        </div>
+                        <div class="col-6">
+                            <label for="coordCountry" class="form-label text-secondary">País</label>
+                            <input type="text" class="form-control bg-body border-secondary text-white"
+                                id="coordCountry">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveCoords()">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Report Details Modal -->
+<div class="modal fade" id="reportDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content bg-surface border border-secondary text-white report-details-modal">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Detalle del reporte</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="report-details-grid">
+                    <div class="report-details-image">
+                        <img id="reportDetailsImage" src="" alt="Post">
+                    </div>
+                    <div class="report-details-info">
+                        <div class="report-details-author">
+                            <img id="reportDetailsAuthorPic" src="" alt="Autor">
+                            <div>
+                                <div id="reportDetailsAuthor" class="fw-bold text-white"></div>
+                                <div id="reportDetailsCreated" class="small text-secondary"></div>
+                            </div>
+                        </div>
+                        <div id="reportDetailsLocation" class="small text-secondary mt-2"></div>
+                        <div id="reportDetailsCaption" class="mt-2 text-white"></div>
+                        <div class="report-details-metrics mt-3">
+                            <span><i class="fas fa-heart me-1"></i> <span id="reportDetailsLikes"></span></span>
+                            <span><i class="fas fa-comment me-1"></i> <span
+                                    id="reportDetailsCommentsCount"></span></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="report-details-section mt-4">
+                    <h6 class="text-white fw-bold">Reportes</h6>
+                    <div id="reportDetailsReports" class="report-details-list"></div>
+                </div>
+                <div class="report-details-section mt-4">
+                    <h6 class="text-white fw-bold">Comentarios</h6>
+                    <div id="reportDetailsComments" class="report-details-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

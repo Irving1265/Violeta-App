@@ -1,0 +1,13 @@
+#miniMap {
+        z-index: 1;
+    }
+
+    #miniMap .leaflet-control-zoom {
+        display: none;
+    }
+
+    #miniMap .leaflet-control-attribution {
+        font-size: 7px;
+        background: rgba(0, 0, 0, 0.5);
+        color: #666;
+    }

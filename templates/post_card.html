@@ -43,7 +43,7 @@
                             <i class="fas fa-triangle-exclamation"></i>
                         </span>
                         {% endif %}
-                        {% if post.author.username == 'admin' %}<span class="admin-badge" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+                        {% if user_has_staff_badge(post.author) %}<span class="admin-badge" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
                     </div>
                     <div class="post-meta-row">
                         <div class="small text-muted post-location">
@@ -181,7 +181,7 @@
                 <i class="fas fa-triangle-exclamation"></i>
             </span>
             {% endif %}
-            {% if post.author.username == 'admin' %}<span class="admin-badge admin-badge--sm" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+            {% if user_has_staff_badge(post.author) %}<span class="admin-badge admin-badge--sm" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
             {{ post.caption }}
         </div>
         {% endif %}
@@ -216,10 +216,10 @@
                                             <i class="fas fa-triangle-exclamation"></i>
                                         </span>
                                         {% endif %}
-                                        {% if comment.author.username == 'admin' %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+                                        {% if user_has_staff_badge(comment.author) %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
                                     </a>
-                                    {% if current_user.is_authenticated and (current_user.id != comment.user_id or current_user.username == 'admin') %}
-                                    <button type="button" class="comment-report-btn {% if current_user.username == 'admin' %}comment-report-btn--always-visible{% endif %}" onclick="openCommentReportModal({{ comment.id }}, {{ post.id }})" title="Reportar comentario">
+                                    {% if current_user.is_authenticated and (current_user.id != comment.user_id or current_user_is_super_admin) %}
+                                    <button type="button" class="comment-report-btn {% if current_user_is_super_admin %}comment-report-btn--always-visible{% endif %}" onclick="openCommentReportModal({{ comment.id }}, {{ post.id }})" title="Reportar comentario">
                                         <i class="fas fa-flag"></i>
                                     </button>
                                     {% endif %}
@@ -259,7 +259,7 @@
                                                 <i class="fas fa-triangle-exclamation"></i>
                                             </span>
                                             {% endif %}
-                                            {% if comment.author.username == 'admin' %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+                                            {% if user_has_staff_badge(comment.author) %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
                                         </a>
                                     </div>
                                 </div>

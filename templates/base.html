@@ -8,22 +8,25 @@
     <title>Violeta</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}?v=1">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/favicon.png') }}?v=1">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
-    {% if request.endpoint in ['index', 'chat', 'admin_panel'] %}
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"
-        crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <link href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}" rel="stylesheet">
+    {% if request.endpoint in ['chat', 'admin_panel'] %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/cropper/cropper.min.css') }}" />
     {% endif %}
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    {% if request.endpoint in ['index', 'hotspots_page', 'safety_center', 'login'] %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
+    {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% if request.endpoint == 'index' %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/post_create.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/post_create.css') }}?v=20260403-post-modal-motion-v17">
+    {% endif %}
+    {% if current_user.is_authenticated and request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'account_restricted'] %}
+    <link rel="prefetch" as="document" href="{{ url_for('index') }}">
+    {% if current_user_can_access_admin_panel %}<link rel="prefetch" as="document" href="{{ url_for('admin_panel') }}">{% endif %}
+    <link rel="prefetch" as="document" href="{{ url_for('hotspots_page') }}">
+    <link rel="prefetch" as="document" href="{{ url_for('chat') }}">
+    <link rel="prefetch" as="document" href="{{ url_for('safety_center') }}">
+    <link rel="prefetch" as="document" href="{{ url_for('user_profile', username=current_user.username) }}">
     {% endif %}
     {% block styles %}{% endblock %}
 </head>
@@ -42,11 +45,30 @@
                     class="sidebar-link {{ 'active' if request.endpoint == 'index' else '' }}">
                     <i class="fa-solid fa-house"></i> Inicio
                 </a>
-                {% if current_user.is_authenticated and current_user.username == 'admin' %}
+                {% if current_user.is_authenticated and current_user_can_access_admin_panel %}
                 <a href="{{ url_for('admin_panel') }}"
                     class="sidebar-link {{ 'active' if request.endpoint == 'admin_panel' else '' }}">
                     <i class="fa-solid fa-user-shield"></i> Panel de admin
                 </a>
+                {% else %}
+                    {% if current_user.is_authenticated and user_has_permission(current_user, 'verification.review') %}
+                    <a href="{{ url_for('verification_workspace') }}"
+                        class="sidebar-link {{ 'active' if request.endpoint == 'verification_workspace' else '' }}">
+                        <i class="fa-solid fa-user-check"></i> Verificaciones
+                    </a>
+                    {% endif %}
+                    {% if current_user.is_authenticated and user_has_permission(current_user, 'reports.review') %}
+                    <a href="{{ url_for('moderation_workspace') }}"
+                        class="sidebar-link {{ 'active' if request.endpoint == 'moderation_workspace' else '' }}">
+                        <i class="fa-solid fa-shield"></i> Moderación
+                    </a>
+                    {% endif %}
+                    {% if current_user.is_authenticated and user_has_permission(current_user, 'safety.view_any') %}
+                    <a href="{{ url_for('safety_workspace') }}"
+                        class="sidebar-link {{ 'active' if request.endpoint == 'safety_workspace' else '' }}">
+                        <i class="fa-solid fa-route"></i> Safety Ops
+                    </a>
+                    {% endif %}
                 {% endif %}
                 <a href="{{ url_for('hotspots_page') }}"
                     class="sidebar-link {{ 'active' if request.endpoint == 'hotspots_page' else '' }}">
@@ -197,6 +219,16 @@
                         </div>
                         <div class="d-grid gap-2">
                             <label class="report-option">
+                                <input type="radio" name="comment_report_reason" value="Doxxing o datos personales">
+                                <span class="report-option-check"></span>
+                                <span class="report-option-text">Doxxing o datos personales</span>
+                            </label>
+                            <label class="report-option">
+                                <input type="radio" name="comment_report_reason" value="Ubicación exacta, rastreo o rutina">
+                                <span class="report-option-check"></span>
+                                <span class="report-option-text">Ubicación exacta, rastreo o rutina</span>
+                            </label>
+                            <label class="report-option">
                                 <input type="radio" name="comment_report_reason" value="Acoso o insultos">
                                 <span class="report-option-check"></span>
                                 <span class="report-option-text">Acoso o insultos</span>
@@ -217,6 +249,11 @@
                                 <span class="report-option-text">Contenido sexual no solicitado</span>
                             </label>
                             <label class="report-option">
+                                <input type="radio" name="comment_report_reason" value="Contenido íntimo o sexual sin consentimiento">
+                                <span class="report-option-check"></span>
+                                <span class="report-option-text">Contenido íntimo o sexual sin consentimiento</span>
+                            </label>
+                            <label class="report-option">
                                 <input type="radio" name="comment_report_reason" value="Archivo o enlace sospechoso">
                                 <span class="report-option-check"></span>
                                 <span class="report-option-text">Archivo o enlace sospechoso</span>
@@ -227,7 +264,7 @@
                             <textarea id="reportCommentDetails" class="form-control bg-body border-secondary text-white" rows="3" placeholder="Agrega un comentario adicional..."></textarea>
                         </div>
                         <div class="report-modal-note mt-3">
-                            Este comentario se ocultará mientras el equipo lo revisa.
+                            Si detectamos alto riesgo, este comentario se ocultará de inmediato. En otros casos pasará a revisión.
                         </div>
                         <div class="alert alert-danger d-none mt-3" id="reportCommentError"></div>
                     </div>
@@ -260,6 +297,36 @@
                             </p>
                         </div>
                         <div class="d-grid gap-2">
+                            <label class="report-option">
+                                <input type="radio" name="report_reason" value="Doxxing o datos personales">
+                                <span class="report-option-check"></span>
+                                <span class="report-option-text">Doxxing o datos personales</span>
+                            </label>
+                            <label class="report-option">
+                                <input type="radio" name="report_reason" value="Ubicación exacta, rastreo o rutina">
+                                <span class="report-option-check"></span>
+                                <span class="report-option-text">Ubicación exacta, rastreo o rutina</span>
+                            </label>
+                            <label class="report-option">
+                                <input type="radio" name="report_reason" value="Amenaza o violencia">
+                                <span class="report-option-check"></span>
+                                <span class="report-option-text">Amenaza o violencia</span>
+                            </label>
+                            <label class="report-option">
+                                <input type="radio" name="report_reason" value="Contenido íntimo o sexual sin consentimiento">
+                                <span class="report-option-check"></span>
+                                <span class="report-option-text">Contenido íntimo o sexual sin consentimiento</span>
+                            </label>
+                            <label class="report-option">
+                                <input type="radio" name="report_reason" value="Suplantación de identidad">
+                                <span class="report-option-check"></span>
+                                <span class="report-option-text">Suplantación de identidad</span>
+                            </label>
+                            <label class="report-option">
+                                <input type="radio" name="report_reason" value="Fraude o phishing">
+                                <span class="report-option-check"></span>
+                                <span class="report-option-text">Fraude o phishing</span>
+                            </label>
                             <label class="report-option">
                                 <input type="radio" name="report_reason" value="Información falso">
                                 <span class="report-option-check"></span>
@@ -295,7 +362,7 @@
                                 rows="3" placeholder="Agrega un comentario adicional..."></textarea>
                         </div>
                         <div class="report-modal-note mt-3">
-                            Esta publicación se ocultará mientras el equipo la revisa.
+                            Si detectamos alto riesgo, esta publicación se ocultará de inmediato. En otros casos pasará a revisión.
                         </div>
                         <div class="alert alert-danger d-none mt-3" id="reportPostError"></div>
                     </div>
@@ -308,9 +375,14 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
+    {% if request.endpoint in ['index', 'hotspots_page', 'safety_center', 'login'] %}
+    <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
+    {% endif %}
+    {% if request.endpoint in ['chat', 'admin_panel'] %}
+    <script src="{{ url_for('static', filename='vendor/cropper/cropper.min.js') }}"></script>
+    {% endif %}
+    <script src="{{ url_for('static', filename='js/native_bridge.js') }}"></script>
     <script>
         (function () {
             if (!window.L || !L.Map) return;
@@ -332,14 +404,23 @@
             is_authenticated: {{ 'true' if current_user.is_authenticated else 'false' }},
             id: {{ current_user.id if current_user.is_authenticated else 'null' }},
             username: "{{ current_user.username if current_user.is_authenticated else '' }}",
-            profile_pic: "{{ avatar_url_for_user(current_user) if current_user.is_authenticated else url_for('static', filename='images/default_avatar.jpg') }}"
+            profile_pic: "{{ avatar_url_for_user(current_user) if current_user.is_authenticated else url_for('static', filename='images/default_avatar.jpg') }}",
+            roles: {{ user_role_names(current_user)|list|tojson if current_user.is_authenticated else '[]' }},
+            is_super_admin: {{ 'true' if current_user_is_super_admin else 'false' }},
+            can_access_admin_panel: {{ 'true' if current_user_can_access_admin_panel else 'false' }},
+            can_override_content_controls: {{ 'true' if current_user_can_override_content_controls else 'false' }},
+            can_review_private_content: {{ 'true' if current_user_can_review_private_content else 'false' }}
         };
         window.USER_IS_VERIFIED = {{ 'true' if user_is_verified else 'false' }};
         window.VERIFY_REQUIRED_MSG = 'Para poder ver el contenido tenemos que verificar tu identidad';
+        window.VIOLETA_SAFETY_PUBLISH_POLICY = {{ safety_publish_policy|tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=20260402-nav-safe-v2"></script>
+    {% if current_user.is_authenticated and not current_user_can_override_content_controls %}
+    <script src="{{ url_for('static', filename='js/pending_post_release.js') }}?v=20260402-progressive-v1"></script>
+    {% endif %}
     {% if request.endpoint == 'index' %}
-    <script src="{{ url_for('static', filename='js/post_create.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/post_create.js') }}?v=20260403-post-modal-motion-v15"></script>
     {% endif %}
     {% if request.endpoint in ['index', 'user_profile', 'profile', 'post_detail'] %}
     <script src="{{ url_for('static', filename='js/post_map.js') }}"></script>
