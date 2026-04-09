@@ -1,4 +1,4 @@
-const NAV_CACHE = 'violeta-nav-v2';
+const NAV_CACHE = 'violeta-nav-v3';
 const NAV_CACHE_TTL_MS = 300000;
 const PREFETCH_LIMIT = 12;
 const EXCLUDED_PATHS = new Set(['/logout', '/service-worker.js']);
@@ -8,7 +8,15 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil((async () => {
+    const cacheNames = await caches.keys();
+    await Promise.all(
+      cacheNames
+        .filter((name) => name.startsWith('violeta-nav-') && name !== NAV_CACHE)
+        .map((name) => caches.delete(name)),
+    );
+    await self.clients.claim();
+  })());
 });
 
 function normalizeUrl(input) {
@@ -19,7 +27,8 @@ function normalizeUrl(input) {
 
 function isCacheableNavigationUrl(url) {
   const parsed = new URL(url, self.location.origin);
-  return parsed.origin === self.location.origin && !EXCLUDED_PATHS.has(parsed.pathname);
+  const isSafetyPath = parsed.pathname === '/safety' || parsed.pathname.startsWith('/safety/');
+  return parsed.origin === self.location.origin && !EXCLUDED_PATHS.has(parsed.pathname) && !isSafetyPath;
 }
 
 async function storeNavigationResponse(url, response) {

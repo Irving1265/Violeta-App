@@ -25,7 +25,6 @@
     {% if current_user_can_access_admin_panel %}<link rel="prefetch" as="document" href="{{ url_for('admin_panel') }}">{% endif %}
     <link rel="prefetch" as="document" href="{{ url_for('hotspots_page') }}">
     <link rel="prefetch" as="document" href="{{ url_for('chat') }}">
-    <link rel="prefetch" as="document" href="{{ url_for('safety_center') }}">
     <link rel="prefetch" as="document" href="{{ url_for('user_profile', username=current_user.username) }}">
     {% endif %}
     {% block styles %}{% endblock %}
@@ -80,7 +79,7 @@
                 </a>
                 {% if current_user.is_authenticated %}
                 <a href="{{ url_for('safety_center') }}"
-                    class="sidebar-link {{ 'active' if request.endpoint == 'safety_center' else '' }}">
+                    class="sidebar-link {{ 'active' if request.endpoint == 'safety_center' else '' }}" data-no-prefetch="1">
                     <i class="fa-solid fa-shield-heart"></i> Seguridad
                 </a>
                 {% endif %}
@@ -415,7 +414,7 @@
         window.VERIFY_REQUIRED_MSG = 'Para poder ver el contenido tenemos que verificar tu identidad';
         window.VIOLETA_SAFETY_PUBLISH_POLICY = {{ safety_publish_policy|tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/app.js') }}?v=20260402-nav-safe-v2"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=20260409-nav-safe-v3"></script>
     {% if current_user.is_authenticated and not current_user_can_override_content_controls %}
     <script src="{{ url_for('static', filename='js/pending_post_release.js') }}?v=20260402-progressive-v1"></script>
     {% endif %}

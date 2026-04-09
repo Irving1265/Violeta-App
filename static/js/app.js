@@ -1592,6 +1592,10 @@ document.addEventListener('click', function (event) {
         return url.toString();
     }
 
+    function isSafetyNavigationPath(pathname) {
+        return pathname === '/safety' || pathname.startsWith('/safety/');
+    }
+
     function prefetchDocument(href) {
         if (!href || href.startsWith('#') || href.startsWith('tel:') || href.startsWith('mailto:')) return;
         if (!isSameOrigin(href)) return;
@@ -1613,7 +1617,7 @@ document.addEventListener('click', function (event) {
         if (!isSameOrigin(href)) return false;
         try {
             const url = new URL(href, window.location.href);
-            if (url.pathname === '/logout') return false;
+            if (url.pathname === '/logout' || isSafetyNavigationPath(url.pathname)) return false;
         } catch (_) {
             return false;
         }
@@ -1711,6 +1715,9 @@ document.addEventListener('click', function (event) {
 
         if (window.CURRENT_USER && window.CURRENT_USER.is_authenticated) {
             registerNavigationServiceWorker().then(() => {
+                if (isSafetyNavigationPath(window.location.pathname)) {
+                    clearServiceWorkerNavigationCache();
+                }
                 if (navigationCandidates.length) {
                     sendServiceWorkerPrefetch(navigationCandidates);
                     window.setTimeout(() => sendServiceWorkerPrefetch(navigationCandidates), 1500);
