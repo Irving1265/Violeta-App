@@ -75,13 +75,13 @@
                 Publicaciones
             </button>
             <button class="tab-btn{% if active_tab == 'reportes' %} active{% endif %}" onclick="switchTab('reportes')" id="tab-reportes" type="button">
-                <span class="tab-dot"></span> Reportes
+                {% if has_admin_reports_attention %}<span class="tab-dot"></span>{% endif %} Reportes
             </button>
             <button class="tab-btn{% if active_tab == 'chats' %} active{% endif %}" onclick="switchTab('chats')" id="tab-chats" type="button">
-                Chats
+                {% if has_admin_chats_attention %}<span class="tab-dot"></span>{% endif %} Chats
             </button>
             <button class="tab-btn{% if active_tab == 'verificaciones' %} active{% endif %}" onclick="switchTab('verificaciones')" id="tab-verificaciones" type="button">
-                Verificaciones
+                {% if has_admin_verifications_attention %}<span class="tab-dot"></span>{% endif %} Verificaciones
             </button>
             <button class="tab-btn{% if active_tab == 'rutas' %} active{% endif %}" onclick="switchTab('rutas')" id="tab-rutas" type="button">
                 Rutas
@@ -135,9 +135,10 @@
                     </thead>
                     <tbody id="usersList">
                         {% for user in users %}
+                        {% set protected_staff = user_is_protected_staff(user) %}
                         <tr class="user-item">
                             <td class="admin-users-table__check">
-                                <input class="form-check-input user-select" type="checkbox" data-id="{{ user.id }}" {% if user.username=='admin' %}disabled{% endif %}>
+                                <input class="form-check-input user-select" type="checkbox" data-id="{{ user.id }}" {% if protected_staff %}disabled{% endif %}>
                             </td>
                             <td>
                                 <div class="admin-user-cell">
@@ -164,7 +165,7 @@
                                 {% if user.username == 'admin' %}
                                 <span class="admin-status-pill is-active">Activo</span>
                                 {% elif user.post_count|default(0) > 0 %}
-                                <span class="admin-status-pill is-mid">En uso</span>
+                                <span class="admin-status-pill is-mid">Con publicaciones</span>
                                 {% else %}
                                 <span class="admin-status-pill is-off">Offline</span>
                                 {% endif %}
@@ -178,7 +179,7 @@
                             <td>{{ user.created_at.strftime('%d/%m/%Y') if user.created_at else 'N/A' }}</td>
                             <td class="text-end">
                                 <div class="admin-action-row">
-                                    {% if user.username != 'admin' %}
+                                    {% if not protected_staff %}
                                     <button class="admin-icon-action" onclick="editUsername('{{ user.id }}', '{{ user.username }}')" title="Editar nombre">
                                         <i class="fas fa-edit"></i>
                                     </button>
@@ -402,13 +403,13 @@
     <div id="view-reportes" class="admin-view{% if active_tab != 'reportes' %} d-none{% endif %}">
         <div class="report-subtabs" id="reportSubtabs" role="tablist" aria-label="Subsecciones de reportes">
             <button class="report-subtab-btn{% if active_reports_subtab == 'reportados' %} active{% endif %}" type="button" id="report-subtab-reportados" role="tab" aria-selected="{{ 'true' if active_reports_subtab == 'reportados' else 'false' }}" onclick="switchReportsSubtab('reportados')">
-                Publicaciones reportadas
+                {% if has_reported_posts %}<span class="tab-dot"></span>{% endif %} Publicaciones reportadas
             </button>
             <button class="report-subtab-btn{% if active_reports_subtab == 'reportes-chat' %} active{% endif %}" type="button" id="report-subtab-reportes-chat" role="tab" aria-selected="{{ 'true' if active_reports_subtab == 'reportes-chat' else 'false' }}" onclick="switchReportsSubtab('reportes-chat')">
-                Mensajes reportados
+                {% if has_chat_message_reports %}<span class="tab-dot"></span>{% endif %} Mensajes reportados
             </button>
             <button class="report-subtab-btn{% if active_reports_subtab == 'reportes-comentarios' %} active{% endif %}" type="button" id="report-subtab-reportes-comentarios" role="tab" aria-selected="{{ 'true' if active_reports_subtab == 'reportes-comentarios' else 'false' }}" onclick="switchReportsSubtab('reportes-comentarios')">
-                Comentarios reportados
+                {% if has_comment_reports %}<span class="tab-dot"></span>{% endif %} Comentarios reportados
             </button>
         </div>
 
@@ -420,26 +421,15 @@
         <div class="row g-3" id="reportedGrid">
             {% set ns = namespace(has=false) %}
             {% for post in reported_posts %}
-            {% if (post.meta and post.meta.show_public is not none and not post.meta.show_public) or (post.reports and
-            post.reports|length > 0) %}
+            {% set active_reports = post.active_reports_admin|default([]) %}
+            {% if active_reports %}
             {% set ns.has = true %}
-            {% set report_ref = post.reports|first %}
+            {% set report_ref = active_reports|first %}
             {% set author_level = moderation_badge_level(post.author) %}
-            {% if report_ref and report_ref.status == 'struck' %}
-                {% set report_status_label = 'Strike aplicado' %}
-                {% set report_status_class = 'message-report-card__status--struck' %}
-            {% elif report_ref and report_ref.status == 'restored' %}
-                {% set report_status_label = 'Restaurada' %}
-                {% set report_status_class = 'message-report-card__status--restored' %}
-            {% elif report_ref and report_ref.status == 'dismissed' %}
-                {% set report_status_label = 'Descartada' %}
-                {% set report_status_class = 'message-report-card__status--dismissed' %}
-            {% else %}
-                {% set report_status_label = 'Pendiente' %}
-                {% set report_status_class = 'message-report-card__status--pending' %}
-            {% endif %}
+            {% set report_status_label = 'Pendiente' %}
+            {% set report_status_class = 'message-report-card__status--pending' %}
             {% set ns_reasons = namespace(items=[]) %}
-            {% for r in post.reports %}
+            {% for r in active_reports %}
             {% if r.reason not in ns_reasons.items %}
             {% set ns_reasons.items = ns_reasons.items + [r.reason] %}
             {% endif %}
@@ -480,8 +470,8 @@
                         </div>
                     </div>
                     <div class="message-report-card__reason">
-                        {% if post.reports %}
-                        {% for report in post.reports %}
+                        {% if active_reports %}
+                        {% for report in active_reports %}
                         <div class="mb-2">
                             <div class="fw-semibold text-white">{{ report.reason }}</div>
                             <div class="small text-secondary">
@@ -651,9 +641,14 @@
             {% endfor %}
         </div>
         {% else %}
-        <div class="text-center py-4 text-muted rounded-4 border border-secondary-subtle bg-dark bg-opacity-25">
-            <i class="fas fa-flag fa-2x mb-3 opacity-50"></i>
-            <p class="mb-0">No hay mensajes de chat reportados.</p>
+        <div class="row g-3" id="reportedChatGrid">
+            <div class="col-12">
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-shield-alt fa-3x mb-3 opacity-50"></i>
+                    <h4>No hay reportes pendientes</h4>
+                    <p>Todos los mensajes reportados ya fueron revisados.</p>
+                </div>
+            </div>
         </div>
         {% endif %}
         </div>
@@ -754,9 +749,14 @@
             {% endfor %}
         </div>
         {% else %}
-        <div class="text-center py-4 text-muted rounded-4 border border-secondary-subtle bg-dark bg-opacity-25">
-            <i class="fas fa-comments fa-2x mb-3 opacity-50"></i>
-            <p class="mb-0">No hay comentarios reportados.</p>
+        <div class="row g-3" id="reportedCommentsGrid">
+            <div class="col-12">
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-shield-alt fa-3x mb-3 opacity-50"></i>
+                    <h4>No hay reportes pendientes</h4>
+                    <p>Todos los comentarios reportados ya fueron revisados.</p>
+                </div>
+            </div>
         </div>
         {% endif %}
         </div>
@@ -820,41 +820,74 @@
             </div>
         </div>
 
-        {% if checkins %}
-        <div class="d-flex flex-column gap-3">
-            {% for c in checkins %}
-            <div class="card border-0 bg-surface shadow-sm" style="border-radius: var(--radius-md);">
-                <div class="card-body p-3 p-md-4">
-                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
-                        <div class="d-flex align-items-center gap-3">
-                            <img src="{{ url_for('uploaded_file', filename=c.user.profile_pic) if c.user and c.user.profile_pic and c.user.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
-                                class="rounded-circle object-fit-cover" width="48" height="48" alt="Avatar">
-                            <div>
-                                <div class="fw-bold text-white">
-                                    {{ c.user.username if c.user else 'Usuaria eliminada' }}
-                                    {% if c.user and c.user.username == 'admin' %}
-                                    <span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada">
-                                        <img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin">
-                                    </span>
-                                    {% endif %}
-                                </div>
-                                <div class="small text-secondary">Destino: <span class="text-white">{{ c.destination or '—' }}</span></div>
-                                <div class="small text-secondary">
-                                    Iniciado: {{ c.started_at.strftime('%d/%m/%Y %H:%M') if c.started_at else '' }}
-                                    {% if c.arrived_at %} · Llegada: {{ c.arrived_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}
+        {% if checkin_user_groups %}
+        <div class="admin-route-groups">
+            {% for group in checkin_user_groups %}
+            <details class="admin-route-group">
+                <summary class="admin-route-group__summary">
+                    <div class="admin-route-group__summary-main">
+                        <img src="{{ url_for('uploaded_file', filename=group.user.profile_pic) if group.user and group.user.profile_pic and group.user.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
+                            class="admin-route-group__avatar" alt="Avatar">
+                        <div class="admin-route-group__summary-copy">
+                            <div class="admin-route-group__name">
+                                {{ group.username }}
+                                {% if group.user and group.user.username == 'admin' %}
+                                <span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada">
+                                    <img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin">
+                                </span>
+                                {% endif %}
+                            </div>
+                            <div class="admin-route-group__meta">
+                                {{ group.total }} trayecto{{ '' if group.total == 1 else 's' }}
+                                {% if group.active_count %}
+                                · {{ group.active_count }} activo{{ '' if group.active_count == 1 else 's' }}
+                                {% endif %}
+                                {% if group.latest_started_at %}
+                                · Último inicio {{ group.latest_started_at.strftime('%d/%m/%Y %H:%M') }}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <span class="admin-route-group__toggle">Ver rutas</span>
+                </summary>
+
+                <div class="admin-route-group__body">
+                    <div class="d-flex flex-column gap-3">
+                        {% for c in group.checkins %}
+                        <div class="card border-0 bg-surface shadow-sm admin-route-card">
+                            <div class="card-body p-3 p-md-4">
+                                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
+                                    <div>
+                                        <div class="fw-bold text-white">
+                                            {{ c.title or c.destination or ('Trayecto #' ~ c.id) }}
+                                        </div>
+                                        <div class="small text-secondary">Destino: <span class="text-white">{{ c.destination or '—' }}</span></div>
+                                        <div class="small text-secondary">
+                                            Iniciado: {{ c.started_at.strftime('%d/%m/%Y %H:%M') if c.started_at else '' }}
+                                            {% if c.arrived_at %} · Llegada: {{ c.arrived_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}
+                                            {% if c.cancelled_at %} · Cancelado: {{ c.cancelled_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}
+                                        </div>
+                                        {% if c.contact_name or c.contact_phone %}
+                                        <div class="small text-secondary">
+                                            Contacto: <span class="text-white">{{ c.contact_name or '—' }}</span>
+                                            {% if c.contact_phone %} · {{ c.contact_phone }}{% endif %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="d-flex flex-column align-items-start align-items-md-end gap-2">
+                                        {% set badge = 'success' if c.status == 'arrived' else 'warning' if c.status == 'active' else 'secondary' %}
+                                        <span class="badge bg-{{ badge }}">{{ c.status }}</span>
+                                        <a class="btn btn-outline-light btn-sm rounded-pill" href="{{ url_for('safety_workspace') }}" target="_blank" rel="noopener">
+                                            Safety Ops
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="d-flex flex-column align-items-start align-items-md-end gap-2">
-                            {% set badge = 'success' if c.status == 'arrived' else 'warning' if c.status == 'active' else 'secondary' %}
-                            <span class="badge bg-{{ badge }}">{{ c.status }}</span>
-                            <a class="btn btn-outline-light btn-sm rounded-pill" href="{{ url_for('safety_workspace') }}" target="_blank" rel="noopener">
-                                Safety Ops
-                            </a>
-                        </div>
+                        {% endfor %}
                     </div>
                 </div>
-            </div>
+            </details>
             {% endfor %}
         </div>
         {% else %}

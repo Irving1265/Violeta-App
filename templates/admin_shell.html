@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_page.css') }}?v=20260402-perf-v4">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_page.css') }}?v=20260409-admin-mobile-v2">
 <style>
     .deferred-shell-skeleton .placeholder {
         border-radius: 999px;
@@ -70,13 +70,13 @@
                 Publicaciones
             </button>
             <button class="tab-btn{% if active_admin_tab == 'reportes' %} active{% endif %}" onclick="switchTab('reportes')" id="tab-reportes" type="button">
-                <span class="tab-dot"></span> Reportes
+                {% if has_admin_reports_attention %}<span class="tab-dot"></span>{% endif %} Reportes
             </button>
             <button class="tab-btn{% if active_admin_tab == 'chats' %} active{% endif %}" onclick="switchTab('chats')" id="tab-chats" type="button">
-                Chats
+                {% if has_admin_chats_attention %}<span class="tab-dot"></span>{% endif %} Chats
             </button>
             <button class="tab-btn{% if active_admin_tab == 'verificaciones' %} active{% endif %}" onclick="switchTab('verificaciones')" id="tab-verificaciones" type="button">
-                Verificaciones
+                {% if has_admin_verifications_attention %}<span class="tab-dot"></span>{% endif %} Verificaciones
             </button>
             <button class="tab-btn{% if active_admin_tab == 'rutas' %} active{% endif %}" onclick="switchTab('rutas')" id="tab-rutas" type="button">
                 Rutas

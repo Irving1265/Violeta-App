@@ -2865,6 +2865,13 @@ def create_app():
             except Exception as exc:
                 _debug_log_suppressed('suppressed exception', exc)
 
+    def invalidate_admin_panel_page_cache() -> None:
+        invalidate_runtime_response_cache('page_admin_shell')
+        invalidate_runtime_response_cache('page_admin_content')
+        invalidate_runtime_response_cache('page_admin_overview')
+
+    ADMIN_PANEL_CACHE_VERSION = '20260409-admin-mobile-v2'
+
     def enrich_posts_for_cards(posts, viewer=None):
         if not posts:
             return posts
@@ -5919,6 +5926,62 @@ def create_app():
         for item in reports:
             _mark_report_resolution(item, status, admin_note)
 
+    ACTIVE_REVIEW_REPORT_STATUSES = ('pending', 'reviewing')
+
+    def _is_active_review_report(report) -> bool:
+        return (getattr(report, 'status', None) or 'pending') in ACTIVE_REVIEW_REPORT_STATUSES
+
+    def _attach_active_post_reports(posts) -> None:
+        for post in posts or []:
+            active_reports = [
+                report for report in (getattr(post, 'reports', None) or [])
+                if _is_active_review_report(report)
+            ]
+            active_reports.sort(
+                key=lambda report: (
+                    getattr(report, 'created_at', None) or datetime.min,
+                    getattr(report, 'id', 0) or 0,
+                ),
+                reverse=True,
+            )
+            post.active_reports_admin = active_reports
+
+    def _build_checkin_user_groups(checkins) -> list[dict]:
+        groups: list[dict] = []
+        by_key: dict[object, dict] = {}
+        for checkin in checkins or []:
+            user = getattr(checkin, 'user', None)
+            if user is not None:
+                key: object = ('user', user.id)
+                username = user.username
+            else:
+                key = ('deleted', getattr(checkin, 'user_id', None) or getattr(checkin, 'id', None))
+                username = 'Usuaria eliminada'
+
+            group = by_key.get(key)
+            if group is None:
+                group = {
+                    'key': f'{key[0]}-{key[1]}',
+                    'user': user,
+                    'username': username,
+                    'checkins': [],
+                    'total': 0,
+                    'active_count': 0,
+                    'latest_started_at': getattr(checkin, 'started_at', None),
+                }
+                by_key[key] = group
+                groups.append(group)
+
+            group['checkins'].append(checkin)
+            group['total'] += 1
+            if getattr(checkin, 'status', None) == 'active':
+                group['active_count'] += 1
+            started_at = getattr(checkin, 'started_at', None)
+            latest_started_at = group.get('latest_started_at')
+            if started_at and (latest_started_at is None or started_at > latest_started_at):
+                group['latest_started_at'] = started_at
+        return groups
+
     def _serialize_chat_message_payload(message: ChatMessage):
         is_deleted = bool(getattr(message, 'is_deleted', False))
         attachment_url = None
@@ -6195,6 +6258,74 @@ def create_app():
             'show_admin_overview': False,
             'staff_role_options': staff_role_payloads(),
             'active_reports_subtab': 'reportados',
+            'reported_posts_count': 0,
+            'chat_message_reports_count': 0,
+            'comment_reports_count': 0,
+            'pending_chat_rooms_count': 0,
+            'pending_verifications_count': 0,
+            'has_reported_posts': False,
+            'has_chat_message_reports': False,
+            'has_comment_reports': False,
+            'has_pending_chat_rooms': False,
+            'has_pending_verifications': False,
+            'has_admin_reports_attention': False,
+            'has_admin_chats_attention': False,
+            'has_admin_verifications_attention': False,
+        }
+
+    def _build_admin_attention_state() -> dict:
+        reported_posts_count = int(
+            db.session.query(func.count(func.distinct(Report.post_id)))
+            .filter(
+                Report.post_id.isnot(None),
+                Report.status.in_(ACTIVE_REVIEW_REPORT_STATUSES),
+            )
+            .scalar()
+            or 0
+        )
+        chat_message_reports_count = int(
+            db.session.query(func.count(ChatMessageReport.id))
+            .filter(ChatMessageReport.status.in_(ACTIVE_REVIEW_REPORT_STATUSES))
+            .scalar()
+            or 0
+        )
+        comment_reports_count = int(
+            db.session.query(func.count(CommentReport.id))
+            .filter(CommentReport.status.in_(ACTIVE_REVIEW_REPORT_STATUSES))
+            .scalar()
+            or 0
+        )
+        pending_chat_rooms_count = int(
+            db.session.query(func.count(ChatRoom.id))
+            .filter(ChatRoom.is_approved.is_(False))
+            .scalar()
+            or 0
+        )
+        pending_verifications_count = int(
+            db.session.query(func.count(VerificationRequest.id))
+            .filter(VerificationRequest.status == 'pending')
+            .scalar()
+            or 0
+        )
+        has_reported_posts = reported_posts_count > 0
+        has_chat_message_reports = chat_message_reports_count > 0
+        has_comment_reports = comment_reports_count > 0
+        has_pending_chat_rooms = pending_chat_rooms_count > 0
+        has_pending_verifications = pending_verifications_count > 0
+        return {
+            'reported_posts_count': reported_posts_count,
+            'chat_message_reports_count': chat_message_reports_count,
+            'comment_reports_count': comment_reports_count,
+            'pending_chat_rooms_count': pending_chat_rooms_count,
+            'pending_verifications_count': pending_verifications_count,
+            'has_reported_posts': has_reported_posts,
+            'has_chat_message_reports': has_chat_message_reports,
+            'has_comment_reports': has_comment_reports,
+            'has_pending_chat_rooms': has_pending_chat_rooms,
+            'has_pending_verifications': has_pending_verifications,
+            'has_admin_reports_attention': has_reported_posts or has_chat_message_reports or has_comment_reports,
+            'has_admin_chats_attention': has_pending_chat_rooms,
+            'has_admin_verifications_attention': has_pending_verifications,
         }
 
     def _build_super_admin_overview_context() -> dict:
@@ -6234,6 +6365,7 @@ def create_app():
             'active_reports_subtab': reports_subtab,
             'admin_page_number': page_number,
         })
+        context.update(_build_admin_attention_state())
 
         if include_overview:
             context.update(_build_super_admin_overview_context())
@@ -6282,19 +6414,16 @@ def create_app():
             return context
 
         if active_tab == 'posts':
-            total_posts_count = db.session.query(func.count(Post.id)).scalar() or 0
-            total_pages = max(1, (total_posts_count + posts_limit - 1) // posts_limit) if total_posts_count else 1
-            page_number = min(page_number, total_pages)
-            posts = (
+            posts_query = public_posts_query(
                 Post.query.options(
                     selectinload(Post.author),
                     selectinload(Post.meta),
                 )
-                .order_by(Post.created_at.desc())
-                .offset((page_number - 1) * posts_limit)
-                .limit(posts_limit)
-                .all()
-            )
+            ).order_by(Post.created_at.desc())
+            total_posts_count = posts_query.order_by(None).count() or 0
+            total_pages = max(1, (total_posts_count + posts_limit - 1) // posts_limit) if total_posts_count else 1
+            page_number = min(page_number, total_pages)
+            posts = posts_query.offset((page_number - 1) * posts_limit).limit(posts_limit).all()
             enrich_posts_for_cards(posts, current_user)
             post_ids = [post.id for post in posts]
             reported_post_ids = set()
@@ -6302,7 +6431,10 @@ def create_app():
                 reported_post_ids = {
                     int(post_id)
                     for post_id, in db.session.query(Report.post_id)
-                    .filter(Report.post_id.in_(post_ids))
+                    .filter(
+                        Report.post_id.in_(post_ids),
+                        Report.status.in_(ACTIVE_REVIEW_REPORT_STATUSES),
+                    )
                     .distinct()
                     .all()
                 }
@@ -6335,16 +6467,14 @@ def create_app():
                         selectinload(Post.reports).selectinload(Report.resolver),
                     )
                     .filter(
-                        or_(
-                            Post.meta.has(PostMeta.show_public.is_(False)),
-                            Post.reports.any(),
-                        )
+                        Post.reports.any(Report.status.in_(ACTIVE_REVIEW_REPORT_STATUSES))
                     )
                     .order_by(Post.created_at.desc())
                     .limit(reported_posts_limit)
                     .all()
                 )
                 enrich_posts_for_cards(reported_posts, current_user)
+                _attach_active_post_reports(reported_posts)
             elif reports_subtab == 'reportes-chat':
                 chat_message_reports = (
                     ChatMessageReport.query.options(
@@ -6353,6 +6483,7 @@ def create_app():
                         selectinload(ChatMessageReport.reporter),
                         selectinload(ChatMessageReport.resolver),
                     )
+                    .filter(ChatMessageReport.status.in_(ACTIVE_REVIEW_REPORT_STATUSES))
                     .order_by(ChatMessageReport.created_at.desc())
                     .limit(reports_limit)
                     .all()
@@ -6365,6 +6496,7 @@ def create_app():
                         selectinload(CommentReport.reporter),
                         selectinload(CommentReport.resolver),
                     )
+                    .filter(CommentReport.status.in_(ACTIVE_REVIEW_REPORT_STATUSES))
                     .order_by(CommentReport.created_at.desc())
                     .limit(reports_limit)
                     .all()
@@ -6441,10 +6573,11 @@ def create_app():
 
         if active_tab == 'rutas':
             maybe_process_overdue_checkins(ttl_seconds=30)
+            route_checkins_limit = max(int(checkins_limit or 0), 200)
             checkins = (
                 SafetyCheckin.query.options(selectinload(SafetyCheckin.user))
                 .order_by(SafetyCheckin.started_at.desc())
-                .limit(checkins_limit)
+                .limit(route_checkins_limit)
                 .all()
             )
             checkins_total_count = db.session.query(func.count(SafetyCheckin.id)).scalar() or 0
@@ -6457,6 +6590,7 @@ def create_app():
             )
             context.update({
                 'checkins': checkins,
+                'checkin_user_groups': _build_checkin_user_groups(checkins),
                 'checkins_total_count': checkins_total_count,
                 'panic_events': panic_events,
             })
@@ -6486,26 +6620,19 @@ def create_app():
 
     def _build_moderation_ops_context() -> dict:
         context = _base_ops_panel_context()
-        posts = (
+        reported_posts = (
             Post.query.options(
                 selectinload(Post.author),
                 selectinload(Post.meta),
                 selectinload(Post.reports).selectinload(Report.reporter),
                 selectinload(Post.reports).selectinload(Report.resolver),
             )
-            .outerjoin(PostMeta, PostMeta.post_id == Post.id)
-            .outerjoin(Report, Report.post_id == Post.id)
-            .filter(
-                or_(
-                    and_(PostMeta.id.isnot(None), PostMeta.show_public.is_(False)),
-                    Report.id.isnot(None),
-                )
-            )
+            .filter(Post.reports.any(Report.status.in_(ACTIVE_REVIEW_REPORT_STATUSES)))
             .order_by(Post.created_at.desc())
-            .distinct()
             .all()
         )
-        enrich_posts_for_cards(posts, current_user)
+        enrich_posts_for_cards(reported_posts, current_user)
+        _attach_active_post_reports(reported_posts)
         chat_message_reports = (
             ChatMessageReport.query.options(
                 selectinload(ChatMessageReport.message).selectinload(ChatMessage.user),
@@ -6513,6 +6640,7 @@ def create_app():
                 selectinload(ChatMessageReport.reporter),
                 selectinload(ChatMessageReport.resolver),
             )
+            .filter(ChatMessageReport.status.in_(ACTIVE_REVIEW_REPORT_STATUSES))
             .order_by(ChatMessageReport.created_at.desc())
             .all()
         )
@@ -6523,11 +6651,12 @@ def create_app():
                 selectinload(CommentReport.reporter),
                 selectinload(CommentReport.resolver),
             )
+            .filter(CommentReport.status.in_(ACTIVE_REVIEW_REPORT_STATUSES))
             .order_by(CommentReport.created_at.desc())
             .all()
         )
         context.update({
-            'posts': posts,
+            'reported_posts': reported_posts,
             'chat_message_reports': chat_message_reports,
             'comment_reports': comment_reports,
             'available_admin_tabs': ['reportes'],
@@ -6554,6 +6683,7 @@ def create_app():
         )
         context.update({
             'checkins': checkins,
+            'checkin_user_groups': _build_checkin_user_groups(checkins),
             'panic_events': panic_events,
             'available_admin_tabs': ['rutas'],
             'initial_admin_tab': 'rutas',
@@ -6569,7 +6699,7 @@ def create_app():
         active_tab = (request.args.get('tab') or 'users').strip().lower()
         reports_subtab = (request.args.get('reports_subtab') or 'reportados').strip().lower()
         page_number = max(1, request.args.get('page', default=1, type=int) or 1)
-        page_cache_key = ('page_admin_shell', current_user.id, active_tab, reports_subtab, page_number)
+        page_cache_key = ('page_admin_shell', ADMIN_PANEL_CACHE_VERSION, current_user.id, active_tab, reports_subtab, page_number)
         cached_response = get_cached_html_page(page_cache_key, 90)
         if cached_response is not None:
             return cached_response
@@ -6578,6 +6708,7 @@ def create_app():
             active_admin_tab=active_tab,
             active_reports_subtab=reports_subtab,
             active_page_number=page_number,
+            **_build_admin_attention_state(),
         )
         return set_cached_html_page(page_cache_key, html, ttl_seconds=90, max_entries=96)
 
@@ -6593,7 +6724,7 @@ def create_app():
                 _ensure_default_chat_room()
             except Exception as exc:
                 _debug_log_suppressed('suppressed exception', exc)
-        page_cache_key = ('page_admin_content', current_user.id, active_tab, reports_subtab, page_number)
+        page_cache_key = ('page_admin_content', ADMIN_PANEL_CACHE_VERSION, current_user.id, active_tab, reports_subtab, page_number)
         cached_response = get_cached_html_page(page_cache_key, 45)
         if cached_response is not None:
             return cached_response
@@ -6618,7 +6749,7 @@ def create_app():
     @login_required
     @permission_required(PERM_ADMIN_PANEL_VIEW, flash_message='Acceso denegado. Solo para personal autorizado.')
     def admin_panel_overview():
-        page_cache_key = ('page_admin_overview', current_user.id)
+        page_cache_key = ('page_admin_overview', ADMIN_PANEL_CACHE_VERSION, current_user.id)
         cached_response = get_cached_html_page(page_cache_key, 45)
         if cached_response is not None:
             return cached_response
@@ -7043,6 +7174,7 @@ def create_app():
         try:
             delete_user_and_related(user)
             db.session.commit()
+            invalidate_admin_panel_page_cache()
             return jsonify({'success': True, 'message': f'Usuaria {user.username} eliminada'})
         except Exception as e:
             db.session.rollback()
@@ -7057,6 +7189,7 @@ def create_app():
         post = Post.query.get_or_404(post_id)
         db.session.delete(post)
         db.session.commit()
+        invalidate_admin_panel_page_cache()
         return jsonify({'success': True, 'message': 'Publicación eliminada'})
 
     @app.route('/admin/restore_post/<int:post_id>', methods=['POST'])
@@ -7070,6 +7203,7 @@ def create_app():
         meta.show_public = True
         db.session.add(meta)
         db.session.commit()
+        invalidate_admin_panel_page_cache()
         invalidate_runtime_response_cache('hotspots')
         invalidate_runtime_response_cache('posts_in_radius')
         invalidate_runtime_response_cache('posts_by_city')
@@ -7137,6 +7271,7 @@ def create_app():
 
         user.username = new_username
         db.session.commit()
+        invalidate_admin_panel_page_cache()
         return jsonify({'success': True, 'message': f'Nombre de usuaria cambiado a {new_username}'})
 
     @app.route('/admin/change_user_photo/<int:user_id>', methods=['POST'])
@@ -7153,6 +7288,7 @@ def create_app():
                 return jsonify({'error': 'No se seleccionó archivo'}), 400
             user.bio = bio
             db.session.commit()
+            invalidate_admin_panel_page_cache()
             return jsonify({'success': True, 'message': 'Descripción actualizada'})
 
         # Defense-in-depth: normalize and validate filename again.
@@ -7177,6 +7313,7 @@ def create_app():
             if bio != '':
                 user.bio = bio
             db.session.commit()
+            invalidate_admin_panel_page_cache()
             return jsonify({'success': True, 'message': 'Foto de perfil actualizada', 'photo_url': url_for('uploaded_file', filename=unique_filename)})
         else:
             return jsonify({'error': 'Tipo de archivo no permitido'}), 400
@@ -7217,6 +7354,7 @@ def create_app():
             db.session.rollback()
             _debug_log_suppressed('suppressed exception', exc)
             return jsonify({'success': False, 'error': 'No se pudieron guardar los roles.'}), 500
+        invalidate_admin_panel_page_cache()
 
         next_roles_saved = sorted(user_role_names(user))
         record_audit_event(
@@ -7550,6 +7688,7 @@ def create_app():
                 delete_user_and_related(user)
                 deleted += 1
             db.session.commit()
+            invalidate_admin_panel_page_cache()
             return jsonify({'success': True, 'deleted': deleted})
         except Exception as e:
             db.session.rollback()
@@ -7571,6 +7710,7 @@ def create_app():
             db.session.delete(post)
             deleted += 1
         db.session.commit()
+        invalidate_admin_panel_page_cache()
         return jsonify({'success': True, 'deleted': deleted})
 
     @app.route('/admin/bulk_restore_posts', methods=['POST'])
@@ -7589,6 +7729,7 @@ def create_app():
             post.meta.show_public = True
             restored += 1
         db.session.commit()
+        invalidate_admin_panel_page_cache()
         return jsonify({'success': True, 'restored': restored})
 
     @app.route('/admin/bulk_delete_chat_rooms', methods=['POST'])
@@ -7696,6 +7837,12 @@ def create_app():
         try:
             _restore_reported_post(post, admin_note)
             db.session.commit()
+            invalidate_admin_panel_page_cache()
+            invalidate_runtime_response_cache('hotspots')
+            invalidate_runtime_response_cache('posts_in_radius')
+            invalidate_runtime_response_cache('posts_by_city')
+            invalidate_runtime_response_cache('feed_sidebar')
+            _feed_sidebar_cache.clear()
             return jsonify({'success': True, 'status': 'restored'})
         except Exception as e:
             db.session.rollback()
@@ -7744,6 +7891,12 @@ def create_app():
                     send_moderation_notice_email(post.author, strike_result['strike'])
                 except Exception as exc:
                     _debug_log_suppressed('suppressed exception', exc)
+            invalidate_admin_panel_page_cache()
+            invalidate_runtime_response_cache('hotspots')
+            invalidate_runtime_response_cache('posts_in_radius')
+            invalidate_runtime_response_cache('posts_by_city')
+            invalidate_runtime_response_cache('feed_sidebar')
+            _feed_sidebar_cache.clear()
             return jsonify({
                 'success': True,
                 'status': 'struck',
@@ -7770,6 +7923,7 @@ def create_app():
         try:
             _restore_reported_message(message, admin_note)
             db.session.commit()
+            invalidate_admin_panel_page_cache()
             _emit_message_restored(message)
             return jsonify({'success': True, 'status': 'restored'})
         except Exception as e:
@@ -7821,6 +7975,7 @@ def create_app():
                     send_moderation_notice_email(message.user, strike_result['strike'])
                 except Exception as exc:
                     _debug_log_suppressed('suppressed exception', exc)
+            invalidate_admin_panel_page_cache()
             return jsonify({
                 'success': True,
                 'status': 'struck',
@@ -7847,6 +8002,7 @@ def create_app():
         try:
             _restore_reported_comment(comment, admin_note)
             db.session.commit()
+            invalidate_admin_panel_page_cache()
             return jsonify({'success': True, 'status': 'restored'})
         except Exception as e:
             db.session.rollback()
@@ -7896,6 +8052,7 @@ def create_app():
                     send_moderation_notice_email(comment.author, strike_result['strike'])
                 except Exception as exc:
                     _debug_log_suppressed('suppressed exception', exc)
+            invalidate_admin_panel_page_cache()
             return jsonify({
                 'success': True,
                 'status': 'struck',

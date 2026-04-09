@@ -37,7 +37,8 @@
         {% if request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'account_restricted'] %}
         <aside class="sidebar">
             <div class="brand-logo">
-                Violeta
+                <span class="brand-logo__word">Violeta</span>
+                <span class="brand-logo__meta">v1.0 beta</span>
             </div>
             <nav class="sidebar-nav">
                 <a href="{{ url_for('index') }}"

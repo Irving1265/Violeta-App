@@ -898,24 +898,135 @@
             .filter(Boolean);
     }
 
+    function getBulkSelectionItems(itemSelector) {
+        return Array.from(document.querySelectorAll(itemSelector));
+    }
+
+    function updateBulkSelectionVisualState(inputEl) {
+        if (!inputEl) {
+            return;
+        }
+
+        const isSelected = !!inputEl.checked;
+        const bulkCircle = inputEl.closest('.bulk-circle');
+        if (bulkCircle) {
+            bulkCircle.classList.toggle('is-selected', isSelected);
+        }
+
+        if (inputEl.classList.contains('post-select')) {
+            const postItem = inputEl.closest('.post-item');
+            if (postItem) {
+                postItem.classList.toggle('is-bulk-selected', isSelected);
+            }
+        }
+    }
+
+    function syncBulkSelectionState(selectAll, itemSelector, countEl) {
+        const items = getBulkSelectionItems(itemSelector);
+        const selectableItems = items.filter((el) => !el.disabled);
+        const checkedCount = items.filter((el) => el.checked).length;
+        const checkedSelectableCount = selectableItems.filter((el) => el.checked).length;
+
+        items.forEach((el) => updateBulkSelectionVisualState(el));
+
+        if (countEl) {
+            countEl.textContent = `${checkedCount} seleccionados`;
+        }
+
+        if (!selectAll) {
+            return;
+        }
+
+        if (!selectableItems.length) {
+            selectAll.checked = false;
+            selectAll.indeterminate = false;
+            return;
+        }
+
+        selectAll.checked = checkedSelectableCount === selectableItems.length;
+        selectAll.indeterminate = checkedSelectableCount > 0 && checkedSelectableCount < selectableItems.length;
+    }
+
     function wireBulkSelection(selectAllId, itemSelector, countId) {
         const selectAll = document.getElementById(selectAllId);
         const countEl = document.getElementById(countId);
-        const items = document.querySelectorAll(itemSelector);
         if (selectAll) {
-            selectAll.addEventListener('change', () => {
-                items.forEach(el => {
-                    if (!el.disabled) el.checked = selectAll.checked;
+            if (selectAll.dataset.bulkBound !== '1') {
+                selectAll.dataset.bulkBound = '1';
+                selectAll.addEventListener('change', () => {
+                    getBulkSelectionItems(itemSelector).forEach((el) => {
+                        if (!el.disabled) el.checked = selectAll.checked;
+                    });
+                    syncBulkSelectionState(selectAll, itemSelector, countEl);
                 });
-                if (countEl) countEl.textContent = `${getSelectedIds(itemSelector).length} seleccionados`;
-            });
+            }
         }
-        items.forEach(el => {
+        getBulkSelectionItems(itemSelector).forEach((el) => {
+            if (el.dataset.bulkBound === '1') {
+                return;
+            }
+            el.dataset.bulkBound = '1';
             el.addEventListener('change', () => {
-                if (countEl) countEl.textContent = `${getSelectedIds(itemSelector).length} seleccionados`;
+                syncBulkSelectionState(selectAll, itemSelector, countEl);
             });
         });
-        if (countEl) countEl.textContent = `${getSelectedIds(itemSelector).length} seleccionados`;
+        syncBulkSelectionState(selectAll, itemSelector, countEl);
+    }
+
+    function bindAdminStaticControls() {
+        const globalFilter = document.getElementById('adminGlobalFilter');
+        if (globalFilter && globalFilter.dataset.adminBound !== '1') {
+            globalFilter.dataset.adminBound = '1';
+            globalFilter.addEventListener('input', () => {
+                applyActiveTabFilter();
+            });
+        }
+
+        if (!window.__adminVisibilityBound) {
+            window.__adminVisibilityBound = true;
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    if (ADMIN_ACTIVITY_STATE.timer) {
+                        clearInterval(ADMIN_ACTIVITY_STATE.timer);
+                        ADMIN_ACTIVITY_STATE.timer = null;
+                    }
+                } else {
+                    fetchAdminActivity(ADMIN_ACTIVITY_STATE.days, { animate: false, silent: true });
+                    startAdminActivityAutoRefresh();
+                }
+            });
+        }
+
+        if (!window.__adminBeforeUnloadBound) {
+            window.__adminBeforeUnloadBound = true;
+            window.addEventListener('beforeunload', () => {
+                if (ADMIN_ACTIVITY_STATE.timer) {
+                    clearInterval(ADMIN_ACTIVITY_STATE.timer);
+                    ADMIN_ACTIVITY_STATE.timer = null;
+                }
+            });
+        }
+    }
+
+    function bindAdminPageDom() {
+        bindAdminEditButtons();
+        wireBulkSelection('selectAllUsers', '.user-select', 'usersSelectedCount');
+        wireBulkSelection('selectAllPosts', '.post-select', 'postsSelectedCount');
+        wireBulkSelection('selectAllChats', '.chat-select', 'chatsSelectedCount');
+    }
+
+    function initAdminPageEnhancements() {
+        bindAdminPageDom();
+
+        if (window.__adminPageEnhancementsInitialized) {
+            return;
+        }
+        window.__adminPageEnhancementsInitialized = true;
+
+        wireAdminActivityControls();
+        bindAdminStaticControls();
+        fetchAdminActivity(ADMIN_ACTIVITY_STATE.days, { animate: true });
+        startAdminActivityAutoRefresh();
     }
 
     function bulkDeleteUsers() {
@@ -1065,46 +1176,6 @@
                 new bootstrap.Modal(document.getElementById('reportDetailsModal')).show();
             })
             .catch(() => alert('Error al cargar el detalle'));
-    }
-
-    function initAdminPageEnhancements() {
-        if (window.__adminPageEnhancementsInitialized) {
-            return;
-        }
-        window.__adminPageEnhancementsInitialized = true;
-        bindAdminEditButtons();
-        wireAdminActivityControls();
-        fetchAdminActivity(ADMIN_ACTIVITY_STATE.days, { animate: true });
-        startAdminActivityAutoRefresh();
-        wireBulkSelection('selectAllUsers', '.user-select', 'usersSelectedCount');
-        wireBulkSelection('selectAllPosts', '.post-select', 'postsSelectedCount');
-        wireBulkSelection('selectAllChats', '.chat-select', 'chatsSelectedCount');
-
-        const globalFilter = document.getElementById('adminGlobalFilter');
-        if (globalFilter) {
-            globalFilter.addEventListener('input', () => {
-                applyActiveTabFilter();
-            });
-        }
-
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                if (ADMIN_ACTIVITY_STATE.timer) {
-                    clearInterval(ADMIN_ACTIVITY_STATE.timer);
-                    ADMIN_ACTIVITY_STATE.timer = null;
-                }
-            } else {
-                fetchAdminActivity(ADMIN_ACTIVITY_STATE.days, { animate: false, silent: true });
-                startAdminActivityAutoRefresh();
-            }
-        });
-
-        window.addEventListener('beforeunload', () => {
-            if (ADMIN_ACTIVITY_STATE.timer) {
-                clearInterval(ADMIN_ACTIVITY_STATE.timer);
-                ADMIN_ACTIVITY_STATE.timer = null;
-            }
-        });
     }
 
     window.initAdminPageEnhancements = initAdminPageEnhancements;
