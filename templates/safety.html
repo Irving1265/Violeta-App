@@ -1,550 +1,352 @@
-{% set safety_payload = {
-  'currentUserId': current_user.id if current_user.is_authenticated else none,
-  'initialState': initial_state,
-  'contacts': contacts_payload,
-  'activeCheckin': active_checkin_payload,
-  'tripItems': trip_items,
-  'endpoints': {
-    'createContact': url_for('api_add_safety_contact'),
-    'startCheckin': url_for('api_start_checkin'),
-    'arriveCheckin': url_for('api_arrived_checkin'),
-    'cancelCheckin': url_for('api_cancel_checkin'),
-  }
-} %}
+{% extends 'base.html' %}
 
-<div class="safety-redesign-page" id="safetyRedesignPage" data-initial-state="{{ initial_state }}">
-  <script id="safetyPageData" type="application/json">{{ safety_payload|tojson }}</script>
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_page.css') }}?v=20260402-perf-v1">
+{% endblock %}
 
-  <section class="safety-mobile" aria-label="Safety en telefono">
-    <section class="mobile-state mobile-state--idle {% if initial_state == 'idle' %}is-visible{% endif %}" data-state="idle">
-      <div class="mobile-map">
-        <div class="mobile-topbar">
-          <button class="topbar-btn" type="button" aria-label="Volver a inicio" onclick="window.location.href='{{ url_for('index') }}'">
-            <i class="fa-solid fa-chevron-left"></i>
-          </button>
-        </div>
-        <div class="map-chip-group">
-          <span class="map-chip">
-            <i class="fa-solid fa-user-group"></i>
-            <span data-ready-chip-copy>0 contactos listos</span>
-          </span>
-        </div>
-        <div class="map-pin"><i class="fa-solid fa-location-dot"></i></div>
-        <div class="map-card-anchor">
-          <div class="section-label">Antes de salir</div>
-          <div class="map-card-title">Elige destino y tiempo estimado</div>
-          <div class="map-card-copy">El seguimiento empieza solo cuando tu lo activas.</div>
-        </div>
+{% block content %}
+<div class="tactical-safety-page">
+  <section class="tactical-command-header">
+    <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+      <div>
+        <span class="tactical-live-indicator">Sistema activo // online</span>
+        <h1 class="tactical-header-title">Centro de Comando</h1>
+        <p class="tactical-header-sub">Monitoreo táctico en tiempo real. Protocolos de seguridad habilitados.</p>
       </div>
 
-      <div class="sheet sheet--idle-route" data-draggable-sheet="idle">
-        <div class="sheet-handle is-interactive" data-sheet-toggle="idle"></div>
-        <div class="sheet-toggle-copy" data-sheet-toggle="idle">Desliza o toca para bajar este panel</div>
-        <div class="stack">
-          <div>
-            <p class="section-label">Safety</p>
-            <h2 class="headline">Inicia tu trayecto en un paso</h2>
-            <p class="subline">Primero destino y tiempo. Contactos, historial y emergencia quedan como apoyo.</p>
-          </div>
-
-          <article class="input-card">
-            <div class="input-title">
-              <i class="fa-solid fa-route"></i>
-              <span>Destino y ETA</span>
-            </div>
-            <label class="input-field">
-              <i class="fa-solid fa-magnifying-glass"></i>
-              <input type="text" placeholder="¿A donde vas?" data-destination-input="mobile">
-            </label>
-            <div class="eta-row" data-eta-group="mobile">
-              <button class="eta-pill is-active" type="button" data-eta-value="30">30 min</button>
-              <button class="eta-pill" type="button" data-eta-value="60">1 hora</button>
-              <button class="eta-pill" type="button" data-eta-value="180">Tiempo indefinido</button>
-            </div>
-          </article>
-
-          <article class="support-row">
-            <div>
-              <div class="section-label support-label">Compartir con</div>
-              <div class="support-title" data-share-summary-title="mobile">Nadie por ahora</div>
-              <div class="support-copy" data-share-summary-count="mobile">Agrega o selecciona contactos para este trayecto.</div>
-            </div>
-            <div class="avatar-stack" data-share-summary-avatars="mobile"></div>
-            <button class="link-btn" type="button" data-preview-link="contacts">Editar</button>
-          </article>
-
-          <button class="primary-btn" type="button" data-start-checkin>
-            <i class="fa-solid fa-shield-heart"></i>
-            Comenzar trayecto
-          </button>
-
-          <button class="link-btn" type="button" data-preview-link="history">Ver historial</button>
-          <div class="prototype-note" data-safety-status></div>
+      <div class="tactical-header-tools">
+        <div class="tactical-sync-box">
+          <span class="tactical-sync-label">Último sync</span>
+          <strong class="tactical-sync-time" id="tacticalSyncClock">--:--:--</strong>
         </div>
-      </div>
-    </section>
-
-    <section class="mobile-state mobile-state--active {% if initial_state == 'active' %}is-visible{% endif %}" data-state="active">
-      <div class="mobile-map">
-        <div class="map-chip-group">
-          <span class="map-chip">
-            <i class="fa-solid fa-circle map-chip-live"></i>
-            <span>Ubicacion en vivo</span>
-          </span>
-          <span class="map-chip">
-            <i class="fa-solid fa-eye"></i>
-            <span data-active-share-count>0 contactos acompanando</span>
-          </span>
-        </div>
-        <div class="map-pin"><i class="fa-solid fa-location-arrow"></i></div>
-        <div class="map-route"></div>
-        <div class="map-card-anchor">
-          <div class="section-label">Estado</div>
-          <div class="map-card-title">Trayecto activo hacia <span data-active-destination-inline>tu destino</span></div>
-          <div class="map-card-copy">Tus contactos ya estan viendo tu avance.</div>
-        </div>
-        <div class="map-action-row">
-          <button class="map-action-btn map-action-btn--success" type="button" data-arrive-safe>
-            <i class="fa-solid fa-check-circle"></i>
-            Ya llegue
-          </button>
-          <button class="map-action-btn map-action-btn--warn" type="button" data-cancel-trip>
-            <i class="fa-solid fa-xmark"></i>
-            Cancelar
-          </button>
-        </div>
-      </div>
-
-      <div class="sheet sheet--active-route" data-draggable-sheet="active">
-        <div class="sheet-handle is-interactive" data-sheet-toggle="active"></div>
-        <div class="sheet-toggle-copy" data-sheet-toggle="active">Desliza o toca para bajar este panel</div>
-        <div class="stack">
-          <article class="status-card">
-            <div class="status-card__top">
-              <div>
-                <p class="section-label">Trayecto activo</p>
-                <div class="eta-big" data-active-eta-big>--</div>
-                <div class="status-emphasis">Llegada estimada a <span data-active-destination>tu destino</span></div>
-              </div>
-              <span class="badge badge--live"><i class="fa-solid fa-location-arrow"></i> En progreso</span>
-            </div>
-            <div class="metrics-row">
-              <div class="metric-box">
-                <div class="metric-box__label">Tiempo transcurrido</div>
-                <div class="metric-box__value" data-active-elapsed>--</div>
-              </div>
-              <div class="metric-box">
-                <div class="metric-box__label">Tiempo configurado</div>
-                <div class="metric-box__value" data-active-total>--</div>
-              </div>
-            </div>
-          </article>
-
-          <article class="support-row">
-            <div>
-              <div class="support-title">Acompanamiento activo</div>
-              <div class="support-copy" data-active-support-copy>Tus contactos pueden ver si sigues en ruta.</div>
-            </div>
-            <div class="avatar-stack" data-share-summary-avatars="active-mobile"></div>
-          </article>
-
-          <div class="ghost-banner">
-            Si algo cambia, puedes abrir emergencia de inmediato. Las acciones rapidas estan en el mapa para que llegues o canceles sin confusion.
-          </div>
-          <div class="prototype-note" data-safety-status></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="mobile-state mobile-state--contacts {% if initial_state == 'contacts' %}is-visible{% endif %}" data-state="contacts">
-      <div class="mobile-topbar">
-        <button class="topbar-btn" type="button" aria-label="Volver" data-preview-back>
-          <i class="fa-solid fa-chevron-left"></i>
+        {% if current_user.username == 'admin' %}
+        <a href="{{ url_for('admin_panel') }}" class="tactical-header-btn text-decoration-none" title="Panel admin">
+          <i class="fas fa-history me-1"></i> Log
+        </a>
+        {% else %}
+        <button type="button" class="tactical-header-btn" title="Registro de actividad">
+          <i class="fas fa-history me-1"></i> Log
         </button>
+        {% endif %}
+        <a href="{{ url_for('verify_identity') }}" class="tactical-header-btn tactical-header-btn--primary text-decoration-none">
+          <i class="fas fa-shield-heart me-1"></i> Verificar
+        </a>
       </div>
-      <div class="mobile-state__header">
-        <div>
-          <p class="section-label">Seguridad</p>
-          <h2 class="headline mobile-headline">Red de confianza</h2>
-          <p class="subline">Aqui agregas, editas o eliminas contactos y decides con quien compartir el trayecto actual.</p>
-        </div>
-
-        <article class="input-card">
-          <div class="input-title input-title--split">
-            <span class="input-title__copy">
-              <i class="fa-solid fa-share-nodes"></i>
-              <span>Compartiendo este trayecto con</span>
-            </span>
-            <div class="avatar-stack" data-share-summary-avatars="contacts-mobile"></div>
-          </div>
-          <div class="history-stats" data-share-summary-list="mobile"></div>
-          <div class="prototype-note no-margin" data-share-summary-count="mobile"></div>
-        </article>
-      </div>
-
-      <div class="stack state-stack">
-        <div class="contact-filter-row">
-          <button class="filter-pill is-active" type="button" data-contact-filter="all">Todos</button>
-          <button class="filter-pill" type="button" data-contact-filter="favorites">Favoritos</button>
-          <button class="ghost-pill" type="button" data-contact-create>
-            <i class="fa-solid fa-user-plus"></i> Nuevo contacto
-          </button>
-        </div>
-
-        <div data-contact-list="mobile"></div>
-        <div class="prototype-note no-margin" data-safety-status></div>
-      </div>
-    </section>
-
-    <section class="mobile-state mobile-state--history {% if initial_state == 'history' %}is-visible{% endif %}" data-state="history">
-      <div class="mobile-topbar">
-        <button class="topbar-btn" type="button" aria-label="Volver" data-preview-back>
-          <i class="fa-solid fa-chevron-left"></i>
-        </button>
-      </div>
-      <div class="mobile-state__header">
-        <div>
-          <p class="section-label">Seguridad</p>
-          <h2 class="headline mobile-headline">Historial de trayectos</h2>
-          <p class="subline">Sin acordeones pesados. Solo lista clara, resumen rapido y entrada al detalle.</p>
-        </div>
-      </div>
-
-      <div class="stack state-stack" data-history-list="mobile"></div>
-    </section>
+    </div>
   </section>
 
-  <section class="safety-desktop" aria-label="Safety en escritorio">
-    <main class="desktop-main">
-    <section class="desktop-state {% if initial_state == 'idle' %}is-visible{% endif %}" data-state="idle">
-      <header class="desktop-header">
-        <div class="desktop-header__copy">
-          <p class="section-label">Safety</p>
-          <h2 class="desktop-header__title">Configura tu trayecto y empieza</h2>
-          <p class="desktop-header__sub">La pantalla deja una accion principal visible: elegir destino, ajustar el tiempo y comenzar.</p>
-        </div>
-      </header>
+  <div class="tactical-main-grid">
+    <div class="tactical-left-col">
+      <section class="tactical-metric-grid">
+        <article class="tactical-metric-card">
+          <div class="tactical-metric-label">Velocidad</div>
+          <div class="tactical-metric-value"><span id="myRouteSpeed">--</span> <small>km/h</small></div>
+        </article>
+        <article class="tactical-metric-card">
+          <div class="tactical-metric-label">Distancia</div>
+          <div class="tactical-metric-value"><span id="myRouteDistance">0.00</span> <small>km</small></div>
+        </article>
+        <article class="tactical-metric-card">
+          <div class="tactical-metric-label">Tiempo</div>
+          <div class="tactical-metric-value" id="myRouteElapsed">--</div>
+          <div class="tactical-metric-foot">Tramos: <span id="myRouteSegmentsCount">0</span></div>
+        </article>
+      </section>
 
-      <div class="desktop-idle-grid">
-        <section class="desktop-hero-card panel">
-          <div class="desktop-hero-inner">
-            <div class="desktop-hero-copy">
-              <p class="section-label">Antes de salir</p>
-              <h3 class="desktop-hero-title">¿A donde vas?</h3>
-              <p class="desktop-header__sub desktop-zero-margin">Usa esta pantalla para iniciar un trayecto acompanado. El mapa te da contexto y el panel derecho te deja configurarlo sin ruido.</p>
-            </div>
-
-            <div class="desktop-hero-footer">
-              <div class="desktop-support-card">
-                <div class="section-label">Que haces aqui</div>
-                <div class="desktop-flow-line">1. Elige destino</div>
-                <div class="desktop-flow-line">2. Ajusta tiempo estimado</div>
-                <div class="desktop-flow-line">3. Comienza trayecto</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <aside class="desktop-command-card panel">
-          <article class="desktop-destination-card">
-            <div class="desktop-dest-card-header">
-              <h3 class="desktop-destination-card__title">Configura tu destino</h3>
-              <p class="desktop-destination-card__sub">Busca un lugar en Monterrey o activa el modo sin destino.</p>
-            </div>
-            <div class="desktop-destination-row">
-              <div class="desktop-destination-field">
-                <div class="desktop-dest-shell" data-destination-shell="desktop">
-                  <div class="desktop-dest-icon-slot" aria-hidden="true">
-                    <i class="fa-solid fa-location-dot" id="inputIcon"></i>
-                  </div>
-                  <input
-                    id="desktopDestinationInput"
-                    class="desktop-dest-input"
-                    type="search"
-                    placeholder="Buscar destino"
-                    autocomplete="off"
-                    aria-autocomplete="list"
-                    aria-controls="desktopDestinationResults"
-                    aria-expanded="false"
-                    aria-label="Buscar destino"
-                    data-destination-input="desktop"
-                    data-default-placeholder="Buscar destino">
-                </div>
-                <div id="desktopDestinationResults" class="destination-search-results desktop-dest-results" role="listbox" aria-label="Sugerencias de destino" hidden>
-                  <div class="destination-search-results__head">
-                    <span>Lugares en Monterrey</span>
-                  </div>
-                  <div class="destination-search-results__list desktop-dest-results-list" data-destination-results-list></div>
-                </div>
-              </div>
-              <button
-                id="noDestinationBtn"
-                class="destination-mode-btn desktop-dest-toggle"
-                type="button"
-                data-destination-toggle="desktop"
-                aria-pressed="false"
-                aria-label="Sin destino"
-                title="Sin destino">
-                <i class="fa-solid fa-ban" id="toggleIcon"></i>
-              </button>
-            </div>
-            <div class="desktop-destination-support">
-              <div id="statusBox" class="destination-status-box" data-destination-status-box data-theme="default">
-                <p id="statusHint" class="destination-helper" data-destination-helper>
-                  <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
-                  <span>Escribe para buscar puntos de interés en la ciudad.</span>
-                </p>
-              </div>
-            </div>
-          </article>
-          <div class="eta-row" data-eta-group="desktop">
-            <button class="eta-pill is-active" type="button" data-eta-value="30">30 min</button>
-            <button class="eta-pill" type="button" data-eta-value="60">1 hora</button>
-            <button class="eta-pill" type="button" data-eta-value="180">Tiempo indefinido</button>
-          </div>
-          <div class="list-row">
-            <div>
-              <div class="section-label support-label">Compartir con</div>
-              <div class="support-title" data-share-summary-title="desktop">Nadie por ahora</div>
-              <div class="support-copy" data-share-summary-count="desktop">Puedes editar contactos o decidir con quien compartir este trayecto.</div>
-            </div>
-            <div class="avatar-stack" data-share-summary-avatars="desktop"></div>
-            <button class="link-btn" type="button" data-preview-link="contacts">Editar</button>
-          </div>
-          <button class="primary-btn" type="button" data-start-checkin>
-            <i class="fa-solid fa-shield-heart"></i>
-            Comenzar trayecto
+      <section class="tactical-side-card">
+        <div class="tactical-side-head">
+          <h2 class="tactical-side-title"><i class="fas fa-user-shield"></i> Red de confianza</h2>
+          <button
+            class="tactical-head-action"
+            type="button"
+            title="Mostrar/ocultar formulario"
+            onclick="document.getElementById('safetyContactForm')?.classList.toggle('d-none')">
+            <i class="fas fa-plus"></i>
           </button>
-          <div class="prototype-note no-margin" data-safety-status></div>
-          <button class="link-btn" type="button" data-preview-link="history">Ver historial</button>
-        </aside>
-      </div>
-    </section>
-
-    <section class="desktop-state {% if initial_state == 'active' %}is-visible{% endif %}" data-state="active">
-      <header class="desktop-header">
-        <div class="desktop-header__copy">
-          <p class="section-label">Trayecto activo</p>
-          <h2 class="desktop-header__title">Sigue tu trayecto sin distracciones</h2>
-          <p class="desktop-header__sub">Durante un trayecto activo solo importan tres cosas: mapa, ETA y las acciones de llegada o cancelacion.</p>
         </div>
-      </header>
 
-      <div class="desktop-active-grid">
-        <section class="desktop-map-card panel">
-          <div class="desktop-live-map" data-active-live-map aria-label="Mapa del trayecto activo"></div>
-          <div class="desktop-map-overlay">
-            <div class="desktop-top-actions">
-              <span class="badge badge--live"><i class="fa-solid fa-circle"></i> Ubicacion en vivo</span>
-              <span class="badge badge--secondary"><i class="fa-solid fa-eye"></i> <span data-active-share-count>0 contactos acompanando</span></span>
-            </div>
-            <div class="desktop-map-footer">
-              <div class="desktop-floating-card">
-                <div class="section-label">Ruta actual</div>
-                <div class="desktop-floating-title" data-active-destination-inline>Tu destino</div>
-                <div class="desktop-floating-copy">ETA <span data-active-eta-inline>--</span> · trayecto en seguimiento</div>
+        <form id="safetyContactForm" class="tactical-contact-form">
+          <input type="text" class="form-control tactical-input" id="contactName" placeholder="Nombre" required>
+          <input type="text" class="form-control tactical-input" id="contactPhone" placeholder="Teléfono (10 dígitos)">
+          <input type="text" class="form-control tactical-input" id="contactRel" placeholder="Relación (opcional)">
+          <button type="submit" class="tactical-add-btn">Agregar contacto</button>
+        </form>
+
+        <div class="tactical-contact-list" id="contactListWrap">
+          {% if contacts %}
+            {% for c in contacts %}
+            <article class="tactical-contact-item" data-contact-id="{{ c.id }}">
+              <div class="tactical-contact-main">
+                <div class="tactical-contact-avatar">{{ (c.name[:2] if c.name else 'CT')|upper }}</div>
+                <div class="min-w-0">
+                  <p class="tactical-contact-name">{{ c.name }}</p>
+                  <p class="tactical-contact-meta">{{ c.phone }}{% if c.relationship %} · {{ c.relationship }}{% endif %}{% if c.is_primary %} · Prioridad{% endif %}</p>
+                </div>
               </div>
+              <div class="tactical-contact-actions">
+                {% if not c.is_primary %}
+                <button class="tactical-contact-btn" type="button" onclick="setPrimaryContact({{ c.id }})">Principal</button>
+                {% endif %}
+                <button class="tactical-contact-btn tactical-contact-btn--danger" type="button" onclick="deleteContact({{ c.id }})">Eliminar</button>
+              </div>
+            </article>
+            {% endfor %}
+          {% else %}
+            <div class="small text-secondary" id="noContactMsg">Sin contactos registrados.</div>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="tactical-side-card">
+        <div class="tactical-side-head">
+          <h2 class="tactical-side-title"><i class="fas fa-timeline"></i> Historial de trayectos</h2>
+          <span class="tactical-head-action">Ver todo</span>
+        </div>
+
+        <div class="tactical-history-wrap">
+          {% if trip_items and trip_items|length %}
+          <div class="accordion trip-history-accordion tactical-trip-accordion" id="tripHistoryAccordion">
+            {% for t in trip_items %}
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="tripHeading{{ t.id }}">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tripCollapse{{ t.id }}" aria-expanded="false" aria-controls="tripCollapse{{ t.id }}">
+                  <div class="tactical-trip-head">
+                    <div class="tactical-trip-mini-line" aria-hidden="true"></div>
+                    <div style="min-width:0;">
+                      <div class="tactical-trip-title" id="tripTitleHeader{{ t.id }}">{{ t.display_title }}</div>
+                      <div class="tactical-trip-time">{% if t.when_dt %}{{ t.when_dt.strftime('%d %b · %I:%M %p') }}{% else %}—{% endif %}</div>
+                    </div>
+                    <div class="tactical-trip-destination">{{ t.destination or 'Sin destino' }}</div>
+                  </div>
+                </button>
+              </h2>
+              <div id="tripCollapse{{ t.id }}" class="accordion-collapse collapse" aria-labelledby="tripHeading{{ t.id }}" data-bs-parent="#tripHistoryAccordion" data-checkin-id="{{ t.id }}">
+                <div class="accordion-body tactical-trip-body">
+                  <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2 mb-3">
+                    <div class="small text-secondary" style="min-width: 52px;">Título</div>
+                    <input
+                      class="form-control form-control-sm tactical-input"
+                      id="tripTitleInput{{ t.id }}"
+                      value="{{ t.display_title }}"
+                      data-default-title="{{ t.default_title }}"
+                      placeholder="{{ t.default_title }}">
+                    <button class="btn btn-primary btn-sm" type="button" data-trip-save-title="{{ t.id }}">Guardar</button>
+                  </div>
+                  <div class="small text-secondary mb-2" id="tripTitleSaveStatus{{ t.id }}"></div>
+
+                  <div class="tactical-trip-stats">
+                    <div class="tactical-trip-stat">
+                      <div class="label">Distancia</div>
+                      <div class="value"><span id="tripDistance{{ t.id }}">--</span> km</div>
+                    </div>
+                    <div class="tactical-trip-stat">
+                      <div class="label">Duración</div>
+                      <div class="value" id="tripDuration{{ t.id }}">--</div>
+                    </div>
+                    <div class="tactical-trip-stat">
+                      <div class="label">Vel. promedio</div>
+                      <div class="value"><span id="tripAvgSpeed{{ t.id }}">--</span> km/h</div>
+                    </div>
+                    <div class="tactical-trip-stat">
+                      <div class="label">Vel. máxima</div>
+                      <div class="value"><span id="tripMaxSpeed{{ t.id }}">--</span> km/h</div>
+                    </div>
+                  </div>
+
+                  <div id="tripMap{{ t.id }}" class="my-route-map tactical-trip-map" data-checkin-id="{{ t.id }}"></div>
+                  <div class="small text-secondary mt-2" id="tripStatus{{ t.id }}">Preparando reproducción…</div>
+
+                  <div class="mt-3">
+                    <div class="small text-secondary mb-2">Tramos (km/h)</div>
+                    <div class="d-flex flex-column gap-2" id="tripSegments{{ t.id }}">
+                      <div class="small text-secondary">Abre este trayecto para ver sus tramos.</div>
+                    </div>
+                  </div>
+
+                  <div class="mt-3 d-flex justify-content-end">
+                    <a class="btn btn-outline-light btn-sm rounded-pill" href="{{ t.summary_url }}" target="_blank" rel="noopener">
+                      Abrir resumen
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="tactical-empty-msg">Aún no has registrado trayectos.</div>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+
+    <section class="tactical-map-col">
+      <div class="tactical-map-top">
+        <span class="tactical-map-live">Live view // sat-link</span>
+        <div class="tactical-map-actions">
+          <button type="button" class="tactical-map-icon-btn" title="Capas"><i class="fas fa-layer-group"></i></button>
+          <button type="button" class="tactical-map-icon-btn" title="Ajustes"><i class="fas fa-crosshairs"></i></button>
+        </div>
+      </div>
+
+      <div class="tactical-map-stage">
+        {% if active_checkin %}
+        <div class="my-route-map-wrap tactical-map-wrap">
+          <div id="myRouteMap" class="my-route-map tactical-main-map" data-checkin-id="{{ active_checkin.id }}"></div>
+          {% if current_user.is_authenticated and (current_user.username|string|lower == 'admin') %}
+          <div class="admin-sim-overlay">
+            <div class="admin-sim-overlay-label">Admin joystick</div>
+            <div id="adminSimJoystick" class="admin-joystick" role="application" aria-label="Joystick para mover ubicación">
+              <div class="admin-joystick-knob" aria-hidden="true"></div>
             </div>
           </div>
-        </section>
-
-        <aside class="desktop-rail">
-          <section class="desktop-status-card panel">
-            <div class="desktop-status-top">
-              <div>
-                <p class="section-label">Estado del trayecto</p>
-                <div class="desktop-status-title">Todo en curso</div>
-              </div>
-              <span class="badge badge--live">Normal</span>
-            </div>
-            <div class="eta-big desktop-eta-big" data-active-eta-big>--</div>
-            <div class="desktop-muted-line">ETA estimado hasta <span data-active-destination>tu destino</span></div>
-            <div class="metrics-row">
-              <div class="metric-box">
-                <div class="metric-box__label">Tiempo</div>
-                <div class="metric-box__value" data-active-elapsed>--</div>
-              </div>
-              <div class="metric-box">
-                <div class="metric-box__label">Configurado</div>
-                <div class="metric-box__value" data-active-total>--</div>
-              </div>
-            </div>
-            <div class="desktop-secondary-links">
-              <button class="secondary-btn" type="button" data-arrive-safe>
-                <i class="fa-solid fa-check-circle"></i>
-                Ya llegue con bien
-              </button>
-              <button class="neutral-btn" type="button" data-cancel-trip>Cancelar trayecto</button>
-            </div>
-            <div class="prototype-note no-margin" data-safety-status></div>
-          </section>
-        </aside>
-      </div>
-    </section>
-
-    <section class="desktop-state {% if initial_state == 'contacts' %}is-visible{% endif %}" data-state="contacts">
-      <div class="desktop-back-wrap">
-        <button class="ghost-pill" type="button" data-preview-back>
-          <i class="fa-solid fa-chevron-left"></i> Volver
-        </button>
-      </div>
-      <header class="desktop-header">
-        <div class="desktop-header__copy">
-          <p class="section-label">Red de confianza</p>
-          <h2 class="desktop-header__title">Gestiona tus contactos y elige con quien compartir</h2>
-          <p class="desktop-header__sub">Esta vista concentra todo lo relacionado con contactos: agregar, editar, eliminar y decidir quien recibe el trayecto actual.</p>
+          {% endif %}
         </div>
-      </header>
+        {% else %}
+        <div class="tactical-map-placeholder">
+          <div>
+            <h3 class="h5 fw-bold text-white mb-2">Ruta inactiva</h3>
+            <p class="mb-0">Define un destino y presiona <strong>Iniciar Ruta</strong> para activar el seguimiento en vivo.</p>
+          </div>
+        </div>
+        {% endif %}
 
-      <div class="desktop-active-grid">
-        <section class="desktop-side-card panel">
-          <div class="section-label">Contactos guardados</div>
-          <div class="contact-filter-row desktop-filter-row">
-            <button class="filter-pill is-active" type="button" data-contact-filter="all">Todos</button>
-            <button class="filter-pill" type="button" data-contact-filter="favorites">Favoritos</button>
-            <button class="ghost-pill" type="button" data-contact-create>
-              <i class="fa-solid fa-user-plus"></i> Nuevo contacto
+        <div class="tactical-map-grid-overlay" aria-hidden="true"></div>
+
+        <div class="tactical-bottom-controls">
+          <div class="tactical-eta">
+            <span class="tactical-eta-label">ETA</span>
+            {% if active_checkin %}
+            <span class="tactical-eta-value" id="checkinRemainingLabel" data-expires="{{ active_checkin.expires_at.isoformat() if active_checkin.expires_at else '' }}">--:--</span>
+            {% else %}
+            <select id="checkinEta" aria-label="Seleccionar ETA">
+              <option value="15">15m</option>
+              <option value="30" selected>30m</option>
+              <option value="45">45m</option>
+              <option value="60">60m</option>
+              <option value="90">90m</option>
+            </select>
+            {% endif %}
+          </div>
+
+          <input
+            type="text"
+            id="checkinDestination"
+            class="form-control tactical-destination-input"
+            placeholder="Destino táctico..."
+            value="{{ active_checkin.destination if active_checkin else '' }}"
+            {% if active_checkin %}readonly{% endif %}>
+
+          <input type="text" id="checkinNote" class="d-none" placeholder="Nota opcional">
+
+          <div id="checkinStartWrap" {% if active_checkin %}class="d-none"{% else %}class="d-flex"{% endif %}>
+            <button class="tactical-route-action" type="button" id="startCheckinBtn">
+              <i class="fas fa-play"></i> Iniciar Ruta
             </button>
           </div>
-          <div data-contact-list="desktop"></div>
-        </section>
 
-        <aside class="desktop-rail">
-          <section class="desktop-side-card panel">
-            <div class="section-label">Compartiendo este trayecto con</div>
-            <div class="support-title" data-share-summary-title="desktop-side">Nadie por ahora</div>
-            <div class="support-copy desktop-copy-block">Aqui decides quien recibe el seguimiento del trayecto actual sin mezclarlo con el resto del flujo.</div>
-            <div class="avatar-stack" data-share-summary-avatars="contacts-desktop"></div>
-            <div class="prototype-note no-margin" data-share-summary-count="desktop-side"></div>
-            <div class="prototype-note no-margin" data-safety-status></div>
-          </section>
-        </aside>
+          <div id="checkinActiveWrap" {% if active_checkin %}class="tactical-active-actions"{% else %}class="d-none"{% endif %}>
+            {% if active_checkin %}
+            <button class="btn btn-success" type="button" id="checkinArrivedBtn"><i class="fas fa-check me-1"></i> Ya llegué</button>
+            <button class="btn btn-outline-light" type="button" id="checkinCancelBtn">Cancelar</button>
+            <button class="tactical-emergency-action" type="button" id="checkinEmergencyBtn"><i class="fas fa-triangle-exclamation me-1"></i> Emergencia</button>
+            {% endif %}
+          </div>
+        </div>
       </div>
+
+      <div class="tactical-status-bar">
+        <div id="checkinStatus">&nbsp;</div>
+        <div id="myRouteStatus">
+	          {% if active_checkin %}
+	            {% if current_user.is_authenticated and (current_user.username|string|lower == 'admin') %}
+	              Modo prueba: inicio precargado con tu ubicación actual. Ajusta coordenadas o usa joystick/tap para simular.
+	            {% else %}
+	              Registrando ruta en tiempo real…
+	            {% endif %}
+          {% else %}
+            Inicia un check-in para activar el rastreo de ruta.
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="tactical-segments-box">
+        <div class="tactical-segments-head">
+          <span>Velocidad por tramo</span>
+          {% if active_checkin %}
+          <a href="{{ url_for('checkin_summary', checkin_id=active_checkin.id) }}" target="_blank" rel="noopener">Ver resumen</a>
+          {% endif %}
+        </div>
+        <div id="myRouteSegments" class="tactical-segments-list">
+          {% if active_checkin %}
+          <div class="small text-secondary">Aún no hay tramos registrados.</div>
+          {% else %}
+          <div class="small text-secondary">Se mostrarán aquí los tramos cuando inicies una ruta.</div>
+          {% endif %}
+        </div>
+      </div>
+
+	      {% if active_checkin and current_user.is_authenticated and (current_user.username|string|lower == 'admin') %}
+	      <div class="tactical-admin-panel">
+	        <div class="admin-sim-controls">
+	          <div class="admin-sim-header">
+	            <div class="admin-sim-title">
+	              <i class="fa-solid fa-gamepad admin-sim-title-icon" aria-hidden="true"></i>
+	              Simulador (admin)
+	            </div>
+	          </div>
+
+	          <div class="admin-sim-config-row">
+	            <div class="admin-sim-start">
+	              <div class="admin-sim-label mb-1">Inicio</div>
+	              <div class="tactical-admin-grid">
+	                <input
+	                  type="number"
+	                  class="form-control form-control-sm admin-sim-start-input"
+	                  id="adminSimStartLat"
+	                  min="-90" max="90" step="0.000001"
+	                  inputmode="decimal"
+	                  placeholder="Lat"
+	                  aria-label="Latitud de inicio">
+	                <input
+	                  type="number"
+	                  class="form-control form-control-sm admin-sim-start-input"
+	                  id="adminSimStartLng"
+	                  min="-180" max="180" step="0.000001"
+	                  inputmode="decimal"
+	                  placeholder="Lng"
+	                  aria-label="Longitud de inicio">
+	              </div>
+	            </div>
+
+	            <div class="admin-sim-speed-col">
+	              <label class="admin-sim-label" for="adminSimSpeedKmh">Velocidad</label>
+	              <div class="admin-sim-speed-row">
+	                <input
+	                  type="number"
+	                  class="form-control form-control-sm admin-sim-speed-input"
+	                  id="adminSimSpeedKmh"
+	                  min="0" max="60" step="0.5" value="6"
+	                  inputmode="decimal"
+	                  aria-label="Velocidad simulada en km/h">
+	                <div class="admin-sim-unit" aria-hidden="true">km/h</div>
+	              </div>
+	            </div>
+	          </div>
+
+	          <div class="admin-sim-divider" aria-hidden="true"></div>
+
+	          <button type="button" class="admin-sim-btn admin-sim-btn--primary w-100 mt-2" id="adminSimSetStartBtn">
+	            Establecer inicio
+	          </button>
+	        </div>
+	      </div>
+	      {% endif %}
     </section>
-
-    <section class="desktop-state {% if initial_state == 'history' %}is-visible{% endif %}" data-state="history">
-      <div class="desktop-back-wrap">
-        <button class="ghost-pill" type="button" data-preview-back>
-          <i class="fa-solid fa-chevron-left"></i> Volver
-        </button>
-      </div>
-      <header class="desktop-header">
-        <div class="desktop-header__copy">
-          <p class="section-label">Historial</p>
-          <h2 class="desktop-header__title">Historial simple y directo</h2>
-          <p class="desktop-header__sub">Cada trayecto muestra solo lo necesario: nombre, fecha, resumen corto y una accion principal.</p>
-        </div>
-      </header>
-
-      <div class="desktop-history-grid">
-        <section class="desktop-history-list" data-history-list="desktop"></section>
-      </div>
-    </section>
-    </main>
-  </section>
-
-  <div class="summary-modal-backdrop" id="summaryModal" aria-hidden="true">
-    <div class="summary-modal" role="dialog" aria-modal="true" aria-labelledby="summaryModalTitle">
-      <div class="summary-modal__top">
-        <div>
-          <p class="section-label" id="summaryModalBadge">Resumen</p>
-          <h3 class="summary-modal__title" id="summaryModalTitle">Trayecto</h3>
-          <div class="summary-modal__meta" id="summaryModalMeta">Fecha</div>
-        </div>
-        <button class="topbar-btn" type="button" aria-label="Cerrar resumen" id="summaryModalClose">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <div class="summary-modal__metrics">
-        <div class="summary-modal__metric">
-          <div class="summary-modal__metric-label">Duracion</div>
-          <div class="summary-modal__metric-value" id="summaryMetricTime">--</div>
-        </div>
-        <div class="summary-modal__metric">
-          <div class="summary-modal__metric-label">Destino</div>
-          <div class="summary-modal__metric-value" id="summaryMetricDestination">--</div>
-        </div>
-        <div class="summary-modal__metric">
-          <div class="summary-modal__metric-label">Dato clave</div>
-          <div class="summary-modal__metric-value" id="summaryMetricExtra">--</div>
-        </div>
-      </div>
-
-      <div class="summary-route-map" aria-hidden="true">
-        <svg class="summary-route-svg" viewBox="0 0 320 180" preserveAspectRatio="none">
-          <path class="summary-route-base" id="summaryRouteBase" d=""></path>
-          <path class="summary-route-path" id="summaryRoutePath" d=""></path>
-        </svg>
-        <div class="summary-route-marker" id="summaryRouteStart"></div>
-        <div class="summary-route-marker summary-route-marker--end" id="summaryRouteEnd"></div>
-        <div class="summary-route-dot" id="summaryRouteDot"></div>
-        <div class="summary-route-label summary-route-label--start" id="summaryRouteStartLabel">Inicio</div>
-        <div class="summary-route-label summary-route-label--end" id="summaryRouteEndLabel">Destino</div>
-      </div>
-
-      <div class="summary-modal__body" id="summaryModalBody">
-        Este popup muestra un resumen rapido del trayecto con mapa y recorrido animado, sin sacarte de la pantalla actual.
-      </div>
-    </div>
-  </div>
-
-  <div class="contact-modal-backdrop" id="contactEditorModal" aria-hidden="true">
-    <div class="contact-modal" role="dialog" aria-modal="true" aria-labelledby="contactEditorTitle">
-      <div class="summary-modal__top">
-        <div>
-          <p class="section-label" id="contactEditorEyebrow">Editar contacto</p>
-          <h3 class="summary-modal__title" id="contactEditorTitle">Contacto</h3>
-          <div class="summary-modal__meta">Actualiza nombre, parentesco y telefono.</div>
-        </div>
-        <button class="topbar-btn" type="button" aria-label="Cerrar edicion" id="contactEditorClose">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <form class="contact-form" id="contactEditorForm">
-        <div class="contact-field">
-          <label for="contactNameInput">Nombre</label>
-          <input id="contactNameInput" name="name" type="text" autocomplete="name" placeholder="Ej. Mama">
-        </div>
-        <div class="contact-field">
-          <label for="contactRelationInput">Parentesco o relacion</label>
-          <input id="contactRelationInput" name="relation" type="text" autocomplete="off" placeholder="Ej. Hermana, Tia, Amiga">
-        </div>
-        <div class="contact-field">
-          <label for="contactPhoneInput">Numero de telefono</label>
-          <input id="contactPhoneInput" name="phone" type="tel" inputmode="numeric" pattern="[0-9]*" autocomplete="tel-national" placeholder="8181234567">
-        </div>
-        <div class="contact-field">
-          <label>Foto de perfil</label>
-          <div class="avatar-picker" id="contactAvatarPicker"></div>
-        </div>
-
-        <div class="contact-modal__actions">
-          <button class="neutral-btn" type="button" id="contactEditorDelete">Eliminar contacto</button>
-          <button class="primary-btn" type="submit">
-            <i class="fa-solid fa-check"></i>
-            Guardar cambios
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <div class="confirm-modal-backdrop" id="contactDeleteModal" aria-hidden="true">
-    <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="contactDeleteTitle">
-      <div>
-        <p class="section-label">Eliminar contacto</p>
-        <h3 class="summary-modal__title" id="contactDeleteTitle">¿Segura que quieres eliminar este contacto?</h3>
-        <div class="summary-modal__meta" id="contactDeleteMeta">Este cambio tambien lo quitara del trayecto actual si estaba compartiendo.</div>
-      </div>
-      <div class="confirm-modal__actions">
-        <button class="neutral-btn" type="button" id="contactDeleteCancel">Cancelar</button>
-        <button class="primary-btn" type="button" id="contactDeleteConfirm">
-          <i class="fa-solid fa-trash-can"></i>
-          Eliminar contacto
-        </button>
-      </div>
-    </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script defer src="{{ url_for('static', filename='js/safety_page.js') }}?v=20260402-perf-v1"></script>
+{% endblock %}

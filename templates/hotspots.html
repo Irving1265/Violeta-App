@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/hotspots_page.css') }}?v=20260402-perf-v1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hotspots_page.css') }}?v=20260404-mobile-ui-v1">
 {% endblock %}
 
 {% block content %}
@@ -37,61 +37,83 @@
     {% if current_user.is_authenticated %}
     <div class="route-panel-stack">
       <div id="routeCard" class="route-card-floating">
-        <div class="route-card-head">
-          <h3>Ruta Segura</h3>
-          <p>Planifica tu recorrido evitando riesgos</p>
-        </div>
-
-        <div class="route-fields-stack">
-          <div class="route-field route-field--origin">
-            <i class="fas fa-location-crosshairs"></i>
-            <input id="originInput" type="search" placeholder="Mi ubicación actual" value="Mi ubicación actual" autocomplete="off">
-          </div>
-          <div id="originResults"></div>
-
-          <button type="button" class="route-switch-pill" title="Intercambiar origen y destino" aria-label="Intercambiar origen y destino">
-            <i class="fas fa-arrows-up-down"></i>
-          </button>
-
+        <div class="route-top-search">
           <div class="route-field route-field--dest">
             <i class="fas fa-location-dot"></i>
-            <input id="destInput" type="search" placeholder="¿A dónde vas?" autocomplete="off">
+            <input id="destInput" type="search" placeholder="Buscar destino seguro..." autocomplete="off">
           </div>
-        </div>
-        <div id="destResults"></div>
-
-        <div class="route-mode-row">
-          <button id="routeBtn" type="button" class="route-mode-btn route-mode-btn--walk is-active">
-            <i class="fas fa-person-walking"></i> Caminando
-          </button>
-          <button id="transitBtn" type="button" class="route-mode-btn route-mode-btn--transit">
-            <i class="fas fa-bus"></i> Transporte
-          </button>
+          <div id="destResults"></div>
         </div>
 
-        <div class="route-score-card">
-          <div class="route-score-top">
-            <div>
-              <div class="route-score-label">Safety score dinámico</div>
-              <div class="route-score-number" id="routeSafetyScore">--/100</div>
+        <div class="route-card-sheet">
+          <div class="route-card-head" id="routeCardHeader" role="button" tabindex="0" aria-expanded="false">
+            <div class="route-sheet-handle" aria-hidden="true"></div>
+            <div class="route-card-head-main">
+              <div class="route-card-head-copy">
+                <h3>Ruta Segura</h3>
+                <p id="routeCardSummary">Mi ubicación actual hacia tu destino</p>
+              </div>
+              <div class="route-card-score-preview" aria-hidden="true">
+                <span class="route-card-score-preview__label">Safety</span>
+                <span class="route-card-score-preview__value" id="routeCardScorePreview">--</span>
+              </div>
             </div>
-            <div class="route-score-ring" id="routeSafetyLevel">--</div>
           </div>
-          <div class="route-speed-row">
-            <i class="fas fa-gauge-high"></i>
-            <span id="speedReadout">Velocidad actual: -- km/h</span>
-          </div>
-          <div class="route-safety-meta" id="routeSafetyMeta">Calcula una ruta para evaluar riesgos reales.</div>
-        </div>
 
-        <div id="routeFeedback" class="route-feedback-floating">
-          <div id="routeAlert"></div>
-          <div id="transitInstructions" style="display:none;">
-            <div class="route-steps-title">
-              <i class="fas fa-list-ol"></i>
-              <span>Instrucciones de ruta</span>
+          <div class="route-card-body">
+            <div class="route-fields-stack">
+              <div class="route-field route-field--origin">
+                <i class="fas fa-location-crosshairs"></i>
+                <input id="originInput" type="search" placeholder="Mi ubicación actual" value="Mi ubicación actual" autocomplete="off">
+              </div>
+              <div id="originResults"></div>
+
+              <button type="button" class="route-switch-pill" title="Intercambiar origen y destino" aria-label="Intercambiar origen y destino">
+                <i class="fas fa-arrows-up-down"></i>
+              </button>
             </div>
-            <div id="transitSteps"></div>
+
+            <div class="route-mode-row">
+              <button id="routeBtn" type="button" class="route-mode-btn route-mode-btn--walk is-active">
+                <i class="fas fa-person-walking"></i> Caminando
+              </button>
+              <button id="transitBtn" type="button" class="route-mode-btn route-mode-btn--transit">
+                <i class="fas fa-bus"></i> Transporte
+              </button>
+            </div>
+
+            <div class="route-score-card">
+              <div class="route-score-top">
+                <div>
+                  <div class="route-score-label">Safety score dinámico</div>
+                  <div class="route-score-number" id="routeSafetyScore">--/100</div>
+                </div>
+                <div class="route-score-ring" id="routeSafetyLevel">--</div>
+              </div>
+              <div class="route-speed-row">
+                <i class="fas fa-gauge-high"></i>
+                <span id="speedReadout">Velocidad actual: -- km/h</span>
+              </div>
+              <div class="route-safety-meta" id="routeSafetyMeta">Calcula una ruta para evaluar riesgos reales.</div>
+            </div>
+
+            <div id="routeFeedback" class="route-feedback-floating">
+              <div id="routeAlert"></div>
+              <div id="transitInstructions" style="display:none;">
+                <div class="route-steps-title">
+                  <i class="fas fa-list-ol"></i>
+                  <span>Instrucciones de ruta</span>
+                </div>
+                <div id="transitSteps"></div>
+              </div>
+              <div id="routeLaunchActions" class="route-launch-actions" style="display:none;">
+                <button id="startSafeTripBtn" type="button" class="route-launch-btn">
+                  <i class="fas fa-location-arrow"></i>
+                  <span>Iniciar trayecto seguro</span>
+                </button>
+                <div id="routeLaunchMeta" class="route-launch-meta"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -131,5 +153,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script defer src="{{ url_for('static', filename='js/hotspots_page.js') }}?v=20260402-perf-v1"></script>
+<script defer src="{{ url_for('static', filename='js/hotspots_page.js') }}?v=20260404-mobile-ui-v1"></script>
 {% endblock %}

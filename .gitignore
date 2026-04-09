@@ -17,6 +17,7 @@ crea/
 instance/*.db
 instance/*.sqlite
 instance/*.backup.db
+instance/jinja-cache/
 .server.pid
 *.log
 server-*.log

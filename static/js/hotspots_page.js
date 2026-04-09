@@ -608,11 +608,18 @@
     const destResults = document.getElementById('destResults');
     const routeSwitchBtn = document.querySelector('.route-switch-pill');
     const routeBtn = document.getElementById('routeBtn');
+    const routeCard = document.getElementById('routeCard');
+    const routeCardHeader = document.getElementById('routeCardHeader');
+    const routeCardSummary = document.getElementById('routeCardSummary');
+    const routeCardScorePreview = document.getElementById('routeCardScorePreview');
     const speedReadout = document.getElementById('speedReadout');
     const routeSafetyScoreEl = document.getElementById('routeSafetyScore');
     const routeSafetyLevelEl = document.getElementById('routeSafetyLevel');
     const routeSafetyMetaEl = document.getElementById('routeSafetyMeta');
     const routeFeedbackEl = document.getElementById('routeFeedback');
+    const routeLaunchActionsEl = document.getElementById('routeLaunchActions');
+    const startSafeTripBtn = document.getElementById('startSafeTripBtn');
+    const routeLaunchMetaEl = document.getElementById('routeLaunchMeta');
     const transitBtn = document.getElementById('transitBtn');
     const toggleStops = document.getElementById('toggleTransitStops');
     const routeSearch = document.getElementById('routeSearch');
@@ -633,6 +640,7 @@
     let lastRouteMeters = null;
     let lastHazText = '';
     let activeRouteMode = 'walk';
+    let lastPlannedTrip = null;
     const norm = s => (s || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const allowedCities = new Set([
       'monterrey',
@@ -653,6 +661,29 @@
       return `${Number(point[0]).toFixed(5)}, ${Number(point[1]).toFixed(5)}`;
     }
 
+    function syncRouteCardSummary() {
+      if (!routeCardSummary) return;
+      const originText = (originInput?.value || 'Mi ubicación actual').trim() || 'Mi ubicación actual';
+      const destText = (destInput?.value || '').trim();
+      routeCardSummary.textContent = destText
+        ? `${originText} hacia ${destText}`
+        : `${originText} hacia tu destino`;
+    }
+
+    function syncRouteCardState() {
+      if (!routeCard || !routeCardHeader) return;
+      const isExpanded = routeCard.classList.contains('is-sheet-expanded')
+        || routeCard.classList.contains('expanded')
+        || routeCard.classList.contains('has-route-output');
+      routeCardHeader.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+    }
+
+    function setSheetExpanded(shouldExpand) {
+      if (!routeCard) return;
+      routeCard.classList.toggle('is-sheet-expanded', !!shouldExpand);
+      syncRouteCardState();
+    }
+
     async function useCurrentLocationAsOrigin() {
       if (!navigator.geolocation) return false;
       return new Promise(resolve => {
@@ -660,6 +691,7 @@
           startPoint = [pos.coords.latitude, pos.coords.longitude];
           if (originInput) originInput.value = 'Mi ubicación actual';
           updateUserLocationMarker(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+          syncRouteCardSummary();
           resolve(true);
         }, () => resolve(false), { enableHighAccuracy: true, timeout: 8000, maximumAge: 20000 });
       });
@@ -677,7 +709,152 @@
       const instrEl = document.getElementById('transitInstructions');
       const showAlert = !!(alertEl && alertEl.style.display !== 'none' && alertEl.innerHTML.trim());
       const showInstr = !!(instrEl && instrEl.style.display !== 'none');
-      routeFeedbackEl.classList.toggle('is-visible', (showAlert || showInstr));
+      const hasOutput = showAlert || showInstr;
+      routeFeedbackEl.classList.toggle('is-visible', hasOutput);
+      if (routeCard) routeCard.classList.toggle('has-route-output', hasOutput);
+      if (hasOutput) routeCard?.classList.add('is-sheet-expanded');
+      syncRouteCardState();
+    }
+    function setTripLaunchState(plan) {
+      lastPlannedTrip = plan || null;
+      if (!routeLaunchActionsEl || !routeLaunchMetaEl || !startSafeTripBtn) return;
+      if (!plan) {
+        routeLaunchActionsEl.style.display = 'none';
+        routeLaunchMetaEl.textContent = '';
+        startSafeTripBtn.disabled = false;
+        startSafeTripBtn.innerHTML = '<i class="fas fa-location-arrow"></i><span>Iniciar trayecto seguro</span>';
+        return;
+      }
+      routeLaunchActionsEl.style.display = 'grid';
+      const etaLabel = Number.isFinite(plan.etaMinutes) ? `${plan.etaMinutes} min` : 'ETA estimada';
+      const distanceLabel = Number.isFinite(plan.distanceMeters)
+        ? (plan.distanceMeters < 1000 ? `${Math.round(plan.distanceMeters)} m` : `${(plan.distanceMeters / 1000).toFixed(1)} km`)
+        : 'distancia estimada';
+      const modeLabel = plan.mode === 'transit' ? 'transporte público' : 'ruta peatonal';
+      routeLaunchMetaEl.textContent = `Se activará tu seguimiento en vivo con ${modeLabel} · ${distanceLabel} · ${etaLabel}.`;
+      startSafeTripBtn.disabled = false;
+      startSafeTripBtn.innerHTML = '<i class="fas fa-location-arrow"></i><span>Iniciar trayecto seguro</span>';
+    }
+    function pickEtaOption(totalMinutes) {
+      const options = [15, 30, 45, 60, 90];
+      const target = clamp(Math.round(Number(totalMinutes) || 30), 5, 180);
+      let best = options[0];
+      let bestDiff = Math.abs(best - target);
+      options.forEach(opt => {
+        const diff = Math.abs(opt - target);
+        if (diff < bestDiff) {
+          best = opt;
+          bestDiff = diff;
+        }
+      });
+      return best;
+    }
+    function persistPendingTripPlan(extra = {}) {
+      if (!lastPlannedTrip) return null;
+      const payload = {
+        ...lastPlannedTrip,
+        source: 'hotspots',
+        destinationLabel: (destInput?.value || lastPlannedTrip.destinationLabel || '').trim(),
+        destinationPoint: Array.isArray(destPoint) ? [...destPoint] : (lastPlannedTrip.destinationPoint || null),
+        originPoint: Array.isArray(startPoint) ? [...startPoint] : (lastPlannedTrip.originPoint || null),
+        etaMinutes: pickEtaOption(lastPlannedTrip.etaMinutes),
+        savedAt: Date.now(),
+        ...extra
+      };
+      try {
+        sessionStorage.setItem('violeta.pendingCheckin', JSON.stringify(payload));
+      } catch (_) { }
+      return payload;
+    }
+    function redirectToSafetyWithPlan(extra = {}) {
+      const payload = persistPendingTripPlan(extra);
+      const params = new URLSearchParams();
+      if (payload?.destinationLabel) params.set('destination', payload.destinationLabel);
+      if (payload?.etaMinutes) params.set('eta', String(payload.etaMinutes));
+      if (payload?.mode) params.set('mode', payload.mode);
+      Object.entries(extra || {}).forEach(([key, value]) => {
+        if (value == null || value === false || value === '') return;
+        params.set(key, String(value));
+      });
+      const query = params.toString();
+      window.location.href = `/safety${query ? `?${query}` : ''}`;
+    }
+    async function startCheckinFromHotspots() {
+      if (!lastPlannedTrip) {
+        if (activeRouteMode === 'transit') await drawRouteTransit();
+        else await drawRouteSafe();
+        if (!lastPlannedTrip) return;
+      }
+      const payload = persistPendingTripPlan();
+      if (!payload) return;
+
+      startSafeTripBtn.disabled = true;
+      startSafeTripBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Iniciando...</span>';
+
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+      const noteParts = [
+        payload.mode === 'transit' ? 'Ruta desde Hotspots · Transporte' : 'Ruta desde Hotspots · Caminando'
+      ];
+      if (Number.isFinite(payload.safetyScore)) noteParts.push(`Safety ${payload.safetyScore}/100`);
+      if (payload.summaryText) noteParts.push(payload.summaryText);
+      const note = noteParts.join(' · ').slice(0, 255);
+
+      const send = (lat = null, lng = null) => fetch('/api/safety/checkin/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrf
+        },
+        body: JSON.stringify({
+          destination: payload.destinationLabel || '',
+          eta_minutes: payload.etaMinutes || 30,
+          note,
+          lat,
+          lng
+        })
+      }).then(async (response) => ({
+        ok: response.ok,
+        status: response.status,
+        data: await response.json().catch(() => ({}))
+      }));
+
+      let result = null;
+      if (navigator.geolocation) {
+        result = await new Promise(resolve => {
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => resolve(await send(pos.coords.latitude, pos.coords.longitude)),
+            async () => resolve(await send(null, null)),
+            { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 }
+          );
+        });
+      } else {
+        result = await send(null, null);
+      }
+
+      startSafeTripBtn.disabled = false;
+      startSafeTripBtn.innerHTML = '<i class="fas fa-location-arrow"></i><span>Iniciar trayecto seguro</span>';
+
+      if (result?.ok && result.data?.ok) {
+        redirectToSafetyWithPlan({ started: 1 });
+        return;
+      }
+
+      if (result?.data?.error && /contacto de confianza/i.test(result.data.error)) {
+        redirectToSafetyWithPlan({ missing_contact: 1 });
+        return;
+      }
+
+      if (result?.status === 403) {
+        redirectToSafetyWithPlan({ verify_required: 1 });
+        return;
+      }
+
+      const alertBox = document.getElementById('routeAlert');
+      if (alertBox) {
+        alertBox.style.display = 'block';
+        alertBox.textContent = result?.data?.error || 'No se pudo iniciar el trayecto.';
+        updateRouteFeedbackVisibility();
+      }
     }
     function haversine(lat1, lng1, lat2, lng2) {
       const R = 6371000; const toRad = x => x * Math.PI / 180;
@@ -747,29 +924,23 @@
       originResults.innerHTML = '';
 
       const wrap = document.createElement('div');
-      wrap.style.position = 'absolute';
-      wrap.style.zIndex = '9999';
-      wrap.style.background = 'rgba(249,250,251,.98)';
-      wrap.style.border = '1px solid rgba(148,163,184,.45)';
-      wrap.style.borderRadius = '10px';
-      wrap.style.width = '100%';
-      wrap.style.maxHeight = '55vh';
-      wrap.style.overflowY = 'auto';
-      wrap.style.boxShadow = '0 14px 26px rgba(15,23,42,.22)';
-      wrap.style.padding = '4px 0';
+      wrap.className = 'route-search-dropdown';
 
       const currentBtn = document.createElement('button');
       currentBtn.type = 'button';
-      currentBtn.className = 'w-100 text-start';
-      currentBtn.style.cssText = 'display:block;padding:11px 14px;background:transparent;border:none;color:#111827;width:100%;white-space:normal;line-height:1.35;text-align:left;font-size:14px;';
-      currentBtn.onmouseenter = () => { currentBtn.style.background = 'rgba(124,58,237,.08)'; };
-      currentBtn.onmouseleave = () => { currentBtn.style.background = 'transparent'; };
-      currentBtn.innerHTML = `<div style="font-weight:800;color:#111827;"><i class="fas fa-location-crosshairs me-1" style="color:#7c3aed;"></i> Mi ubicación actual</div><div style="color:#6b7280;font-size:12px;margin-top:2px;">Usar GPS del dispositivo</div>`;
+      currentBtn.className = 'route-search-item route-search-item--current';
+      currentBtn.innerHTML = `
+        <span class="route-search-item__icon"><i class="fas fa-location-crosshairs"></i></span>
+        <span class="route-search-item__content">
+          <span class="route-search-item__title">Mi ubicación actual</span>
+          <span class="route-search-item__sub">Usar GPS del dispositivo</span>
+        </span>
+      `;
       currentBtn.addEventListener('click', async () => {
         await useCurrentLocationAsOrigin();
         originResults.innerHTML = '';
-        const card = document.getElementById('routeCard');
-        if (card) card.classList.remove('expanded');
+        if (routeCard) routeCard.classList.remove('expanded');
+        syncRouteCardSummary();
       });
       wrap.appendChild(currentBtn);
 
@@ -794,31 +965,34 @@
           (filtered || []).forEach(item => {
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'w-100 text-start';
-            btn.style.cssText = 'display:block;padding:12px 14px;background:transparent;border:none;color:#111827;width:100%;white-space:normal;line-height:1.4;text-align:left;font-size:14px;';
-            btn.onmouseenter = () => { btn.style.background = 'rgba(124,58,237,.08)'; };
-            btn.onmouseleave = () => { btn.style.background = 'transparent'; };
+            btn.className = 'route-search-item';
 
             const a = item.address || {};
             const cityName = a.city || a.town || a.village || a.municipality || a.city_district || a.county || '';
-            const title = document.createElement('div');
-            title.style.fontWeight = '800';
-            title.style.color = '#111827';
+            const icon = document.createElement('span');
+            icon.className = 'route-search-item__icon';
+            icon.innerHTML = '<i class="fas fa-location-dot"></i>';
+
+            const content = document.createElement('span');
+            content.className = 'route-search-item__content';
+
+            const title = document.createElement('span');
+            title.className = 'route-search-item__title';
             title.textContent = cityName || 'Dirección';
-            const sub = document.createElement('div');
-            sub.style.color = '#6b7280';
-            sub.style.fontSize = '12px';
-            sub.style.marginTop = '2px';
+            const sub = document.createElement('span');
+            sub.className = 'route-search-item__sub';
             sub.textContent = item.display_name;
-            btn.appendChild(title);
-            btn.appendChild(sub);
+            content.appendChild(title);
+            content.appendChild(sub);
+            btn.appendChild(icon);
+            btn.appendChild(content);
 
             btn.addEventListener('click', () => {
               startPoint = [parseFloat(item.lat), parseFloat(item.lon)];
               if (originInput) originInput.value = item.display_name;
               originResults.innerHTML = '';
-              const card = document.getElementById('routeCard');
-              if (card) card.classList.remove('expanded');
+              if (routeCard) routeCard.classList.remove('expanded');
+              syncRouteCardSummary();
             });
             wrap.appendChild(btn);
           });
@@ -841,17 +1015,8 @@
         .then(list => {
           destResults.innerHTML = '';
           const wrap = document.createElement('div');
-          wrap.style.position = 'absolute';
-          wrap.style.zIndex = '9999';
-          wrap.style.background = 'rgba(249,250,251,.98)';
-          wrap.style.border = '1px solid rgba(148,163,184,.45)';
-          wrap.style.borderRadius = '10px';
-          wrap.style.width = '100%';
-          // Hacer el contenedor más alto cuando se está escribiendo
+          wrap.className = 'route-search-dropdown';
           wrap.style.maxHeight = '65vh';
-          wrap.style.overflowY = 'auto';
-          wrap.style.boxShadow = '0 14px 26px rgba(15,23,42,.22)';
-          wrap.style.padding = '4px 0';
 
           const filtered = (list || []).filter(item => {
             const a = item.address || {};
@@ -863,34 +1028,41 @@
 
           (filtered || []).forEach(item => {
             const btn = document.createElement('button');
-            btn.type = 'button'; btn.className = 'w-100 text-start';
-            btn.style.cssText = 'display:block;padding:12px 14px;background:transparent;border:none;color:#111827;width:100%;white-space:normal;line-height:1.4;text-align:left;font-size:14px;';
-            btn.onmouseenter = () => { btn.style.background = 'rgba(124,58,237,.08)'; };
-            btn.onmouseleave = () => { btn.style.background = 'transparent'; };
+            btn.type = 'button';
+            btn.className = 'route-search-item';
 
             // Título con ciudad en negritas y descripción debajo
             const a = item.address || {};
             const cityName = a.city || a.town || a.village || a.municipality || a.city_district || a.county || '';
-            const title = document.createElement('div');
-            title.style.fontWeight = '800';
-            title.style.color = '#111827';
+            const icon = document.createElement('span');
+            icon.className = 'route-search-item__icon';
+            icon.innerHTML = '<i class="fas fa-location-dot"></i>';
+
+            const content = document.createElement('span');
+            content.className = 'route-search-item__content';
+
+            const title = document.createElement('span');
+            title.className = 'route-search-item__title';
             title.textContent = cityName || 'Dirección';
-            const sub = document.createElement('div');
-            sub.style.color = '#6b7280';
-            sub.style.fontSize = '12px';
-            sub.style.marginTop = '2px';
+            const sub = document.createElement('span');
+            sub.className = 'route-search-item__sub';
             sub.textContent = item.display_name;
-            btn.appendChild(title);
-            btn.appendChild(sub);
+            content.appendChild(title);
+            content.appendChild(sub);
+            btn.appendChild(icon);
+            btn.appendChild(content);
 
             btn.addEventListener('click', function () {
               destInput.value = item.display_name;
               destPoint = [parseFloat(item.lat), parseFloat(item.lon)];
               destResults.innerHTML = '';
-              const card = document.getElementById('routeCard');
-              if (card) card.classList.remove('expanded');
-              // Autoplan: sugerir transporte público automáticamente
-              try { } catch (_) { }
+              if (routeCard) routeCard.classList.remove('expanded');
+              syncRouteCardSummary();
+              setSheetExpanded(true);
+              try {
+                if (activeRouteMode === 'transit') drawRouteTransit();
+                else drawRouteSafe();
+              } catch (_) { }
             });
             wrap.appendChild(btn);
           });
@@ -926,13 +1098,14 @@
       destInput.addEventListener('input', function () {
         clearTimeout(t);
         // Expandir el card mientras hay texto
-        const card = document.getElementById('routeCard');
-        if (card) card.classList.toggle('expanded', this.value.trim().length > 0);
+        if (routeCard) routeCard.classList.toggle('expanded', this.value.trim().length > 0);
+        syncRouteCardSummary();
+        setSheetExpanded(true);
         t = setTimeout(() => searchDest(this.value.trim()), 150);
       });
       destInput.addEventListener('focus', function () {
-        const card = document.getElementById('routeCard');
-        if (card) card.classList.toggle('expanded', this.value.trim().length > 0);
+        if (routeCard) routeCard.classList.toggle('expanded', this.value.trim().length > 0);
+        setSheetExpanded(true);
         const v = this.value.trim();
         if (v.length >= 1) {
           clearTimeout(t);
@@ -942,9 +1115,21 @@
       destInput.addEventListener('blur', function () {
         setTimeout(() => {
           destResults.innerHTML = '';
-          const card = document.getElementById('routeCard');
-          if (card && !(originInput && document.activeElement === originInput)) card.classList.remove('expanded');
+          if (routeCard && !(originInput && document.activeElement === originInput)) routeCard.classList.remove('expanded');
+          syncRouteCardState();
         }, 200);
+      });
+      destInput.addEventListener('keydown', async function (event) {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        const raw = this.value.trim();
+        if (!raw) return;
+        if (!destPoint) {
+          const resolved = await geocodeDest(raw);
+          if (resolved) destPoint = resolved;
+        }
+        if (activeRouteMode === 'transit') drawRouteTransit();
+        else drawRouteSafe();
       });
     }
 
@@ -952,21 +1137,22 @@
       let tOrigin = null;
       originInput.addEventListener('input', function () {
         clearTimeout(tOrigin);
-        const card = document.getElementById('routeCard');
-        if (card) card.classList.toggle('expanded', this.value.trim().length > 0);
+        if (routeCard) routeCard.classList.toggle('expanded', this.value.trim().length > 0);
+        syncRouteCardSummary();
+        setSheetExpanded(true);
         tOrigin = setTimeout(() => searchOrigin(this.value.trim()), 150);
       });
       originInput.addEventListener('focus', function () {
-        const card = document.getElementById('routeCard');
-        if (card) card.classList.add('expanded');
+        if (routeCard) routeCard.classList.add('expanded');
+        setSheetExpanded(true);
         clearTimeout(tOrigin);
         tOrigin = setTimeout(() => searchOrigin(this.value.trim()), 0);
       });
       originInput.addEventListener('blur', function () {
         setTimeout(() => {
           if (originResults) originResults.innerHTML = '';
-          const card = document.getElementById('routeCard');
-          if (card && !(destInput && document.activeElement === destInput)) card.classList.remove('expanded');
+          if (routeCard && !(destInput && document.activeElement === destInput)) routeCard.classList.remove('expanded');
+          syncRouteCardState();
         }, 220);
       });
     }
@@ -991,6 +1177,8 @@
 
       if (originResults) originResults.innerHTML = '';
       if (destResults) destResults.innerHTML = '';
+      syncRouteCardSummary();
+      setSheetExpanded(true);
 
       if (startPoint && destPoint) {
         if (activeRouteMode === 'transit') drawRouteTransit();
@@ -1001,12 +1189,46 @@
     if (routeSwitchBtn) {
       routeSwitchBtn.addEventListener('click', swapRouteEndpoints);
     }
+    if (startSafeTripBtn) {
+      startSafeTripBtn.addEventListener('click', startCheckinFromHotspots);
+    }
 
     // Iniciar cálculo automático de velocidad
     startSpeedWatch();
     updateSpeedReadout();
     setRouteMode('walk');
+    syncRouteCardSummary();
     updateRouteFeedbackVisibility();
+    syncRouteCardState();
+
+    if (routeCardHeader) {
+      const toggleSheet = () => {
+        if (!routeCard) return;
+        const next = !(routeCard.classList.contains('is-sheet-expanded')
+          || routeCard.classList.contains('expanded')
+          || routeCard.classList.contains('has-route-output'));
+        setSheetExpanded(next);
+      };
+      routeCardHeader.addEventListener('click', toggleSheet);
+      routeCardHeader.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        toggleSheet();
+      });
+    }
+
+    const activeMap = window.hotspotMap || mapRef;
+    if (activeMap) {
+      activeMap.on('click', () => {
+        if (destResults) destResults.innerHTML = '';
+        if (originResults) originResults.innerHTML = '';
+        if (routeCard) routeCard.classList.remove('expanded');
+        if (routeCard && !routeCard.classList.contains('has-route-output')) {
+          routeCard.classList.remove('is-sheet-expanded');
+        }
+        syncRouteCardState();
+      });
+    }
 
 
 
@@ -1138,6 +1360,7 @@
         routeSafetyScoreEl.textContent = '--/100';
         routeSafetyLevelEl.textContent = '--';
         routeSafetyMetaEl.textContent = 'Calcula una ruta para evaluar riesgos reales.';
+        if (routeCardScorePreview) routeCardScorePreview.textContent = '--';
         return;
       }
       const cls = classifySafety(result.score);
@@ -1145,6 +1368,7 @@
       routeSafetyLevelEl.textContent = cls.label;
       routeSafetyLevelEl.classList.add(cls.cls);
       routeSafetyMetaEl.textContent = `${result.totalReports} reportes en corredor · ${result.mandatoryReports} obligatorios · ${result.timeLabel}`;
+      if (routeCardScorePreview) routeCardScorePreview.textContent = String(result.score);
     }
 
     async function fetchPostsInRadius(lat, lng, radiusKm) {
@@ -1297,6 +1521,7 @@
       const alertBox = document.getElementById('routeAlert');
       const instructionsPanel = document.getElementById('transitInstructions');
       setRouteMode('walk');
+      setTripLaunchState(null);
       if (alertBox) { alertBox.style.display = 'none'; alertBox.innerHTML = ''; }
       if (instructionsPanel) instructionsPanel.style.display = 'none';
       updateRouteFeedbackVisibility();
@@ -1308,6 +1533,11 @@
           );
           startPoint = [pos.coords.latitude, pos.coords.longitude];
         } catch (e) { }
+      }
+
+      if (!destPoint && destInput && destInput.value.trim()) {
+        const resolved = await geocodeDest(destInput.value.trim());
+        if (resolved) destPoint = resolved;
       }
 
       if (!startPoint || !destPoint) {
@@ -1445,6 +1675,16 @@
         lastRouteMeters = Number(route.distance || 0) || polylineMeters(coords);
         if (safety) setSafetyScoreUI(safety);
         lastHazText = safety?.hint || '';
+        setTripLaunchState({
+          mode: 'walk',
+          destinationLabel: (destInput?.value || '').trim(),
+          destinationPoint: Array.isArray(destPoint) ? [...destPoint] : null,
+          originPoint: Array.isArray(startPoint) ? [...startPoint] : null,
+          distanceMeters: lastRouteMeters,
+          etaMinutes: Math.max(5, Math.round((lastRouteMeters / currentMps()) / 60)),
+          safetyScore: safety?.score ?? null,
+          summaryText: 'Ruta segura a pie'
+        });
 
         if (alertBox) {
           alertBox.style.display = 'block';
@@ -1454,6 +1694,7 @@
       } catch (e) {
         console.error('Route error:', e);
         setSafetyScoreUI(null);
+        setTripLaunchState(null);
         if (alertBox) {
           alertBox.style.display = 'block';
           alertBox.textContent = 'No se pudo trazar la ruta. Verifica tu conexión a internet o intenta con otro destino.';
@@ -1462,7 +1703,12 @@
       }
     }
 
-    if (routeBtn) { routeBtn.addEventListener('click', drawRouteSafe); }
+    if (routeBtn) {
+      routeBtn.addEventListener('click', () => {
+        setSheetExpanded(true);
+        drawRouteSafe();
+      });
+    }
 
     // Transit routing layers
     let transitLayers = [];
@@ -1474,6 +1720,7 @@
       const instructionsPanel = document.getElementById('transitInstructions');
       const stepsContainer = document.getElementById('transitSteps');
       setRouteMode('transit');
+      setTripLaunchState(null);
 
       if (alertBox) {
         alertBox.style.display = 'none';
@@ -1740,6 +1987,16 @@
           }
 
           summaryText = `${routeLabel}: ${route.nombre}`;
+          setTripLaunchState({
+            mode: 'transit',
+            destinationLabel: (destInput?.value || '').trim(),
+            destinationPoint: Array.isArray(destPoint) ? [...destPoint] : null,
+            originPoint: Array.isArray(startPoint) ? [...startPoint] : null,
+            distanceMeters: Number(walkLeg1.distance || 0) + Number(plan.rideMeters || 0) + Number(walkLeg2.distance || 0),
+            etaMinutes: walkMins(walkLeg1.distance) + rideMins(plan.rideMeters, route.tipo) + walkMins(walkLeg2.distance),
+            summaryText,
+            safetyScore: null
+          });
         } else {
           const colorA = routeStrokeColor(plan.routeA);
           const colorB = routeStrokeColor(plan.routeB);
@@ -1825,6 +2082,16 @@
           }
 
           summaryText = `Metro con transbordo: ${plan.routeA.nombre} → ${plan.routeB.nombre}`;
+          setTripLaunchState({
+            mode: 'transit',
+            destinationLabel: (destInput?.value || '').trim(),
+            destinationPoint: Array.isArray(destPoint) ? [...destPoint] : null,
+            originPoint: Array.isArray(startPoint) ? [...startPoint] : null,
+            distanceMeters: Number(walkLeg1.distance || 0) + Number(plan.rideA || 0) + Number(walkLegTransfer.distance || 0) + Number(plan.rideB || 0) + Number(walkLegEnd.distance || 0),
+            etaMinutes: walkMins(walkLeg1.distance) + rideMins(plan.rideA, 'metro') + walkMins(walkLegTransfer.distance) + rideMins(plan.rideB, 'metro') + walkMins(walkLegEnd.distance),
+            summaryText,
+            safetyScore: null
+          });
         }
 
         transitLayers.forEach(layer => animateLeafletLayerIn(layer, 320));
@@ -1835,6 +2102,9 @@
 
         const transitSafety = await evaluateRouteSafety(allPoints, { updateUI: true });
         lastHazText = transitSafety?.hint || '';
+        if (lastPlannedTrip) {
+          lastPlannedTrip.safetyScore = transitSafety?.score ?? null;
+        }
 
         if (instructionsPanel) instructionsPanel.style.display = 'block';
         if (alertBox) {
@@ -1848,6 +2118,7 @@
         console.error('Transit routing error:', e);
         clearRouteLegend();
         setSafetyScoreUI(null);
+        setTripLaunchState(null);
         if (alertBox) {
           alertBox.style.display = 'block';
           alertBox.style.background = 'rgba(239, 68, 68, 0.14)';
@@ -1862,6 +2133,7 @@
     if (transitBtn) {
       transitBtn.addEventListener('click', () => {
         console.log('Transit Button Clicked (Event Fired)');
+        setSheetExpanded(true);
         drawRouteTransit();
       });
     } else {
