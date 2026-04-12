@@ -200,6 +200,52 @@ def is_same_origin_request() -> bool:
     return True
 
 
+EMAIL_PATTERN = re.compile(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+PASSWORD_RESET_TOKEN_SALT = 'violeta-password-reset'
+
+
+def _is_valid_email(value: str | None) -> bool:
+    return bool(EMAIL_PATTERN.match((value or '').strip()))
+
+
+def build_password_reset_token(user: User) -> str:
+    user_id = getattr(user, 'id', None)
+    email = (getattr(user, 'email', '') or '').strip().lower()
+    if user_id is None or not email:
+        raise ValueError('No se puede generar token sin usuario y correo válidos.')
+    serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+    return serializer.dumps({'uid': int(user_id), 'email': email}, salt=PASSWORD_RESET_TOKEN_SALT)
+
+
+def resolve_password_reset_token(token: str | None, max_age: int) -> tuple[User | None, int]:
+    raw_token = (token or '').strip()
+    if not raw_token:
+        return None, TOKEN_STATE_INVALID
+
+    serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+    try:
+        payload = serializer.loads(raw_token, salt=PASSWORD_RESET_TOKEN_SALT, max_age=max_age)
+    except SignatureExpired:
+        return None, TOKEN_STATE_EXPIRED
+    except BadSignature:
+        return None, TOKEN_STATE_INVALID
+
+    try:
+        user_id = int(payload.get('uid'))
+    except (TypeError, ValueError, AttributeError):
+        return None, TOKEN_STATE_INVALID
+
+    email = (payload.get('email') or '').strip().lower() if isinstance(payload, dict) else ''
+    if not email:
+        return None, TOKEN_STATE_INVALID
+
+    user = db.session.get(User, user_id)
+    if not user:
+        return None, TOKEN_STATE_INVALID
+    if (getattr(user, 'email', '') or '').strip().lower() != email:
+        return None, TOKEN_STATE_INVALID
+    return user, TOKEN_STATE_OK
+
 def ensure_chatroom_schema():
     """Add is_approved column to chat_room if missing (SQLite only)."""
     try:
@@ -3321,34 +3367,38 @@ def create_app():
     @app.route('/api/forgot-password/request', methods=['POST'])
     @csrf.exempt
     def forgot_password_request():
-        if not is_same_origin_request():
-            return jsonify({'error': 'Origen inválido'}), 403
+        try:
+            if not is_same_origin_request():
+                return jsonify({'error': 'Origen inválido'}), 403
 
-        ip = get_request_ip()
-        if is_rate_limited(f'forgot_password:{ip}', limit=8, window_seconds=600):
-            return jsonify({'error': 'Demasiadas solicitudes. Intenta nuevamente en unos minutos.'}), 429
+            ip = get_request_ip()
+            if is_rate_limited(f'forgot_password:{ip}', limit=8, window_seconds=600):
+                return jsonify({'error': 'Demasiadas solicitudes. Intenta nuevamente en unos minutos.'}), 429
 
-        data = request.get_json(silent=True) or {}
-        email = (data.get('email') or '').strip()
-        if not email:
-            return jsonify({'error': 'El correo electrónico es requerido.'}), 400
-        if not _is_valid_email(email):
-            return jsonify({'error': 'Formato de correo inválido.'}), 400
+            data = request.get_json(silent=True) or {}
+            email = (data.get('email') or '').strip()
+            if not email:
+                return jsonify({'error': 'El correo electrónico es requerido.'}), 400
+            if not _is_valid_email(email):
+                return jsonify({'error': 'Formato de correo inválido.'}), 400
 
-        user = User.query.filter(func.lower(User.email) == email.lower()).first()
-        if not user:
-            return jsonify({'error': 'No encontramos una cuenta con ese correo.'}), 404
+            user = User.query.filter(func.lower(User.email) == email.lower()).first()
+            if not user:
+                return jsonify({'error': 'No encontramos una cuenta con ese correo.'}), 404
 
-        token = build_password_reset_token(user)
-        reset_link = url_for('reset_password', token=token, _external=True)
-        sent = send_password_reset_email(user, reset_link)
-        if not sent:
-            return jsonify({'error': 'No pudimos enviar el correo. Revisa la configuración de correo (MAIL_* o RESEND_*).'}), 500
+            token = build_password_reset_token(user)
+            reset_link = url_for('reset_password', token=token, _external=True)
+            sent = send_password_reset_email(user, reset_link)
+            if not sent:
+                return jsonify({'error': 'No pudimos enviar el correo. Revisa la configuración de correo (MAIL_* o RESEND_*).'}), 500
 
-        return jsonify({
-            'ok': True,
-            'message': 'Te enviamos un enlace para restablecer tu contraseña. Expira en 15 minutos.',
-        }), 200
+            return jsonify({
+                'ok': True,
+                'message': 'Te enviamos un enlace para restablecer tu contraseña. Expira en 15 minutos.',
+            }), 200
+        except Exception as exc:
+            _debug_log_suppressed('forgot password request failed', exc)
+            return jsonify({'error': 'No pudimos procesar la solicitud.'}), 500
 
     @app.route('/reset-password/<token>', methods=['GET', 'POST'])
     def reset_password(token):
