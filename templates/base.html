@@ -20,7 +20,7 @@
     {% if request.endpoint == 'index' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/post_create.css') }}?v=20260403-post-modal-motion-v17">
     {% endif %}
-    {% if current_user.is_authenticated and request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'account_restricted'] %}
+    {% if current_user.is_authenticated and request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted'] %}
     <link rel="prefetch" as="document" href="{{ url_for('index') }}">
     {% if current_user_can_access_admin_panel %}<link rel="prefetch" as="document" href="{{ url_for('admin_panel') }}">{% endif %}
     <link rel="prefetch" as="document" href="{{ url_for('hotspots_page') }}">
@@ -30,11 +30,11 @@
     {% block styles %}{% endblock %}
 </head>
 
-<body class="violeta-theme {% if current_user.is_authenticated and not user_is_verified and request.endpoint not in ['verify_identity', 'emergency_call', 'register', 'forgot_password', 'login', 'reset_password', 'account_restricted'] %}user-unverified{% endif %} {% if request.endpoint == 'chat' %}chat-page{% endif %}">
+<body class="violeta-theme {% if current_user.is_authenticated and not user_is_verified and request.endpoint not in ['verify_identity', 'emergency_call', 'register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted'] %}user-unverified{% endif %} {% if request.endpoint == 'chat' %}chat-page{% endif %}">
 
     <div class="app-layout">
         <!-- Sidebar (Desktop) -->
-        {% if request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'account_restricted'] %}
+        {% if request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted'] %}
         <aside class="sidebar">
             <div class="brand-logo">
                 <span class="brand-logo__word">Violeta</span>
@@ -108,7 +108,7 @@
 
         <!-- Main Content -->
         <main
-            class="main-content {% if request.endpoint in ['register', 'forgot_password', 'login', 'reset_password', 'account_restricted'] %}no-sidebar{% endif %}">
+            class="main-content {% if request.endpoint in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted'] %}no-sidebar{% endif %}">
             <!-- Flash Messages -->
             <div class="flash-popups" id="flashPopups">
                 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -124,7 +124,7 @@
                 {% endwith %}
             </div>
 
-            {% if current_user.is_authenticated and not user_is_verified and request.endpoint not in ['verify_identity', 'emergency_call', 'register', 'forgot_password', 'login', 'reset_password', 'account_restricted'] %}
+            {% if current_user.is_authenticated and not user_is_verified and request.endpoint not in ['verify_identity', 'emergency_call', 'register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted'] %}
             <div class="verify-gate-overlay" id="verifyGateOverlay">
                 <div class="verification-overlay-card" data-purpose="verification-overlay" role="dialog" aria-modal="true" aria-labelledby="verifyGateTitle">
                     <div class="glass-card verify-gate-card">
@@ -165,7 +165,7 @@
         {% block modals %}{% endblock %}
 
         <!-- Bottom Nav (Mobile) -->
-        {% if request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'account_restricted'] %}
+        {% if request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted'] %}
         <nav class="bottom-nav">
             <a href="{{ url_for('index') }}" class="nav-item {{ 'active' if request.endpoint == 'index' else '' }}">
                 <i class="fa-solid fa-house"></i>
@@ -328,9 +328,9 @@
                                 <span class="report-option-text">Fraude o phishing</span>
                             </label>
                             <label class="report-option">
-                                <input type="radio" name="report_reason" value="Información falso">
+                                <input type="radio" name="report_reason" value="Información falsa">
                                 <span class="report-option-check"></span>
-                                <span class="report-option-text">Información falso</span>
+                                <span class="report-option-text">Información falsa</span>
                             </label>
                             <label class="report-option">
                                 <input type="radio" name="report_reason" value="La imagen no corresponde al evento">

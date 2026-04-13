@@ -202,6 +202,7 @@ def is_same_origin_request() -> bool:
 
 EMAIL_PATTERN = re.compile(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
 PASSWORD_RESET_TOKEN_SALT = 'violeta-password-reset'
+TEMP_PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
 
 
 def _is_valid_email(value: str | None) -> bool:
@@ -245,6 +246,29 @@ def resolve_password_reset_token(token: str | None, max_age: int) -> tuple[User 
     if (getattr(user, 'email', '') or '').strip().lower() != email:
         return None, TOKEN_STATE_INVALID
     return user, TOKEN_STATE_OK
+
+
+def generate_temporary_password(length: int = 12) -> str:
+    normalized_length = max(10, int(length or 12))
+    letters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+    digits = '23456789'
+    remaining = ''.join(secrets.choice(TEMP_PASSWORD_ALPHABET) for _ in range(normalized_length - 2))
+    raw = [secrets.choice(letters), secrets.choice(digits), *remaining]
+    secrets.SystemRandom().shuffle(raw)
+    return ''.join(raw)
+
+
+def validate_password_change_inputs(new_password: str, confirm_password: str) -> list[str]:
+    errors: list[str] = []
+    if not new_password or not confirm_password:
+        errors.append('Debes completar ambos campos de contraseña.')
+    if new_password and len(new_password) < 8:
+        errors.append('La contraseña debe tener al menos 8 caracteres.')
+    if new_password and not (re.search(r'[A-Za-z]', new_password) and re.search(r'[0-9]', new_password)):
+        errors.append('La contraseña debe incluir al menos una letra y un número.')
+    if new_password and confirm_password and new_password != confirm_password:
+        errors.append('Las contraseñas no coinciden.')
+    return errors
 
 def ensure_chatroom_schema():
     """Add is_approved column to chat_room if missing (SQLite only)."""
@@ -362,10 +386,13 @@ def ensure_user_schema():
         user_table = '"user"' if dialect == 'postgresql' else 'user'
         datetime_type = 'TIMESTAMP' if dialect == 'postgresql' else 'DATETIME'
         bool_true = 'TRUE' if dialect == 'postgresql' else '1'
+        bool_false = 'FALSE' if dialect == 'postgresql' else '0'
         with engine.begin() as conn:
             cols = {col['name'] for col in inspector.get_columns('user')}
             if 'is_verified' not in cols:
                 conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN is_verified BOOLEAN DEFAULT {bool_true}"))
+            if 'force_password_change' not in cols:
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN force_password_change BOOLEAN DEFAULT {bool_false}"))
             if 'abuse_strikes' not in cols:
                 conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN abuse_strikes INTEGER DEFAULT 0"))
             if 'muted_until' not in cols:
@@ -375,6 +402,7 @@ def ensure_user_schema():
             if 'roles' not in cols:
                 conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN roles TEXT"))
             conn.execute(text(f"UPDATE {user_table} SET is_verified = {bool_true} WHERE is_verified IS NULL"))
+            conn.execute(text(f"UPDATE {user_table} SET force_password_change = {bool_false} WHERE force_password_change IS NULL"))
             conn.execute(text(f"UPDATE {user_table} SET abuse_strikes = 0 WHERE abuse_strikes IS NULL"))
             conn.execute(text(
                 f"UPDATE {user_table} SET roles = 'super_admin' "
@@ -1446,6 +1474,31 @@ def create_app():
             'current_user_can_override_content_controls': user_can_override_content_controls(current_user),
             'current_user_can_review_private_content': user_can_review_private_content(current_user),
         }
+
+    @app.before_request
+    def enforce_forced_password_reset():
+        if not current_user.is_authenticated:
+            return None
+        if not bool(getattr(current_user, 'force_password_change', False)):
+            return None
+
+        endpoint = (request.endpoint or '').strip()
+        allowed = {
+            'logout',
+            'force_password_reset',
+            'static',
+        }
+        if endpoint in allowed or endpoint.startswith('static'):
+            return None
+
+        payload = {
+            'error': 'Debes cambiar tu contraseña temporal antes de continuar.',
+            'redirect': url_for('force_password_reset'),
+        }
+        wants_json = request.path.startswith('/api/') or 'application/json' in (request.headers.get('Accept') or '')
+        if wants_json:
+            return jsonify(payload), 428
+        return redirect(url_for('force_password_reset'))
 
     @app.before_request
     def enforce_account_restrictions():
@@ -3342,6 +3395,9 @@ def create_app():
                 # Prevent session fixation by rotating session data at login.
                 session.clear()
                 login_user(user, remember=remember)
+                if bool(getattr(user, 'force_password_change', False)):
+                    flash('Tu cuenta tiene una contraseña temporal. Debes cambiarla antes de continuar.', 'warning')
+                    return redirect(url_for('force_password_reset'))
                 restriction = user_restriction_state(user, auto_clear=True)
                 if restriction:
                     flash(restriction.get('message') or 'Tu cuenta tiene una restricción activa.', 'warning')
@@ -3364,6 +3420,46 @@ def create_app():
     def forgot_password():
         return render_template('forgot_password.html')
 
+    @app.route('/force-password-reset', methods=['GET', 'POST'])
+    @login_required
+    def force_password_reset():
+        if not bool(getattr(current_user, 'force_password_change', False)):
+            return redirect(url_for('index'))
+
+        errors = []
+        if request.method == 'POST':
+            new_password = (request.form.get('new_password') or '').strip()
+            confirm_password = (request.form.get('confirm_password') or '').strip()
+            errors = validate_password_change_inputs(new_password, confirm_password)
+
+            if not errors:
+                try:
+                    current_user.set_password(new_password)
+                    current_user.force_password_change = False
+                    db.session.add(current_user)
+                    db.session.commit()
+                    flash('Tu contraseña se actualizó correctamente. Ya puedes continuar.', 'success')
+                    return redirect(url_for('index'))
+                except Exception as exc:
+                    db.session.rollback()
+                    _debug_log_suppressed('forced password reset failed', exc)
+                    errors.append('No pudimos actualizar la contraseña. Inténtalo nuevamente.')
+
+        return render_template(
+            'reset_password.html',
+            token=None,
+            email=(current_user.email or '').strip(),
+            errors=errors,
+            form_action=url_for('force_password_reset'),
+            back_href=url_for('logout'),
+            page_subtitle='Actualiza tu contraseña temporal',
+            step_heading='Crea tu contraseña definitiva',
+            helper_copy='Iniciaste sesión con una contraseña temporal generada por el equipo. Debes cambiarla antes de entrar a la app.',
+            footer_link_href=url_for('logout'),
+            footer_link_label='Cerrar sesión',
+            footer_prompt='¿Prefieres salir y volver después?',
+        )
+
     @app.route('/api/forgot-password/request', methods=['POST'])
     @csrf.exempt
     def forgot_password_request():
@@ -3382,19 +3478,10 @@ def create_app():
             if not _is_valid_email(email):
                 return jsonify({'error': 'Formato de correo inválido.'}), 400
 
-            user = User.query.filter(func.lower(User.email) == email.lower()).first()
-            if not user:
-                return jsonify({'error': 'No encontramos una cuenta con ese correo.'}), 404
-
-            token = build_password_reset_token(user)
-            reset_link = url_for('reset_password', token=token, _external=True)
-            sent = send_password_reset_email(user, reset_link)
-            if not sent:
-                return jsonify({'error': 'No pudimos enviar el correo. Revisa la configuración de correo (MAIL_* o RESEND_*).'}), 500
-
             return jsonify({
                 'ok': True,
-                'message': 'Te enviamos un enlace para restablecer tu contraseña. Expira en 15 minutos.',
+                'mode': 'assisted_admin',
+                'message': 'La recuperación automática por correo no está disponible para todas las cuentas en esta etapa beta. Solicita apoyo del equipo para recibir una contraseña temporal desde admin.',
             }), 200
         except Exception as exc:
             _debug_log_suppressed('forgot password request failed', exc)
@@ -3412,19 +3499,12 @@ def create_app():
         if request.method == 'POST':
             new_password = (request.form.get('new_password') or '').strip()
             confirm_password = (request.form.get('confirm_password') or '').strip()
-
-            if not new_password or not confirm_password:
-                errors.append('Debes completar ambos campos de contraseña.')
-            if new_password and len(new_password) < 8:
-                errors.append('La contraseña debe tener al menos 8 caracteres.')
-            if new_password and not (re.search(r'[A-Za-z]', new_password) and re.search(r'[0-9]', new_password)):
-                errors.append('La contraseña debe incluir al menos una letra y un número.')
-            if new_password and confirm_password and new_password != confirm_password:
-                errors.append('Las contraseñas no coinciden.')
+            errors = validate_password_change_inputs(new_password, confirm_password)
 
             if not errors:
                 try:
                     user.set_password(new_password)
+                    user.force_password_change = False
                     db.session.commit()
                     flash('Tu contraseña se actualizó correctamente. Inicia sesión con la nueva contraseña.', 'success')
                     return redirect(url_for('login'))
@@ -7367,6 +7447,45 @@ def create_app():
             return jsonify({'success': True, 'message': 'Foto de perfil actualizada', 'photo_url': url_for('uploaded_file', filename=unique_filename)})
         else:
             return jsonify({'error': 'Tipo de archivo no permitido'}), 400
+
+    @app.route('/admin/user/<int:user_id>/assisted_password_reset', methods=['POST'])
+    @login_required
+    @permission_required(PERM_USERS_MANAGE, json_only=True)
+    def admin_assisted_password_reset(user_id):
+        if not user_is_super_admin(current_user):
+            return jsonify({'error': 'Solo una cuenta con rol de súper admin puede generar contraseñas temporales.'}), 403
+
+        user = User.query.get_or_404(user_id)
+        if user_is_protected_staff(user):
+            return jsonify({'error': 'No puedes restablecer una cuenta protegida.'}), 400
+
+        temporary_password = generate_temporary_password()
+        try:
+            user.set_password(temporary_password)
+            user.force_password_change = True
+            db.session.add(user)
+            db.session.commit()
+            record_audit_event(
+                'user.password_reset.assisted',
+                workspace='admin',
+                target_user=user,
+                resource_type='user',
+                resource_id=user.id,
+                summary='Se generó una contraseña temporal desde admin.',
+                details={'mode': 'assisted_admin'},
+            )
+            invalidate_admin_panel_page_cache()
+            return jsonify({
+                'success': True,
+                'message': f'Se generó una contraseña temporal para {user.username}.',
+                'temporary_password': temporary_password,
+                'username': user.username,
+                'email': user.email,
+            })
+        except Exception as exc:
+            db.session.rollback()
+            _debug_log_suppressed('admin assisted password reset failed', exc)
+            return jsonify({'error': 'No se pudo generar la contraseña temporal.'}), 500
 
     @app.route('/admin/user/<int:user_id>/roles', methods=['POST'])
     @login_required

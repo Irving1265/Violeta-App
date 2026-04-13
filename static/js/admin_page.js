@@ -8,6 +8,7 @@
     let changePhotoCropper = null;
     let changePhotoCropModal = null;
     let changePhotoCropUrl = null;
+    let assistedPasswordResetModal = null;
     const ADMIN_REPORT_PALETTE = ['#8b5cf6', '#a78bfa', '#f43f5e', '#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#14b8a6'];
     const ADMIN_REPORT_COLOR_BY_REASON = {
         'Poca iluminación': '#f59e0b',
@@ -280,6 +281,70 @@
                     alert('Error al eliminar usuaria');
                 });
         }
+    }
+
+    function ensureAssistedPasswordResetModal() {
+        if (assistedPasswordResetModal || !window.bootstrap) return assistedPasswordResetModal;
+        const modalEl = document.getElementById('assistedPasswordResetModal');
+        if (!modalEl) return null;
+        assistedPasswordResetModal = new bootstrap.Modal(modalEl);
+        return assistedPasswordResetModal;
+    }
+
+    function showAssistedPasswordResetModal(payload) {
+        const usernameEl = document.getElementById('assistedResetUsername');
+        const emailEl = document.getElementById('assistedResetEmail');
+        const valueEl = document.getElementById('assistedResetPasswordValue');
+        const copyBtn = document.getElementById('assistedResetCopyBtn');
+        if (!usernameEl || !emailEl || !valueEl) {
+            alert(`Contraseña temporal para ${payload.username}: ${payload.temporaryPassword}`);
+            return;
+        }
+
+        usernameEl.textContent = payload.username || 'la usuaria';
+        emailEl.textContent = payload.email || '';
+        valueEl.value = payload.temporaryPassword || '';
+        if (copyBtn) {
+            copyBtn.textContent = 'Copiar';
+        }
+
+        const modal = ensureAssistedPasswordResetModal();
+        if (modal) {
+            modal.show();
+        } else {
+            alert(`Contraseña temporal para ${payload.username}: ${payload.temporaryPassword}`);
+        }
+    }
+
+    function issueAssistedPasswordReset(userId, username, email) {
+        const confirmed = confirm(`Se generará una contraseña temporal para "${username}". La usuaria tendrá que cambiarla al iniciar sesión. ¿Continuar?`);
+        if (!confirmed) return;
+
+        fetch(`/admin/user/${userId}/assisted_password_reset`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': ADMIN_CSRF_TOKEN
+            }
+        })
+            .then(async (response) => {
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'No se pudo generar la contraseña temporal.');
+                }
+                return data;
+            })
+            .then((data) => {
+                showAssistedPasswordResetModal({
+                    username: data.username || username,
+                    email: data.email || email,
+                    temporaryPassword: data.temporary_password || '',
+                });
+            })
+            .catch((error) => {
+                console.error('assisted password reset error:', error);
+                alert(error.message || 'No se pudo generar la contraseña temporal.');
+            });
     }
 
     function deletePost(postId) {
@@ -1225,3 +1290,27 @@
             })
             .catch(() => alert('Error al rechazar'));
     }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const copyBtn = document.getElementById('assistedResetCopyBtn');
+        const valueEl = document.getElementById('assistedResetPasswordValue');
+        if (!copyBtn || !valueEl) return;
+        copyBtn.addEventListener('click', async () => {
+            const value = (valueEl.value || '').trim();
+            if (!value) return;
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(value);
+                } else {
+                    valueEl.focus();
+                    valueEl.select();
+                    document.execCommand('copy');
+                }
+                copyBtn.textContent = 'Copiada';
+            } catch (error) {
+                console.error('copy temp password error:', error);
+                valueEl.focus();
+                valueEl.select();
+            }
+        });
+    });

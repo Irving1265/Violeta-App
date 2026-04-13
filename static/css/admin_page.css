@@ -903,6 +903,12 @@
         background: rgba(127, 29, 29, 0.28);
     }
 
+    .admin-icon-action.is-support {
+        color: #c4b5fd;
+        border-color: rgba(167, 139, 250, 0.42);
+        background: rgba(76, 29, 149, 0.22);
+    }
+
     .admin-table-footer {
         padding: 0.9rem 1.25rem 1.05rem;
         border-top: 1px solid rgba(45, 36, 56, 0.72);

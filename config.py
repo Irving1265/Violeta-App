@@ -61,7 +61,7 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = _engine_options(SQLALCHEMY_DATABASE_URI)
     RUN_STARTUP_SCHEMA_SYNC = _env_bool(
         'RUN_STARTUP_SCHEMA_SYNC',
-        SQLALCHEMY_DATABASE_URI.startswith('sqlite'),
+        SQLALCHEMY_DATABASE_URI.startswith(('sqlite', 'postgresql')),
     )
 
     # Configuración de archivos

@@ -174,3 +174,32 @@
         </div>
     </div>
 </div>
+
+<!-- Assisted Password Reset Modal -->
+<div class="modal fade" id="assistedPasswordResetModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-surface border border-secondary text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Contraseña temporal generada</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary mb-2">
+                    Comparte esta contraseña temporal con <strong id="assistedResetUsername">la usuaria</strong>. Se muestra una sola vez.
+                </p>
+                <div class="small text-secondary mb-3" id="assistedResetEmail"></div>
+                <label for="assistedResetPasswordValue" class="form-label text-secondary">Contraseña temporal</label>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control bg-body border-secondary text-white" id="assistedResetPasswordValue" readonly>
+                    <button type="button" class="btn btn-outline-light" id="assistedResetCopyBtn">Copiar</button>
+                </div>
+                <div class="small text-secondary">
+                    Cuando la usuaria inicie sesión con esta contraseña, la app la obligará a crear una nueva antes de continuar.
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>

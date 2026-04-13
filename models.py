@@ -26,6 +26,7 @@ class User(UserMixin, db.Model):
     bio = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_verified = db.Column(db.Boolean, default=True)
+    force_password_change = db.Column(db.Boolean, default=False)
     abuse_strikes = db.Column(db.Integer, default=0)
     muted_until = db.Column(db.DateTime)
     last_abuse_at = db.Column(db.DateTime)

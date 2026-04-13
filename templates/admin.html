@@ -190,6 +190,11 @@
                                         title="Editar usuaria">
                                         <i class="fas fa-pen"></i>
                                     </button>
+                                    {% if current_user_is_super_admin %}
+                                    <button class="admin-icon-action is-support" onclick='issueAssistedPasswordReset({{ user.id }}, {{ user.username|tojson }}, {{ user.email|tojson }})' title="Generar contraseña temporal">
+                                        <i class="fas fa-key"></i>
+                                    </button>
+                                    {% endif %}
                                     <button class="admin-icon-action is-danger" onclick="deleteUser('{{ user.id }}', '{{ user.username }}')" title="Eliminar usuaria">
                                         <i class="fas fa-trash"></i>
                                     </button>
