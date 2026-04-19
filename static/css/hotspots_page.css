@@ -449,7 +449,7 @@
   .route-switch-pill {
     position: absolute;
     right: 22px;
-    top: 34px;
+    top: 52px;
     z-index: 12020;
     width: 27px;
     height: 27px;
@@ -1688,14 +1688,7 @@
     }
 
     .route-switch-pill {
-      top: 102px;
-      right: 50px;
-      width: 30px;
-      height: 30px;
-      border-radius: 999px;
-      background: #7c3aed;
-      border: 0;
-      box-shadow: 0 8px 16px rgba(124, 58, 237, 0.24);
+      display: none;
     }
 
     #originResults .route-search-dropdown {
