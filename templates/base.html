@@ -30,6 +30,7 @@
     {% block styles %}{% endblock %}
 </head>
 
+{% set show_warning_strike_overlay = active_warning_strike and request.endpoint not in ['account_restricted', 'emergency_call'] %}
 <body class="violeta-theme {% if current_user.is_authenticated and not user_is_verified and request.endpoint not in ['verify_identity', 'emergency_call', 'register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted'] %}user-unverified{% endif %} {% if request.endpoint == 'chat' %}chat-page{% endif %}">
 
     <div class="app-layout">
@@ -195,7 +196,7 @@
         {% endif %}
     </div>
 
-    {% if active_warning_strike and request.endpoint != 'account_restricted' %}
+    {% if show_warning_strike_overlay %}
     <div class="strike-overlay strike-overlay--warning" id="strikeWarningOverlay" data-strike-warning-overlay role="dialog" aria-modal="true" aria-labelledby="strikeWarningTitle">
         <div class="strike-overlay__card strike-overlay__card--compact">
             <div class="strike-compact-header">
@@ -467,7 +468,7 @@
         })();
     </script>
     <script>
-        window.VIOLETA_STRIKE_OVERLAY = {{ active_warning_strike|tojson if active_warning_strike else 'null' }};
+        window.VIOLETA_STRIKE_OVERLAY = {{ active_warning_strike|tojson if show_warning_strike_overlay else 'null' }};
         window.CURRENT_USER = {
             is_authenticated: {{ 'true' if current_user.is_authenticated else 'false' }},
             id: {{ current_user.id if current_user.is_authenticated else 'null' }},
@@ -484,7 +485,7 @@
         window.VIOLETA_SAFETY_PUBLISH_POLICY = {{ safety_publish_policy|tojson }};
     </script>
     <script src="{{ url_for('static', filename='js/app.js') }}?v=20260409-nav-safe-v3"></script>
-    {% if active_warning_strike or request.endpoint == 'account_restricted' %}
+    {% if show_warning_strike_overlay or request.endpoint == 'account_restricted' %}
     <script src="{{ url_for('static', filename='js/strike_overlay.js') }}?v=20260419-strike-overlay-10s-v1"></script>
     {% endif %}
     {% if current_user.is_authenticated and not current_user_can_override_content_controls %}
