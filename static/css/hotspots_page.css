@@ -449,7 +449,7 @@
   .route-switch-pill {
     position: absolute;
     right: 22px;
-    top: 64px;
+    top: 34px;
     z-index: 12020;
     width: 27px;
     height: 27px;
@@ -1688,7 +1688,7 @@
     }
 
     .route-switch-pill {
-      top: 132px;
+      top: 102px;
       right: 50px;
       width: 30px;
       height: 30px;
