@@ -190,7 +190,7 @@
     top: 80px;
     width: min(350px, calc(100vw - 470px));
     max-height: calc(100% - 98px);
-    z-index: 530;
+    z-index: 12000;
     display: flex;
     flex-direction: column;
     gap: 0;
@@ -451,7 +451,7 @@
     right: 6px;
     top: calc(50% - 30px);
     transform: translateY(-50%);
-    z-index: 8;
+    z-index: 12020;
     width: 27px;
     height: 27px;
     border-radius: 999px;
@@ -1511,7 +1511,7 @@
       width: auto;
       max-height: none;
       pointer-events: none;
-      z-index: 560;
+      z-index: 12000;
     }
 
     #routeCard.route-card-floating {
