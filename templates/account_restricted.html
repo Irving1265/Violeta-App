@@ -102,6 +102,15 @@
                     <span>Llamar Emergencia</span>
                 </a>
             </div>
+
+            {% if not is_permanent %}
+            <button type="button" class="strike-dismiss-btn" data-restriction-dismiss disabled>
+                <span>
+                    {{ 'Entiendo, deseo continuar' if restriction.can_dismiss else 'Disponible cuando termine la suspensión' }}
+                </span>
+            </button>
+            <div class="strike-overlay__status" data-restriction-status aria-live="polite"></div>
+            {% endif %}
         </div>
     </div>
 </div>

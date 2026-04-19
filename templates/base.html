@@ -486,7 +486,7 @@
     </script>
     <script src="{{ url_for('static', filename='js/app.js') }}?v=20260409-nav-safe-v3"></script>
     {% if show_warning_strike_overlay or request.endpoint == 'account_restricted' %}
-    <script src="{{ url_for('static', filename='js/strike_overlay.js') }}?v=20260419-strike-overlay-10s-v1"></script>
+    <script src="{{ url_for('static', filename='js/strike_overlay.js') }}?v=20260419-strike-overlay-ack-v1"></script>
     {% endif %}
     {% if current_user.is_authenticated and not current_user_can_override_content_controls %}
     <script src="{{ url_for('static', filename='js/pending_post_release.js') }}?v=20260402-progressive-v1"></script>

@@ -67,6 +67,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 VERIFY_REQUIRED_MSG = 'Para poder ver el contenido tenemos que verificar tu identidad'
 PASSWORD_RESET_TOKEN_TTL_SECONDS = 15 * 60
 STRIKE_WARNING_DISMISS_SECONDS = 10
+TEMPORARY_STRIKE_SUSPENSION_DAYS = 7
 TOKEN_STATE_OK = 0
 TOKEN_STATE_INVALID = 1
 TOKEN_STATE_EXPIRED = 2
@@ -1308,6 +1309,15 @@ def _clear_expired_moderation_restriction(user):
             db.session.rollback()
 
 
+def _latest_moderation_strike_for_user(user, *, strike_number: int | None = None):
+    if not user or not getattr(user, 'id', None):
+        return None
+    query = ModerationStrike.query.filter(ModerationStrike.user_id == user.id)
+    if strike_number is not None:
+        query = query.filter(ModerationStrike.strike_number == strike_number)
+    return query.order_by(ModerationStrike.created_at.desc(), ModerationStrike.id.desc()).first()
+
+
 def user_restriction_state(user, *, auto_clear: bool = False):
     if not user or not getattr(user, 'is_authenticated', False):
         return None
@@ -1323,10 +1333,26 @@ def user_restriction_state(user, *, auto_clear: bool = False):
             'remaining_seconds': None,
         }
 
+    latest_temp_strike = _latest_moderation_strike_for_user(user, strike_number=2)
+    temp_strike_dismissed = bool(getattr(latest_temp_strike, 'dismissed_at', None))
     until = getattr(user, 'muted_until', None)
+    if not until and latest_temp_strike and not temp_strike_dismissed:
+        created_at = getattr(latest_temp_strike, 'created_at', None)
+        if created_at:
+            until = created_at + timedelta(days=TEMPORARY_STRIKE_SUSPENSION_DAYS)
+
     if not until:
         return None
     if until <= now:
+        if latest_temp_strike and not temp_strike_dismissed:
+            return {
+                'type': 'temporary',
+                'message': 'Tu suspensión ya terminó. Para recuperar el acceso, debes aceptar las condiciones de la comunidad.',
+                'until': until,
+                'remaining_seconds': 0,
+                'ack_required': True,
+                'can_dismiss': True,
+            }
         if auto_clear:
             _clear_expired_moderation_restriction(user)
         return None
@@ -1337,6 +1363,8 @@ def user_restriction_state(user, *, auto_clear: bool = False):
         'message': 'Tu cuenta se encuentra suspendida temporalmente por infringir las reglas de la comunidad.',
         'until': until,
         'remaining_seconds': remaining_seconds,
+        'ack_required': False,
+        'can_dismiss': False,
     }
 
 
@@ -1361,10 +1389,7 @@ STRIKE_REASON_LABELS = {
 def latest_moderation_strike_for_user(user, *, strike_number: int | None = None):
     if not user or not getattr(user, 'is_authenticated', False):
         return None
-    query = ModerationStrike.query.filter(ModerationStrike.user_id == user.id)
-    if strike_number is not None:
-        query = query.filter(ModerationStrike.strike_number == strike_number)
-    return query.order_by(ModerationStrike.created_at.desc(), ModerationStrike.id.desc()).first()
+    return _latest_moderation_strike_for_user(user, strike_number=strike_number)
 
 
 def normalize_strike_reason_label(reason: str | None) -> str:
@@ -1489,7 +1514,7 @@ def apply_abuse_strike(
     if strikes == 1:
         consequence = 'warning'
     elif strikes == 2:
-        user.muted_until = now + timedelta(days=7)
+        user.muted_until = now + timedelta(days=TEMPORARY_STRIKE_SUSPENSION_DAYS)
         consequence = 'temporary_ban'
     else:
         user.permanently_banned_at = now
@@ -1866,6 +1891,7 @@ def create_app():
         allowed = {
             'logout',
             'account_restricted',
+            'dismiss_safety_warning_strike',
             'emergency_call',
             'static',
         }
@@ -1884,6 +1910,8 @@ def create_app():
                 'type': state.get('type'),
                 'remaining_seconds': state.get('remaining_seconds'),
                 'until': until_iso,
+                'ack_required': bool(state.get('ack_required')),
+                'can_dismiss': bool(state.get('can_dismiss')),
             },
             'strike': strike_context,
         }
@@ -4004,6 +4032,51 @@ def create_app():
     def dismiss_safety_warning_strike():
         if user_has_permission(current_user, PERM_ACCOUNT_BYPASS_RESTRICTIONS):
             return jsonify({'ok': True, 'success': True, 'bypassed': True})
+
+        restriction_state = user_restriction_state(current_user, auto_clear=False)
+        if restriction_state and restriction_state.get('type') == 'permanent':
+            return jsonify({
+                'ok': False,
+                'success': False,
+                'error': 'permanent_restriction',
+                'message': 'Esta cuenta tiene una restricción permanente.',
+            }), 403
+
+        if restriction_state and restriction_state.get('type') == 'temporary':
+            strike = latest_moderation_strike_for_user(current_user, strike_number=2)
+            if not strike:
+                return jsonify({
+                    'ok': False,
+                    'success': False,
+                    'error': 'strike_not_found',
+                    'message': 'No encontramos el strike temporal asociado a esta suspensión.',
+                }), 404
+
+            remaining_seconds = int(restriction_state.get('remaining_seconds') or 0)
+            if remaining_seconds > 0:
+                return jsonify({
+                    'ok': False,
+                    'success': False,
+                    'error': 'wait_required',
+                    'message': 'La suspensión todavía no ha terminado.',
+                    'remaining_seconds': remaining_seconds,
+                }), 409
+
+            if not getattr(strike, 'dismissed_at', None):
+                strike.dismissed_at = utc_now_naive()
+                db.session.add(strike)
+            current_user.muted_until = None
+            db.session.add(current_user)
+            db.session.commit()
+            session['dismissed_strike_id'] = strike.id
+            session.modified = True
+            return jsonify({
+                'ok': True,
+                'success': True,
+                'strike_id': strike.id,
+                'strike_level': 2,
+                'redirect': url_for('index'),
+            })
 
         strike = latest_moderation_strike_for_user(current_user, strike_number=1)
         if not strike:

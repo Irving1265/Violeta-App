@@ -52,6 +52,22 @@
         }
     }
 
+    function setRestrictionDismissButton(button, state) {
+        if (!button) return;
+        button.classList.toggle('is-loading', state === 'loading');
+
+        if (state === 'ready') {
+            button.disabled = false;
+            button.innerHTML = '<span>Entiendo, deseo continuar</span>';
+        } else if (state === 'loading') {
+            button.disabled = true;
+            button.innerHTML = '<span class="strike-spinner" aria-hidden="true"></span><span>Procesando...</span>';
+        } else {
+            button.disabled = true;
+            button.innerHTML = '<span>Disponible cuando termine la suspensión</span>';
+        }
+    }
+
     function safeStorageGet(key) {
         try {
             return window.localStorage.getItem(key);
@@ -201,12 +217,15 @@
         }, true);
 
         const timer = overlay.querySelector('[data-restriction-countdown]');
+        const dismissButton = overlay.querySelector('[data-restriction-dismiss]');
+        const status = overlay.querySelector('[data-restriction-status]');
         if (!timer) return;
 
         const value = overlay.querySelector('[data-restriction-countdown-value]');
         const progress = overlay.querySelector('[data-restriction-progress]');
         const until = parseServerDate(timer.getAttribute('data-restriction-until'));
         const initialTotal = Math.max(1, Number(timer.getAttribute('data-restriction-total') || 0));
+        let restrictionIntervalId = null;
         if (!until) {
             if (value) value.textContent = 'Sin fecha';
             return;
@@ -220,12 +239,59 @@
                 progress.style.width = `${pct}%`;
             }
             if (diffSeconds <= 0) {
-                window.setTimeout(() => window.location.reload(), 1200);
+                if (value) value.textContent = 'Suspensión cumplida';
+                setRestrictionDismissButton(dismissButton, 'ready');
+                if (restrictionIntervalId) {
+                    window.clearInterval(restrictionIntervalId);
+                    restrictionIntervalId = null;
+                }
+            } else {
+                setRestrictionDismissButton(dismissButton, 'waiting');
             }
         }
 
+        async function dismissRestriction() {
+            if (!dismissButton || dismissButton.disabled) return;
+            setStatus(status, '', false);
+            setRestrictionDismissButton(dismissButton, 'loading');
+
+            try {
+                const response = await fetch('/api/safety/dismiss_strike', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken(),
+                    },
+                    body: '{}',
+                });
+                const payload = await response.json().catch(() => ({}));
+
+                if (response.ok && (payload.ok || payload.success)) {
+                    window.location.href = payload.redirect || '/';
+                    return;
+                }
+
+                if (response.status === 409 && payload.remaining_seconds != null) {
+                    setStatus(status, 'La suspensión todavía no ha terminado. El contador se actualizó con el servidor.', true);
+                    setRestrictionDismissButton(dismissButton, 'waiting');
+                    return;
+                }
+
+                setStatus(status, payload.message || 'No se pudo cerrar la suspensión. Intenta de nuevo.', true);
+                setRestrictionDismissButton(dismissButton, 'ready');
+            } catch (error) {
+                setStatus(status, 'No se pudo conectar con el servidor. Intenta de nuevo.', true);
+                setRestrictionDismissButton(dismissButton, 'ready');
+            }
+        }
+
+        dismissButton?.addEventListener('click', dismissRestriction);
         renderRestrictionTimer();
-        window.setInterval(renderRestrictionTimer, 1000);
+        if (until.getTime() > Date.now()) {
+            restrictionIntervalId = window.setInterval(renderRestrictionTimer, 1000);
+        }
     }
 
     document.addEventListener('DOMContentLoaded', function () {
