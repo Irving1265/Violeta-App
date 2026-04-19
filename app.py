@@ -701,7 +701,7 @@ def ensure_moderation_schema():
                     conn.execute(text('ALTER TABLE comment ADD COLUMN hidden_by INTEGER'))
                 if 'hidden_reason' not in comment_cols:
                     conn.execute(text('ALTER TABLE comment ADD COLUMN hidden_reason VARCHAR(32)'))
-                conn.execute(text('UPDATE comment SET is_hidden = 0 WHERE is_hidden IS NULL'))
+                conn.execute(text(f'UPDATE comment SET is_hidden = {bool_default} WHERE is_hidden IS NULL'))
 
             if 'moderation_strike' in tables:
                 strike_cols = {col['name'] for col in inspector.get_columns('moderation_strike')}
