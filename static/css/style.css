@@ -5149,12 +5149,14 @@ body.profile-delete-modal-open {
 }
 
 .trends-widget .widget-header h3 {
-    font-size: 1.1rem;
+    display: block;
+    line-height: 1;
+    font-size: 1.35rem;
     font-weight: 800;
+    color: #ffffff;
     margin: 0;
-    background: linear-gradient(to right, #fff, #a78bfa);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    background: none;
+    -webkit-text-fill-color: currentColor;
 }
 
 .trends-widget .widget-icon {
@@ -5189,6 +5191,44 @@ body.profile-delete-modal-open {
 
 .trends-list {
     padding: 0.5rem 0;
+}
+
+.trends-widget #reportsByCategoryList,
+.trends-widget #reportsTodayList {
+    max-height: calc((3.65rem * 3) + 1rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(167, 139, 250, 0.55) rgba(255, 255, 255, 0.06);
+}
+
+.trends-widget #reportsByCategoryList::-webkit-scrollbar,
+.trends-widget #reportsTodayList::-webkit-scrollbar {
+    width: 0.45rem;
+}
+
+.trends-widget #reportsByCategoryList::-webkit-scrollbar-track,
+.trends-widget #reportsTodayList::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 999px;
+}
+
+.trends-widget #reportsByCategoryList::-webkit-scrollbar-thumb,
+.trends-widget #reportsTodayList::-webkit-scrollbar-thumb {
+    background: rgba(167, 139, 250, 0.55);
+    border-radius: 999px;
+}
+
+.trends-widget #reportsByCategoryList li,
+.trends-widget #reportsTodayList li {
+    min-height: 3.65rem;
+}
+
+.trends-widget #reportsByCategoryList .trend-title,
+.trends-widget #reportsTodayList .trend-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .trends-list li {
