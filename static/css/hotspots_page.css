@@ -447,7 +447,7 @@
   .route-switch-pill {
     position: absolute;
     right: 6px;
-    top: 50%;
+    top: calc(50% - 6px);
     transform: translateY(-50%);
     z-index: 8;
     width: 27px;
@@ -1593,7 +1593,7 @@
       border-radius: 28px 28px 0 0;
       box-shadow: 0 -5px 25px rgba(15, 23, 42, 0.12);
       overflow: hidden;
-      transform: translateY(calc(100% - 96px));
+      transform: translateY(0);
       transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
       pointer-events: auto;
       gap: 0;
@@ -1648,11 +1648,11 @@
     }
 
     .route-card-body {
-      padding: 0 20px 24px;
+      padding: 20px 20px 24px;
       max-height: min(62vh, 520px);
       overflow-y: auto;
-      opacity: 0;
-      pointer-events: none;
+      opacity: 1;
+      pointer-events: auto;
       transition: opacity 0.26s ease;
     }
 
@@ -1685,7 +1685,7 @@
     }
 
     .route-switch-pill {
-      top: 12px;
+      top: 6px;
       right: 12px;
       width: 30px;
       height: 30px;

@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/hotspots_page.css') }}?v=20260404-mobile-ui-v1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hotspots_page.css') }}?v=20260419-route-card-v1">
 {% endblock %}
 
 {% block content %}
@@ -46,20 +46,6 @@
         </div>
 
         <div class="route-card-sheet">
-          <div class="route-card-head" id="routeCardHeader" role="button" tabindex="0" aria-expanded="false">
-            <div class="route-sheet-handle" aria-hidden="true"></div>
-            <div class="route-card-head-main">
-              <div class="route-card-head-copy">
-                <h3>Ruta Segura</h3>
-                <p id="routeCardSummary">Mi ubicación actual hacia tu destino</p>
-              </div>
-              <div class="route-card-score-preview" aria-hidden="true">
-                <span class="route-card-score-preview__label">Safety</span>
-                <span class="route-card-score-preview__value" id="routeCardScorePreview">--</span>
-              </div>
-            </div>
-          </div>
-
           <div class="route-card-body">
             <div class="route-fields-stack">
               <div class="route-field route-field--origin">
