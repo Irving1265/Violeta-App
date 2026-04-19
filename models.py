@@ -461,6 +461,7 @@ class ModerationStrike(db.Model):
     strike_number = db.Column(db.Integer, nullable=False)
     consequence = db.Column(db.String(32), default='warning')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    dismissed_at = db.Column(db.DateTime)
 
     user = db.relationship('User', foreign_keys=[user_id], back_populates='moderation_strikes')
     issuer = db.relationship('User', foreign_keys=[issued_by], backref=db.backref('issued_moderation_strikes', lazy=True))

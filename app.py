@@ -702,6 +702,11 @@ def ensure_moderation_schema():
                 if 'hidden_reason' not in comment_cols:
                     conn.execute(text('ALTER TABLE comment ADD COLUMN hidden_reason VARCHAR(32)'))
                 conn.execute(text('UPDATE comment SET is_hidden = 0 WHERE is_hidden IS NULL'))
+
+            if 'moderation_strike' in tables:
+                strike_cols = {col['name'] for col in inspector.get_columns('moderation_strike')}
+                if 'dismissed_at' not in strike_cols:
+                    conn.execute(text(f'ALTER TABLE moderation_strike ADD COLUMN dismissed_at {datetime_type}'))
     except Exception as e:
         try:
             if 'app' in globals() and getattr(app, 'debug', False):
@@ -1789,7 +1794,8 @@ def create_app():
         ):
             warning_strike = latest_moderation_strike_for_user(current_user, strike_number=1)
             dismissed_strike_id = session.get('dismissed_strike_id')
-            if warning_strike and str(dismissed_strike_id or '') != str(warning_strike.id):
+            strike_was_dismissed = bool(getattr(warning_strike, 'dismissed_at', None))
+            if warning_strike and not strike_was_dismissed and str(dismissed_strike_id or '') != str(warning_strike.id):
                 active_warning_strike = build_strike_context(current_user, warning_strike)
         return {
             'user_is_temp_muted': is_user_temp_muted(current_user),
@@ -4007,6 +4013,16 @@ def create_app():
                 'message': 'No hay una advertencia activa para cerrar.',
             }), 404
 
+        if getattr(strike, 'dismissed_at', None):
+            session['dismissed_strike_id'] = strike.id
+            session.modified = True
+            return jsonify({
+                'ok': True,
+                'success': True,
+                'strike_id': strike.id,
+                'already_dismissed': True,
+            })
+
         remaining_seconds = strike_dismiss_remaining_seconds(strike)
         if remaining_seconds > 0:
             return jsonify({
@@ -4017,6 +4033,9 @@ def create_app():
                 'remaining_seconds': remaining_seconds,
             }), 409
 
+        strike.dismissed_at = utc_now_naive()
+        db.session.add(strike)
+        db.session.commit()
         session['dismissed_strike_id'] = strike.id
         session.modified = True
         return jsonify({
