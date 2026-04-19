@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const WARNING_DURATION_SECONDS = 60;
+    const WARNING_DURATION_SECONDS = 10;
 
     function getCsrfToken() {
         return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -48,7 +48,7 @@
             button.innerHTML = '<span class="strike-spinner" aria-hidden="true"></span><span>Procesando...</span>';
         } else {
             button.disabled = true;
-            button.innerHTML = '<span>Espera 1 minuto...</span>';
+            button.innerHTML = '<span>Espera 10 segundos...</span>';
         }
     }
 
@@ -91,10 +91,10 @@
         const initialRemaining = Math.max(0, Number(config.dismiss_remaining_seconds || WARNING_DURATION_SECONDS));
         const serverUnlockAt = Date.now() + initialRemaining * 1000;
         const storedUnlockAt = Number(safeStorageGet(storageKey) || 0);
-        let unlockAt = storedUnlockAt > 0 ? storedUnlockAt : serverUnlockAt;
+        let unlockAt = storedUnlockAt > 0 ? Math.min(storedUnlockAt, serverUnlockAt) : serverUnlockAt;
         let intervalId = null;
 
-        if (!storedUnlockAt) {
+        if (!storedUnlockAt || storedUnlockAt !== unlockAt) {
             safeStorageSet(storageKey, String(unlockAt));
         }
 

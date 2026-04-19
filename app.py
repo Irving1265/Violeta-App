@@ -66,6 +66,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 VERIFY_REQUIRED_MSG = 'Para poder ver el contenido tenemos que verificar tu identidad'
 PASSWORD_RESET_TOKEN_TTL_SECONDS = 15 * 60
+STRIKE_WARNING_DISMISS_SECONDS = 10
 TOKEN_STATE_OK = 0
 TOKEN_STATE_INVALID = 1
 TOKEN_STATE_EXPIRED = 2
@@ -1387,9 +1388,9 @@ def clamp_text(value: str | None, limit: int = 220) -> str:
 
 def strike_dismiss_remaining_seconds(strike) -> int:
     if not strike:
-        return 60
+        return STRIKE_WARNING_DISMISS_SECONDS
     created_at = getattr(strike, 'created_at', None) or utc_now_naive()
-    unlock_at = created_at + timedelta(seconds=60)
+    unlock_at = created_at + timedelta(seconds=STRIKE_WARNING_DISMISS_SECONDS)
     remaining = (unlock_at - utc_now_naive()).total_seconds()
     if remaining <= 0:
         return 0

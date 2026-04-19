@@ -232,7 +232,7 @@
                 <div class="strike-compact-timer" data-strike-timer>
                     <div>
                         <span class="strike-compact-timer__label">Espera necesaria</span>
-                        <div class="strike-compact-timer__value" data-strike-countdown>01:00</div>
+                        <div class="strike-compact-timer__value" data-strike-countdown>00:10</div>
                     </div>
                     <div class="strike-compact-ring" aria-hidden="true">
                         <svg viewBox="0 0 48 48">
@@ -485,7 +485,7 @@
     </script>
     <script src="{{ url_for('static', filename='js/app.js') }}?v=20260409-nav-safe-v3"></script>
     {% if active_warning_strike or request.endpoint == 'account_restricted' %}
-    <script src="{{ url_for('static', filename='js/strike_overlay.js') }}?v=20260418-strike-overlay-v3"></script>
+    <script src="{{ url_for('static', filename='js/strike_overlay.js') }}?v=20260419-strike-overlay-10s-v1"></script>
     {% endif %}
     {% if current_user.is_authenticated and not current_user_can_override_content_controls %}
     <script src="{{ url_for('static', filename='js/pending_post_release.js') }}?v=20260402-progressive-v1"></script>
