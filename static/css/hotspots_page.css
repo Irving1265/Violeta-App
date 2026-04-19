@@ -448,9 +448,8 @@
 
   .route-switch-pill {
     position: absolute;
-    right: 6px;
-    top: calc(50% - 30px);
-    transform: translateY(-50%);
+    right: 22px;
+    top: 64px;
     z-index: 12020;
     width: 27px;
     height: 27px;
@@ -460,6 +459,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    pointer-events: auto;
     background: linear-gradient(160deg, #8b5cf6 0%, #7c3aed 100%);
     color: #fff;
     box-shadow: 0 6px 12px rgba(124, 58, 237, 0.32), 0 0 0 2px rgba(255, 255, 255, 0.14);
@@ -467,13 +467,13 @@
   }
 
   .route-switch-pill:hover {
-    transform: translateY(calc(-50% - 1px));
+    transform: translateY(-1px);
     filter: brightness(1.06);
     box-shadow: 0 9px 15px rgba(124, 58, 237, 0.36), 0 0 0 2px rgba(255, 255, 255, 0.16);
   }
 
   .route-switch-pill:active {
-    transform: translateY(-50%) scale(0.98);
+    transform: scale(0.98);
   }
 
   .route-switch-pill i {
@@ -1688,8 +1688,8 @@
     }
 
     .route-switch-pill {
-      top: calc(50% - 30px);
-      right: 12px;
+      top: 132px;
+      right: 50px;
       width: 30px;
       height: 30px;
       border-radius: 999px;

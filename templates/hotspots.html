@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/hotspots_page.css') }}?v=20260419-route-card-v3">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hotspots_page.css') }}?v=20260419-route-card-v4">
 {% endblock %}
 
 {% block content %}
@@ -45,6 +45,10 @@
           <div id="destResults"></div>
         </div>
 
+        <button type="button" class="route-switch-pill" title="Intercambiar origen y destino" aria-label="Intercambiar origen y destino">
+          <i class="fas fa-arrows-up-down"></i>
+        </button>
+
         <div class="route-card-sheet">
           <div class="route-card-body">
             <div class="route-fields-stack">
@@ -53,10 +57,6 @@
                 <input id="originInput" type="search" placeholder="Mi ubicación actual" value="Mi ubicación actual" autocomplete="off">
               </div>
               <div id="originResults"></div>
-
-              <button type="button" class="route-switch-pill" title="Intercambiar origen y destino" aria-label="Intercambiar origen y destino">
-                <i class="fas fa-arrows-up-down"></i>
-              </button>
             </div>
 
             <div class="route-mode-row">
