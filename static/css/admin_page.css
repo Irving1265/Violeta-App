@@ -736,6 +736,14 @@
         color: var(--text-main);
     }
 
+    .admin-data-card__meta {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
     .admin-users-search-wrap {
         padding: 0.95rem 1.3rem 0.2rem;
     }
@@ -800,6 +808,13 @@
         min-width: 260px;
     }
 
+    .admin-user-cell__meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.18rem;
+        min-width: 0;
+    }
+
     .admin-user-cell__avatar {
         width: 46px;
         height: 46px;
@@ -820,6 +835,34 @@
     .admin-user-cell__email {
         color: var(--text-secondary);
         font-size: 0.88rem;
+    }
+
+    .admin-user-cell__note {
+        color: #fcd34d;
+        font-size: 0.78rem;
+        line-height: 1.3;
+    }
+
+    .admin-attention-chip {
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.36rem;
+        min-height: 28px;
+        padding: 0.25rem 0.72rem;
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        color: #fef3c7;
+        background: rgba(180, 83, 9, 0.24);
+        border: 1px solid rgba(251, 191, 36, 0.34);
+        white-space: nowrap;
+    }
+
+    .admin-attention-chip--inline {
+        min-height: 24px;
+        padding: 0.15rem 0.58rem;
+        font-size: 0.68rem;
     }
 
     .admin-status-pill {
@@ -855,10 +898,24 @@
         border-color: rgba(156, 163, 175, 0.35);
     }
 
+    .admin-status-pill.is-recovery {
+        color: #fcd34d;
+        background: rgba(180, 83, 9, 0.18);
+        border-color: rgba(251, 191, 36, 0.38);
+    }
+
     .admin-status-pill.is-protected {
         color: var(--text-secondary);
         background: rgba(45, 36, 56, 0.66);
         border-color: rgba(45, 36, 56, 0.92);
+    }
+
+    .admin-users-table tbody tr.is-recovery-pending {
+        background: rgba(180, 83, 9, 0.08);
+    }
+
+    .admin-users-table tbody tr.is-recovery-pending:hover {
+        background: rgba(180, 83, 9, 0.13);
     }
 
     .admin-activity-pills {
@@ -1243,6 +1300,11 @@
             flex-direction: column;
         }
 
+        .admin-data-card__meta {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
         .admin-data-card__head h3 {
             font-size: 1.05rem;
         }
@@ -1286,6 +1348,16 @@
             text-overflow: ellipsis;
             white-space: nowrap;
             font-size: 0.8rem;
+        }
+
+        .admin-user-cell__note {
+            max-width: 180px;
+            font-size: 0.72rem;
+        }
+
+        .admin-attention-chip {
+            max-width: 100%;
+            white-space: normal;
         }
 
         .bulk-toolbar {

@@ -1,34 +1,52 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container px-0">
+<div class="container px-0 profile-page-shell">
     <section id="deferredPageSkeleton" class="placeholder-glow py-4">
-        <div class="profile-header mb-4">
+        <div class="profile-header profile-hero-card mb-4">
             <div class="profile-cover"></div>
-            <div class="profile-info">
-                <span class="placeholder rounded-circle" style="width: 128px; height: 128px; display: inline-block;"></span>
-                <div class="w-100 mt-4">
-                    <span class="placeholder col-4 mb-3" style="height: 1.8rem;"></span>
-                    <span class="placeholder col-8 mb-2" style="height: 0.9rem;"></span>
-                    <span class="placeholder col-6 mb-4" style="height: 0.9rem;"></span>
-                </div>
-                <div class="profile-stats">
-                    {% for _ in range(3) %}
-                    <div class="stat-item">
-                        <span class="placeholder col-8 mb-2" style="height: 1.4rem;"></span>
-                        <span class="placeholder col-10" style="height: 0.8rem;"></span>
+            <div class="profile-card-body">
+                <div class="profile-info">
+                    <div class="profile-avatar-wrap">
+                        <span class="placeholder profile-avatar-skeleton" aria-hidden="true"></span>
                     </div>
-                    {% endfor %}
+                    <div class="profile-identity-row">
+                        <div class="profile-details">
+                            <span class="placeholder col-5 mb-3" style="height: 2.2rem;"></span>
+                            <span class="placeholder col-4 mb-2" style="height: 0.9rem;"></span>
+                        </div>
+
+                        <div class="profile-stats">
+                            {% for _ in range(3) %}
+                            <div class="stat-item">
+                                <span class="placeholder col-8 mb-2" style="height: 1.4rem;"></span>
+                                <span class="placeholder col-10" style="height: 0.8rem;"></span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="row g-3 px-2">
-            {% for _ in range(6) %}
-            <div class="col-4">
-                <span class="placeholder d-block w-100" style="aspect-ratio: 1 / 1; border-radius: 18px;"></span>
-            </div>
-            {% endfor %}
+        <div class="profile-content-layout">
+            <aside class="profile-side-stack">
+                <span class="placeholder d-block w-100" style="height: 260px; border-radius: 24px;"></span>
+                <span class="placeholder d-block w-100" style="height: 78px; border-radius: 24px;"></span>
+            </aside>
+            <section class="profile-feed-panel">
+                <div class="profile-section-header">
+                    <div>
+                        <span class="placeholder col-3 mb-2" style="height: 0.8rem;"></span>
+                        <span class="placeholder col-5" style="height: 1.5rem;"></span>
+                    </div>
+                </div>
+                <div class="profile-grid">
+                    {% for _ in range(6) %}
+                    <span class="placeholder d-block w-100" style="aspect-ratio: 1 / 1; border-radius: 22px;"></span>
+                    {% endfor %}
+                </div>
+            </section>
         </div>
     </section>
 
@@ -48,7 +66,7 @@ window.DEFERRED_PAGE_CONFIG = {
   errorId: 'deferredPageError',
   contentUrl: {{ url_for('user_profile_content', username=user.username, page=page)|tojson }},
   scriptSrcs: [
-    {{ (url_for('static', filename='js/user_profile_page.js') ~ '?v=20260402-progressive-v1')|tojson }}
+    {{ (url_for('static', filename='js/user_profile_page.js') ~ '?v=20260418-delete-confirm-v1')|tojson }}
   ],
   initFn: 'initUserProfileEnhancements'
 };

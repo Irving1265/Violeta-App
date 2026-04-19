@@ -1363,6 +1363,7 @@
             }
             return;
         }
+        const submitBtn = document.getElementById('createRoomSubmitBtn');
         const roomName = document.getElementById('roomName').value.trim();
 
         if (!roomName) {
@@ -1370,40 +1371,75 @@
             return;
         }
 
-        fetch('/api/chat/create-room', {
-            method: 'POST',
-            headers: {
+        const requestHeaders = typeof buildHeaders === 'function'
+            ? buildHeaders('application/json')
+            : {
+                Accept: 'application/json',
                 'Content-Type': 'application/json',
                 'X-CSRFToken': CHAT_CSRF_TOKEN
-            },
+            };
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando...';
+        }
+
+        fetch('/api/chat/create-room', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: requestHeaders,
             body: JSON.stringify({
                 name: roomName,
-                    is_private: false
+                is_private: false
             })
         })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    bootstrap.Modal.getInstance(document.getElementById('createRoomModal')).hide();
-                    if (data.pending) {
-                        if (typeof showAlert === 'function') {
-                            showAlert(data.message || 'El administrador debe aprobar la sala.', 'info');
-                        } else {
-                            alert(data.message || 'El administrador debe aprobar la sala.');
-                        }
-                    }
-                    loadChatRooms({ force: true }); // Refresh room list
-                    // Clear input after creating new room
-                    const input = document.querySelector('.chat-input');
-                    if (input) input.value = '';
-                    updateSendState();
-                } else {
-                    alert('Error: ' + (data.error || 'No se pudo crear la sala'));
+            .then(async response => {
+                if (typeof handleAuthRedirect === 'function' && handleAuthRedirect(response)) {
+                    throw new Error('Tu sesión expiró. Inicia sesión de nuevo.');
                 }
+
+                const contentType = response.headers.get('content-type') || '';
+                if (!contentType.includes('application/json')) {
+                    const raw = await response.text();
+                    if (response.status === 400 && /csrf/i.test(raw)) {
+                        throw new Error('La sesión cambió o expiró. Recarga la página e inténtalo de nuevo.');
+                    }
+                    throw new Error('No pudimos crear la sala. Recarga la página e inténtalo de nuevo.');
+                }
+
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'No se pudo crear la sala.');
+                }
+                return data;
+            })
+            .then(data => {
+                bootstrap.Modal.getInstance(document.getElementById('createRoomModal')).hide();
+                if (data.pending) {
+                    if (typeof showAlert === 'function') {
+                        showAlert(data.message || 'El administrador debe aprobar la sala.', 'info');
+                    } else {
+                        alert(data.message || 'El administrador debe aprobar la sala.');
+                    }
+                }
+                loadChatRooms({ force: true });
+                const input = document.querySelector('.chat-input');
+                if (input) input.value = '';
+                updateSendState();
             })
             .catch(error => {
                 console.error('Error creating room:', error);
-                alert('Error al crear sala');
+                if (typeof showAlert === 'function') {
+                    showAlert(error.message || 'Error al crear sala', 'warning');
+                } else {
+                    alert(error.message || 'Error al crear sala');
+                }
+            })
+            .finally(() => {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-plus"></i> Crear sala';
+                }
             });
     }
 

@@ -128,8 +128,8 @@
             await requestLocationPermissions(geoPlugin);
             const nativePosition = await geoPlugin.getCurrentPosition({
                 enableHighAccuracy: options.enableHighAccuracy !== false,
-                timeout: options.timeout || 10000,
-                maximumAge: options.maximumAge || 300000,
+                timeout: options.timeout ?? 10000,
+                maximumAge: options.maximumAge ?? 300000,
             });
             return {
                 lat: nativePosition.coords.latitude,
@@ -158,11 +158,91 @@
                 (error) => reject(error),
                 {
                     enableHighAccuracy: options.enableHighAccuracy !== false,
-                    timeout: options.timeout || 10000,
-                    maximumAge: options.maximumAge || 300000,
+                    timeout: options.timeout ?? 10000,
+                    maximumAge: options.maximumAge ?? 300000,
                 }
             );
         });
+    }
+
+    async function watchPosition(options = {}, onSuccess, onError) {
+        const geoPlugin = getPlugin('Geolocation');
+        if (isNativePlatform() && geoPlugin && typeof geoPlugin.watchPosition === 'function') {
+            await requestLocationPermissions(geoPlugin);
+            const watchId = await geoPlugin.watchPosition({
+                enableHighAccuracy: options.enableHighAccuracy !== false,
+                timeout: options.timeout ?? 10000,
+                maximumAge: options.maximumAge ?? 300000,
+            }, (nativePosition, error) => {
+                if (error) {
+                    if (typeof onError === 'function') onError(error);
+                    return;
+                }
+                if (!nativePosition?.coords) return;
+                if (typeof onSuccess === 'function') {
+                    onSuccess({
+                        lat: nativePosition.coords.latitude,
+                        lng: nativePosition.coords.longitude,
+                        accuracy: nativePosition.coords.accuracy || null,
+                        timestamp: nativePosition.timestamp || Date.now(),
+                        speed: nativePosition.coords.speed ?? null,
+                        raw: nativePosition,
+                        source: 'native',
+                    });
+                }
+            });
+            return { id: watchId, source: 'native' };
+        }
+
+        if (!navigator.geolocation) {
+            throw new Error('Geolocation is unavailable.');
+        }
+
+        const watchId = navigator.geolocation.watchPosition(
+            (position) => {
+                if (typeof onSuccess === 'function') {
+                    onSuccess({
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude,
+                        accuracy: position.coords.accuracy || null,
+                        timestamp: position.timestamp || Date.now(),
+                        speed: position.coords.speed ?? null,
+                        raw: position,
+                        source: 'browser',
+                    });
+                }
+            },
+            (error) => {
+                if (typeof onError === 'function') onError(error);
+            },
+            {
+                enableHighAccuracy: options.enableHighAccuracy !== false,
+                timeout: options.timeout ?? 10000,
+                maximumAge: options.maximumAge ?? 300000,
+            }
+        );
+
+        return { id: watchId, source: 'browser' };
+    }
+
+    async function clearPositionWatch(handle) {
+        if (!handle || handle.id == null) {
+            return;
+        }
+        if (handle.source === 'native') {
+            const geoPlugin = getPlugin('Geolocation');
+            if (geoPlugin && typeof geoPlugin.clearWatch === 'function') {
+                try {
+                    await geoPlugin.clearWatch({ id: handle.id });
+                } catch (error) {
+                    console.warn('Native geolocation clearWatch failed:', error);
+                }
+            }
+            return;
+        }
+        if (navigator.geolocation && typeof navigator.geolocation.clearWatch === 'function') {
+            navigator.geolocation.clearWatch(handle.id);
+        }
     }
 
     window.VioletaNativeBridge = {
@@ -171,5 +251,7 @@
         isNativePlatform,
         capturePhoto,
         getCurrentPosition,
+        watchPosition,
+        clearPositionWatch,
     };
 })();

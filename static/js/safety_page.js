@@ -34,6 +34,7 @@
     'garcia',
     'juarez', 'ciudad benito juarez', 'benito juarez', 'cd benito juarez',
   ]);
+  const SAFETY_VIEW_STATES = new Set(['idle', 'active', 'contacts', 'history']);
 
   function parseJSONScript(root, id) {
     const node = root.querySelector(`#${id}`);
@@ -163,6 +164,9 @@
   function animateNode(node, keyframes, options) {
     if (!node || typeof node.animate !== 'function') return null;
     try {
+      if (typeof node.getAnimations === 'function') {
+        node.getAnimations().forEach((animation) => animation.cancel());
+      }
       return node.animate(keyframes, options);
     } catch (error) {
       return null;
@@ -312,6 +316,7 @@
   }
 
   function sendCheckinWithGeo(endpoint, payload) {
+    const nativeBridge = window.VioletaNativeBridge || null;
     const send = (lat = null, lng = null) => fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -323,6 +328,16 @@
       ok: response.ok,
       data: await response.json(),
     }));
+
+    if (nativeBridge && typeof nativeBridge.getCurrentPosition === 'function') {
+      return nativeBridge.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 7000,
+        maximumAge: 0,
+      })
+        .then((position) => send(position?.lat ?? null, position?.lng ?? null))
+        .catch(() => send(null, null));
+    }
 
     if (!navigator.geolocation) {
       return send(null, null);
@@ -368,6 +383,13 @@
       pendingDeleteContactId: null,
       timerId: null,
       routeAnimationFrame: null,
+      summaryAnchorNode: null,
+      routePoints: [],
+      routePollTimer: null,
+      routeWatchHandle: null,
+      routeTrackingCheckinId: null,
+      routeLastPersistedPoint: null,
+      routeRequestToken: 0,
       activeDrag: null,
       stateTransitionTimer: null,
       mapState: null,
@@ -425,6 +447,7 @@
         activeLiveMap: root.querySelector('[data-active-live-map]'),
         draggableSheets: Array.from(root.querySelectorAll('[data-draggable-sheet]')),
         summaryModal: root.querySelector('#summaryModal'),
+        summaryModalPanel: root.querySelector('#summaryModal .summary-modal'),
         summaryModalClose: root.querySelector('#summaryModalClose'),
         summaryModalBadge: root.querySelector('#summaryModalBadge'),
         summaryModalTitle: root.querySelector('#summaryModalTitle'),
@@ -671,10 +694,29 @@
     async function fetchDestinationSuggestions(query, limit) {
       const trimmed = String(query || '').trim();
       if (!trimmed) return [];
-      const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=mx&accept-language=es&bounded=1&viewbox=${DESTINATION_METRO_BBOX}&q=${encodeURIComponent(trimmed)}&limit=${encodeURIComponent(limit || 8)}`;
-      const response = await fetch(url, { headers: { Accept: 'application/json' } });
-      const list = await response.json();
-      return (Array.isArray(list) ? list : []).filter(isAllowedMetroDestination).slice(0, limit || 8);
+      const normalizedLimit = Math.max(1, Math.min(10, Number(limit) || 8));
+      const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=mx&accept-language=es&bounded=1&viewbox=${DESTINATION_METRO_BBOX}&q=${encodeURIComponent(trimmed)}&limit=${encodeURIComponent(normalizedLimit)}`;
+
+      try {
+        const response = await fetch(nominatimUrl, { headers: { Accept: 'application/json' } });
+        const list = await response.json().catch(() => ([]));
+        const filtered = (Array.isArray(list) ? list : []).filter(isAllowedMetroDestination);
+        if (filtered.length) {
+          return filtered.slice(0, normalizedLimit);
+        }
+      } catch (error) {
+        // Fallback al backend si el proveedor directo falla o responde vacío.
+      }
+
+      const response = await fetch(`/api/safety/destination-search?q=${encodeURIComponent(trimmed)}&limit=${encodeURIComponent(normalizedLimit)}`, {
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || 'No pude buscar destinos en este momento.');
+      }
+      return Array.isArray(payload.items) ? payload.items.slice(0, normalizedLimit) : [];
     }
 
     async function searchDesktopDestinations(query) {
@@ -1045,6 +1087,7 @@
       mapState.routeKey = '';
       mapState.routeMetrics = null;
       mapState.bounds = null;
+      mapState.hasInitialFit = false;
     }
 
     function ensureActiveLiveMap() {
@@ -1079,19 +1122,254 @@
         routeKey: '',
         routeMetrics: null,
         bounds: null,
+        hasInitialFit: false,
       };
       return runtime.mapState;
     }
 
-    function buildRouteProgress(checkin) {
-      const startedAt = checkin?.started_at_iso ? new Date(checkin.started_at_iso) : new Date();
-      const expiresAt = checkin?.expires_at_iso ? new Date(checkin.expires_at_iso) : new Date(startedAt.getTime() + ((Number(checkin?.eta_minutes) || 30) * 60000));
-      const total = Math.max(60 * 1000, expiresAt.getTime() - startedAt.getTime());
-      return clamp((Date.now() - startedAt.getTime()) / total, 0, 1);
+    function getCheckinDestinationCoords(checkin) {
+      const lat = toCoord(checkin?.destination_latitude);
+      const lng = toCoord(checkin?.destination_longitude);
+      if (!hasValidCoords(lat, lng)) {
+        return null;
+      }
+      return [lat, lng];
+    }
+
+    function normalizeRoutePoint(point) {
+      const lat = toCoord(point?.lat ?? point?.latitude);
+      const lng = toCoord(point?.lng ?? point?.longitude);
+      if (!hasValidCoords(lat, lng)) {
+        return null;
+      }
+      const ts = Number(point?.ts_ms ?? point?.timestamp ?? Date.now());
+      return {
+        lat,
+        lng,
+        ts_ms: Number.isFinite(ts) ? ts : Date.now(),
+        speed_kmh: Number.isFinite(Number(point?.speed_kmh)) ? Number(point.speed_kmh) : null,
+        accuracy_m: Number.isFinite(Number(point?.accuracy_m ?? point?.accuracy)) ? Number(point.accuracy_m ?? point.accuracy) : null,
+      };
+    }
+
+    function dedupeRoutePoints(points) {
+      const normalized = (Array.isArray(points) ? points : [])
+        .map(normalizeRoutePoint)
+        .filter(Boolean)
+        .sort((a, b) => (a.ts_ms || 0) - (b.ts_ms || 0));
+      const deduped = [];
+      normalized.forEach((point) => {
+        const previous = deduped[deduped.length - 1];
+        if (previous) {
+          const distance = getDistanceBetweenCoords([previous.lat, previous.lng], [point.lat, point.lng]);
+          const deltaMs = Math.abs((point.ts_ms || 0) - (previous.ts_ms || 0));
+          if (distance < 1.5 && deltaMs < 2500) {
+            return;
+          }
+        }
+        deduped.push(point);
+      });
+      return deduped;
+    }
+
+    function buildActiveRouteLatLngs() {
+      if (!runtime.activeCheckin) return [];
+      const latLngs = [];
+      const startCoords = getCheckinStartCoords(runtime.activeCheckin);
+      if (Array.isArray(startCoords) && startCoords.length === 2) {
+        latLngs.push(startCoords);
+      }
+      dedupeRoutePoints(runtime.routePoints).forEach((point) => {
+        const nextCoords = [point.lat, point.lng];
+        const previous = latLngs[latLngs.length - 1];
+        if (!previous || getDistanceBetweenCoords(previous, nextCoords) >= 1.5) {
+          latLngs.push(nextCoords);
+        }
+      });
+      return latLngs;
+    }
+
+    function syncActiveCheckinMeta(payload) {
+      if (!runtime.activeCheckin || !payload) return;
+      if (typeof payload.destination === 'string') {
+        runtime.activeCheckin.destination = payload.destination;
+      }
+      if (typeof payload.display_destination === 'string' && payload.display_destination.trim()) {
+        runtime.activeCheckin.display_destination = payload.display_destination;
+      }
+      const lat = toCoord(payload.latitude);
+      const lng = toCoord(payload.longitude);
+      if (hasValidCoords(lat, lng)) {
+        runtime.activeCheckin.latitude = lat;
+        runtime.activeCheckin.longitude = lng;
+      }
+      const destinationLat = toCoord(payload.destination_latitude);
+      const destinationLng = toCoord(payload.destination_longitude);
+      if (hasValidCoords(destinationLat, destinationLng)) {
+        runtime.activeCheckin.destination_latitude = destinationLat;
+        runtime.activeCheckin.destination_longitude = destinationLng;
+      }
+    }
+
+    async function fetchActiveRoutePoints(options) {
+      const opts = Object.assign({ invalidateSize: false, refit: false }, options || {});
+      if (!runtime.activeCheckin?.id) return;
+      const requestToken = runtime.routeRequestToken + 1;
+      runtime.routeRequestToken = requestToken;
+      try {
+        const response = await fetch(`/api/safety/checkin/${runtime.activeCheckin.id}/route/points`, {
+          headers: { Accept: 'application/json' },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.ok) {
+          return;
+        }
+        if (requestToken !== runtime.routeRequestToken || !runtime.activeCheckin || String(runtime.activeCheckin.id) !== String(payload?.checkin?.id || runtime.activeCheckin.id)) {
+          return;
+        }
+        syncActiveCheckinMeta(payload.checkin);
+        runtime.routePoints = dedupeRoutePoints(payload.points || []);
+        renderActiveLiveMap({ invalidateSize: opts.invalidateSize, refit: opts.refit });
+      } catch (error) {
+        // No-op: el mapa sigue con los puntos locales si la sincronización falla.
+      }
+    }
+
+    function shouldPersistRoutePoint(point) {
+      if (!point) return false;
+      if (point.accuracy_m != null && point.accuracy_m > 120) {
+        return false;
+      }
+      const previous = runtime.routeLastPersistedPoint;
+      if (!previous) return true;
+      const distance = getDistanceBetweenCoords([previous.lat, previous.lng], [point.lat, point.lng]);
+      const deltaMs = Math.max(0, (point.ts_ms || 0) - (previous.ts_ms || 0));
+      return distance >= 8 || deltaMs >= 15000;
+    }
+
+    function appendLocalRoutePoint(point) {
+      const normalized = normalizeRoutePoint(point);
+      if (!normalized) return null;
+      runtime.routePoints = dedupeRoutePoints(runtime.routePoints.concat(normalized));
+      return normalized;
+    }
+
+    async function persistRoutePoint(point) {
+      if (!runtime.activeCheckin?.id || !point) return;
+      try {
+        const response = await fetch(`/api/safety/checkin/${runtime.activeCheckin.id}/route/point`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
+          },
+          body: JSON.stringify({
+            lat: point.lat,
+            lng: point.lng,
+            ts_ms: point.ts_ms,
+            speed_kmh: point.speed_kmh,
+            accuracy_m: point.accuracy_m,
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (response.ok && payload?.ok) {
+          runtime.routeLastPersistedPoint = point;
+        }
+      } catch (error) {
+        // No-op: el siguiente punto o el polling periódico volverán a sincronizar.
+      }
+    }
+
+    function handleActiveRoutePosition(position) {
+      if (!runtime.activeCheckin) return;
+      const point = appendLocalRoutePoint({
+        lat: position?.lat,
+        lng: position?.lng,
+        ts_ms: position?.timestamp || Date.now(),
+        speed_kmh: Number.isFinite(Number(position?.speed)) ? Number(position.speed) * 3.6 : null,
+        accuracy_m: position?.accuracy,
+      });
+      if (!point) return;
+      runtime.activeCheckin.latitude = point.lat;
+      runtime.activeCheckin.longitude = point.lng;
+      renderActiveLiveMap();
+      if (shouldPersistRoutePoint(point)) {
+        persistRoutePoint(point);
+      }
+    }
+
+    async function stopActiveRouteTracking() {
+      if (runtime.routePollTimer) {
+        clearInterval(runtime.routePollTimer);
+        runtime.routePollTimer = null;
+      }
+      if (runtime.routeWatchHandle) {
+        const bridge = window.VioletaNativeBridge || null;
+        if (bridge && typeof bridge.clearPositionWatch === 'function') {
+          await bridge.clearPositionWatch(runtime.routeWatchHandle);
+        } else if (runtime.routeWatchHandle.source === 'browser' && navigator.geolocation?.clearWatch) {
+          navigator.geolocation.clearWatch(runtime.routeWatchHandle.id);
+        }
+        runtime.routeWatchHandle = null;
+      }
+      runtime.routeTrackingCheckinId = null;
+      runtime.routeRequestToken += 1;
+      runtime.routeLastPersistedPoint = null;
+      runtime.routePoints = [];
+    }
+
+    function startActiveRouteTracking() {
+      if (!runtime.activeCheckin?.id) {
+        stopActiveRouteTracking();
+        return;
+      }
+      const trackingKey = String(runtime.activeCheckin.id);
+      if (runtime.routeTrackingCheckinId === trackingKey) {
+        return;
+      }
+      stopActiveRouteTracking();
+      runtime.routeTrackingCheckinId = trackingKey;
+      fetchActiveRoutePoints({ invalidateSize: true, refit: true });
+
+      const bridge = window.VioletaNativeBridge || null;
+      const watchOptions = { enableHighAccuracy: true, timeout: 12000, maximumAge: 2000 };
+      const onPosition = (position) => {
+        handleActiveRoutePosition(position);
+      };
+
+      if (bridge && typeof bridge.watchPosition === 'function') {
+        Promise.resolve(bridge.watchPosition(watchOptions, onPosition, () => {}))
+          .then((handle) => {
+            if (runtime.routeTrackingCheckinId === trackingKey) {
+              runtime.routeWatchHandle = handle;
+            } else if (handle && bridge.clearPositionWatch) {
+              bridge.clearPositionWatch(handle);
+            }
+          })
+          .catch(() => {});
+      } else if (navigator.geolocation?.watchPosition) {
+        const watchId = navigator.geolocation.watchPosition(
+          (position) => onPosition({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy || null,
+            timestamp: position.timestamp || Date.now(),
+            speed: position.coords.speed ?? null,
+          }),
+          () => {},
+          watchOptions,
+        );
+        runtime.routeWatchHandle = { id: watchId, source: 'browser' };
+      }
+
+      runtime.routePollTimer = setInterval(() => {
+        if (!runtime.activeCheckin || runtime.routeTrackingCheckinId !== trackingKey) return;
+        fetchActiveRoutePoints();
+      }, 15000);
     }
 
     function renderActiveLiveMap(options) {
-      const opts = Object.assign({ invalidateSize: false }, options || {});
+      const opts = Object.assign({ invalidateSize: false, refit: false }, options || {});
       const mapState = runtime.mapState?.map ? runtime.mapState : (runtime.activeCheckin ? ensureActiveLiveMap() : null);
       if (!mapState) return;
 
@@ -1103,77 +1381,98 @@
         return;
       }
 
-      const startCoords = getCheckinStartCoords(runtime.activeCheckin);
+      const routeLatLngs = buildActiveRouteLatLngs();
+      const destinationCoords = getCheckinDestinationCoords(runtime.activeCheckin);
+      const currentPoint = routeLatLngs[routeLatLngs.length - 1] || getCheckinStartCoords(runtime.activeCheckin);
       const routeKey = [
         runtime.activeCheckin.id || 'active',
-        runtime.activeCheckin.destination || runtime.activeCheckin.display_destination || 'destino',
-        runtime.activeCheckin.eta_minutes || runtime.etaMinutes || 30,
-        startCoords[0].toFixed(5),
-        startCoords[1].toFixed(5),
+        routeLatLngs.length,
+        currentPoint?.[0]?.toFixed?.(5) || '0',
+        currentPoint?.[1]?.toFixed?.(5) || '0',
+        destinationCoords ? `${destinationCoords[0].toFixed(5)}:${destinationCoords[1].toFixed(5)}` : 'no-destination',
       ].join(':');
 
       if (routeKey !== mapState.routeKey) {
         clearActiveLiveMapLayers();
 
-        const seed = hashString(routeKey);
-        const destinationCoords = buildSimulatedDestinationCoords(startCoords, runtime.activeCheckin);
-        const routePoints = buildSimulatedRoute(startCoords, destinationCoords, seed);
-        const routeMetrics = buildRouteMetrics(routePoints);
+        if (routeLatLngs.length > 1) {
+          mapState.routeBase = window.L.polyline(routeLatLngs, {
+            color: '#cbd5e1',
+            weight: 10,
+            opacity: 0.62,
+            lineCap: 'round',
+            lineJoin: 'round',
+          }).addTo(mapState.map);
+          mapState.routeLine = window.L.polyline(routeLatLngs, {
+            color: '#7c3aed',
+            weight: 5,
+            opacity: 0.92,
+            lineCap: 'round',
+            lineJoin: 'round',
+          }).addTo(mapState.map);
+          mapState.routeProgress = window.L.polyline(routeLatLngs, {
+            color: '#10b981',
+            weight: 6,
+            opacity: 0.95,
+            lineCap: 'round',
+            lineJoin: 'round',
+          }).addTo(mapState.map);
+          mapState.routeMetrics = buildRouteMetrics(routeLatLngs);
+        } else {
+          mapState.routeMetrics = null;
+        }
 
-        mapState.routeBase = window.L.polyline(routePoints, {
-          color: '#cbd5e1',
-          weight: 10,
-          opacity: 0.62,
-          lineCap: 'round',
-          lineJoin: 'round',
-        }).addTo(mapState.map);
-        mapState.routeLine = window.L.polyline(routePoints, {
-          color: '#7c3aed',
-          weight: 5,
-          opacity: 0.92,
-          lineCap: 'round',
-          lineJoin: 'round',
-        }).addTo(mapState.map);
-        mapState.routeProgress = window.L.polyline([routePoints[0]], {
-          color: '#10b981',
-          weight: 6,
-          opacity: 0.95,
-          lineCap: 'round',
-          lineJoin: 'round',
-        }).addTo(mapState.map);
-        mapState.userMarker = window.L.marker(routePoints[0], {
+        mapState.userMarker = window.L.marker(currentPoint, {
           icon: createLiveUserIcon(),
           interactive: false,
           zIndexOffset: 700,
         }).addTo(mapState.map);
-        mapState.destinationMarker = window.L.marker(destinationCoords, {
-          icon: createLiveDestinationIcon(),
-          interactive: false,
-          zIndexOffset: 650,
-        }).addTo(mapState.map);
+
+        if (destinationCoords) {
+          mapState.destinationMarker = window.L.marker(destinationCoords, {
+            icon: createLiveDestinationIcon(),
+            interactive: false,
+            zIndexOffset: 650,
+          }).addTo(mapState.map);
+        }
+
+        const bounds = window.L.latLngBounds([currentPoint]);
+        if (routeLatLngs.length > 1) {
+          routeLatLngs.forEach((coords) => bounds.extend(coords));
+        }
+        if (destinationCoords) {
+          bounds.extend(destinationCoords);
+        }
+        mapState.bounds = bounds.isValid() ? bounds : null;
         mapState.routeKey = routeKey;
-        mapState.routeMetrics = routeMetrics;
-        mapState.bounds = window.L.latLngBounds(routePoints);
-        mapState.map.fitBounds(mapState.bounds, { padding: [36, 36] });
+      } else {
+        if (mapState.routeBase && routeLatLngs.length > 1) {
+          mapState.routeBase.setLatLngs(routeLatLngs);
+        }
+        if (mapState.routeLine && routeLatLngs.length > 1) {
+          mapState.routeLine.setLatLngs(routeLatLngs);
+        }
+        if (mapState.routeProgress && routeLatLngs.length > 1) {
+          mapState.routeProgress.setLatLngs(routeLatLngs);
+        }
+        if (mapState.userMarker) {
+          mapState.userMarker.setLatLng(currentPoint);
+        }
+        if (mapState.destinationMarker && destinationCoords) {
+          mapState.destinationMarker.setLatLng(destinationCoords);
+        }
       }
 
-      const progress = buildRouteProgress(runtime.activeCheckin);
-      const currentPoint = getPointAlongRoute(mapState.routeMetrics, progress);
-      const routeSlice = getRouteSlice(mapState.routeMetrics, progress);
-
-      if (mapState.userMarker) {
-        mapState.userMarker.setLatLng(currentPoint);
-      }
-      if (mapState.routeProgress) {
-        mapState.routeProgress.setLatLngs(routeSlice);
-      }
-
-      if (opts.invalidateSize) {
+      const shouldFit = !mapState.hasInitialFit || opts.invalidateSize || opts.refit;
+      if (shouldFit) {
         window.setTimeout(() => {
           mapState.map.invalidateSize(false);
-          if (mapState.bounds) {
+          if (mapState.bounds && routeLatLngs.length > 1) {
             mapState.map.fitBounds(mapState.bounds, { padding: [36, 36] });
+          } else {
+            mapState.map.setView(currentPoint, Math.max(mapState.map.getZoom(), 15));
           }
+          mapState.hasInitialFit = true;
         }, 50);
       }
     }
@@ -1216,8 +1515,10 @@
         clearInterval(runtime.timerId);
       }
       if (!runtime.activeCheckin) {
+        stopActiveRouteTracking();
         return;
       }
+      startActiveRouteTracking();
       runtime.timerId = setInterval(updateActiveTripMetrics, 1000);
     }
 
@@ -1268,24 +1569,56 @@
 
     function applyVisibleState(nextState) {
       runtime.dom.mobileStates.forEach((section) => {
+        if (typeof section.getAnimations === 'function') {
+          section.getAnimations().forEach((animation) => animation.cancel());
+        }
         section.classList.remove('is-leaving');
         section.classList.toggle('is-visible', section.dataset.state === nextState);
       });
       runtime.dom.desktopStates.forEach((section) => {
+        if (typeof section.getAnimations === 'function') {
+          section.getAnimations().forEach((animation) => animation.cancel());
+        }
         section.classList.remove('is-leaving');
         section.classList.toggle('is-visible', section.dataset.state === nextState);
+      });
+      root.querySelectorAll('.desktop-header, .panel, .history-card, .desktop-history-card, .input-card, .support-row, .status-card, .ghost-banner').forEach((node) => {
+        if (typeof node.getAnimations === 'function') {
+          node.getAnimations().forEach((animation) => animation.cancel());
+        }
       });
       if (nextState === 'active' || nextState === 'idle') {
         resetActiveSheetPosition();
       }
     }
 
+    function resolveFallbackState() {
+      return runtime.activeCheckin ? 'active' : 'idle';
+    }
+
+    function normalizeState(nextState) {
+      if (!SAFETY_VIEW_STATES.has(nextState)) {
+        return resolveFallbackState();
+      }
+      if (nextState === 'active' && !runtime.activeCheckin) {
+        return 'idle';
+      }
+      return nextState;
+    }
+
+    function resolveBackState() {
+      const nextState = normalizeState(runtime.previousState);
+      if (nextState === runtime.currentState && (nextState === 'contacts' || nextState === 'history')) {
+        return resolveFallbackState();
+      }
+      return nextState;
+    }
+
     function setState(nextState, options) {
       const opts = Object.assign({ remember: true, animate: true }, options || {});
-      if (nextState === 'active' && !runtime.activeCheckin) {
-        nextState = 'idle';
-      }
+      nextState = normalizeState(nextState);
       if (runtime.currentState === nextState) {
+        applyVisibleState(nextState);
         return;
       }
       if (opts.remember && runtime.currentState) {
@@ -1338,6 +1671,15 @@
       updateActiveTripMetrics();
     }
 
+    function syncCustomBackdropViewportState() {
+      const hasOpenBackdrop = [
+        runtime.dom.summaryModal,
+        runtime.dom.contactEditorModal,
+        runtime.dom.contactDeleteModal,
+      ].some((node) => node && (node.classList.contains('is-visible') || node.classList.contains('is-closing')));
+      document.body.classList.toggle('violeta-backdrop-open', hasOpenBackdrop);
+    }
+
     function showBackdropModal(backdrop) {
       if (!backdrop) return;
       if (backdrop._hideTimer) {
@@ -1346,12 +1688,38 @@
       }
       backdrop.classList.remove('is-closing');
       backdrop.setAttribute('aria-hidden', 'false');
+      syncCustomBackdropViewportState();
       void backdrop.offsetWidth;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           backdrop.classList.add('is-visible');
+          syncCustomBackdropViewportState();
         });
       });
+    }
+
+    function clearSummaryModalPosition() {
+      if (!runtime.dom.summaryModal) return;
+      runtime.summaryAnchorNode = null;
+      runtime.dom.summaryModal.classList.remove('is-anchored');
+      runtime.dom.summaryModal.style.removeProperty('--summary-modal-top');
+      runtime.dom.summaryModal.style.removeProperty('--summary-modal-left');
+      runtime.dom.summaryModal.style.removeProperty('--summary-modal-width');
+    }
+
+    function positionSummaryModal(triggerNode) {
+      if (!triggerNode) {
+        clearSummaryModalPosition();
+        return;
+      }
+      const rect = triggerNode.getBoundingClientRect();
+      const modal = runtime.dom.summaryModal;
+      const modalWidth = 560; // approximate width
+      const left = Math.max(24, Math.min(window.innerWidth - modalWidth - 24, rect.left + rect.width / 2));
+      const top = rect.bottom + 10;
+      modal.style.setProperty('--summary-modal-top', `${top}px`);
+      modal.style.setProperty('--summary-modal-left', `${left}px`);
+      modal.classList.add('is-anchored');
     }
 
     function hideBackdropModal(backdrop, callback) {
@@ -1362,15 +1730,18 @@
       if (!backdrop.classList.contains('is-visible')) {
         backdrop.classList.remove('is-closing');
         backdrop.setAttribute('aria-hidden', 'true');
+        syncCustomBackdropViewportState();
         if (typeof callback === 'function') callback();
         return;
       }
       backdrop.classList.add('is-closing');
       backdrop.setAttribute('aria-hidden', 'true');
       backdrop.classList.remove('is-visible');
+      syncCustomBackdropViewportState();
       backdrop._hideTimer = window.setTimeout(() => {
         backdrop.classList.remove('is-visible', 'is-closing');
         backdrop._hideTimer = null;
+        syncCustomBackdropViewportState();
         if (typeof callback === 'function') callback();
       }, 420);
     }
@@ -1452,10 +1823,13 @@
         runtime.routeAnimationFrame = null;
       }
       runtime.dom.summaryRouteDot?.classList.remove('is-visible');
-      hideBackdropModal(runtime.dom.summaryModal, callback);
+      hideBackdropModal(runtime.dom.summaryModal, () => {
+        clearSummaryModalPosition();
+        if (typeof callback === 'function') callback();
+      });
     }
 
-    function openSummary(tripId) {
+    function openSummary(tripId, triggerNode) {
       const trip = runtime.tripItems.find((item) => String(item.id) === String(tripId));
       if (!trip || !runtime.dom.summaryModal) return;
       runtime.dom.summaryModalBadge.textContent = trip.badge_label || 'Resumen';
@@ -1467,8 +1841,12 @@
       runtime.dom.summaryModalBody.textContent = trip.destination
         ? `Trayecto guardado hacia ${trip.destination}. Puedes abrir el detalle completo cuando lo necesites.`
         : 'Trayecto guardado sin destino claro. Puedes abrir el detalle completo cuando lo necesites.';
+      positionSummaryModal(triggerNode);
       showBackdropModal(runtime.dom.summaryModal);
-      requestAnimationFrame(() => setRouteForSummary(trip.route_style || 'office'));
+      requestAnimationFrame(() => {
+        positionSummaryModal(triggerNode);
+        setRouteForSummary(trip.route_style || 'office');
+      });
     }
 
     function renderAvatarPicker() {
@@ -1650,6 +2028,8 @@
       runtime.dom.startButtons.forEach((button) => { button.disabled = true; });
       const result = await sendCheckinWithGeo(runtime.endpoints.startCheckin, {
         destination: destinationValue,
+        destination_latitude: runtime.destinationPlace?.lat ?? null,
+        destination_longitude: runtime.destinationPlace?.lon ?? null,
         eta_minutes: runtime.etaMinutes,
         note: '',
       });
@@ -1672,7 +2052,11 @@
         contact_phone: primary?.phone || '',
         latitude: toCoord(result.data.latitude),
         longitude: toCoord(result.data.longitude),
+        destination_latitude: toCoord(result.data.destination_latitude),
+        destination_longitude: toCoord(result.data.destination_longitude),
       };
+      runtime.routePoints = [];
+      runtime.routeLastPersistedPoint = null;
       setState('active');
       startActiveTripTimer();
       clearStatus();
@@ -1773,7 +2157,7 @@
 
       const back = event.target.closest('[data-preview-back]');
       if (back) {
-        setState(runtime.previousState || 'idle', { remember: false });
+        setState(resolveBackState(), { remember: false, animate: false });
         return;
       }
 
@@ -1860,7 +2244,7 @@
 
       const summaryButton = event.target.closest('[data-summary-open]');
       if (summaryButton) {
-        openSummary(summaryButton.dataset.summaryOpen);
+        openSummary(summaryButton.dataset.summaryOpen, summaryButton);
       }
     });
 
@@ -1960,6 +2344,10 @@
     runtime.dom.summaryModalClose?.addEventListener('click', closeSummary);
     runtime.dom.summaryModal?.addEventListener('click', (event) => {
       if (event.target === runtime.dom.summaryModal) closeSummary();
+    });
+    window.addEventListener('resize', () => {
+      if (!runtime.dom.summaryModal?.classList.contains('is-visible')) return;
+      positionSummaryModal(runtime.summaryAnchorNode);
     });
 
     bindSheetDrag();

@@ -1,111 +1,173 @@
 {% extends 'base.html' %}
 {% block content %}
 
-<div class="container px-0">
-  <!-- Profile Header -->
-  <div class="profile-header">
-    <div class="profile-cover"></div>
-    <div class="profile-info">
-      <img
-        src="{{ url_for('uploaded_file', filename=user.profile_pic) if user.profile_pic and user.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
-        class="profile-avatar-lg" alt="Profile"
-        onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
-
-      <div class="profile-details">
-        {% set profile_level = moderation_badge_level(user) %}
-        <h2 class="mb-1">
-          @{{ user.username }}
-          {% if profile_level > 0 %}
-          <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if profile_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if profile_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if profile_level >= 2 else 'Usuaria con un strike' }}">
-            <i class="fas fa-triangle-exclamation"></i>
-          </span>
-          {% endif %}
-          {% if user_has_staff_badge(user) %}<span class="admin-badge admin-badge--profile" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
-        </h2>
-        {% if user.bio %}
-        <p class="mb-2">{{ user.bio }}</p>
-        {% endif %}
-
-        <div class="d-flex flex-column flex-md-row gap-2 mt-3 profile-actions">
-          {% if current_user.is_authenticated and user.id == current_user.id %}
-          <a href="{{ url_for('edit_profile') }}" class="btn btn-secondary btn-sm">
-            <i class="fas fa-edit"></i> Editar perfil
-          </a>
-          <a href="{{ url_for('safety_center') }}" class="btn btn-outline-light btn-sm" data-no-prefetch="1">
-            <i class="fas fa-shield-heart"></i> Centro de seguridad
-          </a>
-          {% endif %}
-          <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm mobile-only w-100">
-            <i class="fas fa-sign-out-alt"></i> Cerrar sesión
-          </a>
+{% set viewer_is_self = is_self if is_self is defined else (current_user.is_authenticated and user.id == current_user.id) %}
+{% set profile_level = moderation_badge_level(user) %}
+<div class="container px-0 profile-page-shell">
+  <section class="profile-header profile-hero-card">
+    <div class="profile-cover" aria-hidden="true"></div>
+    <div class="profile-card-body">
+      <div class="profile-info">
+        <div class="profile-avatar-wrap">
+          <img
+            src="{{ url_for('uploaded_file', filename=user.profile_pic) if user.profile_pic and user.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
+            class="profile-avatar-lg" alt="Profile"
+            onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
+          <span class="profile-presence-dot" aria-hidden="true"></span>
         </div>
-      </div>
 
-      <div class="profile-stats">
-        <div class="stat-item">
-          <span class="stat-value">{{ report_count }}</span>
-          <span class="stat-label">Reportes</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ total_likes }}</span>
-          <span class="stat-label">Likes</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ total_comments }}</span>
-          <span class="stat-label">Comentarios</span>
+        <div class="profile-identity-row">
+          <div class="profile-details">
+            <h2 class="profile-username">
+              @{{ user.username }}
+              {% if profile_level > 0 %}
+              <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if profile_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if profile_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if profile_level >= 2 else 'Usuaria con un strike' }}">
+                <i class="fas fa-triangle-exclamation"></i>
+              </span>
+              {% endif %}
+              {% if user_has_staff_badge(user) %}<span class="admin-badge admin-badge--profile" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+            </h2>
+            <p class="profile-member-since">
+              {% if user.created_at %}Miembro desde {{ user.created_at.strftime('%d/%m/%Y') }}{% else %}Miembro de Violeta{% endif %}
+            </p>
+            {% if user.bio %}
+            <p class="profile-bio">{{ user.bio }}</p>
+            {% endif %}
+          </div>
+
+          <div class="profile-stats">
+            <div class="stat-item">
+              <span class="stat-value">{{ report_count }}</span>
+              <span class="stat-label">Reportes</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ total_likes }}</span>
+              <span class="stat-label">Likes</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ total_comments }}</span>
+              <span class="stat-label">Comentarios</span>
+            </div>
+          </div>
+
+          <div class="profile-actions">
+            {% if viewer_is_self %}
+            <a href="{{ url_for('edit_profile') }}" class="btn btn-secondary btn-sm">
+              <i class="fas fa-edit"></i> Editar perfil
+            </a>
+            <a href="{{ url_for('safety_center') }}" class="btn btn-outline-light btn-sm" data-no-prefetch="1">
+              <i class="fas fa-shield-heart"></i> Centro de seguridad
+            </a>
+            {% endif %}
+            <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm mobile-only w-100">
+              <i class="fas fa-sign-out-alt"></i> Cerrar sesión
+            </a>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <!-- Content Tabs (Optional, for now just Grid) -->
-  <div class="d-flex align-items-center justify-content-between mb-3 px-2">
-    <h3 class="h5 mb-0">Publicaciones</h3>
-    
-  </div>
+  <div class="profile-content-layout">
+    <aside class="profile-side-stack" aria-label="Contexto del perfil">
+      {% include 'partials/invitations_beta_card.html' %}
+    </aside>
 
-  <!-- Grid -->
-  {% if posts %}
-  <div class="profile-grid">
-    {% for p in posts %}
-    <div class="grid-item {% if p.is_pending %}is-pending{% endif %}">
-      {% if current_user.is_authenticated and user.id == current_user.id and p.can_delete %}
-      <form class="grid-delete-form" method="post" action="{{ url_for('delete_post', post_id=p.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="grid-delete-btn" title="Eliminar publicación"
-          onclick="event.stopPropagation();">
-          <i class="fas fa-trash"></i>
-        </button>
-      </form>
+    <section class="profile-feed-panel" aria-label="Publicaciones">
+      <div class="profile-section-header">
+        <div>
+          <p class="profile-kicker">Actividad</p>
+          <h3>Publicaciones</h3>
+        </div>
+      </div>
+
+      {% if posts %}
+      <div class="profile-grid">
+        {% for p in posts %}
+        <div class="grid-item {% if p.is_pending %}is-pending{% endif %}">
+          {% if viewer_is_self and p.can_delete %}
+          <form
+            class="grid-delete-form"
+            method="post"
+            action="{{ url_for('delete_post', post_id=p.id) }}"
+            data-delete-post-form
+            data-delete-image="{{ url_for('uploaded_file', filename=p.image_filename) }}"
+            data-delete-location="{{ p.location_name or p.city or p.country or 'Sin ubicación registrada' }}"
+            data-delete-caption="{{ p.caption or 'Sin descripción' }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="grid-delete-btn" title="Borrar alerta" aria-label="Borrar alerta">
+              <i class="fas fa-trash"></i>
+            </button>
+          </form>
+          {% endif %}
+          <a href="{{ url_for('post_detail', post_id=p.id) }}">
+            <img src="{{ url_for('uploaded_file', filename=p.image_filename) }}" alt="Post">
+            {% if p.is_pending %}
+            <div class="grid-pending-overlay"
+              title="Se publicará cuando pasen {{ safety_publish_policy.min_delay_minutes }} min y te alejes {{ safety_publish_policy.distance_meters }} m, o en máximo {{ safety_publish_policy.fallback_minutes }} min."
+              data-pending-post
+              data-min-ready-at="{{ p.pending_min_ready_at.isoformat() if p.pending_min_ready_at else '' }}"
+              data-fallback-at="{{ p.pending_fallback_at.isoformat() if p.pending_fallback_at else '' }}">
+              <span class="grid-pending-overlay__title">Pendiente</span>
+              <span class="grid-pending-overlay__status">Preparando publicación segura...</span>
+              <span class="grid-pending-overlay__meta">Regla: {{ safety_publish_policy.min_delay_minutes }} min + {{ safety_publish_policy.distance_meters }} m</span>
+            </div>
+            {% else %}
+            <div class="grid-overlay">
+              <span><i class="fas fa-heart"></i> {{ p.likes_count|default(0) }}</span>
+              <span><i class="fas fa-comment"></i> {{ p.comments_count|default(0) }}</span>
+            </div>
+            {% endif %}
+          </a>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="profile-empty-state">
+        <i class="fas fa-camera"></i>
+        <p>Aún no hay publicaciones.</p>
+      </div>
       {% endif %}
-      <a href="{{ url_for('post_detail', post_id=p.id) }}">
-        <img src="{{ url_for('uploaded_file', filename=p.image_filename) }}" alt="Post">
-        {% if p.is_pending %}
-        <div class="grid-pending-overlay"
-          title="Se publicará cuando pasen {{ safety_publish_policy.min_delay_minutes }} min y te alejes {{ safety_publish_policy.distance_meters }} m, o en máximo {{ safety_publish_policy.fallback_minutes }} min."
-          data-pending-post
-          data-min-ready-at="{{ p.pending_min_ready_at.isoformat() if p.pending_min_ready_at else '' }}"
-          data-fallback-at="{{ p.pending_fallback_at.isoformat() if p.pending_fallback_at else '' }}">
-          <span class="grid-pending-overlay__title">Pendiente</span>
-          <span class="grid-pending-overlay__status">Preparando publicación segura...</span>
-          <span class="grid-pending-overlay__meta">Regla: {{ safety_publish_policy.min_delay_minutes }} min + {{ safety_publish_policy.distance_meters }} m</span>
-        </div>
-        {% else %}
-        <div class="grid-overlay">
-          <span><i class="fas fa-heart"></i> {{ p.likes_count|default(0) }}</span>
-          <span><i class="fas fa-comment"></i> {{ p.comments_count|default(0) }}</span>
-        </div>
-        {% endif %}
-      </a>
-    </div>
-    {% endfor %}
+    </section>
   </div>
-  {% else %}
-  <div class="text-center py-5 text-muted">
-    <i class="fas fa-camera fa-3x mb-3"></i>
-    <p>Aún no hay publicaciones.</p>
+
+  {% if viewer_is_self %}
+  <div class="profile-delete-modal" id="profileDeleteModal" hidden aria-hidden="true">
+    <div class="profile-delete-modal__backdrop" data-delete-modal-close></div>
+    <section class="profile-delete-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="profileDeleteModalTitle">
+      <button type="button" class="profile-delete-modal__close" aria-label="Cerrar" data-delete-modal-close>
+        <i class="fas fa-xmark"></i>
+      </button>
+      <p class="profile-kicker">Borrar alerta</p>
+      <h3 id="profileDeleteModalTitle">¿Estás segura que quieres borrar esta alerta?</h3>
+      <p class="profile-delete-modal__copy">Esta acción eliminará la publicación y no se puede deshacer.</p>
+      <div class="profile-delete-modal__preview">
+        <img id="profileDeleteImage" src="" alt="Foto de la alerta">
+        <div class="profile-delete-modal__details">
+          <div>
+            <span>Ubicación</span>
+            <strong id="profileDeleteLocation">Sin ubicación registrada</strong>
+          </div>
+          <div>
+            <span>Descripción</span>
+            <p id="profileDeleteCaption">Sin descripción</p>
+          </div>
+        </div>
+      </div>
+      <div class="profile-delete-modal__actions">
+        <button type="button" class="neutral-btn" data-delete-modal-close>Cancelar</button>
+        <button type="button" class="profile-delete-modal__danger" id="profileDeleteConfirm">
+          Sí, borrar alerta
+        </button>
+      </div>
+    </section>
   </div>
   {% endif %}
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/user_profile_page.js') }}?v=20260418-delete-confirm-v1"></script>
 {% endblock %}

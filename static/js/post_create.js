@@ -112,6 +112,10 @@
     let currentPhotoMode = isAdmin ? 'upload' : 'camera';
     let modalHideTimer = null;
     const MAX_ALLOWED_WALKING_SPEED_MPS = 2.2;
+    const MAX_CAPTURE_ACCURACY_METERS = 80;
+    const MAX_CAPTURE_FIX_AGE_MS = 15000;
+    const CAPTURE_POSITION_RETRY_ATTEMPTS = 3;
+    const CAPTURE_POSITION_RETRY_DELAY_MS = 1200;
     const CAPTURE_MOTION_SAMPLE_MS = 2500;
     const MAX_NATIVE_CAPTURE_DRIFT_METERS = 25;
     const TOTAL_STEPS = 3;
@@ -1225,6 +1229,43 @@
         return Date.now();
     }
 
+    function getPositionAgeMs(position) {
+        return Math.max(0, Date.now() - extractPositionTimestamp(position));
+    }
+
+    function pickBetterCapturePosition(currentBest, candidate) {
+        if (!currentBest) {
+            return candidate;
+        }
+        const currentAccuracy = toFiniteNumber(currentBest?.accuracy);
+        const candidateAccuracy = toFiniteNumber(candidate?.accuracy);
+
+        if (candidateAccuracy != null && currentAccuracy != null && candidateAccuracy !== currentAccuracy) {
+            return candidateAccuracy < currentAccuracy ? candidate : currentBest;
+        }
+        if (candidateAccuracy != null && currentAccuracy == null) {
+            return candidate;
+        }
+        if (candidateAccuracy == null && currentAccuracy != null) {
+            return currentBest;
+        }
+        return extractPositionTimestamp(candidate) >= extractPositionTimestamp(currentBest)
+            ? candidate
+            : currentBest;
+    }
+
+    function ensurePreciseEnoughPosition(position) {
+        const accuracy = toFiniteNumber(position?.accuracy);
+        const ageMs = getPositionAgeMs(position);
+        if (accuracy != null && accuracy > MAX_CAPTURE_ACCURACY_METERS) {
+            throw new Error(`Necesitamos una ubicación más precisa antes de capturar. Espera unos segundos y vuelve a intentarlo (precisión actual: ${Math.round(accuracy)} m).`);
+        }
+        if (ageMs > MAX_CAPTURE_FIX_AGE_MS) {
+            throw new Error('La ubicación recibida ya estaba desactualizada. Inténtalo otra vez con GPS activo.');
+        }
+        return position;
+    }
+
     function classifyMotionState(speedMps) {
         if (!Number.isFinite(speedMps) || speedMps == null || speedMps < 0) {
             return null;
@@ -1290,11 +1331,31 @@
         });
     }
 
+    async function getPreciseCapturePosition(statusMessage) {
+        let bestPosition = null;
+        for (let attempt = 0; attempt < CAPTURE_POSITION_RETRY_ATTEMPTS; attempt += 1) {
+            if (validationMsg) {
+                validationMsg.textContent = statusMessage || 'Buscando una ubicación más precisa...';
+            }
+            const position = await getFreshCapturePosition();
+            bestPosition = pickBetterCapturePosition(bestPosition, position);
+            try {
+                return ensurePreciseEnoughPosition(position);
+            } catch (error) {
+                if (attempt === CAPTURE_POSITION_RETRY_ATTEMPTS - 1) {
+                    throw error;
+                }
+                await wait(CAPTURE_POSITION_RETRY_DELAY_MS);
+            }
+        }
+        return ensurePreciseEnoughPosition(bestPosition);
+    }
+
     async function resolveCaptureContext() {
         if (validationMsg) {
             validationMsg.textContent = 'Confirmando que estas a pie o detenida...';
         }
-        const firstPosition = await getFreshCapturePosition();
+        const firstPosition = await getPreciseCapturePosition('Buscando la ubicación exacta de la captura...');
         let speedMps = extractPositionSpeed(firstPosition);
         let motionState = classifyMotionState(speedMps);
         let selectedPosition = firstPosition;
@@ -1302,7 +1363,7 @@
 
         if (!motionState) {
             await wait(CAPTURE_MOTION_SAMPLE_MS);
-            const secondPosition = await getFreshCapturePosition();
+            const secondPosition = await getPreciseCapturePosition('Validando movimiento y precisión de la ubicación...');
             const elapsedSeconds = Math.max(
                 CAPTURE_MOTION_SAMPLE_MS / 1000,
                 (extractPositionTimestamp(secondPosition) - extractPositionTimestamp(firstPosition)) / 1000
@@ -1330,6 +1391,7 @@
         if (captureContext.lat == null || captureContext.lng == null) {
             throw new Error('Necesitamos la ubicacion exacta de donde tomaste la foto.');
         }
+        ensurePreciseEnoughPosition(captureContext);
 
         freezeIncidentLocationFromCapture(captureContext);
         return captureContext;
@@ -1389,7 +1451,7 @@
                 return false;
             }
             try {
-                const postCapturePosition = await getFreshCapturePosition();
+                const postCapturePosition = await getPreciseCapturePosition('Verificando el punto exacto donde tomaste la foto...');
                 const driftMeters = haversineDistanceMeters(
                     Number(preCaptureContext.lat),
                     Number(preCaptureContext.lng),
@@ -1399,12 +1461,14 @@
                 if (driftMeters > MAX_NATIVE_CAPTURE_DRIFT_METERS) {
                     throw new Error('Nos movimos demasiado mientras tomabas la foto. Vuelve a intentarlo desde el punto exacto.');
                 }
-                freezeIncidentLocationFromCapture(buildCaptureContext(postCapturePosition, {
+                const finalCaptureContext = buildCaptureContext(postCapturePosition, {
                     motionState: preCaptureContext.motionState,
                     speedMps: preCaptureContext.speedMps,
                     sampleDistanceMeters: driftMeters,
                     source: 'native',
-                }));
+                });
+                ensurePreciseEnoughPosition(finalCaptureContext);
+                freezeIncidentLocationFromCapture(finalCaptureContext);
             } catch (driftError) {
                 const msg = String(driftError?.message || '');
                 if (msg) {
@@ -1549,7 +1613,7 @@
             locationStatusText.textContent = 'Obteniendo ubicación actual...';
         }
         try {
-            const position = await getFreshCapturePosition();
+            const position = await getPreciseCapturePosition('Obteniendo una ubicación precisa...');
 
             updateLocation({ lat: position.lat, lng: position.lng }, true);
             if (useCurrentLocationToggle) useCurrentLocationToggle.checked = true;

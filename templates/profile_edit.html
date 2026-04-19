@@ -1,69 +1,580 @@
 {% extends 'base.html' %}
 
+{% block styles %}
+<style>
+  .profile-edit-v2 {
+    --profile-surface: #1b1328;
+    --profile-field: rgba(10, 8, 19, 0.42);
+    --profile-border: rgba(167, 139, 250, 0.16);
+    --profile-muted: rgba(233, 227, 239, 0.68);
+    min-height: calc(100svh - 5rem);
+    padding: clamp(1rem, 2.5vw, 2.25rem) 1rem 3rem;
+  }
+
+  .profile-edit-v2__shell {
+    max-width: 680px;
+    margin: 0 auto;
+  }
+
+  .profile-edit-v2__frame {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--profile-border);
+    border-radius: 18px;
+    background: var(--profile-surface);
+    box-shadow: 0 20px 56px rgba(0, 0, 0, 0.28);
+    animation: profileCardIn 0.28s ease-out both;
+  }
+
+  .profile-edit-v2__tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    padding: 0;
+    border-bottom: 1px solid rgba(148, 139, 156, 0.16);
+    background: rgba(255, 255, 255, 0.035);
+  }
+
+  .profile-edit-v2__tab {
+    min-height: 54px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: var(--profile-muted);
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    transition: color 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+  }
+
+  .profile-edit-v2__tab:hover,
+  .profile-edit-v2__tab:focus-visible {
+    color: #fff;
+    background: rgba(124, 58, 237, 0.08);
+    outline: none;
+  }
+
+  .profile-edit-v2__tab.is-active {
+    color: #c4b5fd;
+    border-bottom-color: #7c3aed;
+    background: rgba(124, 58, 237, 0.1);
+  }
+
+  .profile-edit-v2__pane {
+    padding: clamp(1.25rem, 3vw, 2rem);
+  }
+
+  .profile-edit-v2__pane:not([hidden]) {
+    animation: profilePaneIn 0.22s ease-out both;
+  }
+
+  .profile-edit-v2__header {
+    margin-bottom: 1.4rem;
+    text-align: center;
+  }
+
+  .profile-edit-v2__eyebrow {
+    display: none;
+  }
+
+  .profile-edit-v2__title {
+    margin: 0;
+    color: #fff;
+    font-size: clamp(1.45rem, 3vw, 1.85rem);
+    line-height: 1.08;
+  }
+
+  .profile-edit-v2__subtitle {
+    margin: 0.5rem 0 0;
+    color: var(--profile-muted);
+    max-width: none;
+    font-size: 0.92rem;
+  }
+
+  .profile-edit-v2__alert,
+  .profile-edit-v2__password-alert {
+    border-radius: 15px;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: rgba(127, 29, 29, 0.22);
+    color: #fecaca;
+    padding: 0.85rem 0.95rem;
+    font-size: 0.9rem;
+  }
+
+  .profile-edit-v2__alert {
+    margin-bottom: 1rem;
+  }
+
+  .profile-edit-v2__password-alert[hidden] {
+    display: none;
+  }
+
+  .profile-edit-v2__profile-top {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem 0 0.75rem;
+    margin-bottom: 0.6rem;
+    text-align: center;
+  }
+
+  .profile-edit-v2 .avatar-uploader {
+    position: relative;
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    overflow: hidden;
+    cursor: pointer;
+    border: 3px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .profile-edit-v2 .avatar-uploader:hover,
+  .profile-edit-v2 .avatar-uploader:focus-visible {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 22px 46px rgba(0, 0, 0, 0.36);
+    outline: none;
+  }
+
+  .profile-edit-v2 .avatar-uploader img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    transition: transform 0.2s ease, filter 0.2s ease;
+  }
+
+  .profile-edit-v2 .avatar-uploader:hover img,
+  .profile-edit-v2 .avatar-uploader:focus-visible img {
+    transform: scale(1.04);
+    filter: brightness(0.82);
+  }
+
+  .profile-edit-v2 .avatar-overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: rgba(9, 7, 18, 0.42);
+    color: #fff;
+    font-size: 1.35rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .profile-edit-v2 .avatar-uploader:hover .avatar-overlay,
+  .profile-edit-v2 .avatar-uploader:focus-visible .avatar-overlay {
+    opacity: 1;
+  }
+
+  .profile-edit-v2__avatar-copy {
+    margin: 0;
+    color: var(--profile-muted);
+    font-size: 0.88rem;
+  }
+
+  .profile-edit-v2__ghost-btn {
+    border-radius: 999px;
+    margin-top: 0.5rem;
+  }
+
+  .profile-edit-v2__form {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .profile-edit-v2__field-label {
+    display: block;
+    margin-bottom: 0.45rem;
+    color: rgba(233, 227, 239, 0.94);
+    font-weight: 800;
+  }
+
+  .profile-edit-v2__input,
+  .profile-edit-v2__textarea {
+    width: 100%;
+    border: 1px solid rgba(148, 139, 156, 0.18);
+    border-radius: 15px;
+    background: var(--profile-field);
+    color: var(--text-main);
+    padding: 0.88rem 0.95rem;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+  }
+
+  .profile-edit-v2__input[readonly] {
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(233, 227, 239, 0.72);
+  }
+
+  .profile-edit-v2__textarea {
+    min-height: 132px;
+    resize: vertical;
+  }
+
+  .profile-edit-v2__input:focus,
+  .profile-edit-v2__textarea:focus {
+    outline: none;
+    border-color: rgba(167, 139, 250, 0.5);
+    background: rgba(10, 8, 19, 0.52);
+    box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.13);
+  }
+
+  .profile-edit-v2__field-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .profile-edit-v2__hint,
+  .profile-edit-v2__meta {
+    color: var(--profile-muted);
+    font-size: 0.84rem;
+  }
+
+  .profile-edit-v2__meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.45rem;
+  }
+
+  .profile-edit-v2__meta-counter.is-warning {
+    color: #fbbf24;
+  }
+
+  .profile-edit-v2__password-form {
+    display: grid;
+    gap: 1rem;
+    max-width: 540px;
+    margin: 0 auto;
+  }
+
+  .profile-edit-v2__password-field {
+    position: relative;
+  }
+
+  .profile-edit-v2__password-field .profile-edit-v2__input {
+    padding-left: 2.8rem;
+    padding-right: 3rem;
+  }
+
+  .profile-edit-v2__field-icon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(233, 227, 239, 0.48);
+    pointer-events: none;
+  }
+
+  .profile-edit-v2__password-toggle {
+    position: absolute;
+    right: 0.65rem;
+    top: 50%;
+    width: 2rem;
+    height: 2rem;
+    border: 0;
+    border-radius: 999px;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(233, 227, 239, 0.76);
+    background: rgba(255, 255, 255, 0.06);
+    transition: color 0.18s ease, background-color 0.18s ease;
+  }
+
+  .profile-edit-v2__password-toggle:hover,
+  .profile-edit-v2__password-toggle:focus-visible {
+    color: #fff;
+    background: rgba(124, 58, 237, 0.18);
+    outline: none;
+  }
+
+  .profile-edit-v2__requirements {
+    margin: -0.15rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .profile-edit-v2__requirements li {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: rgba(233, 227, 239, 0.66);
+    font-size: 0.86rem;
+  }
+
+  .profile-edit-v2__requirements i {
+    width: 1rem;
+    color: #fca5a5;
+  }
+
+  .profile-edit-v2__requirements li.valid {
+    color: #bbf7d0;
+  }
+
+  .profile-edit-v2__requirements li.valid i {
+    color: #86efac;
+  }
+
+  .profile-edit-v2__divider {
+    height: 1px;
+    background: rgba(148, 139, 156, 0.16);
+    margin: 0.25rem 0;
+  }
+
+  .profile-edit-v2__actions {
+    display: flex;
+    justify-content: stretch;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding-top: 0.75rem;
+  }
+
+  .profile-edit-v2__actions .btn,
+  .profile-edit-v2__actions .violet-btn-primary {
+    flex: 1 1 0;
+    min-height: 46px;
+    border-radius: 15px;
+    padding-inline: 1.15rem;
+  }
+
+  .profile-edit-v2__security-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    text-decoration: none;
+  }
+
+  @keyframes profileCardIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.99);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes profilePaneIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (max-width: 767px) {
+    .profile-edit-v2 {
+      padding-inline: 0.75rem;
+    }
+
+    .profile-edit-v2__actions {
+      justify-content: stretch;
+    }
+
+    .profile-edit-v2__actions .btn,
+    .profile-edit-v2__actions .violet-btn-primary {
+      width: 100%;
+    }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="edit-profile-container">
-  <div class="edit-profile-card">
-    <h2 class="text-center mb-4 fw-bold" style="color: var(--text-main);">Editar Perfil</h2>
-
-    {% if error %}
-    <div class="alert alert-danger" role="alert">
-      {{ error }}
-    </div>
-    {% endif %}
-
-    <form id="editForm" action="{{ url_for('edit_profile') }}" method="post" enctype="multipart/form-data" novalidate>
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" id="profile_pic_data" name="profile_pic_data" value="">
-
-      <!-- Avatar Uploader -->
-      <div class="avatar-uploader" id="avatarUploader">
-        <img id="avatarPreview"
-          src="{{ url_for('uploaded_file', filename=user.profile_pic) if user.profile_pic and user.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
-          alt="Foto de perfil"
-          onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
-        <div class="avatar-overlay">
-          <i class="fa-solid fa-camera"></i>
-        </div>
-        <input class="d-none" type="file" name="profile_pic" id="profile_pic" accept="image/*">
-      </div>
-      <div class="text-center mb-4">
-        <button type="button" class="btn btn-sm btn-outline-light" id="restoreBtn">
-          <i class="fa-solid fa-rotate-left me-1"></i> Restaurar foto original
+<div class="profile-edit-v2">
+  <div class="profile-edit-v2__shell">
+    <div class="profile-edit-v2__frame">
+      <div class="profile-edit-v2__tabs" role="tablist" aria-label="Secciones de edicion de perfil">
+        <button
+          type="button"
+          id="tab-profile"
+          class="profile-edit-v2__tab is-active"
+          data-profile-edit-tab="profile"
+          aria-selected="true"
+          aria-controls="section-profile">
+          <i class="fa-solid fa-user"></i>
+          <span>Perfil</span>
+        </button>
+        <button
+          type="button"
+          id="tab-security"
+          class="profile-edit-v2__tab"
+          data-profile-edit-tab="security"
+          aria-selected="false"
+          aria-controls="section-security">
+          <i class="fa-solid fa-shield-heart"></i>
+          <span>Seguridad</span>
         </button>
       </div>
 
-      <!-- Bio Input -->
-      <div class="mb-4">
-        <label for="bio" class="bio-label">Biografía</label>
-        <textarea class="bio-input" id="bio" name="bio" rows="4" maxlength="300"
-          placeholder="Cuéntale a la comunidad sobre ti..."
-          data-initial="{{ (user.bio or '') }}">{{ (user.bio or '') }}</textarea>
-        <div class="bio-meta">
-          <span>Máximo 300 caracteres</span>
-          <span id="bioCount">0 / 300</span>
-        </div>
-      </div>
+      <section id="section-profile" class="profile-edit-v2__pane" data-profile-edit-pane="profile">
+        <header class="profile-edit-v2__header">
+          <p class="profile-edit-v2__eyebrow">Perfil</p>
+          <h1 class="profile-edit-v2__title">Editar perfil</h1>
+          <p class="profile-edit-v2__subtitle">Actualiza tu foto y biografia.</p>
+        </header>
 
-      <!-- Actions -->
-      <div class="edit-actions">
-        <a href="{{ url_for('user_profile', username=user.username) }}" class="btn btn-outline-light px-4">Cancelar</a>
-        <button type="submit" id="saveBtn" class="violet-btn-primary px-5">Guardar Cambios</button>
-      </div>
-    </form>
+        {% if error %}
+        <div class="profile-edit-v2__alert" role="alert">
+          {{ error }}
+        </div>
+        {% endif %}
+
+        <form id="editForm" action="{{ url_for('edit_profile') }}" method="post" enctype="multipart/form-data" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="profile_form_action" value="profile">
+          <input type="hidden" id="profile_pic_data" name="profile_pic_data" value="">
+
+          <div class="profile-edit-v2__form">
+            <div class="profile-edit-v2__profile-top">
+              <div class="avatar-uploader" id="avatarUploader" role="button" tabindex="0"
+                aria-label="Cambiar foto de perfil">
+                <img id="avatarPreview"
+                  src="{{ url_for('uploaded_file', filename=user.profile_pic) if user.profile_pic and user.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
+                  alt="Foto de perfil"
+                  onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
+                <div class="avatar-overlay"><i class="fa-solid fa-camera"></i></div>
+                <input class="d-none" type="file" name="profile_pic" id="profile_pic" accept="image/*">
+              </div>
+              <div>
+                <p class="profile-edit-v2__avatar-copy">Haz clic para cambiar tu foto.</p>
+                <button type="button" class="btn btn-outline-light btn-sm profile-edit-v2__ghost-btn" id="restoreBtn">
+                  <i class="fa-solid fa-rotate-left"></i>
+                  <span>Usar foto predeterminada</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="profile-edit-v2__field">
+              <label class="profile-edit-v2__field-label" for="bio">Biografia</label>
+              <textarea
+                class="profile-edit-v2__textarea"
+                id="bio"
+                name="bio"
+                rows="4"
+                maxlength="300"
+                placeholder="Cuentale a la comunidad sobre ti..."
+                data-initial="{{ (user.bio or '') }}">{{ (user.bio or '') }}</textarea>
+              <div class="profile-edit-v2__meta">
+                <span>Maximo 300 caracteres</span>
+                <span id="bioCount" class="profile-edit-v2__meta-counter">0 / 300</span>
+              </div>
+            </div>
+
+            <div class="profile-edit-v2__actions">
+              <a href="{{ url_for('user_profile', username=user.username) }}" class="btn btn-outline-light">
+                Cancelar
+              </a>
+              <button type="submit" id="saveBtn" class="violet-btn-primary">
+                Guardar cambios
+              </button>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <section id="section-security" class="profile-edit-v2__pane" data-profile-edit-pane="security" hidden>
+        <header class="profile-edit-v2__header">
+          <p class="profile-edit-v2__eyebrow">Seguridad</p>
+          <h2 class="profile-edit-v2__title">Cambiar contrasena</h2>
+          <p class="profile-edit-v2__subtitle">Confirma tu contrasena actual y escribe una nueva dos veces.</p>
+        </header>
+
+        <form id="passwordForm" class="profile-edit-v2__password-form" action="{{ url_for('edit_profile') }}#security" method="post" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="profile_form_action" value="password">
+
+          {% if password_errors %}
+          <div class="profile-edit-v2__password-alert" role="alert">
+            {% for err in password_errors %}
+            <div>{{ err }}</div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          <div class="profile-edit-v2__field">
+            <label class="profile-edit-v2__field-label" for="currentPassword">Contrasena actual</label>
+            <div class="profile-edit-v2__password-field">
+              <i class="fa-solid fa-key profile-edit-v2__field-icon"></i>
+              <input id="currentPassword" name="current_password" type="password" class="profile-edit-v2__input" autocomplete="current-password" placeholder="Tu contrasena actual" required>
+              <button type="button" class="profile-edit-v2__password-toggle" data-password-toggle data-password-target="currentPassword" aria-label="Mostrar contrasena actual" aria-pressed="false">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="profile-edit-v2__divider" aria-hidden="true"></div>
+
+          <div class="profile-edit-v2__field">
+            <label class="profile-edit-v2__field-label" for="newPassword">Nueva contrasena</label>
+            <div class="profile-edit-v2__password-field">
+              <i class="fa-solid fa-lock profile-edit-v2__field-icon"></i>
+              <input id="newPassword" name="new_password" type="password" class="profile-edit-v2__input" autocomplete="new-password" placeholder="Minimo 8 caracteres" required>
+              <button type="button" class="profile-edit-v2__password-toggle" data-password-toggle data-password-target="newPassword" aria-label="Mostrar nueva contrasena" aria-pressed="false">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="profile-edit-v2__field">
+            <label class="profile-edit-v2__field-label" for="confirmPassword">Confirmar nueva contrasena</label>
+            <div class="profile-edit-v2__password-field">
+              <i class="fa-solid fa-shield-check profile-edit-v2__field-icon"></i>
+              <input id="confirmPassword" name="confirm_password" type="password" class="profile-edit-v2__input" autocomplete="new-password" placeholder="Repite la nueva contrasena" required>
+              <button type="button" class="profile-edit-v2__password-toggle" data-password-toggle data-password-target="confirmPassword" aria-label="Mostrar confirmacion de contrasena" aria-pressed="false">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+          </div>
+
+          <div id="passwordAlert" class="profile-edit-v2__password-alert" role="alert" hidden></div>
+
+          <ul class="profile-edit-v2__requirements" aria-label="Requisitos de contrasena">
+            <li id="profileReqLength">
+              <i class="fa-solid fa-xmark"></i>
+              <span>Minimo 8 caracteres</span>
+            </li>
+            <li id="profileReqAlphanumeric">
+              <i class="fa-solid fa-xmark"></i>
+              <span>Al menos una letra y un numero</span>
+            </li>
+          </ul>
+
+          <div class="profile-edit-v2__actions">
+            <button type="submit" id="savePasswordBtn" class="violet-btn-primary profile-edit-v2__security-link">
+              <i class="fa-solid fa-key"></i>
+              <span>Actualizar contrasena</span>
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
   </div>
 </div>
-
-
-
 {% endblock %}
 
 {% block modals %}
-<!-- Cropper Modal -->
 <div class="modal fade cropper-modal-dark" id="cropperModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Ajustar Foto</h5>
+        <h5 class="modal-title">Ajustar foto</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body p-0 bg-black">
@@ -75,7 +586,7 @@
         <button type="button" class="btn btn-outline-light" id="chooseNewFile">
           <i class="fa-regular fa-image me-1"></i> Elegir otra
         </button>
-        <button type="button" class="violet-btn-primary" id="applyCrop">Aplicar Recorte</button>
+        <button type="button" class="violet-btn-primary" id="applyCrop">Aplicar recorte</button>
       </div>
     </div>
   </div>
@@ -89,6 +600,8 @@
   referrerpolicy="no-referrer"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function () {
+    const tabs = Array.from(document.querySelectorAll('[data-profile-edit-tab]'));
+    const panes = Array.from(document.querySelectorAll('[data-profile-edit-pane]'));
     const avatarUploader = document.getElementById('avatarUploader');
     const fileInput = document.getElementById('profile_pic');
     const avatarPreview = document.getElementById('avatarPreview');
@@ -99,60 +612,177 @@
     const restoreBtn = document.getElementById('restoreBtn');
     const chooseNewFileBtn = document.getElementById('chooseNewFile');
     const applyCropBtn = document.getElementById('applyCrop');
+    const cropperImage = document.getElementById('cropperImage');
+    const defaultRestoreUrl = "{{ url_for('static', filename='images/default_avatar.jpg') }}";
+    const cropperModalEl = document.getElementById('cropperModal');
+    const passwordForm = document.getElementById('passwordForm');
+    const currentPassword = document.getElementById('currentPassword');
+    const newPassword = document.getElementById('newPassword');
+    const confirmPassword = document.getElementById('confirmPassword');
+    const passwordAlert = document.getElementById('passwordAlert');
+    const savePasswordBtn = document.getElementById('savePasswordBtn');
+    const reqLength = document.getElementById('profileReqLength');
+    const reqAlphanumeric = document.getElementById('profileReqAlphanumeric');
+    const initialTab = "{{ active_tab|default('profile') }}";
 
     let cropper = null;
-    let cropModal = new bootstrap.Modal(document.getElementById('cropperModal'));
-    const cropperImage = document.getElementById('cropperImage');
-    const initialAvatarSrc = avatarPreview.src;
-    const defaultRestoreUrl = "{{ url_for('static', filename='images/default_avatar.jpg') }}";
+    const cropModal = new bootstrap.Modal(cropperModalEl);
 
-    // Bio Counter
+    function setActiveTab(tabName, syncHash = true) {
+      tabs.forEach((tab) => {
+        const isActive = tab.dataset.profileEditTab === tabName;
+        tab.classList.toggle('is-active', isActive);
+        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      });
+
+      panes.forEach((pane) => {
+        pane.hidden = pane.dataset.profileEditPane !== tabName;
+      });
+
+      if (syncHash) {
+        history.replaceState(null, '', tabName === 'security' ? '#security' : '#profile');
+      }
+    }
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        setActiveTab(tab.dataset.profileEditTab);
+      });
+    });
+
+    setActiveTab(window.location.hash === '#security' || initialTab === 'security' ? 'security' : 'profile', false);
+
     function updateBioCounter() {
       const len = bio.value.length;
       bioCount.textContent = `${len} / 300`;
-      bioCount.style.color = len > 280 ? '#ffba08' : 'var(--text-muted)';
+      bioCount.classList.toggle('is-warning', len > 280);
     }
+
     bio.addEventListener('input', updateBioCounter);
     updateBioCounter();
 
-    // File Input Trigger
+    function updatePasswordRequirements(value) {
+      const hasLength = value.length >= 8;
+      const hasAlphanumeric = /[a-zA-Z]/.test(value) && /[0-9]/.test(value);
+
+      reqLength?.classList.toggle('valid', hasLength);
+      reqAlphanumeric?.classList.toggle('valid', hasAlphanumeric);
+
+      const lengthIcon = reqLength?.querySelector('i');
+      const alphaIcon = reqAlphanumeric?.querySelector('i');
+      if (lengthIcon) lengthIcon.className = hasLength ? 'fa-solid fa-check' : 'fa-solid fa-xmark';
+      if (alphaIcon) alphaIcon.className = hasAlphanumeric ? 'fa-solid fa-check' : 'fa-solid fa-xmark';
+
+      return hasLength && hasAlphanumeric;
+    }
+
+    function showPasswordError(message) {
+      if (!passwordAlert) return;
+      passwordAlert.textContent = message;
+      passwordAlert.hidden = false;
+    }
+
+    function validatePasswordForm() {
+      passwordAlert.hidden = true;
+
+      if (!currentPassword.value) {
+        showPasswordError('Ingresa tu contrasena actual.');
+        currentPassword.focus();
+        return false;
+      }
+
+      if (!updatePasswordRequirements(newPassword.value)) {
+        showPasswordError('La nueva contrasena debe tener al menos 8 caracteres e incluir una letra y un numero.');
+        newPassword.focus();
+        return false;
+      }
+
+      if (newPassword.value !== confirmPassword.value) {
+        showPasswordError('Las contrasenas no coinciden.');
+        confirmPassword.focus();
+        return false;
+      }
+
+      savePasswordBtn.disabled = true;
+      savePasswordBtn.querySelector('span').textContent = 'Actualizando...';
+      return true;
+    }
+
+    newPassword?.addEventListener('input', () => {
+      updatePasswordRequirements(newPassword.value);
+    });
+    updatePasswordRequirements(newPassword?.value || '');
+
+    passwordForm?.addEventListener('submit', (event) => {
+      if (!validatePasswordForm()) {
+        event.preventDefault();
+      }
+    });
+
+    document.querySelectorAll('[data-password-toggle]').forEach((toggleBtn) => {
+      const target = document.getElementById(toggleBtn.dataset.passwordTarget || '');
+      const icon = toggleBtn.querySelector('i');
+      if (!target || !icon) return;
+
+      toggleBtn.addEventListener('click', () => {
+        const isHidden = target.type === 'password';
+        target.type = isHidden ? 'text' : 'password';
+        icon.className = isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+        toggleBtn.setAttribute('aria-pressed', isHidden ? 'true' : 'false');
+      });
+    });
+
     let isPickingFile = false;
-    avatarUploader.addEventListener('click', (e) => {
-      const shouldOpen = e.target.closest('.avatar-overlay') || e.target.id === 'avatarPreview';
-      if (!shouldOpen || isPickingFile) return;
+
+    function openFilePicker() {
+      if (isPickingFile) return;
       isPickingFile = true;
       fileInput.click();
+    }
+
+    avatarUploader.addEventListener('click', (event) => {
+      const shouldOpen = event.target.closest('.avatar-overlay') || event.target.id === 'avatarPreview' || event.target.id === 'avatarUploader';
+      if (!shouldOpen) return;
+      openFilePicker();
     });
+
+    avatarUploader.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      openFilePicker();
+    });
+
     window.addEventListener('focus', () => {
       if (isPickingFile) isPickingFile = false;
     });
+
     chooseNewFileBtn.addEventListener('click', () => {
       cropModal.hide();
-      fileInput.click();
+      openFilePicker();
     });
 
-    // File Change Handler
-    fileInput.addEventListener('change', (e) => {
+    fileInput.addEventListener('change', (event) => {
       isPickingFile = false;
-      const file = e.target.files[0];
+      const file = event.target.files[0];
       if (file) {
         handleFile(file);
       }
     });
 
-    // Drag and Drop
-    avatarUploader.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      avatarUploader.style.opacity = '0.7';
+    avatarUploader.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      avatarUploader.style.opacity = '0.8';
     });
-    avatarUploader.addEventListener('dragleave', (e) => {
-      e.preventDefault();
+
+    avatarUploader.addEventListener('dragleave', (event) => {
+      event.preventDefault();
       avatarUploader.style.opacity = '1';
     });
-    avatarUploader.addEventListener('drop', (e) => {
-      e.preventDefault();
+
+    avatarUploader.addEventListener('drop', (event) => {
+      event.preventDefault();
       avatarUploader.style.opacity = '1';
-      const file = e.dataTransfer.files[0];
+      const file = event.dataTransfer.files[0];
       if (file && file.type.startsWith('image/')) {
         handleFile(file);
       }
@@ -160,15 +790,14 @@
 
     function handleFile(file) {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        cropperImage.src = e.target.result;
+      reader.onload = (event) => {
+        cropperImage.src = event.target.result;
         cropModal.show();
       };
       reader.readAsDataURL(file);
     }
 
-    // Cropper Initialization
-    document.getElementById('cropperModal').addEventListener('shown.bs.modal', () => {
+    cropperModalEl.addEventListener('shown.bs.modal', () => {
       if (cropper) cropper.destroy();
       cropper = new Cropper(cropperImage, {
         aspectRatio: 1,
@@ -188,22 +817,18 @@
       });
     });
 
-    document.getElementById('cropperModal').addEventListener('hidden.bs.modal', () => {
+    cropperModalEl.addEventListener('hidden.bs.modal', () => {
       if (cropper) {
         cropper.destroy();
         cropper = null;
       }
-      fileInput.value = ''; // Reset input
+      fileInput.value = '';
     });
 
-    // Apply Crop
     applyCropBtn.addEventListener('click', () => {
       if (!cropper) return;
 
-      // 1. Proactive protection: Remove name immediately to avoid sending large file
       fileInput.removeAttribute('name');
-
-      // 2. Disable save button during processing
       saveBtn.disabled = true;
       saveBtn.textContent = 'Procesando...';
 
@@ -217,16 +842,11 @@
         const url = URL.createObjectURL(blob);
         avatarPreview.src = url;
 
-        // Convert blob to base64 for hidden input
         const reader = new FileReader();
         reader.onloadend = () => {
           document.getElementById('profile_pic_data').value = reader.result;
-
-          // 3. Re-enable save button
           saveBtn.disabled = false;
-          saveBtn.textContent = 'Guardar Cambios';
-
-          // 4. Clear file input value to be double sure
+          saveBtn.textContent = 'Guardar cambios';
           fileInput.value = '';
         };
         reader.readAsDataURL(blob);
@@ -235,16 +855,14 @@
       });
     });
 
-    // Restore Original
     restoreBtn.addEventListener('click', async () => {
       avatarPreview.src = defaultRestoreUrl;
       fileInput.value = '';
       const hiddenInput = document.getElementById('profile_pic_data');
       hiddenInput.value = '';
-      // Si el usuario se arrepiente, devolvemos el name para que pueda subir archivo normal si quiere
       fileInput.setAttribute('name', 'profile_pic');
       saveBtn.disabled = false;
-      saveBtn.textContent = 'Guardar Cambios';
+      saveBtn.textContent = 'Guardar cambios';
 
       try {
         const response = await fetch(defaultRestoreUrl, { cache: 'no-cache' });
@@ -254,15 +872,11 @@
           hiddenInput.value = reader.result;
         };
         reader.readAsDataURL(blob);
-      } catch (e) {
-        // Mantener preview aunque falle el base64
+      } catch (error) {
       }
     });
-    // Protect against 'Request Entity Too Large'
+
     form.addEventListener('submit', () => {
-      // Si tenemos data recortada (base64) en el input oculto, quitamos el name del input de archivo
-      // para que el navegador NO envíe el archivo original gigante al servidor.
-      // El backend usará el base64.
       if (document.getElementById('profile_pic_data').value) {
         fileInput.removeAttribute('name');
       }

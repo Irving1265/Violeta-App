@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileRequired, FileAllowed
-from wtforms import StringField, TextAreaField, PasswordField, SubmitField, HiddenField
+from wtforms import StringField, TextAreaField, PasswordField, SubmitField, HiddenField, BooleanField
 from wtforms.validators import DataRequired, Length, EqualTo, ValidationError
 import re
 
@@ -19,10 +19,12 @@ class LoginForm(FlaskForm):
     submit = SubmitField('Iniciar Sesión')
 
 class RegisterForm(FlaskForm):
+    invite_code = StringField('Código de invitación', validators=[DataRequired(), Length(min=6, max=32)])
     username = StringField('Usuario', validators=[DataRequired(), Length(min=3, max=20)])
     email = StringField('Email', validators=[DataRequired(), EmailValidator()])
     password = PasswordField('Contraseña', validators=[DataRequired(), Length(min=6)])
     password2 = PasswordField('Confirmar Contraseña', validators=[DataRequired(), EqualTo('password')])
+    eligibility_attestation = BooleanField('Declaro que soy mujer y que no estoy suplantando identidad.', validators=[DataRequired()])
     submit = SubmitField('Registrarse')
 
 class PostForm(FlaskForm):

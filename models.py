@@ -26,7 +26,12 @@ class User(UserMixin, db.Model):
     bio = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_verified = db.Column(db.Boolean, default=True)
+    verified_at = db.Column(db.DateTime)
+    verification_method = db.Column(db.String(32))
+    invited_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    invite_attested_at = db.Column(db.DateTime)
     force_password_change = db.Column(db.Boolean, default=False)
+    password_recovery_requested_at = db.Column(db.DateTime)
     abuse_strikes = db.Column(db.Integer, default=0)
     muted_until = db.Column(db.DateTime)
     last_abuse_at = db.Column(db.DateTime)
@@ -82,6 +87,25 @@ class User(UserMixin, db.Model):
 
     def __repr__(self):
         return f'<User {self.username}>'
+
+
+class InviteCode(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(32), unique=True, nullable=False, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    used_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    status = db.Column(db.String(20), default='active')  # active, used, revoked, expired
+    max_uses = db.Column(db.Integer, default=1)
+    use_count = db.Column(db.Integer, default=0)
+    expires_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    used_at = db.Column(db.DateTime)
+
+    creator = db.relationship('User', foreign_keys=[created_by_user_id], backref=db.backref('created_invite_codes', lazy=True))
+    used_by = db.relationship('User', foreign_keys=[used_by_user_id], backref=db.backref('accepted_invite_codes', lazy=True))
+
+    def __repr__(self):
+        return f'<InviteCode {self.code}:{self.status}>'
 
 
 class Post(db.Model):
@@ -262,6 +286,8 @@ class SafetyCheckin(db.Model):
     eta_minutes = db.Column(db.Integer, default=30)
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
+    destination_latitude = db.Column(db.Float)
+    destination_longitude = db.Column(db.Float)
     started_at = db.Column(db.DateTime, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.String(20), default='active')  # active, arrived, cancelled, expired

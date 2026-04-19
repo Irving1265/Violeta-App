@@ -94,6 +94,116 @@
         }
     }
 
+    function removeTabDot(buttonSelector) {
+        document.querySelector(`${buttonSelector} .tab-dot`)?.remove();
+    }
+
+    function syncPostsViewState() {
+        const grid = document.getElementById('postsGrid');
+        if (!grid) return;
+        if (grid.querySelector('.post-item')) return;
+        grid.innerHTML = `
+            <div class="col-12">
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-image fa-3x mb-3 opacity-50"></i>
+                    <h4>No hay publicaciones</h4>
+                    <p>Aún no se han creado publicaciones en la plataforma.</p>
+                </div>
+            </div>
+        `;
+    }
+
+    function syncUsersViewState() {
+        const list = document.getElementById('usersList');
+        if (!list) return;
+        if (list.querySelector('.user-item')) return;
+        list.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center py-5 text-muted">
+                    <i class="fas fa-users fa-2x mb-3 opacity-50 d-block"></i>
+                    <div class="fw-semibold text-white">No hay usuarias</div>
+                    <div class="small text-secondary">No quedan usuarias en esta vista.</div>
+                </td>
+            </tr>
+        `;
+    }
+
+    function syncUsersAttentionState() {
+        const pendingRecoveryCount = document.querySelectorAll('.user-item[data-password-recovery-pending="1"]').length;
+        const chip = document.getElementById('pendingRecoveryChip');
+        if (pendingRecoveryCount === 0) {
+            chip?.remove();
+            removeTabDot('#tab-users');
+            return;
+        }
+        if (chip) {
+            chip.innerHTML = `
+                <i class="fas fa-key"></i>
+                ${pendingRecoveryCount} solicitud${pendingRecoveryCount === 1 ? '' : 'es'} de recuperación pendiente${pendingRecoveryCount === 1 ? '' : 's'}
+            `;
+        }
+    }
+
+    function syncPendingChatRoomsState() {
+        const pendingList = document.getElementById('pendingChatRoomsList');
+        if (!pendingList) return;
+        if (pendingList.querySelector('.pending-chat-room-item')) return;
+        pendingList.innerHTML = '<div class="text-muted small">No hay solicitudes pendientes.</div>';
+        removeTabDot('#tab-chats');
+    }
+
+    function syncAllChatRoomsState() {
+        const allRoomsList = document.getElementById('allChatRoomsList');
+        if (!allRoomsList) return;
+        if (allRoomsList.querySelector('.admin-chat-room-item')) return;
+        allRoomsList.innerHTML = '<div class="text-muted small">No hay salas creadas.</div>';
+    }
+
+    function syncVerificationState() {
+        const list = document.getElementById('verificationList');
+        const counter = document.getElementById('pendingVerificationsCountText');
+        if (!list) return;
+        const remainingPending = list.querySelectorAll('.verification-item[data-verification-status="pending"]').length;
+        const remainingItems = list.querySelectorAll('.verification-item').length;
+        if (counter) {
+            counter.textContent = `Pendientes: ${remainingPending}`;
+        }
+        if (remainingPending === 0) {
+            removeTabDot('#tab-verificaciones');
+        }
+        if (remainingItems === 0) {
+            list.innerHTML = '<div class="col-12"><div class="text-secondary">No hay verificaciones pendientes.</div></div>';
+        }
+    }
+
+    function syncReportAttentionState() {
+        const reportedCount = document.querySelectorAll('#reportedGrid .reported-item').length;
+        const reportedChatCount = document.querySelectorAll('#reportedChatGrid .reported-chat-item').length;
+        const reportedCommentCount = document.querySelectorAll('#reportedCommentsGrid .reported-comment-item').length;
+
+        if (reportedCount === 0) removeTabDot('#report-subtab-reportados');
+        if (reportedChatCount === 0) removeTabDot('#report-subtab-reportes-chat');
+        if (reportedCommentCount === 0) removeTabDot('#report-subtab-reportes-comentarios');
+        if (reportedCount === 0 && reportedChatCount === 0 && reportedCommentCount === 0) {
+            removeTabDot('#tab-reportes');
+        }
+    }
+
+    function ensureReportedGridEmptyState(gridId, itemSelector, message) {
+        const grid = document.getElementById(gridId);
+        if (!grid) return;
+        if (grid.querySelector(itemSelector)) return;
+        grid.innerHTML = `
+            <div class="col-12">
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-shield-alt fa-3x mb-3 opacity-50"></i>
+                    <h4>No hay reportes pendientes</h4>
+                    <p>${message}</p>
+                </div>
+            </div>
+        `;
+    }
+
     function switchReportsSubtab(tabName) {
         currentReportsSubtab = tabName;
         const nextUrl = new URL(window.location.href);
@@ -271,7 +381,14 @@
                 .then(data => {
                     if (data.success) {
                         alert(data.message);
-                        location.reload();
+                        const item = document.querySelector(`.user-item[data-user-id="${userId}"]`);
+                        item?.remove();
+                        syncUsersViewState();
+                        syncUsersAttentionState();
+                        wireBulkSelection('selectAllUsers', '.user-select', 'usersSelectedCount');
+                        if (!item) {
+                            location.reload();
+                        }
                     } else {
                         alert('Error: ' + data.error);
                     }
@@ -296,6 +413,7 @@
         const emailEl = document.getElementById('assistedResetEmail');
         const valueEl = document.getElementById('assistedResetPasswordValue');
         const copyBtn = document.getElementById('assistedResetCopyBtn');
+        const modalEl = document.getElementById('assistedPasswordResetModal');
         if (!usernameEl || !emailEl || !valueEl) {
             alert(`Contraseña temporal para ${payload.username}: ${payload.temporaryPassword}`);
             return;
@@ -310,6 +428,11 @@
 
         const modal = ensureAssistedPasswordResetModal();
         if (modal) {
+            if (modalEl) {
+                modalEl.addEventListener('hidden.bs.modal', () => {
+                    window.location.reload();
+                }, { once: true });
+            }
             modal.show();
         } else {
             alert(`Contraseña temporal para ${payload.username}: ${payload.temporaryPassword}`);
@@ -360,7 +483,14 @@
                 .then(data => {
                     if (data.success) {
                         alert(data.message);
-                        location.reload();
+                        const removed = document.querySelectorAll(`.post-item[data-post-id="${postId}"], .reported-item[data-post-id="${postId}"]`);
+                        removed.forEach((item) => item.remove());
+                        syncPostsViewState();
+                        ensureReportedGridEmptyState('reportedGrid', '.reported-item', 'Todas las publicaciones reportadas ya fueron revisadas.');
+                        syncReportAttentionState();
+                        if (!removed.length) {
+                            location.reload();
+                        }
                     } else {
                         alert('Error: ' + data.error);
                     }
@@ -384,7 +514,13 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        location.reload();
+                        const removed = document.querySelectorAll(`.reported-item[data-post-id="${postId}"]`);
+                        removed.forEach((item) => item.remove());
+                        ensureReportedGridEmptyState('reportedGrid', '.reported-item', 'Todas las publicaciones reportadas ya fueron revisadas.');
+                        syncReportAttentionState();
+                        if (!removed.length) {
+                            location.reload();
+                        }
                     } else {
                         alert('Error: ' + data.error);
                     }
@@ -494,11 +630,22 @@
                 'Content-Type': 'application/json',
                 'X-CSRFToken': ADMIN_CSRF_TOKEN
             }
-        })
+            })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    location.reload();
+                    const pendingItem = document.querySelector(`.pending-chat-room-item[data-room-id="${roomId}"]`);
+                    pendingItem?.remove();
+                    const roomRow = document.querySelector(`.admin-chat-room-item[data-room-id="${roomId}"]`);
+                    const badge = roomRow?.querySelector('.chat-room-status-badge');
+                    if (badge) {
+                        badge.className = 'badge bg-success chat-room-status-badge';
+                        badge.textContent = 'Activo';
+                    }
+                    syncPendingChatRoomsState();
+                    if (!pendingItem && !roomRow) {
+                        location.reload();
+                    }
                 } else {
                     alert('Error: ' + data.error);
                 }
@@ -521,7 +668,15 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    location.reload();
+                    const pendingItem = document.querySelector(`.pending-chat-room-item[data-room-id="${roomId}"]`);
+                    const roomRow = document.querySelector(`.admin-chat-room-item[data-room-id="${roomId}"]`);
+                    pendingItem?.remove();
+                    roomRow?.remove();
+                    syncPendingChatRoomsState();
+                    syncAllChatRoomsState();
+                    if (!pendingItem && !roomRow) {
+                        location.reload();
+                    }
                 } else {
                     alert('Error: ' + data.error);
                 }
@@ -680,7 +835,7 @@
     }
 
     function runReportAction(url, options) {
-        const { confirmMessage, actionLabel, successFallback } = options;
+        const { confirmMessage, actionLabel, successFallback, removeSelector, gridId, itemSelector, emptyMessage } = options;
         if (confirmMessage && !confirm(confirmMessage)) return;
         const adminNote = requestAdminModerationNote(actionLabel);
         fetch(url, {
@@ -698,7 +853,19 @@
                     return;
                 }
                 alert(data.message || successFallback);
-                location.reload();
+                let removed = 0;
+                if (removeSelector) {
+                    const nodes = document.querySelectorAll(removeSelector);
+                    removed = nodes.length;
+                    nodes.forEach((node) => node.remove());
+                }
+                if (gridId && itemSelector && emptyMessage) {
+                    ensureReportedGridEmptyState(gridId, itemSelector, emptyMessage);
+                }
+                syncReportAttentionState();
+                if (!removed) {
+                    location.reload();
+                }
             })
             .catch(() => alert('Error al completar la acción.'));
     }
@@ -707,7 +874,11 @@
         runReportAction(`/admin/report/${reportId}/restore`, {
             confirmMessage: '¿Restaurar esta publicación para que vuelva a mostrarse?',
             actionLabel: 'restaurar la publicación',
-            successFallback: 'La publicación fue restaurada.'
+            successFallback: 'La publicación fue restaurada.',
+            removeSelector: `.reported-item[data-report-id="${reportId}"]`,
+            gridId: 'reportedGrid',
+            itemSelector: '.reported-item',
+            emptyMessage: 'Todas las publicaciones reportadas ya fueron revisadas.'
         });
     }
 
@@ -715,7 +886,11 @@
         runReportAction(`/admin/report/${reportId}/strike`, {
             confirmMessage: '¿Mandar un strike a la usuaria responsable de esta publicación?',
             actionLabel: 'mandar el strike a la usuaria por esta publicación',
-            successFallback: 'La publicación quedó sancionada.'
+            successFallback: 'La publicación quedó sancionada.',
+            removeSelector: `.reported-item[data-report-id="${reportId}"]`,
+            gridId: 'reportedGrid',
+            itemSelector: '.reported-item',
+            emptyMessage: 'Todas las publicaciones reportadas ya fueron revisadas.'
         });
     }
 
@@ -741,7 +916,11 @@
         runReportAction(`/admin/chat_report/${reportId}/restore`, {
             confirmMessage: '¿Restaurar este mensaje para que vuelva a verse en el chat?',
             actionLabel: 'restaurar el mensaje',
-            successFallback: 'El mensaje fue restaurado.'
+            successFallback: 'El mensaje fue restaurado.',
+            removeSelector: `.reported-chat-item[data-report-id="${reportId}"]`,
+            gridId: 'reportedChatGrid',
+            itemSelector: '.reported-chat-item',
+            emptyMessage: 'Todos los mensajes reportados ya fueron revisados.'
         });
     }
 
@@ -749,7 +928,11 @@
         runReportAction(`/admin/chat_report/${reportId}/strike`, {
             confirmMessage: '¿Mandar un strike a la usuaria responsable de este mensaje?',
             actionLabel: 'mandar el strike a la usuaria por este mensaje',
-            successFallback: 'El mensaje quedó sancionado.'
+            successFallback: 'El mensaje quedó sancionado.',
+            removeSelector: `.reported-chat-item[data-report-id="${reportId}"]`,
+            gridId: 'reportedChatGrid',
+            itemSelector: '.reported-chat-item',
+            emptyMessage: 'Todos los mensajes reportados ya fueron revisados.'
         });
     }
 
@@ -757,7 +940,11 @@
         runReportAction(`/admin/comment_report/${reportId}/restore`, {
             confirmMessage: '¿Restaurar este comentario para que vuelva a mostrarse?',
             actionLabel: 'restaurar el comentario',
-            successFallback: 'El comentario fue restaurado.'
+            successFallback: 'El comentario fue restaurado.',
+            removeSelector: `.reported-comment-item[data-report-id="${reportId}"]`,
+            gridId: 'reportedCommentsGrid',
+            itemSelector: '.reported-comment-item',
+            emptyMessage: 'Todos los comentarios reportados ya fueron revisados.'
         });
     }
 
@@ -765,7 +952,11 @@
         runReportAction(`/admin/comment_report/${reportId}/strike`, {
             confirmMessage: '¿Mandar un strike a la usuaria responsable de este comentario?',
             actionLabel: 'mandar el strike a la usuaria por este comentario',
-            successFallback: 'El comentario quedó sancionado.'
+            successFallback: 'El comentario quedó sancionado.',
+            removeSelector: `.reported-comment-item[data-report-id="${reportId}"]`,
+            gridId: 'reportedCommentsGrid',
+            itemSelector: '.reported-comment-item',
+            emptyMessage: 'Todos los comentarios reportados ya fueron revisados.'
         });
     }
 
@@ -1104,7 +1295,20 @@
             body: JSON.stringify({ ids })
         }).then(r => r.json()).then(data => {
             if (!data.success) return alert('Error: ' + data.error);
-            location.reload();
+            let removed = 0;
+            ids.forEach((id) => {
+                const item = document.querySelector(`.user-item[data-user-id="${id}"]`);
+                if (item) {
+                    item.remove();
+                    removed += 1;
+                }
+            });
+            syncUsersViewState();
+            syncUsersAttentionState();
+            wireBulkSelection('selectAllUsers', '.user-select', 'usersSelectedCount');
+            if (!removed) {
+                location.reload();
+            }
         }).catch(() => alert('Error al eliminar usuarias'));
     }
 
@@ -1118,7 +1322,19 @@
             body: JSON.stringify({ ids })
         }).then(r => r.json()).then(data => {
             if (!data.success) return alert('Error: ' + data.error);
-            location.reload();
+            let removed = 0;
+            ids.forEach((id) => {
+                const nodes = document.querySelectorAll(`.post-item[data-post-id="${id}"], .reported-item[data-post-id="${id}"]`);
+                removed += nodes.length;
+                nodes.forEach((node) => node.remove());
+            });
+            syncPostsViewState();
+            ensureReportedGridEmptyState('reportedGrid', '.reported-item', 'Todas las publicaciones reportadas ya fueron revisadas.');
+            syncReportAttentionState();
+            wireBulkSelection('selectAllPosts', '.post-select', 'postsSelectedCount');
+            if (!removed) {
+                location.reload();
+            }
         }).catch(() => alert('Error al eliminar publicaciones'));
     }
 
@@ -1132,7 +1348,18 @@
             body: JSON.stringify({ ids })
         }).then(r => r.json()).then(data => {
             if (!data.success) return alert('Error: ' + data.error);
-            location.reload();
+            let removed = 0;
+            ids.forEach((id) => {
+                const nodes = document.querySelectorAll(`.pending-chat-room-item[data-room-id="${id}"], .admin-chat-room-item[data-room-id="${id}"]`);
+                removed += nodes.length;
+                nodes.forEach((node) => node.remove());
+            });
+            syncPendingChatRoomsState();
+            syncAllChatRoomsState();
+            wireBulkSelection('selectAllChats', '.chat-select', 'chatsSelectedCount');
+            if (!removed) {
+                location.reload();
+            }
         }).catch(() => alert('Error al eliminar chats'));
     }
 
@@ -1263,7 +1490,12 @@
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    location.reload();
+                    const item = document.querySelector(`.verification-item[data-verification-id="${reqId}"]`);
+                    item?.remove();
+                    syncVerificationState();
+                    if (!item) {
+                        location.reload();
+                    }
                 } else {
                     alert(data.error || 'No se pudo aprobar');
                 }
@@ -1283,7 +1515,12 @@
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    location.reload();
+                    const item = document.querySelector(`.verification-item[data-verification-id="${reqId}"]`);
+                    item?.remove();
+                    syncVerificationState();
+                    if (!item) {
+                        location.reload();
+                    }
                 } else {
                     alert(data.error || 'No se pudo rechazar');
                 }

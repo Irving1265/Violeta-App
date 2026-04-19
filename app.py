@@ -29,13 +29,14 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from jinja2 import FileSystemBytecodeCache
 from werkzeug.utils import secure_filename
-from models import db, User, UserBlock, SafetyContact, PanicEvent, SafetyCheckin, CheckinRoutePoint, Post, Comment, Like, Share, Tag, PostMeta, ChatRoom, ChatParticipant, ChatMessage, ChatMessageReport, CommentReport, ModerationStrike, Report, VerificationRequest, AuditLog, post_tag
-from sqlalchemy import or_, and_, text, func, inspect, insert
+from models import db, User, InviteCode, UserBlock, SafetyContact, PanicEvent, SafetyCheckin, CheckinRoutePoint, Post, Comment, Like, Share, Tag, PostMeta, ChatRoom, ChatParticipant, ChatMessage, ChatMessageReport, CommentReport, ModerationStrike, Report, VerificationRequest, AuditLog, post_tag
+from sqlalchemy import or_, and_, text, func, inspect, insert, case
 from sqlalchemy.orm import selectinload
 from config import Config
 from forms import LoginForm, RegisterForm, PostForm, CommentForm, ShareForm
 from datetime import datetime, timedelta, timezone
 from collections import Counter, defaultdict, deque
+from zoneinfo import ZoneInfo
 import json
 import csv
 import io
@@ -45,6 +46,7 @@ import smtplib
 import base64
 import hashlib
 import re
+import unicodedata
 from functools import wraps
 try:
     import redis
@@ -55,7 +57,7 @@ import secrets
 import threading
 import time
 from flask_mail import Mail, Message
-from math import radians, cos, sin, asin, sqrt
+from math import radians, cos, sin, asin, sqrt, ceil
 from urllib.parse import urlencode, quote
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
@@ -67,6 +69,23 @@ PASSWORD_RESET_TOKEN_TTL_SECONDS = 15 * 60
 TOKEN_STATE_OK = 0
 TOKEN_STATE_INVALID = 1
 TOKEN_STATE_EXPIRED = 2
+APP_LOCAL_TIMEZONE = ZoneInfo('America/Monterrey')
+SAFETY_DESTINATION_SEARCH_CACHE_VERSION = 'v3'
+SAFETY_DESTINATION_VIEWBOX = '-100.80,26.10,-99.90,25.30'
+SAFETY_DESTINATION_BBOX = (25.30, -100.80, 26.10, -99.90)
+SAFETY_ALLOWED_DESTINATION_CITIES = {
+    'monterrey',
+    'san pedro garza garcia', 'san pedro',
+    'san nicolas de los garza',
+    'guadalupe',
+    'apodaca',
+    'general escobedo', 'escobedo',
+    'pesqueria',
+    'santa catarina', 'sta catarina',
+    'garcia',
+    'juarez', 'ciudad benito juarez', 'benito juarez', 'cd benito juarez',
+    'santiago',
+}
 
 # Best-effort in-memory throttling for abuse-prone endpoints.
 _RATE_LIMIT_BUCKETS: dict[str, deque[float]] = defaultdict(deque)
@@ -391,8 +410,18 @@ def ensure_user_schema():
             cols = {col['name'] for col in inspector.get_columns('user')}
             if 'is_verified' not in cols:
                 conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN is_verified BOOLEAN DEFAULT {bool_true}"))
+            if 'verified_at' not in cols:
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN verified_at {datetime_type}"))
+            if 'verification_method' not in cols:
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN verification_method VARCHAR(32)"))
+            if 'invited_by_id' not in cols:
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN invited_by_id INTEGER"))
+            if 'invite_attested_at' not in cols:
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN invite_attested_at {datetime_type}"))
             if 'force_password_change' not in cols:
                 conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN force_password_change BOOLEAN DEFAULT {bool_false}"))
+            if 'password_recovery_requested_at' not in cols:
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN password_recovery_requested_at {datetime_type}"))
             if 'abuse_strikes' not in cols:
                 conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN abuse_strikes INTEGER DEFAULT 0"))
             if 'muted_until' not in cols:
@@ -414,6 +443,47 @@ def ensure_user_schema():
                 print('DEBUG ensure_user_schema error:', e)
         except Exception as exc:
             _debug_log_suppressed('suppressed exception', exc)
+
+
+def ensure_invitation_schema():
+    """Ensure beta invitation tables and indexes exist across local and Render."""
+    try:
+        db.create_all()
+        engine = db.engine
+        inspector = inspect(engine)
+        tables = set(inspector.get_table_names())
+        if 'invite_code' not in tables:
+            return
+        dialect = engine.dialect.name
+        datetime_type = 'TIMESTAMP' if dialect == 'postgresql' else 'DATETIME'
+        with engine.begin() as conn:
+            cols = {col['name'] for col in inspector.get_columns('invite_code')}
+            if 'status' not in cols:
+                conn.execute(text("ALTER TABLE invite_code ADD COLUMN status VARCHAR(20) DEFAULT 'active'"))
+            if 'max_uses' not in cols:
+                conn.execute(text("ALTER TABLE invite_code ADD COLUMN max_uses INTEGER DEFAULT 1"))
+            if 'use_count' not in cols:
+                conn.execute(text("ALTER TABLE invite_code ADD COLUMN use_count INTEGER DEFAULT 0"))
+            if 'expires_at' not in cols:
+                conn.execute(text(f"ALTER TABLE invite_code ADD COLUMN expires_at {datetime_type}"))
+            if 'used_at' not in cols:
+                conn.execute(text(f"ALTER TABLE invite_code ADD COLUMN used_at {datetime_type}"))
+            if 'used_by_user_id' not in cols:
+                conn.execute(text("ALTER TABLE invite_code ADD COLUMN used_by_user_id INTEGER"))
+            conn.execute(text("UPDATE invite_code SET status = 'active' WHERE status IS NULL OR status = ''"))
+            conn.execute(text("UPDATE invite_code SET max_uses = 1 WHERE max_uses IS NULL OR max_uses < 1"))
+            conn.execute(text("UPDATE invite_code SET use_count = 0 WHERE use_count IS NULL"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_invite_code_creator ON invite_code (created_by_user_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_invite_code_status ON invite_code (status)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_invite_code_expires_at ON invite_code (expires_at)"))
+    except Exception as e:
+        try:
+            if 'app' in globals() and getattr(app, 'debug', False):
+                print('DEBUG ensure_invitation_schema error:', e)
+        except Exception as exc:
+            _debug_log_suppressed('suppressed exception', exc)
+
+
 def ensure_userblock_schema():
     """Ensure user_block table exists and has expected columns (SQLite only)."""
     try:
@@ -446,10 +516,24 @@ def ensure_userblock_schema():
         except Exception as exc:
             _debug_log_suppressed('suppressed exception', exc)
 def ensure_safety_schema():
-    """Ensure safety_contact, panic_event, safety_checkin and checkin_route_point tables exist (SQLite only)."""
+    """Ensure safety tables exist and keep safety_checkin/checkin_route_point columns aligned."""
     try:
         engine = db.engine
-        if engine.dialect.name != 'sqlite':
+        dialect = engine.dialect.name
+        if dialect != 'sqlite':
+            inspector = inspect(engine)
+            tables = set(inspector.get_table_names())
+            if 'safety_checkin' not in tables:
+                return
+            with engine.begin() as conn:
+                checkin_cols = {col['name'] for col in inspector.get_columns('safety_checkin')}
+                if 'destination_latitude' not in checkin_cols:
+                    conn.execute(text("ALTER TABLE safety_checkin ADD COLUMN destination_latitude FLOAT"))
+                if 'destination_longitude' not in checkin_cols:
+                    conn.execute(text("ALTER TABLE safety_checkin ADD COLUMN destination_longitude FLOAT"))
+                if 'checkin_route_point' in tables:
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_checkin_route_point_checkin_id ON checkin_route_point(checkin_id)"))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_checkin_route_point_recorded_at ON checkin_route_point(recorded_at)"))
             return
         # Use a transaction so ALTER/CREATE statements persist reliably.
         with engine.begin() as conn:
@@ -510,6 +594,8 @@ def ensure_safety_schema():
                         eta_minutes INTEGER DEFAULT 30,
                         latitude FLOAT,
                         longitude FLOAT,
+                        destination_latitude FLOAT,
+                        destination_longitude FLOAT,
                         started_at DATETIME,
                         expires_at DATETIME NOT NULL,
                         status VARCHAR(20) DEFAULT 'active',
@@ -537,6 +623,10 @@ def ensure_safety_schema():
                     conn.execute(text("ALTER TABLE safety_checkin ADD COLUMN latitude FLOAT"))
                 if 'longitude' not in checkin_cols:
                     conn.execute(text("ALTER TABLE safety_checkin ADD COLUMN longitude FLOAT"))
+                if 'destination_latitude' not in checkin_cols:
+                    conn.execute(text("ALTER TABLE safety_checkin ADD COLUMN destination_latitude FLOAT"))
+                if 'destination_longitude' not in checkin_cols:
+                    conn.execute(text("ALTER TABLE safety_checkin ADD COLUMN destination_longitude FLOAT"))
                 if 'started_at' not in checkin_cols:
                     conn.execute(text("ALTER TABLE safety_checkin ADD COLUMN started_at DATETIME"))
                 if 'arrived_at' not in checkin_cols:
@@ -655,6 +745,7 @@ def ensure_startup_schema():
     ensure_postmeta_schema()
     ensure_report_schema()
     ensure_user_schema()
+    ensure_invitation_schema()
     ensure_userblock_schema()
     ensure_safety_schema()
     ensure_moderation_schema()
@@ -1052,6 +1143,152 @@ def is_user_permanently_banned(user) -> bool:
     return bool(getattr(user, 'permanently_banned_at', None))
 
 
+INVITE_UNLOCK_DAYS = 3
+INVITE_EXPIRY_DAYS = 7
+INVITE_DEFAULT_QUOTA = 2
+INVITE_SUPER_ADMIN_QUOTA = 25
+INVITE_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+
+def normalize_invite_code(value: str | None) -> str:
+    raw = (value or '').strip().upper()
+    return re.sub(r'[^A-Z0-9]', '', raw)
+
+
+def display_invite_code(value: str | None) -> str:
+    normalized = normalize_invite_code(value)
+    if normalized.startswith('VIOLETA'):
+        body = normalized[7:]
+    else:
+        body = normalized
+    chunks = [body[i:i + 4] for i in range(0, len(body), 4) if body[i:i + 4]]
+    return 'VIOLETA-' + '-'.join(chunks) if chunks else normalized
+
+
+def generate_invite_code_value() -> str:
+    while True:
+        suffix = ''.join(secrets.choice(INVITE_CODE_ALPHABET) for _ in range(8))
+        code = f'VIOLETA{suffix}'
+        if not InviteCode.query.filter_by(code=code).first():
+            return code
+
+
+def refresh_invite_status(invite: InviteCode | None) -> InviteCode | None:
+    if not invite:
+        return None
+    now = utc_now_naive()
+    status = (invite.status or 'active').strip().lower()
+    if status == 'active' and invite.expires_at and invite.expires_at <= now:
+        invite.status = 'expired'
+        db.session.add(invite)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+    return invite
+
+
+def invite_is_redeemable(invite: InviteCode | None) -> bool:
+    invite = refresh_invite_status(invite)
+    if not invite:
+        return False
+    creator = getattr(invite, 'creator', None)
+    if not creator or not is_user_verified(creator):
+        return False
+    if is_user_permanently_banned(creator):
+        return False
+    if int(getattr(creator, 'abuse_strikes', 0) or 0) > 0:
+        return False
+    if (invite.status or '').strip().lower() != 'active':
+        return False
+    if invite.expires_at and invite.expires_at <= utc_now_naive():
+        return False
+    if int(invite.use_count or 0) >= int(invite.max_uses or 1):
+        return False
+    return True
+
+
+def get_redeemable_invite(code: str | None) -> InviteCode | None:
+    normalized = normalize_invite_code(code)
+    if not normalized:
+        return None
+    invite = InviteCode.query.filter_by(code=normalized).first()
+    return invite if invite_is_redeemable(invite) else None
+
+
+def beta_invite_quota_for_user(user) -> int:
+    return INVITE_SUPER_ADMIN_QUOTA if user_is_super_admin(user) else INVITE_DEFAULT_QUOTA
+
+
+def beta_invite_status_for_user(user) -> dict:
+    now = utc_now_naive()
+    created_at = getattr(user, 'created_at', None) or now
+    unlock_at = created_at + timedelta(days=INVITE_UNLOCK_DAYS)
+    seconds_remaining = max(0, int((unlock_at - now).total_seconds()))
+    days_remaining = int(ceil(seconds_remaining / 86400)) if seconds_remaining > 0 else 0
+    strikes = int(getattr(user, 'abuse_strikes', 0) or 0)
+    quota = beta_invite_quota_for_user(user)
+    total_created = InviteCode.query.filter(
+        InviteCode.created_by_user_id == user.id,
+        InviteCode.status != 'revoked',
+    ).count()
+    active_invites = (
+        InviteCode.query
+        .filter(
+            InviteCode.created_by_user_id == user.id,
+            InviteCode.status == 'active',
+            InviteCode.used_at.is_(None),
+        )
+        .order_by(InviteCode.created_at.desc())
+        .all()
+    )
+    active_invites = [invite for invite in active_invites if invite_is_redeemable(invite)]
+    invites_remaining = max(0, quota - int(total_created or 0))
+    is_staff_seed = user_is_super_admin(user)
+    reasons = []
+    if not is_user_verified(user):
+        reasons.append('Tu cuenta debe estar verificada.')
+    if not is_staff_seed and seconds_remaining > 0:
+        reasons.append(f'Podrás invitar en {days_remaining} día{"s" if days_remaining != 1 else ""}.')
+    if strikes > 0:
+        reasons.append('No debes tener strikes activos.')
+    if is_user_permanently_banned(user):
+        reasons.append('La cuenta está restringida.')
+    if invites_remaining <= 0:
+        reasons.append('Ya usaste tus invitaciones beta.')
+    can_invite = (
+        is_user_verified(user)
+        and (is_staff_seed or seconds_remaining <= 0)
+        and strikes <= 0
+        and not is_user_permanently_banned(user)
+        and invites_remaining > 0
+    )
+    return {
+        'can_invite': can_invite,
+        'reasons': reasons,
+        'quota': quota,
+        'created_count': int(total_created or 0),
+        'remaining': invites_remaining,
+        'active_invites': active_invites,
+        'unlock_at': unlock_at,
+        'days_remaining': days_remaining,
+        'strikes': strikes,
+        'is_verified': is_user_verified(user),
+    }
+
+
+def invite_payload(invite: InviteCode) -> dict:
+    creator = invite.creator
+    return {
+        'id': invite.id,
+        'code': display_invite_code(invite.code),
+        'raw_code': invite.code,
+        'expires_at': invite.expires_at.isoformat() if invite.expires_at else None,
+        'created_by': getattr(creator, 'username', None),
+        'status': invite.status or 'active',
+    }
+
+
 def _clear_expired_moderation_restriction(user):
     if not user or user_has_permission(user, PERM_ACCOUNT_BYPASS_RESTRICTIONS):
         return
@@ -1094,6 +1331,100 @@ def user_restriction_state(user, *, auto_clear: bool = False):
         'message': 'Tu cuenta se encuentra suspendida temporalmente por infringir las reglas de la comunidad.',
         'until': until,
         'remaining_seconds': remaining_seconds,
+    }
+
+
+STRIKE_SOURCE_LABELS = {
+    'post': 'una publicación',
+    'comment': 'un comentario',
+    'chat_message': 'un mensaje directo',
+    'direct_message': 'un mensaje directo',
+    'message': 'un mensaje directo',
+}
+
+STRIKE_REASON_LABELS = {
+    'abusive_language': 'Lenguaje abusivo',
+    'hate_speech': 'Lenguaje de odio',
+    'harassment': 'Acoso y hostigamiento',
+    'doxxing': 'Doxxing o datos personales',
+    'non_consensual_intimate_content': 'Contenido íntimo sin consentimiento',
+    'spam': 'Spam o contenido engañoso',
+}
+
+
+def latest_moderation_strike_for_user(user, *, strike_number: int | None = None):
+    if not user or not getattr(user, 'is_authenticated', False):
+        return None
+    query = ModerationStrike.query.filter(ModerationStrike.user_id == user.id)
+    if strike_number is not None:
+        query = query.filter(ModerationStrike.strike_number == strike_number)
+    return query.order_by(ModerationStrike.created_at.desc(), ModerationStrike.id.desc()).first()
+
+
+def normalize_strike_reason_label(reason: str | None) -> str:
+    raw = (reason or '').strip()
+    if not raw:
+        return 'Incumplimiento de reglas'
+    key = raw.lower().replace('-', '_').replace(' ', '_')
+    if key in STRIKE_REASON_LABELS:
+        return STRIKE_REASON_LABELS[key]
+    return raw.replace('_', ' ').strip().capitalize()
+
+
+def clamp_text(value: str | None, limit: int = 220) -> str:
+    text = ' '.join((value or '').split())
+    if not text:
+        return ''
+    if len(text) <= limit:
+        return text
+    return text[:limit - 1].rstrip() + '…'
+
+
+def strike_dismiss_remaining_seconds(strike) -> int:
+    if not strike:
+        return 60
+    created_at = getattr(strike, 'created_at', None) or utc_now_naive()
+    unlock_at = created_at + timedelta(seconds=60)
+    remaining = (unlock_at - utc_now_naive()).total_seconds()
+    if remaining <= 0:
+        return 0
+    return max(1, int(remaining + 0.999))
+
+
+def build_strike_context(user, strike=None, restriction: dict | None = None) -> dict:
+    strike_level = int(getattr(strike, 'strike_number', 0) or 0)
+    if not strike_level and restriction:
+        strike_level = 3 if restriction.get('type') == 'permanent' else 2
+
+    source_type = (getattr(strike, 'source_type', '') or '').strip().lower()
+    source_label = STRIKE_SOURCE_LABELS.get(source_type)
+    if not source_label:
+        source_label = (getattr(strike, 'source_label', None) or 'contenido reportado').strip()
+
+    category_label = normalize_strike_reason_label(getattr(strike, 'reason', None))
+    restriction_type = (restriction or {}).get('type')
+    if strike_level >= 3 or restriction_type == 'permanent':
+        consequence_text = 'Tu cuenta ha sido eliminada permanentemente'
+    elif strike_level == 2 or restriction_type == 'temporary':
+        consequence_text = 'Tu cuenta ha sido suspendida por 7 días'
+    else:
+        consequence_text = 'Has recibido una advertencia de seguridad'
+
+    until = (restriction or {}).get('until')
+    created_at = getattr(strike, 'created_at', None)
+    return {
+        'id': getattr(strike, 'id', None),
+        'username': f"@{getattr(user, 'username', '')}" if user else '',
+        'source_label': source_label,
+        'raw_source_label': getattr(strike, 'source_label', None),
+        'category_label': category_label,
+        'consequence_text': consequence_text,
+        'content_excerpt': clamp_text(getattr(strike, 'content_excerpt', None) or getattr(strike, 'details', None)),
+        'strike_level': strike_level,
+        'created_at': created_at.isoformat() if created_at else None,
+        'until': until.isoformat() if until else None,
+        'remaining_seconds': (restriction or {}).get('remaining_seconds'),
+        'dismiss_remaining_seconds': strike_dismiss_remaining_seconds(strike) if strike_level == 1 else 0,
     }
 
 
@@ -1207,7 +1538,7 @@ def normalize_phone_simple(raw: str | None) -> str:
 
 def process_overdue_checkins(user_id: int | None = None) -> int:
     """Marca check-ins vencidos y crea alerta de pánico automática."""
-    now = datetime.now()
+    now = datetime.now(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
     query = SafetyCheckin.query.filter(
         SafetyCheckin.status == 'active',
         SafetyCheckin.expires_at <= now,
@@ -1449,10 +1780,22 @@ def create_app():
 
     @app.context_processor
     def inject_user_safety_state():
+        restriction_state = user_restriction_state(current_user, auto_clear=True)
+        active_warning_strike = None
+        if (
+            current_user.is_authenticated
+            and not restriction_state
+            and not user_has_permission(current_user, PERM_ACCOUNT_BYPASS_RESTRICTIONS)
+        ):
+            warning_strike = latest_moderation_strike_for_user(current_user, strike_number=1)
+            dismissed_strike_id = session.get('dismissed_strike_id')
+            if warning_strike and str(dismissed_strike_id or '') != str(warning_strike.id):
+                active_warning_strike = build_strike_context(current_user, warning_strike)
         return {
             'user_is_temp_muted': is_user_temp_muted(current_user),
             'user_mute_remaining_seconds': remaining_mute_seconds(current_user),
-            'user_restriction_state': user_restriction_state(current_user, auto_clear=True),
+            'user_restriction_state': restriction_state,
+            'active_warning_strike': active_warning_strike,
         }
 
     @app.context_processor
@@ -1473,6 +1816,7 @@ def create_app():
             'current_user_can_access_admin_panel': user_can_access_admin_panel(current_user),
             'current_user_can_override_content_controls': user_can_override_content_controls(current_user),
             'current_user_can_review_private_content': user_can_review_private_content(current_user),
+            'display_invite_code': display_invite_code,
         }
 
     @app.before_request
@@ -1515,18 +1859,26 @@ def create_app():
         allowed = {
             'logout',
             'account_restricted',
+            'emergency_call',
             'static',
         }
         if endpoint in allowed or endpoint.startswith('static'):
             return None
 
+        latest_strike = latest_moderation_strike_for_user(current_user)
+        strike_context = build_strike_context(current_user, latest_strike, state)
+        until_iso = state.get('until').isoformat() if state.get('until') else None
         payload = {
-            'error': state.get('message') or 'Tu cuenta tiene una restricción activa.',
+            'error': 'account_restricted',
+            'message': state.get('message') or 'Tu cuenta tiene una restricción activa.',
+            'strike_level': strike_context.get('strike_level'),
+            'until': until_iso,
             'restriction': {
                 'type': state.get('type'),
                 'remaining_seconds': state.get('remaining_seconds'),
-                'until': state.get('until').isoformat() if state.get('until') else None,
-            }
+                'until': until_iso,
+            },
+            'strike': strike_context,
         }
         wants_json = request.path.startswith('/api/') or 'application/json' in (request.headers.get('Accept') or '')
         if wants_json:
@@ -2481,6 +2833,220 @@ def create_app():
         except Exception:
             return False
 
+    def normalize_destination_search_text(value: str | None) -> str:
+        text_value = str(value or '').strip().lower()
+        if not text_value:
+            return ''
+        normalized = unicodedata.normalize('NFD', text_value)
+        normalized = ''.join(char for char in normalized if unicodedata.category(char) != 'Mn')
+        return re.sub(r'\s+', ' ', normalized).strip()
+
+    def build_safety_destination_queries(raw_query: str) -> list[str]:
+        query = str(raw_query or '').strip()
+        if not query:
+            return []
+
+        normalized = normalize_destination_search_text(query)
+        variants: list[str] = []
+
+        def add_variant(candidate: str) -> None:
+            cleaned = str(candidate or '').strip()
+            if not cleaned:
+                return
+            if cleaned not in variants:
+                variants.append(cleaned)
+
+        add_variant(query)
+
+        if 'monterrey' not in normalized:
+            add_variant(f'{query}, Monterrey, Nuevo León')
+            add_variant(f'{query} Monterrey')
+        if 'nuevo leon' not in normalized:
+            add_variant(f'{query}, Nuevo León')
+        if not any(token in normalized for token in ('plaza', 'mall', 'centro comercial', 'city center')):
+            add_variant(f'Plaza {query}, Monterrey')
+
+        return variants
+
+    def destination_point_within_bbox(lat, lng) -> bool:
+        if not valid_coords(lat, lng):
+            return False
+        south, west, north, east = SAFETY_DESTINATION_BBOX
+        return south <= float(lat) <= north and west <= float(lng) <= east
+
+    def is_allowed_safety_destination_item(item: dict | None) -> bool:
+        if not item:
+            return False
+        lat = parse_float(item.get('lat'))
+        lng = parse_float(item.get('lon') if item.get('lon') is not None else item.get('lng'))
+        in_bbox = destination_point_within_bbox(lat, lng)
+
+        address = item.get('address') or {}
+        city_candidates = [
+            address.get('city'),
+            address.get('town'),
+            address.get('village'),
+            address.get('municipality'),
+            address.get('city_district'),
+            address.get('county'),
+        ]
+        in_allowed_city = any(
+            normalize_destination_search_text(candidate) in SAFETY_ALLOWED_DESTINATION_CITIES
+            for candidate in city_candidates
+            if candidate
+        )
+        state_text = normalize_destination_search_text(address.get('state'))
+        in_allowed_state = not state_text or 'nuevo leon' in state_text
+        return (in_bbox or in_allowed_city) and in_allowed_state
+
+    def fetch_safety_destination_candidates(query: str, *, limit: int = 8, bounded: bool = True) -> list[dict]:
+        params = {
+            'format': 'json',
+            'addressdetails': 1,
+            'countrycodes': 'mx',
+            'accept-language': 'es',
+            'limit': max(1, min(10, int(limit or 8))),
+            'q': query,
+        }
+        if bounded:
+            params['bounded'] = 1
+            params['viewbox'] = SAFETY_DESTINATION_VIEWBOX
+        url = f"https://nominatim.openstreetmap.org/search?{urlencode(params)}"
+        req = Request(url, headers={'User-Agent': 'VioletaApp/1.0 (+contact@example.com)'})
+        with urlopen(req, timeout=6) as resp:  # nosec B310
+            payload = json.loads(resp.read().decode('utf-8'))
+        return payload if isinstance(payload, list) else []
+
+    def build_safety_destination_overpass_regex(raw_query: str) -> str:
+        query = normalize_destination_search_text(raw_query)
+        if not query:
+            return ''
+        return re.escape(query).replace('\\ ', ' ')
+
+    def safety_destination_score(item: dict, raw_query: str) -> int:
+        query = normalize_destination_search_text(raw_query)
+        tags = item.get('tags') or {}
+        display_name = normalize_destination_search_text(item.get('display_name') or tags.get('name') or tags.get('brand'))
+        score = 0
+
+        if display_name == query:
+            score += 140
+        elif display_name.startswith(query):
+            score += 110
+        elif query and query in display_name:
+            score += 90
+
+        shop_value = normalize_destination_search_text(tags.get('shop'))
+        amenity_value = normalize_destination_search_text(tags.get('amenity'))
+        tourism_value = normalize_destination_search_text(tags.get('tourism'))
+        leisure_value = normalize_destination_search_text(tags.get('leisure'))
+        landuse_value = normalize_destination_search_text(tags.get('landuse'))
+        highway_value = normalize_destination_search_text(tags.get('highway'))
+
+        if shop_value in {'mall', 'supermarket', 'department_store', 'convenience', 'retail'}:
+            score += 50
+        if landuse_value == 'retail':
+            score += 40
+        if amenity_value:
+            score += 30
+        if tourism_value or leisure_value:
+            score += 24
+        if highway_value in {'residential', 'service'}:
+            score -= 30
+        elif highway_value:
+            score -= 10
+
+        if destination_point_within_bbox(item.get('lat'), item.get('lon')):
+            score += 12
+        return score
+
+    def normalize_overpass_destination_item(item: dict, raw_query: str) -> dict | None:
+        center = item.get('center') or {}
+        lat = parse_float(item.get('lat') if item.get('lat') is not None else center.get('lat'))
+        lon = parse_float(item.get('lon') if item.get('lon') is not None else center.get('lon'))
+        if not valid_coords(lat, lon):
+            return None
+
+        tags = item.get('tags') or {}
+        name = str(tags.get('name') or tags.get('brand') or '').strip()
+        if not name:
+            return None
+
+        city = (
+            tags.get('addr:city')
+            or tags.get('addr:place')
+            or tags.get('is_in:city')
+            or tags.get('addr:suburb')
+            or ''
+        )
+        locality_parts = [name]
+        if city:
+            locality_parts.append(str(city).strip())
+        locality_parts.append('Nuevo León')
+        locality_parts.append('México')
+
+        return {
+            'display_name': ', '.join(part for part in locality_parts if part),
+            'lat': float(lat),
+            'lon': float(lon),
+            'address': {
+                'city': city or None,
+                'state': tags.get('addr:state') or 'Nuevo León',
+                'country': tags.get('addr:country') or 'México',
+            },
+            'tags': tags,
+            '_score': safety_destination_score({
+                'display_name': name,
+                'lat': lat,
+                'lon': lon,
+                'tags': tags,
+            }, raw_query),
+        }
+
+    def fetch_safety_destination_candidates_overpass(query: str, *, limit: int = 8) -> list[dict]:
+        regex = build_safety_destination_overpass_regex(query)
+        if not regex:
+            return []
+
+        south, west, north, east = SAFETY_DESTINATION_BBOX
+        overpass_query = f"""
+        [out:json][timeout:20];
+        (
+          node["name"~"{regex}",i]({south},{west},{north},{east});
+          way["name"~"{regex}",i]({south},{west},{north},{east});
+          relation["name"~"{regex}",i]({south},{west},{north},{east});
+          node["brand"~"{regex}",i]({south},{west},{north},{east});
+          way["brand"~"{regex}",i]({south},{west},{north},{east});
+          relation["brand"~"{regex}",i]({south},{west},{north},{east});
+          node["official_name"~"{regex}",i]({south},{west},{north},{east});
+          way["official_name"~"{regex}",i]({south},{west},{north},{east});
+          relation["official_name"~"{regex}",i]({south},{west},{north},{east});
+          node["alt_name"~"{regex}",i]({south},{west},{north},{east});
+          way["alt_name"~"{regex}",i]({south},{west},{north},{east});
+          relation["alt_name"~"{regex}",i]({south},{west},{north},{east});
+        );
+        out center tags;
+        """.strip()
+
+        payload = urlencode({'data': overpass_query}).encode('utf-8')
+        req = Request(
+            'https://overpass-api.de/api/interpreter',
+            data=payload,
+            headers={'User-Agent': 'VioletaApp/1.0 (+contact@example.com)'},
+        )
+        with urlopen(req, timeout=20) as resp:  # nosec B310
+            raw_payload = json.loads(resp.read().decode('utf-8'))
+
+        normalized_items: list[dict] = []
+        for element in raw_payload.get('elements', []) or []:
+            normalized = normalize_overpass_destination_item(element, query)
+            if not normalized:
+                continue
+            normalized_items.append(normalized)
+
+        normalized_items.sort(key=lambda item: item.get('_score', 0), reverse=True)
+        return normalized_items[:max(1, min(10, int(limit or 8)))]
+
     def safety_publish_min_delay_minutes() -> int:
         raw = str(os.environ.get('SAFETY_PUBLISH_MIN_DELAY_MINUTES', '15')).strip()
         try:
@@ -2531,7 +3097,7 @@ def create_app():
             return []
         if user_can_override_content_controls(user):
             return []
-        now = datetime.now()
+        now = datetime.now(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
         return (
             Post.query
             .options(selectinload(Post.meta))
@@ -2543,7 +3109,7 @@ def create_app():
         )
 
     def summarize_pending_safety_posts_for_user(user):
-        now = datetime.now()
+        now = datetime.now(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
         posts = pending_safety_posts_for_user(user)
         next_due_at = None
         needs_location_check = False
@@ -2585,7 +3151,7 @@ def create_app():
         _feed_sidebar_cache.clear()
 
     def try_release_pending_safety_posts_for_user(user, current_lat=None, current_lng=None):
-        now = datetime.now()
+        now = datetime.now(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
         posts = pending_safety_posts_for_user(user)
         released = []
         distance_threshold = float(safety_publish_distance_meters())
@@ -2632,9 +3198,9 @@ def create_app():
         }
 
     def annotate_user_post_visibility_state(posts):
-        now = datetime.now()
+        now = datetime.now(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
         for post in posts:
-            post.can_delete = bool(post.created_at and (now - post.created_at) <= timedelta(hours=1))
+            post.can_delete = True
             post.is_pending = bool(getattr(post, 'publish_at', None) and getattr(post, 'publish_at') > now)
             if post.is_pending:
                 post.pending_min_ready_at = safety_publish_min_ready_at(post)
@@ -3296,6 +3862,11 @@ def create_app():
         form = RegisterForm()
         if form.validate_on_submit():
             normalized_email = (form.email.data or '').strip().lower()
+            invite = get_redeemable_invite(form.invite_code.data)
+            if not invite:
+                flash('Necesitas un código de invitación válido para entrar a la beta.', 'danger')
+                return redirect(url_for('register'))
+
             # Evitar duplicados por usuario o email
             exists = User.query.filter(
                 (User.username == form.username.data) | (func.lower(User.email) == normalized_email)
@@ -3306,10 +3877,35 @@ def create_app():
             try:
                 user = User(username=form.username.data, email=normalized_email)  # type: ignore
                 user.set_password(form.password.data)
-                user.is_verified = False
+                now = utc_now_naive()
+                user.is_verified = True
+                user.verified_at = now
+                user.verification_method = 'invite'
+                user.invited_by_id = invite.created_by_user_id
+                user.invite_attested_at = now
                 db.session.add(user)
+                db.session.flush()
+                invite.used_by_user_id = user.id
+                invite.used_at = now
+                invite.use_count = int(invite.use_count or 0) + 1
+                invite.status = 'used'
+                db.session.add(invite)
                 db.session.commit()
-                flash('Registro exitoso. Inicia sesión.', 'success')
+                record_audit_event(
+                    'invite.redeem',
+                    workspace='verification',
+                    target_user=user,
+                    resource_type='invite_code',
+                    resource_id=invite.id,
+                    summary='Una cuenta se verificó por invitación beta.',
+                    details={
+                        'created_by_user_id': invite.created_by_user_id,
+                        'invite_code_id': invite.id,
+                    },
+                )
+                invalidate_runtime_response_cache('page_profile_shell')
+                invalidate_runtime_response_cache('page_profile_content')
+                flash('Registro exitoso. Tu cuenta quedó verificada por invitación beta.', 'success')
                 return redirect(url_for('login'))
             except Exception as e:
                 db.session.rollback()
@@ -3317,6 +3913,27 @@ def create_app():
                 if app.debug:
                     print('DEBUG register error:', e)
         return render_template('register.html', form=form)
+
+    @app.route('/api/check-invite', methods=['POST'])
+    @csrf.exempt
+    def check_invite():
+        if not is_same_origin_request():
+            return jsonify({'error': 'Solicitud no permitida'}), 403
+        if is_rate_limited(f'check_invite:{get_request_ip()}', limit=80, window_seconds=60):
+            return jsonify({'error': 'Demasiados intentos. Intenta de nuevo en un momento.'}), 429
+
+        data = request.get_json(silent=True) or {}
+        invite = get_redeemable_invite(data.get('invite_code'))
+        if not invite:
+            return jsonify({'valid': False, 'message': 'Código inválido, vencido o ya usado.'})
+
+        creator = invite.creator
+        return jsonify({
+            'valid': True,
+            'message': 'Código válido.',
+            'invited_by': getattr(creator, 'username', None),
+            'expires_at': invite.expires_at.isoformat() if invite.expires_at else None,
+        })
 
     @app.route('/api/check-email', methods=['POST'])
     @csrf.exempt
@@ -3366,7 +3983,47 @@ def create_app():
         state = user_restriction_state(current_user, auto_clear=True)
         if not state:
             return redirect(url_for('index'))
-        return render_template('account_restricted.html', restriction=state)
+        latest_strike = latest_moderation_strike_for_user(current_user)
+        strike_context = build_strike_context(current_user, latest_strike, state)
+        return render_template(
+            'account_restricted.html',
+            restriction=state,
+            latest_strike=latest_strike,
+            strike_context=strike_context,
+        )
+
+    @app.route('/api/safety/dismiss_strike', methods=['POST'])
+    @login_required
+    def dismiss_safety_warning_strike():
+        if user_has_permission(current_user, PERM_ACCOUNT_BYPASS_RESTRICTIONS):
+            return jsonify({'ok': True, 'success': True, 'bypassed': True})
+
+        strike = latest_moderation_strike_for_user(current_user, strike_number=1)
+        if not strike:
+            return jsonify({
+                'ok': False,
+                'success': False,
+                'error': 'strike_not_found',
+                'message': 'No hay una advertencia activa para cerrar.',
+            }), 404
+
+        remaining_seconds = strike_dismiss_remaining_seconds(strike)
+        if remaining_seconds > 0:
+            return jsonify({
+                'ok': False,
+                'success': False,
+                'error': 'wait_required',
+                'message': 'Todavía falta tiempo para cerrar esta advertencia.',
+                'remaining_seconds': remaining_seconds,
+            }), 409
+
+        session['dismissed_strike_id'] = strike.id
+        session.modified = True
+        return jsonify({
+            'ok': True,
+            'success': True,
+            'strike_id': strike.id,
+        })
 
     @app.route('/login', methods=['GET', 'POST'])
     def login():
@@ -3402,6 +4059,29 @@ def create_app():
                 if restriction:
                     flash(restriction.get('message') or 'Tu cuenta tiene una restricción activa.', 'warning')
                     return redirect(url_for('account_restricted'))
+                
+                # Revisión de tareas pendientes para admin
+                if user.has_role('admin') or user.username == 'admin':
+                    pending_recovery_count = User.query.filter(User.password_recovery_requested_at.isnot(None)).count()
+                    if pending_recovery_count > 0:
+                        flash(f'¡Atención! Hay {pending_recovery_count} usuaria(s) que solicitaron ayuda para recuperar su contraseña.', 'warning')
+                        
+                    total_pending_reports = (
+                        Report.query.filter_by(status='pending').count() +
+                        ChatMessageReport.query.filter_by(status='pending').count() +
+                        CommentReport.query.filter_by(status='pending').count()
+                    )
+                    if total_pending_reports > 0:
+                        flash(f'¡Notificación! Hay {total_pending_reports} reporte(s) pendiente(s) de revisión (post, comentario o chat).', 'info')
+                        
+                    pending_groups = ChatRoom.query.filter_by(is_approved=False).count()
+                    if pending_groups > 0:
+                        flash(f'¡Notificación! Hay {pending_groups} grupo(s) de chat nuevo(s) pendiente(s) de aprobación.', 'info')
+                        
+                    pending_verifs = VerificationRequest.query.filter_by(status='pending').count()
+                    if pending_verifs > 0:
+                        flash(f'¡Notificación! Hay {pending_verifs} solicitud(es) de verificación de perfil pendiente(s) de revisar.', 'info')
+
                 flash('Sesión iniciada', 'success')
                 return redirect(url_for('index'))
 
@@ -3436,8 +4116,10 @@ def create_app():
                 try:
                     current_user.set_password(new_password)
                     current_user.force_password_change = False
+                    current_user.password_recovery_requested_at = None
                     db.session.add(current_user)
                     db.session.commit()
+                    invalidate_admin_panel_page_cache()
                     flash('Tu contraseña se actualizó correctamente. Ya puedes continuar.', 'success')
                     return redirect(url_for('index'))
                 except Exception as exc:
@@ -3478,12 +4160,33 @@ def create_app():
             if not _is_valid_email(email):
                 return jsonify({'error': 'Formato de correo inválido.'}), 400
 
+            matched_user = User.query.filter(func.lower(User.email) == email.lower()).first()
+            if matched_user is not None:
+                matched_user.password_recovery_requested_at = utc_now_naive()
+                db.session.add(matched_user)
+                db.session.commit()
+                invalidate_admin_panel_page_cache()
+            record_audit_event(
+                'user.password_recovery.requested',
+                workspace='auth',
+                target_user=matched_user,
+                resource_type='user',
+                resource_id=getattr(matched_user, 'id', None),
+                summary='Se registró una solicitud de recuperación asistida en beta.',
+                details={
+                    'mode': 'assisted_admin',
+                    'email': email,
+                    'matched_user': bool(matched_user),
+                },
+            )
+
             return jsonify({
                 'ok': True,
                 'mode': 'assisted_admin',
-                'message': 'La recuperación automática por correo no está disponible para todas las cuentas en esta etapa beta. Solicita apoyo del equipo para recibir una contraseña temporal desde admin.',
+                'message': 'En esta etapa beta, le notificamos a admin que olvidaste tu contraseña, nos pondremos en contacto contigo para resolver tu situación.',
             }), 200
         except Exception as exc:
+            db.session.rollback()
             _debug_log_suppressed('forgot password request failed', exc)
             return jsonify({'error': 'No pudimos procesar la solicitud.'}), 500
 
@@ -3505,7 +4208,9 @@ def create_app():
                 try:
                     user.set_password(new_password)
                     user.force_password_change = False
+                    user.password_recovery_requested_at = None
                     db.session.commit()
+                    invalidate_admin_panel_page_cache()
                     flash('Tu contraseña se actualizó correctamente. Inicia sesión con la nueva contraseña.', 'success')
                     return redirect(url_for('login'))
                 except Exception as e:
@@ -6309,9 +7014,6 @@ def create_app():
         if post.user_id != current_user.id:
             flash('No tienes permiso para eliminar esta publicación.', 'danger')
             return redirect(url_for('profile'))
-        if post.created_at and utc_now_naive() - post.created_at > timedelta(hours=1):
-            flash('Solo puedes eliminar una publicación dentro de la primera hora.', 'danger')
-            return redirect(url_for('profile'))
         try:
             # Delete the image file if exists
             if post.image_filename:
@@ -6359,7 +7061,65 @@ def create_app():
             report_count=report_count,
             total_likes=total_likes,
             total_comments=total_comments,
+            invite_status=beta_invite_status_for_user(user),
+            is_self=True,
         )
+
+    @app.route('/api/invitations/create', methods=['POST'])
+    @login_required
+    def create_beta_invitation():
+        if not is_user_verified(current_user):
+            return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
+        if is_rate_limited(f'create_invite:user:{current_user.id}', limit=8, window_seconds=600):
+            return jsonify({'error': 'Demasiados intentos. Intenta de nuevo en unos minutos.'}), 429
+
+        status = beta_invite_status_for_user(current_user)
+        if not status.get('can_invite'):
+            return jsonify({
+                'error': 'Todavía no puedes generar invitaciones.',
+                'reasons': status.get('reasons') or [],
+                'invite_status': {
+                    'can_invite': False,
+                    'remaining': status.get('remaining', 0),
+                    'days_remaining': status.get('days_remaining', 0),
+                    'strikes': status.get('strikes', 0),
+                },
+            }), 403
+
+        invite = InviteCode(
+            code=generate_invite_code_value(),
+            created_by_user_id=current_user.id,
+            status='active',
+            max_uses=1,
+            use_count=0,
+            expires_at=utc_now_naive() + timedelta(days=INVITE_EXPIRY_DAYS),
+        )
+        db.session.add(invite)
+        try:
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            _debug_log_suppressed('suppressed invite create error', exc)
+            return jsonify({'error': 'No se pudo generar la invitación.'}), 500
+
+        record_audit_event(
+            'invite.create',
+            workspace='verification',
+            target_user=current_user,
+            resource_type='invite_code',
+            resource_id=invite.id,
+            summary='Generó una invitación beta.',
+            details={'expires_at': invite.expires_at.isoformat() if invite.expires_at else None},
+        )
+        invalidate_runtime_response_cache('page_profile_shell')
+        invalidate_runtime_response_cache('page_profile_content')
+        refreshed = beta_invite_status_for_user(current_user)
+        return jsonify({
+            'success': True,
+            'message': 'Invitación creada.',
+            'invite': invite_payload(invite),
+            'remaining': refreshed.get('remaining', 0),
+        })
 
     def _base_ops_panel_context() -> dict:
         return {
@@ -6393,11 +7153,14 @@ def create_app():
             'comment_reports_count': 0,
             'pending_chat_rooms_count': 0,
             'pending_verifications_count': 0,
+            'pending_password_recovery_count': 0,
             'has_reported_posts': False,
             'has_chat_message_reports': False,
             'has_comment_reports': False,
             'has_pending_chat_rooms': False,
             'has_pending_verifications': False,
+            'has_pending_password_recoveries': False,
+            'has_admin_users_attention': False,
             'has_admin_reports_attention': False,
             'has_admin_chats_attention': False,
             'has_admin_verifications_attention': False,
@@ -6437,22 +7200,32 @@ def create_app():
             .scalar()
             or 0
         )
+        pending_password_recovery_count = int(
+            db.session.query(func.count(User.id))
+            .filter(User.password_recovery_requested_at.isnot(None))
+            .scalar()
+            or 0
+        )
         has_reported_posts = reported_posts_count > 0
         has_chat_message_reports = chat_message_reports_count > 0
         has_comment_reports = comment_reports_count > 0
         has_pending_chat_rooms = pending_chat_rooms_count > 0
         has_pending_verifications = pending_verifications_count > 0
+        has_pending_password_recoveries = pending_password_recovery_count > 0
         return {
             'reported_posts_count': reported_posts_count,
             'chat_message_reports_count': chat_message_reports_count,
             'comment_reports_count': comment_reports_count,
             'pending_chat_rooms_count': pending_chat_rooms_count,
             'pending_verifications_count': pending_verifications_count,
+            'pending_password_recovery_count': pending_password_recovery_count,
             'has_reported_posts': has_reported_posts,
             'has_chat_message_reports': has_chat_message_reports,
             'has_comment_reports': has_comment_reports,
             'has_pending_chat_rooms': has_pending_chat_rooms,
             'has_pending_verifications': has_pending_verifications,
+            'has_pending_password_recoveries': has_pending_password_recoveries,
+            'has_admin_users_attention': has_pending_password_recoveries,
             'has_admin_reports_attention': has_reported_posts or has_chat_message_reports or has_comment_reports,
             'has_admin_chats_attention': has_pending_chat_rooms,
             'has_admin_verifications_attention': has_pending_verifications,
@@ -6506,7 +7279,11 @@ def create_app():
             page_number = min(page_number, total_pages)
             users = (
                 User.query
-                .order_by(User.created_at.desc())
+                .order_by(
+                    case((User.password_recovery_requested_at.isnot(None), 0), else_=1),
+                    User.password_recovery_requested_at.desc(),
+                    User.created_at.desc(),
+                )
                 .offset((page_number - 1) * users_limit)
                 .limit(users_limit)
                 .all()
@@ -7463,6 +8240,7 @@ def create_app():
         try:
             user.set_password(temporary_password)
             user.force_password_change = True
+            user.password_recovery_requested_at = None
             db.session.add(user)
             db.session.commit()
             record_audit_event(
@@ -7485,7 +8263,9 @@ def create_app():
         except Exception as exc:
             db.session.rollback()
             _debug_log_suppressed('admin assisted password reset failed', exc)
-            return jsonify({'error': 'No se pudo generar la contraseña temporal.'}), 500
+            import traceback
+            error_details = traceback.format_exc()
+            return jsonify({'error': f'No se pudo generar la contraseña temporal. Detalles: {str(exc)} \n {error_details}'}), 500
 
     @app.route('/admin/user/<int:user_id>/roles', methods=['POST'])
     @login_required
@@ -8241,7 +9021,46 @@ def create_app():
     def edit_profile():
         user = current_user
         error = None
+        password_errors = []
+        active_tab = 'profile'
         if request.method == 'POST':
+            form_action = (request.form.get('profile_form_action') or 'profile').strip().lower()
+
+            if form_action == 'password':
+                active_tab = 'security'
+                if is_rate_limited(f'profile_password_change:{user.id}:{get_request_ip()}', limit=8, window_seconds=600):
+                    password_errors.append('Demasiados intentos. Intenta nuevamente en unos minutos.')
+                else:
+                    current_password = request.form.get('current_password') or ''
+                    new_password = (request.form.get('new_password') or '').strip()
+                    confirm_password = (request.form.get('confirm_password') or '').strip()
+
+                    if not current_password:
+                        password_errors.append('Ingresa tu contraseña actual.')
+                    elif not user.check_password(current_password):
+                        password_errors.append('La contraseña actual no es correcta.')
+
+                    password_errors.extend(validate_password_change_inputs(new_password, confirm_password))
+
+                    if current_password and new_password and user.check_password(current_password) and user.check_password(new_password):
+                        password_errors.append('La nueva contraseña debe ser diferente a la actual.')
+
+                    if not password_errors:
+                        try:
+                            user.set_password(new_password)
+                            user.force_password_change = False
+                            user.password_recovery_requested_at = None
+                            db.session.add(user)
+                            db.session.commit()
+                            invalidate_admin_panel_page_cache()
+                            flash('Tu contraseña se actualizó correctamente.', 'success')
+                            return redirect(url_for('edit_profile') + '#security')
+                        except Exception:
+                            db.session.rollback()
+                            password_errors.append('No se pudo actualizar la contraseña. Intenta nuevamente.')
+
+                return render_template('profile_edit.html', user=user, error=error, password_errors=password_errors, active_tab=active_tab)
+
             bio = (request.form.get('bio') or '').strip()
             # Limitar longitud para evitar textos enormes
             if len(bio) > 300:
@@ -8326,13 +9145,13 @@ def create_app():
                 try:
                     db.session.add(user)
                     db.session.commit()
-                    flash('Foto de perfil actualizada', 'success')
+                    flash('Perfil actualizado correctamente.', 'success')
                     return redirect(url_for('user_profile', username=user.username))
                 except Exception:
                     db.session.rollback()
                     error = 'No se pudo guardar el perfil.'
 
-        return render_template('profile_edit.html', user=user, error=error)
+        return render_template('profile_edit.html', user=user, error=error, password_errors=password_errors, active_tab=active_tab)
 
     @app.route('/api/profile/avatar', methods=['POST'])
     @login_required
@@ -8477,7 +9296,8 @@ def create_app():
             report_count=report_count,
             total_likes=int(total_likes or 0),
             total_comments=int(total_comments or 0),
-            is_self=is_self
+            is_self=is_self,
+            invite_status=beta_invite_status_for_user(user) if is_self else None,
         )
         return html
 
@@ -8531,7 +9351,7 @@ def create_app():
         def format_trip_when(dt_obj):
             if not dt_obj:
                 return 'Sin fecha'
-            today = datetime.now().date()
+            today = datetime.now(APP_LOCAL_TIMEZONE).date()
             yesterday = today - timedelta(days=1)
             if dt_obj.date() == today:
                 day_label = 'Hoy'
@@ -8545,14 +9365,51 @@ def create_app():
         def format_duration_label(start_dt, end_dt):
             if not start_dt or not end_dt:
                 return 'Sin registro'
-            total_seconds = max(60, int((end_dt - start_dt).total_seconds()))
+            total_seconds = int(round(max(60, (end_dt - start_dt).total_seconds())))
             hours, remainder = divmod(total_seconds, 3600)
-            minutes = max(1, remainder // 60)
+            minutes = max(1, int(round(remainder / 60.0)))
+            if minutes == 60:
+                hours += 1
+                minutes = 0
             if hours:
                 if minutes:
                     return f'{hours} h {minutes} min'
                 return f'{hours} h'
             return f'{minutes} min'
+
+        def resolve_finished_at(checkin):
+            return checkin.arrived_at or checkin.cancelled_at or checkin.expires_at or checkin.started_at
+
+        def compute_trip_duration_seconds(checkin, route_meta_by_checkin: dict[int, dict]):
+            start_dt = checkin.started_at
+            end_dt = resolve_finished_at(checkin)
+            candidate_seconds = None
+
+            if start_dt and end_dt:
+                raw_seconds = int((end_dt - start_dt).total_seconds())
+                if raw_seconds >= 0:
+                    candidate_seconds = raw_seconds
+                else:
+                    try:
+                        localized_start = start_dt.replace(tzinfo=timezone.utc).astimezone(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
+                        normalized_seconds = int((end_dt - localized_start).total_seconds())
+                        if normalized_seconds >= 0:
+                            candidate_seconds = normalized_seconds
+                    except Exception as exc:
+                        _debug_log_suppressed('suppressed exception', exc)
+
+            route_meta = route_meta_by_checkin.get(checkin.id) or {}
+            route_first = route_meta.get('first_recorded_at')
+            route_last = route_meta.get('last_recorded_at')
+            route_count = int(route_meta.get('points_count') or 0)
+            if route_first and route_last and route_count >= 2:
+                route_seconds = int((route_last - route_first).total_seconds())
+                if route_seconds >= 0:
+                    candidate_seconds = max(candidate_seconds or 0, route_seconds)
+
+            if candidate_seconds is None:
+                return None
+            return max(60, candidate_seconds)
 
         history_limit = max(3, int(app.config.get('SAFETY_HISTORY_LIMIT', 6) or 6))
         history_rows = (
@@ -8562,15 +9419,41 @@ def create_app():
                 SafetyCheckin.status.in_(['arrived', 'cancelled', 'expired']),
             )
             .order_by(
-                SafetyCheckin.arrived_at.desc(),
-                SafetyCheckin.cancelled_at.desc(),
-                SafetyCheckin.expires_at.desc(),
+                func.coalesce(
+                    SafetyCheckin.arrived_at,
+                    SafetyCheckin.cancelled_at,
+                    SafetyCheckin.expires_at,
+                    SafetyCheckin.started_at,
+                ).desc(),
                 SafetyCheckin.started_at.desc(),
                 SafetyCheckin.id.desc(),
             )
             .limit(history_limit)
             .all()
         )
+
+        route_meta_by_checkin: dict[int, dict] = {}
+        history_ids = [row.id for row in history_rows]
+        if history_ids:
+            route_rows = (
+                db.session.query(
+                    CheckinRoutePoint.checkin_id.label('checkin_id'),
+                    func.min(CheckinRoutePoint.recorded_at).label('first_recorded_at'),
+                    func.max(CheckinRoutePoint.recorded_at).label('last_recorded_at'),
+                    func.count(CheckinRoutePoint.id).label('points_count'),
+                )
+                .filter(CheckinRoutePoint.checkin_id.in_(history_ids))
+                .group_by(CheckinRoutePoint.checkin_id)
+                .all()
+            )
+            route_meta_by_checkin = {
+                int(row.checkin_id): {
+                    'first_recorded_at': row.first_recorded_at,
+                    'last_recorded_at': row.last_recorded_at,
+                    'points_count': int(row.points_count or 0),
+                }
+                for row in route_rows
+            }
 
         total_finished = (
             SafetyCheckin.query
@@ -8594,8 +9477,8 @@ def create_app():
             raw_title = (getattr(checkin, 'title', None) or '').strip()
             destination = (checkin.destination or '').strip()
             display_title = raw_title or destination or default_title
-            when_dt = checkin.arrived_at or checkin.cancelled_at or checkin.expires_at or checkin.started_at
-            finished_dt = checkin.arrived_at or checkin.cancelled_at or checkin.expires_at or checkin.started_at
+            when_dt = resolve_finished_at(checkin)
+            duration_seconds = compute_trip_duration_seconds(checkin, route_meta_by_checkin)
             status_label, status_variant = status_labels.get(checkin.status or 'arrived', ('Finalizada', 'success'))
             trip_items.append({
                 'id': checkin.id,
@@ -8603,11 +9486,13 @@ def create_app():
                 'default_title': default_title,
                 'display_title': display_title,
                 'destination': destination,
+                'status': checkin.status or 'arrived',
                 'when_label': format_trip_when(when_dt),
                 'route_style': route_styles[index % len(route_styles)],
+                'route_points_url': url_for('api_checkin_route_points', checkin_id=checkin.id),
                 'badge_label': 'Con destino' if destination else 'Sin destino claro',
                 'badge_variant': 'live' if destination else 'danger',
-                'duration_label': format_duration_label(checkin.started_at, finished_dt),
+                'duration_label': format_duration_label(checkin.started_at, checkin.started_at + timedelta(seconds=duration_seconds)) if duration_seconds is not None and checkin.started_at else 'Sin registro',
                 'contacts_label': '1 contacto' if (checkin.contact_name or checkin.contact_phone) else 'Sin contacto',
                 'status_label': status_label,
                 'status_variant': status_variant,
@@ -8626,6 +9511,8 @@ def create_app():
                 'contact_phone': (active_checkin.contact_phone or '').strip(),
                 'latitude': float(active_checkin.latitude) if active_checkin.latitude is not None else None,
                 'longitude': float(active_checkin.longitude) if active_checkin.longitude is not None else None,
+                'destination_latitude': float(active_checkin.destination_latitude) if active_checkin.destination_latitude is not None else None,
+                'destination_longitude': float(active_checkin.destination_longitude) if active_checkin.destination_longitude is not None else None,
             }
 
         return render_template(
@@ -8985,6 +9872,124 @@ def create_app():
         invalidate_runtime_response_cache('page_safety_content')
         return jsonify({'ok': True})
 
+    @app.route('/api/safety/destination-search')
+    @login_required
+    def api_safety_destination_search():
+        if current_user.is_authenticated and not is_user_verified(current_user):
+            return jsonify({'ok': False, 'error': VERIFY_REQUIRED_MSG, 'items': []}), 403
+
+        raw_query = (request.args.get('q') or '').strip()
+        if len(raw_query) < 2:
+            return jsonify({'ok': True, 'items': []})
+
+        try:
+            limit = int(request.args.get('limit') or 8)
+        except (TypeError, ValueError):
+            limit = 8
+        limit = max(1, min(8, limit))
+
+        throttle_bucket = f'safety_destination_search:{current_user.id}:{get_request_ip()}'
+        if is_rate_limited(throttle_bucket, limit=24, window_seconds=60):
+            return jsonify({'ok': False, 'error': 'Demasiadas búsquedas. Intenta de nuevo en un minuto.', 'items': []}), 429
+
+        try:
+            os.makedirs(app.instance_path, exist_ok=True)
+        except Exception as exc:
+            _debug_log_suppressed('suppressed exception', exc)
+
+        cache_path = os.path.join(app.instance_path, 'safety_destination_search_cache.json')
+        cache_key = f"{SAFETY_DESTINATION_SEARCH_CACHE_VERSION}:{normalize_destination_search_text(raw_query)}"
+        cache_ttl_seconds = 12 * 3600
+        now_ts = int(time.time())
+        cache = {}
+        try:
+            with open(cache_path, 'r', encoding='utf-8') as cache_file:
+                cache = json.load(cache_file) or {}
+        except Exception:
+            cache = {}
+
+        cached_entry = cache.get(cache_key) if isinstance(cache, dict) else None
+        if isinstance(cached_entry, dict) and (now_ts - int(cached_entry.get('ts', 0))) < cache_ttl_seconds:
+            cached_items = cached_entry.get('items') or []
+            return jsonify({'ok': True, 'items': cached_items[:limit]})
+
+        queries = build_safety_destination_queries(raw_query)
+        merged_items: list[dict] = []
+        seen_keys: set[str] = set()
+
+        def merge_candidates(candidates: list[dict]) -> None:
+            for item in candidates:
+                if not is_allowed_safety_destination_item(item):
+                    continue
+                lat = parse_float(item.get('lat'))
+                lon = parse_float(item.get('lon'))
+                if not valid_coords(lat, lon):
+                    continue
+                display_name = str(item.get('display_name') or '').strip()
+                dedupe_key = f"{normalize_destination_search_text(display_name)}|{float(lat):.5f}|{float(lon):.5f}"
+                if dedupe_key in seen_keys:
+                    continue
+                seen_keys.add(dedupe_key)
+                merged_items.append({
+                    'display_name': display_name,
+                    'lat': float(lat),
+                    'lon': float(lon),
+                    'address': item.get('address') or {},
+                })
+                if len(merged_items) >= limit:
+                    return
+
+        last_rate_limited = False
+        for query in queries:
+            try:
+                merge_candidates(fetch_safety_destination_candidates(query, limit=limit, bounded=True))
+            except HTTPError as exc:
+                if exc.code == 429:
+                    last_rate_limited = True
+                    break
+            except Exception as exc:
+                _debug_log_suppressed('suppressed exception', exc)
+            if len(merged_items) >= limit:
+                break
+
+        if len(merged_items) < limit:
+            try:
+                merge_candidates(fetch_safety_destination_candidates_overpass(raw_query, limit=limit))
+            except HTTPError as exc:
+                if exc.code == 429:
+                    last_rate_limited = True
+            except Exception as exc:
+                _debug_log_suppressed('suppressed exception', exc)
+
+        if len(merged_items) < limit:
+            fallback_query = queries[-1] if queries else raw_query
+            try:
+                merge_candidates(fetch_safety_destination_candidates(fallback_query, limit=limit, bounded=False))
+            except HTTPError as exc:
+                if exc.code == 429:
+                    last_rate_limited = True
+            except Exception as exc:
+                _debug_log_suppressed('suppressed exception', exc)
+
+        cache[cache_key] = {
+            'ts': now_ts,
+            'items': merged_items[:limit],
+        }
+        try:
+            with open(cache_path, 'w', encoding='utf-8') as cache_file:
+                json.dump(cache, cache_file, ensure_ascii=False)
+        except Exception as exc:
+            _debug_log_suppressed('suppressed exception', exc)
+
+        if not merged_items and last_rate_limited:
+            return jsonify({
+                'ok': False,
+                'error': 'El buscador de lugares está saturado en este momento. Intenta de nuevo en un minuto.',
+                'items': [],
+            }), 503
+
+        return jsonify({'ok': True, 'items': merged_items[:limit]})
+
     @app.route('/api/safety/checkin/start', methods=['POST'])
     @login_required
     def api_start_checkin():
@@ -9001,6 +10006,11 @@ def create_app():
         note = (payload.get('note') or '').strip()[:255]
         lat = parse_float(payload.get('lat'))
         lng = parse_float(payload.get('lng'))
+        destination_lat = parse_float(payload.get('destination_latitude') if payload.get('destination_latitude') is not None else payload.get('destination_lat'))
+        destination_lng = parse_float(payload.get('destination_longitude') if payload.get('destination_longitude') is not None else payload.get('destination_lng'))
+        if not valid_coords(destination_lat, destination_lng):
+            destination_lat = None
+            destination_lng = None
 
         primary = SafetyContact.query.filter_by(user_id=current_user.id, is_primary=True).first()
         if not primary:
@@ -9009,7 +10019,7 @@ def create_app():
             return jsonify({'ok': False, 'error': 'Primero agrega un contacto de confianza.'}), 400
 
         active_rows = SafetyCheckin.query.filter_by(user_id=current_user.id, status='active').all()
-        now = datetime.now()
+        now = datetime.now(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
         for row in active_rows:
             row.status = 'cancelled'
             row.cancelled_at = now
@@ -9025,10 +10035,21 @@ def create_app():
             eta_minutes=eta_minutes,
             latitude=lat,
             longitude=lng,
+            destination_latitude=destination_lat,
+            destination_longitude=destination_lng,
+            started_at=now,
             expires_at=expires_at,
             status='active',
         )
         db.session.add(checkin)
+        db.session.flush()
+        if valid_coords(lat, lng):
+            db.session.add(CheckinRoutePoint(
+                checkin_id=checkin.id,
+                recorded_at=utc_now_naive(),
+                latitude=float(lat),
+                longitude=float(lng),
+            ))
         db.session.commit()
         invalidate_runtime_response_cache('page_safety_content')
 
@@ -9041,6 +10062,8 @@ def create_app():
             'eta_minutes': int(checkin.eta_minutes or eta_minutes),
             'latitude': float(checkin.latitude) if checkin.latitude is not None else None,
             'longitude': float(checkin.longitude) if checkin.longitude is not None else None,
+            'destination_latitude': float(checkin.destination_latitude) if checkin.destination_latitude is not None else None,
+            'destination_longitude': float(checkin.destination_longitude) if checkin.destination_longitude is not None else None,
             'message': f'Check-in iniciado por {eta_minutes} minutos.',
         })
 
@@ -9065,7 +10088,7 @@ def create_app():
             except Exception as exc:
                 _debug_log_suppressed('suppressed exception', exc)
         checkin.status = 'arrived'
-        checkin.arrived_at = datetime.now()
+        checkin.arrived_at = datetime.now(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
         db.session.add(checkin)
         db.session.commit()
         invalidate_runtime_response_cache('page_safety_content')
@@ -9086,7 +10109,7 @@ def create_app():
             return jsonify({'ok': False, 'error': 'No hay un check-in activo.'}), 400
 
         checkin.status = 'cancelled'
-        checkin.cancelled_at = datetime.now()
+        checkin.cancelled_at = datetime.now(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
         db.session.add(checkin)
         db.session.commit()
         invalidate_runtime_response_cache('page_safety_content')
@@ -9152,7 +10175,10 @@ def create_app():
             speed_kmh=float(speed_kmh) if speed_kmh is not None else None,
             accuracy_m=float(accuracy_m) if accuracy_m is not None else None,
         )
+        checkin.latitude = float(lat)
+        checkin.longitude = float(lng)
         db.session.add(point)
+        db.session.add(checkin)
         db.session.commit()
         return jsonify({'ok': True, 'point_id': point.id})
 
@@ -9202,6 +10228,11 @@ def create_app():
                 'id': checkin.id,
                 'status': checkin.status,
                 'destination': checkin.destination,
+                'display_destination': (checkin.destination or '').strip() or 'Destino en progreso',
+                'latitude': float(checkin.latitude) if checkin.latitude is not None else None,
+                'longitude': float(checkin.longitude) if checkin.longitude is not None else None,
+                'destination_latitude': float(checkin.destination_latitude) if checkin.destination_latitude is not None else None,
+                'destination_longitude': float(checkin.destination_longitude) if checkin.destination_longitude is not None else None,
             },
             'points': points,
         })

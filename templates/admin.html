@@ -69,7 +69,7 @@
     <section class="admin-tabs-panel">
         <div class="admin-tabs-scroll" id="adminTabs">
             <button class="tab-btn{% if active_tab == 'users' %} active{% endif %}" onclick="switchTab('users')" id="tab-users" type="button">
-                Usuarias
+                {% if has_admin_users_attention %}<span class="tab-dot"></span>{% endif %} Usuarias
             </button>
             <button class="tab-btn{% if active_tab == 'posts' %} active{% endif %}" onclick="switchTab('posts')" id="tab-posts" type="button">
                 Publicaciones
@@ -104,7 +104,15 @@
         <div class="admin-data-card">
             <div class="admin-data-card__head">
                 <h3>Lista de usuarias recientes</h3>
-                <div class="small text-secondary">Mostrando {{ users|length }} de {{ total_users_count if total_users_count is defined else users|length }} usuarias</div>
+                <div class="admin-data-card__meta">
+                    <div class="small text-secondary">Mostrando {{ users|length }} de {{ total_users_count if total_users_count is defined else users|length }} usuarias</div>
+                    {% if pending_password_recovery_count %}
+                    <div class="admin-attention-chip" id="pendingRecoveryChip">
+                        <i class="fas fa-key"></i>
+                        {{ pending_password_recovery_count }} solicitud{% if pending_password_recovery_count != 1 %}es{% endif %} de recuperación pendiente{% if pending_password_recovery_count != 1 %}s{% endif %}
+                    </div>
+                    {% endif %}
+                </div>
             </div>
             <div class="admin-users-search-wrap">
                 <label class="admin-global-search">
@@ -136,7 +144,7 @@
                     <tbody id="usersList">
                         {% for user in users %}
                         {% set protected_staff = user_is_protected_staff(user) %}
-                        <tr class="user-item">
+                        <tr class="user-item{% if user.password_recovery_requested_at %} is-recovery-pending{% endif %}" data-user-id="{{ user.id }}" data-password-recovery-pending="{{ '1' if user.password_recovery_requested_at else '0' }}">
                             <td class="admin-users-table__check">
                                 <input class="form-check-input user-select" type="checkbox" data-id="{{ user.id }}" {% if protected_staff %}disabled{% endif %}>
                             </td>
@@ -146,7 +154,15 @@
                                         class="admin-user-cell__avatar" alt="Avatar" loading="lazy" decoding="async">
                                     <div class="admin-user-cell__meta">
                                         <div class="admin-user-cell__name user-username">
+                                            {% if user.password_recovery_requested_at %}
+                                            <span style="display:inline-block; width:9px; height:9px; background-color:#ef4444; border-radius:50%; margin-right:6px; box-shadow: 0 0 0 2px rgba(239,68,68,0.2);" title="Pidió cambio de contraseña"></span>
+                                            {% endif %}
                                             {{ user.username }}
+                                            {% if user.password_recovery_requested_at %}
+                                            <span class="admin-attention-chip admin-attention-chip--inline">
+                                                <i class="fas fa-key"></i> Recuperación pendiente
+                                            </span>
+                                            {% endif %}
                                             {% set user_level = moderation_badge_level(user) %}
                                             {% if user_level > 0 %}
                                             <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if user_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if user_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if user_level >= 2 else 'Usuaria con un strike' }}">
@@ -158,11 +174,18 @@
                                             {% endif %}
                                         </div>
                                         <div class="admin-user-cell__email user-email">{{ user.email }}</div>
+                                        {% if user.password_recovery_requested_at %}
+                                        <div class="admin-user-cell__note">
+                                            Solicitó ayuda para recuperar su contraseña el {{ user.password_recovery_requested_at.strftime('%d/%m/%Y %I:%M %p') if user.password_recovery_requested_at else '' }}
+                                        </div>
+                                        {% endif %}
                                     </div>
                                 </div>
                             </td>
                             <td>
-                                {% if user.username == 'admin' %}
+                                {% if user.password_recovery_requested_at %}
+                                <span class="admin-status-pill is-recovery">Recuperación</span>
+                                {% elif user.username == 'admin' %}
                                 <span class="admin-status-pill is-active">Activo</span>
                                 {% elif user.post_count|default(0) > 0 %}
                                 <span class="admin-status-pill is-mid">Con publicaciones</span>
@@ -255,7 +278,7 @@
         <div class="row g-4" id="postsGrid">
             {% for post in posts %}
             {% set is_reported = post.is_reported_admin|default(false) %}
-            <div class="col-12 col-sm-6 col-lg-4 col-xl-3 post-item">
+            <div class="col-12 col-sm-6 col-lg-4 col-xl-3 post-item" data-post-id="{{ post.id }}">
                 <div class="flip-card h-100">
                     <div class="flip-card-inner h-100">
                         <div class="flip-card-front h-100">
@@ -439,7 +462,7 @@
             {% set ns_reasons.items = ns_reasons.items + [r.reason] %}
             {% endif %}
             {% endfor %}
-            <div class="col-12 col-xl-6 reported-item"
+            <div class="col-12 col-xl-6 reported-item" data-report-id="{{ report_ref.id if report_ref else '' }}" data-post-id="{{ post.id }}"
                 data-search="{{ (post.author.username ~ ' ' ~ (post.caption or '') ~ ' ' ~ (post.location_name or '') ~ ' ' ~ (ns_reasons.items | join(' ')))|lower }}">
                 <div class="message-report-card h-100">
                     <div class="message-report-card__head">
@@ -561,7 +584,7 @@
                 {% set report_status_label = 'Pendiente' %}
                 {% set report_status_class = 'message-report-card__status--pending' %}
             {% endif %}
-            <div class="col-12 col-xl-6 reported-chat-item"
+            <div class="col-12 col-xl-6 reported-chat-item" data-report-id="{{ report.id }}"
                 data-search="{{ ((room.name if room else 'sala eliminada') ~ ' ' ~ (sender.username if sender else 'usuaria eliminada') ~ ' ' ~ (report.reporter.username if report.reporter else 'usuaria eliminada') ~ ' ' ~ (report.reason or '') ~ ' ' ~ (report.details or '') ~ ' ' ~ (msg.content or ''))|lower }}">
                 <div class="message-report-card h-100">
                     <div class="message-report-card__head">
@@ -683,7 +706,7 @@
                 {% set report_status_label = 'Pendiente' %}
                 {% set report_status_class = 'message-report-card__status--pending' %}
             {% endif %}
-            <div class="col-12 col-xl-6 reported-comment-item"
+            <div class="col-12 col-xl-6 reported-comment-item" data-report-id="{{ report.id }}"
                 data-search="{{ ((sender.username if sender else 'usuaria eliminada') ~ ' ' ~ (report.reporter.username if report.reporter else 'usuaria eliminada') ~ ' ' ~ (report.reason or '') ~ ' ' ~ (report.details or '') ~ ' ' ~ (comment.content or '') ~ ' ' ~ (post.caption or ''))|lower }}">
                 <div class="message-report-card h-100">
                     <div class="message-report-card__head">
@@ -772,12 +795,12 @@
     <div id="view-verificaciones" class="admin-view{% if active_tab != 'verificaciones' %} d-none{% endif %}">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4">
             <h3 class="h5 mb-0 fw-bold text-white">Verificaciones de identidad</h3>
-            <div class="text-secondary small">Pendientes: {{ pending_verifications_count if pending_verifications_count is defined else (pending_verifications|length if pending_verifications is defined else 0) }}</div>
+            <div class="text-secondary small" id="pendingVerificationsCountText">Pendientes: {{ pending_verifications_count if pending_verifications_count is defined else (pending_verifications|length if pending_verifications is defined else 0) }}</div>
         </div>
         {% if verifications %}
-        <div class="row g-3">
+        <div class="row g-3" id="verificationList">
             {% for v in verifications %}
-            <div class="col-12 col-lg-6">
+            <div class="col-12 col-lg-6 verification-item" data-verification-id="{{ v.id }}" data-verification-status="{{ v.status }}">
                 <div class="card h-100 border-0 bg-surface shadow-sm" style="border-radius: var(--radius-md);">
                     <div class="card-body p-3">
                         <div class="d-flex align-items-center gap-3">
@@ -917,9 +940,9 @@
             <div class="card-body p-3 p-md-4">
                 <h5 class="fw-bold text-white mb-3">Solicitudes pendientes</h5>
                 {% if pending_rooms and pending_rooms|length %}
-                <div class="d-flex flex-column gap-3">
+                <div class="d-flex flex-column gap-3" id="pendingChatRoomsList">
                     {% for room in pending_rooms %}
-                    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3 p-3 rounded-3"
+                    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3 p-3 rounded-3 pending-chat-room-item" data-room-id="{{ room.id }}"
                         style="background: rgba(124, 58, 237, 0.08); border: 1px solid rgba(124, 58, 237, 0.2);">
                         <div>
                             <div class="fw-bold text-white">{{ room.name }}</div>
@@ -949,9 +972,9 @@
             <div class="card-body p-3 p-md-4">
                 <h5 class="fw-bold text-white mb-3">Todas las salas</h5>
                 {% if chat_rooms and chat_rooms|length %}
-                <div class="d-flex flex-column gap-3">
+                <div class="d-flex flex-column gap-3" id="allChatRoomsList">
                     {% for room in chat_rooms %}
-                    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3 p-3 rounded-3"
+                    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3 p-3 rounded-3 admin-chat-room-item" data-room-id="{{ room.id }}"
                         style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
                         <div class="bulk-select">
                             <input type="checkbox" class="form-check-input chat-select" data-id="{{ room.id }}">
@@ -971,9 +994,9 @@
                         </div>
                         <div class="d-flex gap-2 align-items-center">
                             {% if not room.is_approved %}
-                            <span class="badge bg-warning text-dark">Pendiente</span>
+                            <span class="badge bg-warning text-dark chat-room-status-badge">Pendiente</span>
                             {% else %}
-                            <span class="badge bg-success">Activo</span>
+                            <span class="badge bg-success chat-room-status-badge">Activo</span>
                             {% endif %}
                             <button class="btn btn-danger btn-sm rounded-pill"
                                 onclick="deleteChatRoom('{{ room.id }}')">

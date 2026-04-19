@@ -80,6 +80,10 @@
 
           <button class="link-btn" type="button" data-preview-link="history">Ver historial</button>
           <div class="prototype-note" data-safety-status></div>
+          <div class="safety-beta-note">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>Versión beta: El compartir ubicación real está en desarrollo.</span>
+          </div>
         </div>
       </div>
     </section>
@@ -152,6 +156,10 @@
             Si algo cambia, puedes abrir emergencia de inmediato. Las acciones rapidas estan en el mapa para que llegues o canceles sin confusion.
           </div>
           <div class="prototype-note" data-safety-status></div>
+          <div class="safety-beta-note">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>Versión beta: El compartir ubicación real está en desarrollo.</span>
+          </div>
         </div>
       </div>
     </section>
@@ -192,7 +200,11 @@
         </div>
 
         <div data-contact-list="mobile"></div>
-        <div class="prototype-note no-margin" data-safety-status></div>
+        <div class="prototype-note" data-safety-status></div>
+        <div class="safety-beta-note">
+          <i class="fa-solid fa-circle-info"></i>
+          <span>Versión beta: El compartir ubicación real está en desarrollo.</span>
+        </div>
       </div>
     </section>
 
@@ -211,6 +223,10 @@
       </div>
 
       <div class="stack state-stack" data-history-list="mobile"></div>
+      <div class="safety-beta-note">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>Versión beta: El compartir ubicación real está en desarrollo.</span>
+      </div>
     </section>
   </section>
 
@@ -272,7 +288,7 @@
                 </div>
                 <div id="desktopDestinationResults" class="destination-search-results desktop-dest-results" role="listbox" aria-label="Sugerencias de destino" hidden>
                   <div class="destination-search-results__head">
-                    <span>Lugares en Monterrey</span>
+                    <span>Lugares en Monterrey y zona metropolitana</span>
                   </div>
                   <div class="destination-search-results__list desktop-dest-results-list" data-destination-results-list></div>
                 </div>
@@ -318,6 +334,11 @@
           <div class="prototype-note no-margin" data-safety-status></div>
           <button class="link-btn" type="button" data-preview-link="history">Ver historial</button>
         </aside>
+
+        <div class="safety-beta-note desktop-only-note">
+          <i class="fa-solid fa-circle-info"></i>
+          <span>En esta versión beta aún no es posible compartir la ubicación real con tus contactos, pero estamos trabajando para habilitar esta función en futuras actualizaciones.</span>
+        </div>
       </div>
     </section>
 
@@ -380,6 +401,11 @@
           </section>
         </aside>
       </div>
+
+      <div class="safety-beta-note desktop-only-note">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>En esta versión beta aún no es posible compartir la ubicación real con tus contactos, pero estamos trabajando para habilitar esta función en futuras actualizaciones.</span>
+      </div>
     </section>
 
     <section class="desktop-state {% if initial_state == 'contacts' %}is-visible{% endif %}" data-state="contacts">
@@ -420,6 +446,11 @@
           </section>
         </aside>
       </div>
+
+      <div class="safety-beta-note desktop-only-note">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>En esta versión beta aún no es posible compartir la ubicación real con tus contactos, pero estamos trabajando para habilitar esta función en futuras actualizaciones.</span>
+      </div>
     </section>
 
     <section class="desktop-state {% if initial_state == 'history' %}is-visible{% endif %}" data-state="history">
@@ -435,13 +466,17 @@
           <p class="desktop-header__sub">Cada trayecto muestra solo lo necesario: nombre, fecha, resumen corto y una accion principal.</p>
         </div>
       </header>
-
       <div class="desktop-history-grid">
         <section class="desktop-history-list" data-history-list="desktop"></section>
       </div>
+
+      <div class="safety-beta-note desktop-only-note">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>En esta versión beta aún no es posible compartir la ubicación real con tus contactos, pero estamos trabajando para habilitar esta función en futuras actualizaciones.</span>
+      </div>
     </section>
-    </main>
-  </section>
+  </main>
+</section>
 
   <div class="summary-modal-backdrop" id="summaryModal" aria-hidden="true">
     <div class="summary-modal" role="dialog" aria-modal="true" aria-labelledby="summaryModalTitle">
@@ -462,8 +497,8 @@
           <div class="summary-modal__metric-value" id="summaryMetricTime">--</div>
         </div>
         <div class="summary-modal__metric">
-          <div class="summary-modal__metric-label">Destino</div>
-          <div class="summary-modal__metric-value" id="summaryMetricDestination">--</div>
+          <div class="summary-modal__metric-label">Contactos compartidos</div>
+          <div class="summary-modal__metric-value" id="summaryMetricContacts">--</div>
         </div>
         <div class="summary-modal__metric">
           <div class="summary-modal__metric-label">Dato clave</div>
@@ -471,14 +506,11 @@
         </div>
       </div>
 
-      <div class="summary-route-map" aria-hidden="true">
-        <svg class="summary-route-svg" viewBox="0 0 320 180" preserveAspectRatio="none">
-          <path class="summary-route-base" id="summaryRouteBase" d=""></path>
-          <path class="summary-route-path" id="summaryRoutePath" d=""></path>
-        </svg>
-        <div class="summary-route-marker" id="summaryRouteStart"></div>
-        <div class="summary-route-marker summary-route-marker--end" id="summaryRouteEnd"></div>
-        <div class="summary-route-dot" id="summaryRouteDot"></div>
+      <div class="summary-route-map">
+        <div class="summary-route-live-map" id="summaryRouteLiveMap" aria-label="Mapa del trayecto"></div>
+        <div class="summary-route-status" id="summaryRouteStatus" role="status" aria-live="polite">
+          Cargando recorrido real...
+        </div>
         <div class="summary-route-label summary-route-label--start" id="summaryRouteStartLabel">Inicio</div>
         <div class="summary-route-label summary-route-label--end" id="summaryRouteEndLabel">Destino</div>
       </div>

@@ -1,65 +1,108 @@
 {% extends 'base.html' %}
+
+{% set strike_level = strike_context.strike_level if strike_context else (3 if restriction.type == 'permanent' else 2) %}
+{% set is_permanent = restriction.type == 'permanent' or strike_level >= 3 %}
+
 {% block content %}
-<div class="auth-page-shell auth-page-shell--login">
-    <div class="auth-page-card auth-page-card--login text-center">
-        <div class="mb-4">
-            <div class="mx-auto d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width:72px;height:72px;background:rgba(239,68,68,.16);color:#fca5a5;font-size:1.6rem;">
-                <i class="fas fa-triangle-exclamation"></i>
-            </div>
-            <h2 class="mb-2">Cuenta restringida</h2>
-            <p class="text-secondary mb-0">{{ restriction.message }}</p>
+<div class="strike-restricted-placeholder" aria-hidden="true">
+    <section class="strike-placeholder-card">
+        <div class="strike-placeholder-avatar"></div>
+        <div class="strike-placeholder-lines">
+            <span></span>
+            <span></span>
         </div>
-
-        {% if restriction.type == 'temporary' and restriction.until %}
-        <div class="glass-card p-3 mb-4" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:18px;">
-            <div class="small text-uppercase text-secondary mb-2">Tiempo restante</div>
-            <div id="restrictionCountdown" class="fs-3 fw-bold text-white" data-until="{{ restriction.until.isoformat() }}">
-                Calculando...
-            </div>
-            <div class="small text-secondary mt-2">Tu acceso se restaurará automáticamente al terminar el periodo.</div>
-        </div>
-        {% else %}
-        <div class="glass-card p-3 mb-4" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:18px;">
-            <div class="small text-secondary">Si consideras que esto es un error, responde al correo de moderación enviado a tu cuenta.</div>
-        </div>
-        {% endif %}
-
-        <a href="{{ url_for('logout') }}" class="violet-btn-primary w-100 text-center text-decoration-none">Cerrar sesión</a>
-    </div>
+    </section>
+    <section class="strike-placeholder-grid">
+        <div></div>
+        <div></div>
+        <div></div>
+    </section>
 </div>
 {% endblock %}
-{% block scripts %}
-<script>
-(function () {
-    const el = document.getElementById('restrictionCountdown');
-    if (!el) return;
-    const untilRaw = el.getAttribute('data-until');
-    const until = untilRaw ? new Date(untilRaw) : null;
-    if (!until || Number.isNaN(until.getTime())) {
-        el.textContent = 'Sin fecha';
-        return;
-    }
-    function render() {
-        const diff = Math.max(0, until.getTime() - Date.now());
-        if (diff <= 0) {
-            el.textContent = 'Puedes volver a entrar ahora';
-            window.setTimeout(() => window.location.reload(), 1200);
-            return;
-        }
-        const totalSeconds = Math.floor(diff / 1000);
-        const days = Math.floor(totalSeconds / 86400);
-        const hours = Math.floor((totalSeconds % 86400) / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-        const parts = [];
-        if (days) parts.push(`${days}d`);
-        if (hours || days) parts.push(`${hours}h`);
-        if (minutes || hours || days) parts.push(`${minutes}m`);
-        parts.push(`${seconds}s`);
-        el.textContent = parts.join(' ');
-    }
-    render();
-    window.setInterval(render, 1000);
-})();
-</script>
+
+{% block modals %}
+<div
+    class="strike-overlay strike-overlay--restricted"
+    id="strikeRestrictedOverlay"
+    data-restricted-overlay
+    data-strike-level="{{ strike_level }}"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="strikeRestrictedTitle"
+>
+    <div class="strike-overlay__card strike-overlay__card--restricted">
+        <div class="strike-overlay__header">
+            <div class="strike-overlay__icon pulse-danger" aria-hidden="true">
+                <i class="fas {{ 'fa-user-slash' if is_permanent else 'fa-exclamation-triangle' }}"></i>
+            </div>
+            <h2 class="strike-overlay__title" id="strikeRestrictedTitle">
+                {{ 'Cuenta Baneada Permanentemente' if is_permanent else 'Cuenta Suspendida' }}
+            </h2>
+            <p class="strike-overlay__user">Hola, {{ strike_context.username if strike_context else ('@' ~ current_user.username) }}</p>
+        </div>
+
+        <div class="strike-overlay__body">
+            <div class="strike-overlay__message">
+                {% if is_permanent %}
+                <p class="strike-overlay__denied">ACCESO DENEGADO</p>
+                <p>
+                    Tras recibir un tercer strike por
+                    <strong>{{ strike_context.source_label if strike_context else 'contenido reportado' }}</strong>
+                    bajo la categoría
+                    <strong>“{{ strike_context.category_label if strike_context else 'Incumplimiento de reglas' }}”</strong>,
+                    tu cuenta ha sido bloqueada permanentemente.
+                </p>
+                <p>
+                    Nuestra política de tolerancia cero ante infracciones reiteradas protege la integridad de este espacio.
+                    No es posible continuar usando esta cuenta.
+                </p>
+                {% else %}
+                <p>
+                    Has recibido tu <strong>segundo strike</strong>. Se reportó
+                    <strong>{{ strike_context.source_label if strike_context else 'contenido reportado' }}</strong>
+                    bajo la categoría
+                    <strong>“{{ strike_context.category_label if strike_context else 'Incumplimiento de reglas' }}”</strong>.
+                </p>
+                <p class="strike-overlay__restriction-note">
+                    {{ strike_context.consequence_text if strike_context else 'Tu cuenta ha sido suspendida por 7 días' }}
+                    como medida de protección para la comunidad.
+                </p>
+                <p class="strike-overlay__warning-copy">
+                    Un tercer strike resultará en el bloqueo permanente de tu cuenta.
+                </p>
+                {% endif %}
+
+                {% if strike_context and strike_context.content_excerpt %}
+                <p class="strike-overlay__excerpt">“{{ strike_context.content_excerpt }}”</p>
+                {% endif %}
+            </div>
+
+            {% if not is_permanent %}
+            <div
+                class="strike-timer-card"
+                data-restriction-countdown
+                data-restriction-until="{{ restriction.until.isoformat() if restriction.until else '' }}"
+                data-restriction-total="{{ restriction.remaining_seconds or 0 }}"
+            >
+                <div class="strike-timer-card__label">Tiempo restante para recuperar acceso:</div>
+                <div class="strike-timer-card__value" data-restriction-countdown-value>Calculando...</div>
+                <div class="strike-timer-card__bar" aria-hidden="true">
+                    <div class="strike-timer-card__fill" data-restriction-progress></div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="strike-actions-grid">
+                <a href="{{ url_for('logout') }}" class="strike-action strike-action--dark">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Cerrar sesión</span>
+                </a>
+                <a href="{{ url_for('emergency_call') }}" class="strike-action strike-action--emergency" target="_blank" rel="noopener">
+                    <i class="fas fa-phone-alt"></i>
+                    <span>Llamar Emergencia</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

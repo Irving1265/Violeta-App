@@ -64,7 +64,7 @@
     <section class="admin-tabs-panel">
         <div class="admin-tabs-scroll" id="adminTabs">
             <button class="tab-btn{% if active_admin_tab == 'users' %} active{% endif %}" onclick="switchTab('users')" id="tab-users" type="button">
-                Usuarias
+                {% if has_admin_users_attention %}<span class="tab-dot"></span>{% endif %} Usuarias
             </button>
             <button class="tab-btn{% if active_admin_tab == 'posts' %} active{% endif %}" onclick="switchTab('posts')" id="tab-posts" type="button">
                 Publicaciones

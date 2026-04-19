@@ -232,7 +232,6 @@
 
       if (map.hasLayer(transitRoutesLayer)) map.removeLayer(transitRoutesLayer);
       if (map.hasLayer(transitStopsLayer)) map.removeLayer(transitStopsLayer);
-      if (map.hasLayer(hotspotsLayer)) map.removeLayer(hotspotsLayer);
 
       let transportVisible = false;
       const transportBtn = document.getElementById('transportToggleBtn');
@@ -251,9 +250,12 @@
         });
       }
 
-      let hotspotsVisible = false;
+      let hotspotsVisible = true;
       const hotspotsBtn = document.getElementById('hotspotsToggleBtn');
       if (hotspotsBtn) {
+        if (!map.hasLayer(hotspotsLayer)) {
+          map.addLayer(hotspotsLayer);
+        }
         hotspotsBtn.classList.toggle('is-active', hotspotsVisible);
         hotspotsBtn.addEventListener('click', function () {
           hotspotsVisible = !hotspotsVisible;

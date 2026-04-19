@@ -15,7 +15,7 @@
         <button type="button" class="hotspots-tool-btn" id="transportToggleBtn" title="Mostrar/ocultar transporte">
           <i class="fas fa-bus"></i>
         </button>
-        <button type="button" class="hotspots-tool-btn" id="hotspotsToggleBtn" title="Mostrar/ocultar zonas">
+        <button type="button" class="hotspots-tool-btn is-active" id="hotspotsToggleBtn" title="Mostrar/ocultar zonas">
           <i class="fas fa-layer-group"></i>
         </button>
         <button type="button" class="hotspots-tool-btn" id="legendToggleBtn" title="Mostrar/ocultar leyenda">
@@ -153,5 +153,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script defer src="{{ url_for('static', filename='js/hotspots_page.js') }}?v=20260404-mobile-ui-v1"></script>
+<script defer src="{{ url_for('static', filename='js/hotspots_page.js') }}?v=20260413-hotspots-default-on-v2"></script>
 {% endblock %}

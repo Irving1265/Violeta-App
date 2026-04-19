@@ -16,11 +16,11 @@
     {% if request.endpoint in ['index', 'hotspots_page', 'safety_center', 'login'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260409-hotfix">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260418-strike-overlay-v5">
     {% if request.endpoint == 'index' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/post_create.css') }}?v=20260403-post-modal-motion-v17">
     {% endif %}
-    {% if current_user.is_authenticated and request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted'] %}
+    {% if current_user.is_authenticated and request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset'] %}
     <link rel="prefetch" as="document" href="{{ url_for('index') }}">
     {% if current_user_can_access_admin_panel %}<link rel="prefetch" as="document" href="{{ url_for('admin_panel') }}">{% endif %}
     <link rel="prefetch" as="document" href="{{ url_for('hotspots_page') }}">
@@ -34,7 +34,7 @@
 
     <div class="app-layout">
         <!-- Sidebar (Desktop) -->
-        {% if request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted'] %}
+        {% if request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset'] %}
         <aside class="sidebar">
             <div class="brand-logo">
                 <span class="brand-logo__word">Violeta</span>
@@ -108,7 +108,7 @@
 
         <!-- Main Content -->
         <main
-            class="main-content {% if request.endpoint in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted'] %}no-sidebar{% endif %}">
+            class="main-content {% if request.endpoint in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset'] %}no-sidebar{% endif %}">
             <!-- Flash Messages -->
             <div class="flash-popups" id="flashPopups">
                 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -165,7 +165,7 @@
         {% block modals %}{% endblock %}
 
         <!-- Bottom Nav (Mobile) -->
-        {% if request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted'] %}
+        {% if request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset'] %}
         <nav class="bottom-nav">
             <a href="{{ url_for('index') }}" class="nav-item {{ 'active' if request.endpoint == 'index' else '' }}">
                 <i class="fa-solid fa-house"></i>
@@ -194,6 +194,73 @@
         </nav>
         {% endif %}
     </div>
+
+    {% if active_warning_strike and request.endpoint != 'account_restricted' %}
+    <div class="strike-overlay strike-overlay--warning" id="strikeWarningOverlay" data-strike-warning-overlay role="dialog" aria-modal="true" aria-labelledby="strikeWarningTitle">
+        <div class="strike-overlay__card strike-overlay__card--compact">
+            <div class="strike-compact-header">
+                <div class="strike-compact-icon" aria-hidden="true">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <h2 class="strike-compact-title" id="strikeWarningTitle">Primer Strike</h2>
+                <p class="strike-compact-user">{{ active_warning_strike.username }}</p>
+            </div>
+
+            <div class="strike-compact-body">
+                <div class="strike-compact-reason">
+                    <p>
+                        Infracción en <strong>{{ active_warning_strike.source_label }}</strong>
+                        por <span>“{{ active_warning_strike.category_label }}”</span>:
+                    </p>
+                    {% if active_warning_strike.content_excerpt %}
+                    <div class="strike-compact-excerpt">“{{ active_warning_strike.content_excerpt }}”</div>
+                    {% endif %}
+                </div>
+
+                <div class="strike-compact-progress" aria-label="Estado de cuenta">
+                    <div class="strike-compact-progress__top">
+                        <span>Estado de cuenta</span>
+                        <strong>1 / 3</strong>
+                    </div>
+                    <div class="strike-compact-steps" aria-hidden="true">
+                        <span class="is-active"></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+
+                <div class="strike-compact-timer" data-strike-timer>
+                    <div>
+                        <span class="strike-compact-timer__label">Espera necesaria</span>
+                        <div class="strike-compact-timer__value" data-strike-countdown>01:00</div>
+                    </div>
+                    <div class="strike-compact-ring" aria-hidden="true">
+                        <svg viewBox="0 0 48 48">
+                            <circle class="strike-compact-ring__track" stroke-width="3" fill="transparent" r="20" cx="24" cy="24"></circle>
+                            <circle class="strike-compact-ring__progress" data-strike-progress data-progress-length="125.6" stroke-width="3" fill="transparent" r="20" cx="24" cy="24"></circle>
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="strike-actions-grid">
+                    <a href="{{ url_for('logout') }}" class="strike-action strike-action--dark">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Cerrar sesión</span>
+                    </a>
+                    <a href="{{ url_for('emergency_call') }}" class="strike-action strike-action--emergency" target="_blank" rel="noopener">
+                        <i class="fas fa-phone-alt"></i>
+                        <span>Llamar Emergencia</span>
+                    </a>
+                </div>
+
+                <button type="button" class="strike-dismiss-btn" data-strike-dismiss disabled>
+                    <span>Espera un momento...</span>
+                </button>
+                <div class="strike-overlay__status" data-strike-status aria-live="polite"></div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     {% if current_user.is_authenticated and request.endpoint == 'index' %}
     <a class="floating-create-btn" href="javascript:void(0)" onclick="window.PostCreateModal.open()" data-require-verified="1"
@@ -400,6 +467,7 @@
         })();
     </script>
     <script>
+        window.VIOLETA_STRIKE_OVERLAY = {{ active_warning_strike|tojson if active_warning_strike else 'null' }};
         window.CURRENT_USER = {
             is_authenticated: {{ 'true' if current_user.is_authenticated else 'false' }},
             id: {{ current_user.id if current_user.is_authenticated else 'null' }},
@@ -416,11 +484,14 @@
         window.VIOLETA_SAFETY_PUBLISH_POLICY = {{ safety_publish_policy|tojson }};
     </script>
     <script src="{{ url_for('static', filename='js/app.js') }}?v=20260409-nav-safe-v3"></script>
+    {% if active_warning_strike or request.endpoint == 'account_restricted' %}
+    <script src="{{ url_for('static', filename='js/strike_overlay.js') }}?v=20260418-strike-overlay-v3"></script>
+    {% endif %}
     {% if current_user.is_authenticated and not current_user_can_override_content_controls %}
     <script src="{{ url_for('static', filename='js/pending_post_release.js') }}?v=20260402-progressive-v1"></script>
     {% endif %}
     {% if request.endpoint == 'index' %}
-    <script src="{{ url_for('static', filename='js/post_create.js') }}?v=20260403-post-modal-motion-v15"></script>
+    <script src="{{ url_for('static', filename='js/post_create.js') }}?v=20260413-post-location-precision-v16"></script>
     {% endif %}
     {% if request.endpoint in ['index', 'user_profile', 'profile', 'post_detail'] %}
     <script src="{{ url_for('static', filename='js/post_map.js') }}"></script>
