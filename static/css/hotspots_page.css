@@ -1539,7 +1539,7 @@
       z-index: 3;
     }
 
-    .route-top-search .route-field--dest {
+    .route-top-search .route-field {
       height: 52px;
       padding: 4px 6px 4px 16px;
       border-radius: 999px;
@@ -1549,24 +1549,24 @@
       box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
     }
 
-    .route-top-search .route-field--dest i {
+    .route-top-search .route-field i {
       color: #94a3b8;
       font-size: 0.96rem;
     }
 
-    .route-top-search .route-field--dest input {
+    .route-top-search .route-field input {
       font-size: 0.95rem;
       font-weight: 600;
       color: #334155;
       padding-right: 12px;
     }
 
-    .route-top-search .route-field--dest input::placeholder {
+    .route-top-search .route-field input::placeholder {
       color: #94a3b8;
       font-weight: 500;
     }
 
-    #destResults {
+    #originResults {
       position: absolute;
       top: calc(100% + 8px);
       left: 0;
@@ -1574,7 +1574,7 @@
       z-index: 5;
     }
 
-    #destResults .route-search-dropdown {
+    #originResults .route-search-dropdown {
       position: relative;
       top: 0;
       left: auto;
@@ -1671,7 +1671,7 @@
       margin-bottom: 12px;
     }
 
-    .route-field--origin {
+    .route-fields-stack .route-field {
       height: 52px;
       min-height: 52px;
       border-radius: 999px;
@@ -1681,7 +1681,7 @@
       padding: 4px 44px 4px 16px;
     }
 
-    .route-field--origin input {
+    .route-fields-stack .route-field input {
       font-size: 0.95rem;
       color: #334155;
       font-weight: 600;
@@ -1691,7 +1691,7 @@
       display: none;
     }
 
-    #originResults .route-search-dropdown {
+    #destResults .route-search-dropdown {
       top: 6px;
       border-radius: 18px;
       background: rgba(255, 255, 255, 0.98);
