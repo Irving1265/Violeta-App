@@ -430,16 +430,21 @@
   }
 
   .route-search-item__content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     min-width: 0;
   }
 
   .route-search-item__title {
+    display: block;
     font-size: 0.92rem;
     font-weight: 800;
     color: #111827;
   }
 
   .route-search-item__sub {
+    display: block;
     margin-top: 2px;
     font-size: 0.76rem;
     line-height: 1.4;
