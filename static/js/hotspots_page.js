@@ -22,6 +22,44 @@
     }
     function escapeHtml(s) { return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c])); }
 
+    function showTransitComingSoon() {
+      const alertBox = document.getElementById('routeAlert');
+      const routeFeedback = document.getElementById('routeFeedback');
+      const instructionsPanel = document.getElementById('transitInstructions');
+      const routeCard = document.getElementById('routeCard');
+      const routeCardHeader = document.getElementById('routeCardHeader');
+      const routeBtn = document.getElementById('routeBtn');
+      const transitBtn = document.getElementById('transitBtn');
+      const launchActions = document.getElementById('routeLaunchActions');
+      const launchMeta = document.getElementById('routeLaunchMeta');
+
+      routeBtn?.classList.add('is-active');
+      transitBtn?.classList.remove('is-active');
+      if (instructionsPanel) instructionsPanel.style.display = 'none';
+      if (launchActions) launchActions.style.display = 'none';
+      if (launchMeta) launchMeta.textContent = '';
+      routeCard?.classList.add('is-sheet-expanded', 'has-route-output');
+      routeCardHeader?.setAttribute('aria-expanded', 'true');
+
+      if (!alertBox) {
+        window.alert('Próximamente: las rutas en transporte estarán disponibles pronto.');
+        return;
+      }
+
+      alertBox.classList.add('route-alert-coming-soon');
+      alertBox.style.display = 'block';
+      alertBox.innerHTML = '<i class="fas fa-clock me-1"></i> Próximamente: las rutas en transporte estarán disponibles pronto.';
+      routeFeedback?.classList.add('is-visible');
+    }
+
+    document.addEventListener('click', function (event) {
+      const button = event.target && event.target.closest ? event.target.closest('#transitBtn') : null;
+      if (!button) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      showTransitComingSoon();
+    }, true);
+
 	    let currentCategory = '';
 	    let mapRef = null; // referencia global segura al mapa
 	    let hotspotsLayer = null; // solo hotspots (no tocar transporte)
@@ -2131,24 +2169,8 @@
       }
     }
 
-    // Transit button listener
-    if (transitBtn) {
-      transitBtn.addEventListener('click', () => {
-        const alertBox = document.getElementById('routeAlert');
-        const instructionsPanel = document.getElementById('transitInstructions');
-        setRouteMode('walk');
-        setSheetExpanded(true);
-        setTripLaunchState(null);
-        if (instructionsPanel) instructionsPanel.style.display = 'none';
-        if (alertBox) {
-          alertBox.style.display = 'block';
-          alertBox.style.background = 'rgba(139, 92, 246, 0.14)';
-          alertBox.style.color = '#6d28d9';
-          alertBox.innerHTML = '<i class="fas fa-clock me-1"></i> Próximamente: las rutas en transporte estarán disponibles pronto.';
-        }
-        updateRouteFeedbackVisibility();
-      });
-    } else {
+    // The transit CTA is intercepted near the top of the file so it still works if route setup fails later.
+    if (!transitBtn) {
       console.error('Transit Button not found in DOM');
     }
 

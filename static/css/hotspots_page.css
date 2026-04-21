@@ -631,6 +631,11 @@
     opacity: 0.9;
   }
 
+  #routeAlert.route-alert-coming-soon {
+    color: #6d28d9;
+    font-weight: 800;
+  }
+
   #transitInstructions {
     margin-top: 10px;
   }
