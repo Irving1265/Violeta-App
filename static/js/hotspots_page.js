@@ -2134,9 +2134,19 @@
     // Transit button listener
     if (transitBtn) {
       transitBtn.addEventListener('click', () => {
-        console.log('Transit Button Clicked (Event Fired)');
+        const alertBox = document.getElementById('routeAlert');
+        const instructionsPanel = document.getElementById('transitInstructions');
+        setRouteMode('walk');
         setSheetExpanded(true);
-        drawRouteTransit();
+        setTripLaunchState(null);
+        if (instructionsPanel) instructionsPanel.style.display = 'none';
+        if (alertBox) {
+          alertBox.style.display = 'block';
+          alertBox.style.background = 'rgba(139, 92, 246, 0.14)';
+          alertBox.style.color = '#6d28d9';
+          alertBox.innerHTML = '<i class="fas fa-clock me-1"></i> Próximamente: las rutas en transporte estarán disponibles pronto.';
+        }
+        updateRouteFeedbackVisibility();
       });
     } else {
       console.error('Transit Button not found in DOM');
