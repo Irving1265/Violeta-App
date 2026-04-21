@@ -58,13 +58,13 @@
 
         if (state === 'ready') {
             button.disabled = false;
-            button.innerHTML = '<span>Entiendo, deseo continuar</span>';
+            button.innerHTML = '<span>Restaurar cuenta</span>';
         } else if (state === 'loading') {
             button.disabled = true;
             button.innerHTML = '<span class="strike-spinner" aria-hidden="true"></span><span>Procesando...</span>';
         } else {
             button.disabled = true;
-            button.innerHTML = '<span>Disponible cuando termine la suspensión</span>';
+            button.innerHTML = '<i class="fas fa-lock" aria-hidden="true"></i><span>Disponible cuando termine la suspensión</span>';
         }
     }
 
@@ -233,13 +233,13 @@
 
         function renderRestrictionTimer() {
             const diffSeconds = Math.max(0, Math.ceil((until.getTime() - Date.now()) / 1000));
-            if (value) value.textContent = diffSeconds <= 0 ? 'Puedes volver a entrar ahora' : formatClock(diffSeconds);
+            if (value) value.textContent = diffSeconds <= 0 ? '0d 0h 0m' : formatClock(diffSeconds);
             if (progress) {
-                const pct = Math.max(0, Math.min(100, ((initialTotal - diffSeconds) / initialTotal) * 100));
+                const pct = Math.max(0, Math.min(100, (diffSeconds / initialTotal) * 100));
                 progress.style.width = `${pct}%`;
             }
             if (diffSeconds <= 0) {
-                if (value) value.textContent = 'Suspensión cumplida';
+                if (value) value.textContent = '0d 0h 0m';
                 setRestrictionDismissButton(dismissButton, 'ready');
                 if (restrictionIntervalId) {
                     window.clearInterval(restrictionIntervalId);

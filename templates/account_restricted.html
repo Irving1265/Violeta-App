@@ -30,20 +30,18 @@
     aria-modal="true"
     aria-labelledby="strikeRestrictedTitle"
 >
-    <div class="strike-overlay__card strike-overlay__card--restricted">
+    <div class="strike-overlay__card strike-overlay__card--restricted{% if not is_permanent %} strike-overlay__card--suspended{% endif %}">
+        {% if is_permanent %}
         <div class="strike-overlay__header">
             <div class="strike-overlay__icon pulse-danger" aria-hidden="true">
-                <i class="fas {{ 'fa-user-slash' if is_permanent else 'fa-exclamation-triangle' }}"></i>
+                <i class="fas fa-user-slash"></i>
             </div>
-            <h2 class="strike-overlay__title" id="strikeRestrictedTitle">
-                {{ 'Cuenta Baneada Permanentemente' if is_permanent else 'Cuenta Suspendida' }}
-            </h2>
+            <h2 class="strike-overlay__title" id="strikeRestrictedTitle">Cuenta Baneada Permanentemente</h2>
             <p class="strike-overlay__user">Hola, {{ strike_context.username if strike_context else ('@' ~ current_user.username) }}</p>
         </div>
 
         <div class="strike-overlay__body">
             <div class="strike-overlay__message">
-                {% if is_permanent %}
                 <p class="strike-overlay__denied">ACCESO DENEGADO</p>
                 <p>
                     Tras recibir un tercer strike por
@@ -56,41 +54,77 @@
                     Nuestra política de tolerancia cero ante infracciones reiteradas protege la integridad de este espacio.
                     No es posible continuar usando esta cuenta.
                 </p>
-                {% else %}
-                <p>
-                    Has recibido tu <strong>segundo strike</strong>. Se reportó
-                    <strong>{{ strike_context.source_label if strike_context else 'contenido reportado' }}</strong>
-                    bajo la categoría
-                    <strong>“{{ strike_context.category_label if strike_context else 'Incumplimiento de reglas' }}”</strong>.
-                </p>
-                <p class="strike-overlay__restriction-note">
-                    {{ strike_context.consequence_text if strike_context else 'Tu cuenta ha sido suspendida por 7 días' }}
-                    como medida de protección para la comunidad.
-                </p>
-                <p class="strike-overlay__warning-copy">
-                    Un tercer strike resultará en el bloqueo permanente de tu cuenta.
-                </p>
-                {% endif %}
-
                 {% if strike_context and strike_context.content_excerpt %}
                 <p class="strike-overlay__excerpt">“{{ strike_context.content_excerpt }}”</p>
                 {% endif %}
             </div>
 
-            {% if not is_permanent %}
+            <div class="strike-actions-grid">
+                <a href="{{ url_for('logout') }}" class="strike-action strike-action--dark">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Cerrar sesión</span>
+                </a>
+                <a href="{{ url_for('emergency_call') }}" class="strike-action strike-action--emergency" target="_blank" rel="noopener">
+                    <i class="fas fa-phone-alt"></i>
+                    <span>Llamar Emergencia</span>
+                </a>
+            </div>
+        </div>
+        {% else %}
+        <div class="strike-suspended-header">
+            <div class="strike-suspended-icon" aria-hidden="true">
+                <i class="fas fa-user-lock"></i>
+            </div>
+            <h2 class="strike-suspended-title" id="strikeRestrictedTitle">Cuenta Suspendida</h2>
+            <p class="strike-suspended-user">{{ strike_context.username if strike_context else ('@' ~ current_user.username) }}</p>
+        </div>
+
+        <div class="strike-suspended-body">
+            <div class="strike-suspended-reason">
+                <p>
+                    Has recibido tu <strong>segundo strike</strong>. Se reportó
+                    <strong>{{ strike_context.source_label if strike_context else 'contenido reportado' }}</strong>
+                    por:
+                    <span>“{{ strike_context.category_label if strike_context else 'Incumplimiento de reglas' }}”</span>
+                </p>
+                {% if strike_context and strike_context.content_excerpt %}
+                <div class="strike-suspended-excerpt" title="{{ strike_context.content_excerpt }}">
+                    <i class="fas fa-image" aria-hidden="true"></i>
+                    <span>{{ strike_context.content_excerpt }}</span>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="strike-suspended-progress" aria-label="Nivel de advertencia">
+                <div class="strike-suspended-progress__top">
+                    <span>Nivel de advertencia</span>
+                    <strong>2 / 3</strong>
+                </div>
+                <div class="strike-suspended-steps" aria-hidden="true">
+                    <span class="is-active"></span>
+                    <span class="is-active"></span>
+                    <span></span>
+                </div>
+                <p>
+                    {{ strike_context.consequence_text if strike_context else 'Tu cuenta ha sido suspendida por 7 días' }}
+                    como protección. <strong>Un tercer strike resultará en bloqueo permanente.</strong>
+                </p>
+            </div>
+
             <div
-                class="strike-timer-card"
+                class="strike-suspended-timer"
                 data-restriction-countdown
                 data-restriction-until="{{ restriction.until.isoformat() if restriction.until else '' }}"
                 data-restriction-total="{{ restriction.remaining_seconds or 0 }}"
             >
-                <div class="strike-timer-card__label">Tiempo restante para recuperar acceso:</div>
-                <div class="strike-timer-card__value" data-restriction-countdown-value>Calculando...</div>
-                <div class="strike-timer-card__bar" aria-hidden="true">
-                    <div class="strike-timer-card__fill" data-restriction-progress></div>
+                <div class="strike-suspended-timer__top">
+                    <span>Tiempo restante</span>
+                    <div data-restriction-countdown-value>Calculando...</div>
+                </div>
+                <div class="strike-suspended-timer__bar" aria-hidden="true">
+                    <div class="strike-suspended-timer__fill" data-restriction-progress></div>
                 </div>
             </div>
-            {% endif %}
 
             <div class="strike-actions-grid">
                 <a href="{{ url_for('logout') }}" class="strike-action strike-action--dark">
@@ -103,15 +137,17 @@
                 </a>
             </div>
 
-            {% if not is_permanent %}
             <button type="button" class="strike-dismiss-btn" data-restriction-dismiss disabled>
-                <span>
-                    {{ 'Entiendo, deseo continuar' if restriction.can_dismiss else 'Disponible cuando termine la suspensión' }}
-                </span>
+                {% if restriction.can_dismiss %}
+                <span>Restaurar cuenta</span>
+                {% else %}
+                <i class="fas fa-lock" aria-hidden="true"></i>
+                <span>Disponible cuando termine la suspensión</span>
+                {% endif %}
             </button>
             <div class="strike-overlay__status" data-restriction-status aria-live="polite"></div>
-            {% endif %}
         </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
