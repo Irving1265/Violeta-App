@@ -23,7 +23,7 @@
 
 {% block modals %}
 <div
-    class="strike-overlay strike-overlay--restricted"
+    class="strike-overlay strike-overlay--restricted{% if is_permanent %} strike-overlay--banned{% endif %}"
     id="strikeRestrictedOverlay"
     data-restricted-overlay
     data-strike-level="{{ strike_level }}"
@@ -31,39 +31,55 @@
     aria-modal="true"
     aria-labelledby="strikeRestrictedTitle"
 >
-    <div class="strike-overlay__card strike-overlay__card--restricted{% if not is_permanent %} strike-overlay__card--suspended{% endif %}">
+    <div class="strike-overlay__card strike-overlay__card--restricted{% if is_permanent %} strike-overlay__card--banned{% elif not is_permanent %} strike-overlay__card--suspended{% endif %}">
         {% if is_permanent %}
-        <div class="strike-overlay__header">
-            <div class="strike-overlay__icon pulse-danger" aria-hidden="true">
+        <div class="strike-banned-header">
+            <div class="strike-banned-stamp" aria-hidden="true">BANNED</div>
+            <div class="strike-banned-icon" aria-hidden="true">
                 <i class="fas fa-user-slash"></i>
             </div>
-            <h2 class="strike-overlay__title" id="strikeRestrictedTitle">Cuenta Baneada Permanentemente</h2>
-            <p class="strike-overlay__user">Hola, {{ strike_context.username if strike_context else ('@' ~ current_user.username) }}</p>
+            <h2 class="strike-banned-title" id="strikeRestrictedTitle">Acceso Denegado</h2>
+            <p class="strike-banned-subtitle">Cuenta Baneada Permanentemente</p>
+            <p class="strike-banned-user">{{ strike_context.username if strike_context else ('@' ~ current_user.username) }}</p>
         </div>
 
-        <div class="strike-overlay__body">
-            <div class="strike-overlay__message">
-                <p class="strike-overlay__denied">ACCESO DENEGADO</p>
+        <div class="strike-banned-body">
+            <div class="strike-banned-reason">
                 <p>
-                    Tras recibir un tercer strike por
+                    Tras recibir un <strong>tercer strike</strong> por
                     <strong>{{ strike_context.source_label if strike_context else 'contenido reportado' }}</strong>
-                    bajo la categoría
-                    <strong>“{{ strike_context.category_label if strike_context else 'Incumplimiento de reglas' }}”</strong>,
-                    tu cuenta ha sido bloqueada permanentemente.
+                    clasificado como:
                 </p>
+                <div class="strike-banned-category">“{{ strike_context.category_label if strike_context else 'Incumplimiento de reglas' }}”</div>
                 <p>
                     Nuestra política de tolerancia cero ante infracciones reiteradas protege la integridad de este espacio.
-                    No es posible continuar usando esta cuenta.
+                    <strong>No es posible continuar usando esta cuenta.</strong>
                 </p>
                 {% if strike_context and strike_context.content_excerpt and not strike_excerpt_is_attachment %}
-                <p class="strike-overlay__excerpt">“{{ strike_context.content_excerpt }}”</p>
+                <div class="strike-banned-excerpt">“{{ strike_context.content_excerpt }}”</div>
                 {% endif %}
-                {% if strike_context and strike_context.attachment_url %}
-                <button type="button" class="strike-file-preview-btn" data-strike-file-open>
+            </div>
+
+            {% if strike_context and strike_context.attachment_url %}
+            <div class="strike-banned-evidence">
+                <span>Evidencia reportada</span>
+                <button type="button" class="strike-file-preview-btn strike-file-preview-btn--banned" data-strike-file-open>
                     <i class="fas {{ strike_context.attachment_icon or 'fa-file' }}" aria-hidden="true"></i>
-                    <span>Visualizar archivo</span>
+                    <span>Visualizar archivo adjunto</span>
                 </button>
-                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="strike-banned-progress" aria-label="Strikes acumulados">
+                <div class="strike-banned-progress__top">
+                    <span>Strikes acumulados</span>
+                    <strong>3 / 3</strong>
+                </div>
+                <div class="strike-banned-steps" aria-hidden="true">
+                    <span class="is-active"></span>
+                    <span class="is-active"></span>
+                    <span class="is-active"></span>
+                </div>
             </div>
 
             <div class="strike-actions-grid">

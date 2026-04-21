@@ -7134,6 +7134,12 @@ body.strike-banned-lock .floating-create-btn {
     animation: strikeOverlayFade 0.22s ease-out both;
 }
 
+.strike-overlay--banned {
+    background:
+        radial-gradient(circle at center, rgba(127, 29, 29, 0.24), transparent 46%),
+        rgba(5, 5, 5, 0.9);
+}
+
 .strike-overlay.is-leaving {
     animation: strikeOverlayOut 0.2s ease-in both;
 }
@@ -7155,6 +7161,20 @@ body.strike-banned-lock .floating-create-btn {
 
 .strike-overlay__card--restricted {
     width: min(100%, 700px);
+}
+
+.strike-overlay__card--banned {
+    width: min(100%, 390px);
+    max-height: calc(100svh - 24px);
+    overflow-y: auto;
+    border-radius: 24px;
+    border-color: rgba(239, 68, 68, 0.32);
+    background:
+        radial-gradient(circle at top, rgba(127, 29, 29, 0.2), transparent 46%),
+        rgba(15, 23, 42, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 0 42px rgba(239, 68, 68, 0.16), 0 24px 62px rgba(0, 0, 0, 0.58);
 }
 
 .strike-overlay__card--compact {
@@ -7610,6 +7630,212 @@ body.strike-banned-lock .floating-create-btn {
     color: #fca5a5;
 }
 
+.strike-banned-header {
+    position: relative;
+    overflow: hidden;
+    padding: 1.22rem 1.25rem 1.08rem;
+    text-align: center;
+    border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+    background: rgba(69, 10, 10, 0.4);
+}
+
+.strike-banned-stamp {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: rgba(239, 68, 68, 0.06);
+    font-size: 4.4rem;
+    font-weight: 950;
+    letter-spacing: -0.08em;
+    line-height: 1;
+    transform: rotate(-15deg);
+    user-select: none;
+    pointer-events: none;
+}
+
+.strike-banned-icon {
+    position: relative;
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 0.75rem;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: rgba(220, 38, 38, 0.2);
+    color: #ef4444;
+    font-size: 1.42rem;
+    box-shadow: 0 0 24px rgba(239, 68, 68, 0.18);
+}
+
+.strike-banned-title {
+    position: relative;
+    margin: 0;
+    color: #fff;
+    font-size: 1.12rem;
+    font-weight: 950;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    text-transform: uppercase;
+}
+
+.strike-banned-subtitle {
+    position: relative;
+    margin: 0.28rem 0 0;
+    color: #f87171;
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+
+.strike-banned-user {
+    position: relative;
+    margin: 0.2rem 0 0;
+    color: rgba(148, 163, 184, 0.76);
+    font-size: 0.68rem;
+    font-weight: 800;
+}
+
+.strike-banned-body {
+    padding: 1.18rem 1.25rem 1.25rem;
+}
+
+.strike-banned-reason {
+    margin-bottom: 1.05rem;
+    text-align: center;
+    color: rgba(203, 213, 225, 0.9);
+    font-size: 0.86rem;
+    line-height: 1.46;
+}
+
+.strike-banned-reason p {
+    margin: 0 0 0.72rem;
+}
+
+.strike-banned-reason strong {
+    color: rgba(241, 245, 249, 0.96);
+    font-weight: 900;
+}
+
+.strike-banned-category {
+    margin-bottom: 0.9rem;
+    padding: 0.74rem 0.86rem;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.42);
+    color: #ef4444;
+    font-size: 0.75rem;
+    font-weight: 950;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.45);
+}
+
+.strike-banned-excerpt {
+    margin-top: 0.78rem;
+    padding: 0.72rem 0.82rem;
+    border: 1px solid rgba(239, 68, 68, 0.14);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.28);
+    color: rgba(203, 213, 225, 0.72);
+    font-size: 0.76rem;
+    font-style: italic;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.strike-banned-evidence {
+    margin-bottom: 1.05rem;
+}
+
+.strike-banned-evidence > span {
+    display: block;
+    margin-bottom: 0.48rem;
+    color: rgba(148, 163, 184, 0.72);
+    font-size: 0.63rem;
+    font-weight: 950;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.strike-banned-progress {
+    margin-bottom: 1.1rem;
+}
+
+.strike-banned-progress__top {
+    margin-bottom: 0.45rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.strike-banned-progress__top span,
+.strike-banned-progress__top strong {
+    font-size: 0.63rem;
+    font-weight: 950;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.strike-banned-progress__top span {
+    color: rgba(148, 163, 184, 0.72);
+}
+
+.strike-banned-progress__top strong {
+    color: #dc2626;
+}
+
+.strike-banned-steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.38rem;
+}
+
+.strike-banned-steps span {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.strike-banned-steps .is-active {
+    background: #dc2626;
+    box-shadow: 0 0 14px rgba(220, 38, 38, 0.66);
+}
+
+.strike-overlay__card--banned .strike-actions-grid {
+    gap: 0.65rem;
+    margin-top: 0;
+}
+
+.strike-overlay__card--banned .strike-action {
+    min-height: 44px;
+    border-radius: 11px;
+    gap: 0.45rem;
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+
+.strike-overlay__card--banned .strike-action--dark {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(226, 232, 240, 0.9);
+}
+
+.strike-overlay__card--banned .strike-action--emergency {
+    border-color: rgba(220, 38, 38, 0.8);
+    background: #dc2626;
+    color: #fff;
+    box-shadow: 0 12px 24px rgba(220, 38, 38, 0.2);
+}
+
+.strike-overlay__card--banned .strike-action--emergency:hover {
+    background: #ef4444;
+    color: #fff;
+}
+
 .strike-overlay__card--suspended {
     width: min(100%, 390px);
     max-height: calc(100svh - 24px);
@@ -7890,6 +8116,24 @@ body.strike-banned-lock .floating-create-btn {
     transform: translateY(-1px);
     border-color: rgba(167, 139, 250, 0.62);
     background: rgba(139, 92, 246, 0.22);
+}
+
+.strike-file-preview-btn--banned {
+    margin-top: 0;
+    border-color: rgba(255, 255, 255, 0.055);
+    background: rgba(0, 0, 0, 0.3);
+    color: rgba(203, 213, 225, 0.92);
+}
+
+.strike-file-preview-btn--banned i {
+    color: #f87171;
+    font-size: 1.05rem;
+}
+
+.strike-file-preview-btn--banned:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.055);
+    color: #fff;
 }
 
 .strike-file-modal[hidden] {
