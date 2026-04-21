@@ -2,6 +2,7 @@
 
 {% set strike_level = strike_context.strike_level if strike_context else (3 if restriction.type == 'permanent' else 2) %}
 {% set is_permanent = restriction.type == 'permanent' or strike_level >= 3 %}
+{% set strike_excerpt_is_attachment = strike_context and strike_context.attachment_name and strike_context.content_excerpt == strike_context.attachment_name %}
 
 {% block content %}
 <div class="strike-restricted-placeholder" aria-hidden="true">
@@ -54,8 +55,14 @@
                     Nuestra política de tolerancia cero ante infracciones reiteradas protege la integridad de este espacio.
                     No es posible continuar usando esta cuenta.
                 </p>
-                {% if strike_context and strike_context.content_excerpt %}
+                {% if strike_context and strike_context.content_excerpt and not strike_excerpt_is_attachment %}
                 <p class="strike-overlay__excerpt">“{{ strike_context.content_excerpt }}”</p>
+                {% endif %}
+                {% if strike_context and strike_context.attachment_url %}
+                <button type="button" class="strike-file-preview-btn" data-strike-file-open>
+                    <i class="fas {{ strike_context.attachment_icon or 'fa-file' }}" aria-hidden="true"></i>
+                    <span>Visualizar archivo</span>
+                </button>
                 {% endif %}
             </div>
 
@@ -87,11 +94,14 @@
                     por:
                     <span>“{{ strike_context.category_label if strike_context else 'Incumplimiento de reglas' }}”</span>
                 </p>
-                {% if strike_context and strike_context.content_excerpt %}
-                <div class="strike-suspended-excerpt" title="{{ strike_context.content_excerpt }}">
-                    <i class="fas fa-image" aria-hidden="true"></i>
-                    <span>{{ strike_context.content_excerpt }}</span>
-                </div>
+                {% if strike_context and strike_context.content_excerpt and not strike_excerpt_is_attachment %}
+                <div class="strike-suspended-excerpt">“{{ strike_context.content_excerpt }}”</div>
+                {% endif %}
+                {% if strike_context and strike_context.attachment_url %}
+                <button type="button" class="strike-file-preview-btn" data-strike-file-open>
+                    <i class="fas {{ strike_context.attachment_icon or 'fa-file' }}" aria-hidden="true"></i>
+                    <span>Visualizar archivo</span>
+                </button>
                 {% endif %}
             </div>
 
@@ -149,5 +159,33 @@
         </div>
         {% endif %}
     </div>
+    {% if strike_context and strike_context.attachment_url %}
+    <div class="strike-file-modal" data-strike-file-modal hidden aria-hidden="true">
+        <div class="strike-file-modal__backdrop" data-strike-file-close></div>
+        <div class="strike-file-modal__card" role="dialog" aria-modal="true" aria-label="Archivo reportado">
+            <div class="strike-file-modal__header">
+                <div>
+                    <p>Archivo reportado</p>
+                    <h3>{{ strike_context.attachment_name or 'Archivo adjunto' }}</h3>
+                </div>
+                <button type="button" class="strike-file-modal__close" data-strike-file-close aria-label="Cerrar vista previa">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="strike-file-modal__body">
+                {% if strike_context.attachment_kind == 'image' %}
+                <img src="{{ strike_context.attachment_url }}" alt="{{ strike_context.attachment_name or 'Archivo reportado' }}">
+                {% elif strike_context.attachment_kind == 'pdf' %}
+                <iframe src="{{ strike_context.attachment_url }}" title="{{ strike_context.attachment_name or 'Archivo reportado' }}"></iframe>
+                {% else %}
+                <a class="strike-file-modal__download" href="{{ strike_context.attachment_url }}" target="_blank" rel="noopener">
+                    <i class="fas {{ strike_context.attachment_icon or 'fa-file' }}" aria-hidden="true"></i>
+                    <span>Abrir archivo</span>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

@@ -92,6 +92,55 @@
         }
     }
 
+    function initStrikeFilePreview() {
+        const modals = Array.from(document.querySelectorAll('[data-strike-file-modal]'));
+        if (!modals.length) return;
+
+        function closeModal(modal) {
+            if (!modal) return;
+            modal.hidden = true;
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('strike-file-preview-open');
+        }
+
+        function openModal(modal) {
+            if (!modal) return;
+            modal.hidden = false;
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('strike-file-preview-open');
+            const closeButton = modal.querySelector('[data-strike-file-close]');
+            if (closeButton) closeButton.focus({ preventScroll: true });
+        }
+
+        document.querySelectorAll('[data-strike-file-open]').forEach((button) => {
+            const overlay = button.closest('.strike-overlay') || document;
+            const modal = overlay.querySelector('[data-strike-file-modal]');
+            if (!modal) return;
+            button.addEventListener('click', function (event) {
+                event.preventDefault();
+                openModal(modal);
+            });
+        });
+
+        modals.forEach((modal) => {
+            modal.querySelectorAll('[data-strike-file-close]').forEach((button) => {
+                button.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    closeModal(modal);
+                });
+            });
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key !== 'Escape') return;
+            const openModalNode = modals.find((modal) => !modal.hidden);
+            if (!openModalNode) return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            closeModal(openModalNode);
+        }, true);
+    }
+
     function initWarningStrikeOverlay() {
         const overlay = document.querySelector('[data-strike-warning-overlay]');
         const config = window.VIOLETA_STRIKE_OVERLAY || null;
@@ -295,6 +344,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
+        initStrikeFilePreview();
         initWarningStrikeOverlay();
         initRestrictedOverlay();
     });

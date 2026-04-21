@@ -16,7 +16,7 @@
     {% if request.endpoint in ['index', 'hotspots_page', 'safety_center', 'login'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260420-strike2-card-v1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260420-strike-file-preview-v1">
     {% if request.endpoint == 'index' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/post_create.css') }}?v=20260403-post-modal-motion-v17">
     {% endif %}
@@ -213,8 +213,15 @@
                         Infracción en <strong>{{ active_warning_strike.source_label }}</strong>
                         por <span>“{{ active_warning_strike.category_label }}”</span>:
                     </p>
-                    {% if active_warning_strike.content_excerpt %}
+                    {% set warning_excerpt_is_attachment = active_warning_strike.attachment_name and active_warning_strike.content_excerpt == active_warning_strike.attachment_name %}
+                    {% if active_warning_strike.content_excerpt and not warning_excerpt_is_attachment %}
                     <div class="strike-compact-excerpt">“{{ active_warning_strike.content_excerpt }}”</div>
+                    {% endif %}
+                    {% if active_warning_strike.attachment_url %}
+                    <button type="button" class="strike-file-preview-btn" data-strike-file-open>
+                        <i class="fas {{ active_warning_strike.attachment_icon or 'fa-file' }}" aria-hidden="true"></i>
+                        <span>Visualizar archivo</span>
+                    </button>
                     {% endif %}
                 </div>
 
@@ -260,6 +267,34 @@
                 <div class="strike-overlay__status" data-strike-status aria-live="polite"></div>
             </div>
         </div>
+        {% if active_warning_strike.attachment_url %}
+        <div class="strike-file-modal" data-strike-file-modal hidden aria-hidden="true">
+            <div class="strike-file-modal__backdrop" data-strike-file-close></div>
+            <div class="strike-file-modal__card" role="dialog" aria-modal="true" aria-label="Archivo reportado">
+                <div class="strike-file-modal__header">
+                    <div>
+                        <p>Archivo reportado</p>
+                        <h3>{{ active_warning_strike.attachment_name or 'Archivo adjunto' }}</h3>
+                    </div>
+                    <button type="button" class="strike-file-modal__close" data-strike-file-close aria-label="Cerrar vista previa">
+                        <i class="fas fa-times" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="strike-file-modal__body">
+                    {% if active_warning_strike.attachment_kind == 'image' %}
+                    <img src="{{ active_warning_strike.attachment_url }}" alt="{{ active_warning_strike.attachment_name or 'Archivo reportado' }}">
+                    {% elif active_warning_strike.attachment_kind == 'pdf' %}
+                    <iframe src="{{ active_warning_strike.attachment_url }}" title="{{ active_warning_strike.attachment_name or 'Archivo reportado' }}"></iframe>
+                    {% else %}
+                    <a class="strike-file-modal__download" href="{{ active_warning_strike.attachment_url }}" target="_blank" rel="noopener">
+                        <i class="fas {{ active_warning_strike.attachment_icon or 'fa-file' }}" aria-hidden="true"></i>
+                        <span>Abrir archivo</span>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 
@@ -486,7 +521,7 @@
     </script>
     <script src="{{ url_for('static', filename='js/app.js') }}?v=20260409-nav-safe-v3"></script>
     {% if show_warning_strike_overlay or request.endpoint == 'account_restricted' %}
-    <script src="{{ url_for('static', filename='js/strike_overlay.js') }}?v=20260420-strike2-card-v1"></script>
+    <script src="{{ url_for('static', filename='js/strike_overlay.js') }}?v=20260420-strike-file-preview-v1"></script>
     {% endif %}
     {% if current_user.is_authenticated and not current_user_can_override_content_controls %}
     <script src="{{ url_for('static', filename='js/pending_post_release.js') }}?v=20260402-progressive-v1"></script>

@@ -1411,6 +1411,59 @@ def clamp_text(value: str | None, limit: int = 220) -> str:
     return text[:limit - 1].rstrip() + '…'
 
 
+def strike_attachment_context(strike) -> dict | None:
+    if not strike:
+        return None
+
+    source_type = (getattr(strike, 'source_type', '') or '').strip().lower()
+    source_id = getattr(strike, 'source_id', None)
+    try:
+        source_id = int(source_id or 0)
+    except (TypeError, ValueError):
+        source_id = 0
+
+    filename = None
+    display_name = None
+    mime_type = None
+
+    if source_type == 'post' and source_id:
+        post = db.session.get(Post, source_id)
+        filename = getattr(post, 'image_filename', None) if post else None
+        display_name = os.path.basename(filename or '') or 'Imagen reportada'
+        mime_type = mimetypes.guess_type(display_name or filename or '')[0]
+    elif source_type in {'chat_message', 'direct_message', 'message'} and source_id:
+        message = db.session.get(ChatMessage, source_id)
+        filename = getattr(message, 'attachment_filename', None) if message else None
+        display_name = (
+            getattr(message, 'attachment_name', None)
+            or os.path.basename(filename or '')
+            or 'Archivo reportado'
+        )
+        mime_type = getattr(message, 'attachment_mime', None) or mimetypes.guess_type(display_name or filename or '')[0]
+
+    if not filename:
+        return None
+
+    ext = os.path.splitext(display_name or filename)[1].lower().lstrip('.')
+    if (mime_type or '').startswith('image/') or ext in {'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'}:
+        kind = 'image'
+        icon = 'fa-image'
+    elif (mime_type or '').lower() == 'application/pdf' or ext == 'pdf':
+        kind = 'pdf'
+        icon = 'fa-file-pdf'
+    else:
+        kind = 'file'
+        icon = 'fa-file'
+
+    return {
+        'url': url_for('uploaded_file', filename=filename),
+        'name': display_name,
+        'mime': mime_type or '',
+        'kind': kind,
+        'icon': icon,
+    }
+
+
 def strike_dismiss_remaining_seconds(strike) -> int:
     if not strike:
         return STRIKE_WARNING_DISMISS_SECONDS
@@ -1443,6 +1496,7 @@ def build_strike_context(user, strike=None, restriction: dict | None = None) -> 
 
     until = (restriction or {}).get('until')
     created_at = getattr(strike, 'created_at', None)
+    attachment = strike_attachment_context(strike)
     return {
         'id': getattr(strike, 'id', None),
         'username': f"@{getattr(user, 'username', '')}" if user else '',
@@ -1451,6 +1505,12 @@ def build_strike_context(user, strike=None, restriction: dict | None = None) -> 
         'category_label': category_label,
         'consequence_text': consequence_text,
         'content_excerpt': clamp_text(getattr(strike, 'content_excerpt', None) or getattr(strike, 'details', None)),
+        'attachment': attachment,
+        'attachment_url': (attachment or {}).get('url'),
+        'attachment_name': (attachment or {}).get('name'),
+        'attachment_kind': (attachment or {}).get('kind'),
+        'attachment_mime': (attachment or {}).get('mime'),
+        'attachment_icon': (attachment or {}).get('icon'),
         'strike_level': strike_level,
         'created_at': created_at.isoformat() if created_at else None,
         'until': until.isoformat() if until else None,
@@ -1893,6 +1953,7 @@ def create_app():
             'account_restricted',
             'dismiss_safety_warning_strike',
             'emergency_call',
+            'uploaded_file',
             'static',
         }
         if endpoint in allowed or endpoint.startswith('static'):
