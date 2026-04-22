@@ -14,6 +14,7 @@ crea/
 !.env.example
 
 # Databases and runtime state
+backups/
 instance/*.db
 instance/*.sqlite
 instance/*.backup.db
