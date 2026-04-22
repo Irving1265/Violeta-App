@@ -70,6 +70,7 @@
     let userLocationMarker = null;
     let userLocationAccuracyCircle = null;
     let userCurrentPoint = null;
+    const HOTSPOTS_SAFE_TRIP_ETA_MINUTES = 60;
     const applyMexicoLimits = function () { /* límite de zoom desactivado temporalmente */ };
     function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
     function rememberBaseStyle(layer) {
@@ -766,7 +767,7 @@
         return;
       }
       routeLaunchActionsEl.style.display = 'grid';
-      const etaLabel = Number.isFinite(plan.etaMinutes) ? `${plan.etaMinutes} min` : 'ETA estimada';
+      const etaLabel = '1 hora';
       const distanceLabel = Number.isFinite(plan.distanceMeters)
         ? (plan.distanceMeters < 1000 ? `${Math.round(plan.distanceMeters)} m` : `${(plan.distanceMeters / 1000).toFixed(1)} km`)
         : 'distancia estimada';
@@ -775,29 +776,16 @@
       startSafeTripBtn.disabled = false;
       startSafeTripBtn.innerHTML = '<i class="fas fa-location-arrow"></i><span>Iniciar trayecto seguro</span>';
     }
-    function pickEtaOption(totalMinutes) {
-      const options = [15, 30, 45, 60, 90];
-      const target = clamp(Math.round(Number(totalMinutes) || 30), 5, 180);
-      let best = options[0];
-      let bestDiff = Math.abs(best - target);
-      options.forEach(opt => {
-        const diff = Math.abs(opt - target);
-        if (diff < bestDiff) {
-          best = opt;
-          bestDiff = diff;
-        }
-      });
-      return best;
-    }
     function persistPendingTripPlan(extra = {}) {
       if (!lastPlannedTrip) return null;
+      const destinationLabel = (destInput?.value || lastPlannedTrip.destinationLabel || '').trim();
       const payload = {
         ...lastPlannedTrip,
         source: 'hotspots',
-        destinationLabel: (destInput?.value || lastPlannedTrip.destinationLabel || '').trim(),
+        destinationLabel,
         destinationPoint: Array.isArray(destPoint) ? [...destPoint] : (lastPlannedTrip.destinationPoint || null),
         originPoint: Array.isArray(startPoint) ? [...startPoint] : (lastPlannedTrip.originPoint || null),
-        etaMinutes: pickEtaOption(lastPlannedTrip.etaMinutes),
+        etaMinutes: HOTSPOTS_SAFE_TRIP_ETA_MINUTES,
         savedAt: Date.now(),
         ...extra
       };
@@ -847,7 +835,9 @@
         },
         body: JSON.stringify({
           destination: payload.destinationLabel || '',
-          eta_minutes: payload.etaMinutes || 30,
+          eta_minutes: HOTSPOTS_SAFE_TRIP_ETA_MINUTES,
+          destination_latitude: Array.isArray(payload.destinationPoint) ? payload.destinationPoint[0] : null,
+          destination_longitude: Array.isArray(payload.destinationPoint) ? payload.destinationPoint[1] : null,
           note,
           lat,
           lng

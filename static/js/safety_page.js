@@ -135,6 +135,40 @@
     return { storageKey, selectedIds, noDestination };
   }
 
+  function readPendingHotspotsPlan() {
+    let params = null;
+    try {
+      params = new URLSearchParams(window.location.search || '');
+    } catch (error) {
+      params = new URLSearchParams();
+    }
+
+    let stored = {};
+    try {
+      stored = JSON.parse(window.sessionStorage?.getItem('violeta.pendingCheckin') || '{}') || {};
+    } catch (error) {
+      stored = {};
+    }
+
+    const destinationLabel = String(params.get('destination') || stored.destinationLabel || '').trim();
+    const etaRaw = Number(params.get('eta') || stored.etaMinutes || 0);
+    const etaMinutes = Number.isFinite(etaRaw) && etaRaw > 0 ? clamp(Math.round(etaRaw), 5, 180) : null;
+    const destinationPoint = Array.isArray(stored.destinationPoint) ? stored.destinationPoint : null;
+    const destinationLat = toCoord(destinationPoint?.[0]);
+    const destinationLng = toCoord(destinationPoint?.[1]);
+
+    if (!destinationLabel && !etaMinutes && !hasValidCoords(destinationLat, destinationLng)) {
+      return null;
+    }
+
+    return {
+      destinationLabel,
+      etaMinutes,
+      destinationLat,
+      destinationLng,
+    };
+  }
+
   function persistUiState(runtime) {
     const payload = {
       selectedIds: runtime.contacts.filter((contact) => contact.isSharing).map((contact) => String(contact.id)),
@@ -361,22 +395,30 @@
     const data = parseJSONScript(root, 'safetyPageData') || {};
     const uiState = loadUiState(data);
     const selectedIdsSet = new Set(uiState.selectedIds);
+    const pendingHotspotsPlan = data.activeCheckin ? null : readPendingHotspotsPlan();
 
     const runtime = {
       storageKey: uiState.storageKey,
       currentState: '',
       previousState: data.initialState || (data.activeCheckin ? 'active' : 'idle'),
       currentContactFilter: 'all',
-      destination: data.activeCheckin?.destination || '',
-      noDestination: uiState.noDestination && !data.activeCheckin?.destination,
-      destinationPlace: null,
+      destination: data.activeCheckin?.destination || pendingHotspotsPlan?.destinationLabel || '',
+      noDestination: Boolean(uiState.noDestination && !data.activeCheckin?.destination && !pendingHotspotsPlan?.destinationLabel),
+      destinationPlace: pendingHotspotsPlan?.destinationLabel && hasValidCoords(pendingHotspotsPlan.destinationLat, pendingHotspotsPlan.destinationLng)
+        ? {
+            display_name: pendingHotspotsPlan.destinationLabel,
+            lat: pendingHotspotsPlan.destinationLat,
+            lon: pendingHotspotsPlan.destinationLng,
+            address: {},
+          }
+        : null,
       destinationSearchTimer: null,
       destinationSuggestionState: {
         items: [],
         activeIndex: -1,
         requestId: 0,
       },
-      etaMinutes: Number(data.activeCheckin?.eta_minutes || 30),
+      etaMinutes: Number(data.activeCheckin?.eta_minutes || pendingHotspotsPlan?.etaMinutes || 30),
       statusMessage: '',
       editingContactId: null,
       editingAvatarTone: 'violet',
@@ -393,6 +435,7 @@
       activeDrag: null,
       stateTransitionTimer: null,
       mapState: null,
+      summaryMapState: null,
       contacts: Array.isArray(data.contacts)
         ? data.contacts.map((contact, index) => ({
             id: String(contact.id),
@@ -453,10 +496,12 @@
         summaryModalTitle: root.querySelector('#summaryModalTitle'),
         summaryModalMeta: root.querySelector('#summaryModalMeta'),
         summaryMetricTime: root.querySelector('#summaryMetricTime'),
-        summaryMetricDestination: root.querySelector('#summaryMetricDestination'),
+        summaryMetricContacts: root.querySelector('#summaryMetricContacts'),
         summaryMetricExtra: root.querySelector('#summaryMetricExtra'),
         summaryModalBody: root.querySelector('#summaryModalBody'),
         summaryRouteMap: root.querySelector('.summary-route-map'),
+        summaryRouteLiveMap: root.querySelector('#summaryRouteLiveMap'),
+        summaryRouteStatus: root.querySelector('#summaryRouteStatus'),
         summaryRouteBase: root.querySelector('#summaryRouteBase'),
         summaryRoutePath: root.querySelector('#summaryRoutePath'),
         summaryRouteStart: root.querySelector('#summaryRouteStart'),
@@ -1798,6 +1843,9 @@
 
     function setRouteForSummary(routeStyle) {
       const route = ROUTE_CONFIGS[routeStyle] || ROUTE_CONFIGS.office;
+      if (!runtime.dom.summaryRoutePath) {
+        return;
+      }
       runtime.dom.summaryRouteBase?.setAttribute('d', route.summaryPath);
       runtime.dom.summaryRoutePath?.setAttribute('d', route.summaryPath);
       if (runtime.dom.summaryRouteStartLabel) runtime.dom.summaryRouteStartLabel.textContent = route.startLabel;
@@ -1817,6 +1865,187 @@
       animateRoute(totalLength);
     }
 
+    function setSummaryRouteStatus(copy, tone) {
+      if (!runtime.dom.summaryRouteStatus) return;
+      runtime.dom.summaryRouteStatus.textContent = copy;
+      if (tone) {
+        runtime.dom.summaryRouteStatus.dataset.tone = tone;
+      } else {
+        runtime.dom.summaryRouteStatus.removeAttribute('data-tone');
+      }
+    }
+
+    function ensureSummaryRouteMap() {
+      if (!runtime.dom.summaryRouteLiveMap || !window.L) return null;
+      if (runtime.summaryMapState?.map) {
+        return runtime.summaryMapState;
+      }
+
+      const map = window.L.map(runtime.dom.summaryRouteLiveMap, {
+        zoomControl: false,
+        attributionControl: false,
+        dragging: true,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        boxZoom: false,
+        keyboard: false,
+        touchZoom: true,
+      });
+      window.L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        subdomains: 'abcd',
+        maxZoom: 19,
+      }).addTo(map);
+      map.setView(DEFAULT_SAFETY_CENTER, 13);
+
+      runtime.summaryMapState = {
+        map,
+        layers: [],
+      };
+      return runtime.summaryMapState;
+    }
+
+    function clearSummaryRouteLayers() {
+      const mapState = runtime.summaryMapState;
+      if (!mapState?.map) return;
+      mapState.layers.forEach((layer) => {
+        try { mapState.map.removeLayer(layer); } catch (error) { /* no-op */ }
+      });
+      mapState.layers = [];
+    }
+
+    function addSummaryRouteLayer(layer) {
+      if (!runtime.summaryMapState?.map || !layer) return;
+      layer.addTo(runtime.summaryMapState.map);
+      runtime.summaryMapState.layers.push(layer);
+    }
+
+    function buildSummaryRouteLatLngs(trip, payload) {
+      const checkin = Object.assign({
+        id: trip.id,
+        destination: trip.destination,
+        display_destination: trip.display_title,
+        eta_minutes: trip.eta_minutes || 30,
+      }, payload?.checkin || {});
+      const routePoints = dedupeRoutePoints(payload?.points || []);
+      const startCoords = getCheckinStartCoords(checkin);
+      const destinationCoords = getCheckinDestinationCoords(checkin)
+        || buildSimulatedDestinationCoords(startCoords, checkin);
+
+      if (routePoints.length >= 2) {
+        return {
+          latLngs: routePoints.map((point) => [point.lat, point.lng]),
+          startCoords: [routePoints[0].lat, routePoints[0].lng],
+          destinationCoords,
+          realPointCount: routePoints.length,
+        };
+      }
+
+      if (routePoints.length === 1) {
+        const onlyPoint = [routePoints[0].lat, routePoints[0].lng];
+        return {
+          latLngs: destinationCoords ? [onlyPoint, destinationCoords] : [startCoords, onlyPoint],
+          startCoords: onlyPoint,
+          destinationCoords,
+          realPointCount: 1,
+        };
+      }
+
+      return {
+        latLngs: buildSimulatedRoute(startCoords, destinationCoords, hashString(`${trip.id}:${trip.destination || trip.display_title || 'trayecto'}`)),
+        startCoords,
+        destinationCoords,
+        realPointCount: 0,
+      };
+    }
+
+    async function renderSummaryRouteReport(trip) {
+      const mapState = ensureSummaryRouteMap();
+      if (!mapState?.map) {
+        setSummaryRouteStatus('Mapa no disponible en este navegador.', 'warning');
+        return;
+      }
+
+      clearSummaryRouteLayers();
+      setSummaryRouteStatus('Cargando recorrido real...', null);
+
+      let payload = null;
+      if (trip.route_points_url) {
+        try {
+          const response = await fetch(trip.route_points_url, { headers: { Accept: 'application/json' } });
+          payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload?.ok) {
+            payload = null;
+          }
+        } catch (error) {
+          payload = null;
+        }
+      }
+
+      const routeData = buildSummaryRouteLatLngs(trip, payload);
+      const latLngs = routeData.latLngs.filter((coords) => Array.isArray(coords) && hasValidCoords(coords[0], coords[1]));
+
+      window.setTimeout(() => mapState.map.invalidateSize(false), 40);
+
+      if (!latLngs.length) {
+        mapState.map.setView(DEFAULT_SAFETY_CENTER, 13);
+        setSummaryRouteStatus('No hay datos de recorrido para este trayecto.', 'warning');
+        return;
+      }
+
+      if (latLngs.length > 1) {
+        addSummaryRouteLayer(window.L.polyline(latLngs, {
+          color: '#cbd5e1',
+          weight: 10,
+          opacity: 0.62,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }));
+        addSummaryRouteLayer(window.L.polyline(latLngs, {
+          color: '#7c3aed',
+          weight: 5,
+          opacity: 0.92,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }));
+      }
+
+      const start = latLngs[0];
+      const end = routeData.destinationCoords || latLngs[latLngs.length - 1];
+      addSummaryRouteLayer(window.L.marker(start, {
+        icon: createLiveUserIcon(),
+        interactive: false,
+        zIndexOffset: 700,
+      }));
+      if (end && hasValidCoords(end[0], end[1])) {
+        addSummaryRouteLayer(window.L.marker(end, {
+          icon: createLiveDestinationIcon(),
+          interactive: false,
+          zIndexOffset: 650,
+        }));
+      }
+
+      const bounds = window.L.latLngBounds(latLngs);
+      if (end && hasValidCoords(end[0], end[1])) {
+        bounds.extend(end);
+      }
+      window.setTimeout(() => {
+        mapState.map.invalidateSize(false);
+        if (bounds.isValid() && latLngs.length > 1) {
+          mapState.map.fitBounds(bounds, { padding: [32, 32] });
+        } else {
+          mapState.map.setView(start, 15);
+        }
+      }, 70);
+
+      if (routeData.realPointCount >= 2) {
+        setSummaryRouteStatus(`Recorrido real: ${routeData.realPointCount} puntos registrados.`, 'success');
+      } else if (routeData.realPointCount === 1) {
+        setSummaryRouteStatus('Recorrido con 1 punto registrado; destino estimado.', 'warning');
+      } else {
+        setSummaryRouteStatus('Sin puntos reales suficientes; se muestra ruta estimada.', 'warning');
+      }
+    }
+
     function closeSummary(callback) {
       if (runtime.routeAnimationFrame) {
         cancelAnimationFrame(runtime.routeAnimationFrame);
@@ -1824,6 +2053,8 @@
       }
       runtime.dom.summaryRouteDot?.classList.remove('is-visible');
       hideBackdropModal(runtime.dom.summaryModal, () => {
+        clearSummaryRouteLayers();
+        setSummaryRouteStatus('Cargando recorrido real...', null);
         clearSummaryModalPosition();
         if (typeof callback === 'function') callback();
       });
@@ -1836,7 +2067,9 @@
       runtime.dom.summaryModalTitle.textContent = trip.display_title || 'Trayecto';
       runtime.dom.summaryModalMeta.textContent = trip.when_label || '';
       runtime.dom.summaryMetricTime.textContent = trip.duration_label || '--';
-      runtime.dom.summaryMetricDestination.textContent = trip.destination || 'Sin destino claro';
+      if (runtime.dom.summaryMetricContacts) {
+        runtime.dom.summaryMetricContacts.textContent = trip.contacts_label || 'Sin contacto';
+      }
       runtime.dom.summaryMetricExtra.textContent = trip.status_label || '--';
       runtime.dom.summaryModalBody.textContent = trip.destination
         ? `Trayecto guardado hacia ${trip.destination}. Puedes abrir el detalle completo cuando lo necesites.`
@@ -1845,7 +2078,7 @@
       showBackdropModal(runtime.dom.summaryModal);
       requestAnimationFrame(() => {
         positionSummaryModal(triggerNode);
-        setRouteForSummary(trip.route_style || 'office');
+        renderSummaryRouteReport(trip);
       });
     }
 
@@ -2014,11 +2247,6 @@
     }
 
     async function handleStartCheckin() {
-      if (!runtime.contacts.length) {
-        setState('contacts');
-        setStatus('Primero agrega un contacto de confianza.', 'error');
-        return;
-      }
       const destinationValue = runtime.noDestination ? '' : await resolveDestinationFromInput();
       if (!runtime.noDestination && !destinationValue) {
         setStatus('Escribe tu destino para iniciar el trayecto.', 'error');

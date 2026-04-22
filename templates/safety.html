@@ -41,11 +41,24 @@
         <div class="sheet-handle is-interactive" data-sheet-toggle="idle"></div>
         <div class="sheet-toggle-copy" data-sheet-toggle="idle">Desliza o toca para bajar este panel</div>
         <div class="stack">
-          <div>
-            <p class="section-label">Safety</p>
-            <h2 class="headline">Inicia tu trayecto en un paso</h2>
-            <p class="subline">Primero destino y tiempo. Contactos, historial y emergencia quedan como apoyo.</p>
-          </div>
+          <section class="desktop-hero-card panel mobile-hero-card">
+            <div class="desktop-hero-inner">
+              <div class="desktop-hero-copy">
+                <p class="section-label">Antes de salir</p>
+                <h3 class="desktop-hero-title">¿A donde vas?</h3>
+                <p class="desktop-header__sub desktop-zero-margin">Usa esta pantalla para iniciar un trayecto acompanado. El mapa te da contexto y el panel derecho te deja configurarlo sin ruido.</p>
+              </div>
+
+              <div class="desktop-hero-footer">
+                <div class="desktop-support-card">
+                  <div class="section-label">Que haces aqui</div>
+                  <div class="desktop-flow-line">1. Elige destino</div>
+                  <div class="desktop-flow-line">2. Ajusta tiempo estimado</div>
+                  <div class="desktop-flow-line">3. Comienza trayecto</div>
+                </div>
+              </div>
+            </div>
+          </section>
 
           <article class="input-card">
             <div class="input-title">
@@ -151,6 +164,17 @@
             </div>
             <div class="avatar-stack" data-share-summary-avatars="active-mobile"></div>
           </article>
+
+          <div class="mobile-active-actions" aria-label="Acciones del trayecto activo">
+            <button class="secondary-btn" type="button" data-arrive-safe>
+              <i class="fa-solid fa-check-circle"></i>
+              Ya llegue con bien
+            </button>
+            <button class="neutral-btn" type="button" data-cancel-trip>
+              <i class="fa-solid fa-xmark"></i>
+              Cancelar trayecto
+            </button>
+          </div>
 
           <div class="ghost-banner">
             Si algo cambia, puedes abrir emergencia de inmediato. Las acciones rapidas estan en el mapa para que llegues o canceles sin confusion.

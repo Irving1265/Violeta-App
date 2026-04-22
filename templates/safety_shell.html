@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_page.css') }}?v=20260414-safety-summary-map-v9">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_page.css') }}?v=20260422-summary-route-v1">
 <style>
     #deferredPageMount[hidden] {
         display: none !important;
@@ -54,6 +54,6 @@ window.DEFERRED_PAGE_CONFIG = {
   initFn: 'initSafetyPageEnhancements'
 };
 </script>
-<script defer src="{{ url_for('static', filename='js/safety_page.js') }}?v=20260414-safety-summary-map-v15"></script>
+<script defer src="{{ url_for('static', filename='js/safety_page.js') }}?v=20260422-summary-route-v1"></script>
 <script defer src="{{ url_for('static', filename='js/deferred_page_loader.js') }}?v=20260403-deferred-fix-v1"></script>
 {% endblock %}

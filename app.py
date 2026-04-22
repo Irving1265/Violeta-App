@@ -10169,8 +10169,6 @@ def create_app():
         primary = SafetyContact.query.filter_by(user_id=current_user.id, is_primary=True).first()
         if not primary:
             primary = SafetyContact.query.filter_by(user_id=current_user.id).order_by(SafetyContact.created_at.asc()).first()
-        if not primary:
-            return jsonify({'ok': False, 'error': 'Primero agrega un contacto de confianza.'}), 400
 
         active_rows = SafetyCheckin.query.filter_by(user_id=current_user.id, status='active').all()
         now = datetime.now(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
@@ -10182,8 +10180,8 @@ def create_app():
         expires_at = now + timedelta(minutes=eta_minutes)
         checkin = SafetyCheckin(
             user_id=current_user.id,
-            contact_name=primary.name,
-            contact_phone=primary.phone,
+            contact_name=primary.name if primary else None,
+            contact_phone=primary.phone if primary else None,
             destination=destination or None,
             note=note or None,
             eta_minutes=eta_minutes,

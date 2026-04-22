@@ -1905,45 +1905,178 @@
       border-color: #e2e8f0;
     }
 
-    .bottom-nav {
-      height: 65px;
-      background: rgba(255, 255, 255, 0.92);
-      backdrop-filter: blur(12px);
-      border-top: 1px solid rgba(226, 232, 240, 0.7);
-      box-shadow: 0 -5px 25px rgba(15, 23, 42, 0.08);
-      z-index: 1200;
+    .hotspots-map-stage {
+      background: #13111c;
     }
 
-    .nav-item {
-      width: 44px;
-      height: 44px;
-      font-size: 1.38rem;
-      color: #94a3b8;
-      border-radius: 14px;
+    .hotspots-map-dim {
+      background:
+        linear-gradient(180deg, rgba(19, 17, 28, 0.88) 0%, rgba(19, 17, 28, 0.44) 16%, rgba(19, 17, 28, 0.1) 38%, rgba(19, 17, 28, 0.22) 64%, rgba(19, 17, 28, 0.76) 100%),
+        radial-gradient(circle at 16% 10%, rgba(139, 92, 246, 0.22) 0%, rgba(139, 92, 246, 0) 34%);
+    }
+
+    #hotspotMap .leaflet-tile-pane {
+      filter: saturate(0.72) brightness(0.72) contrast(1.08);
+    }
+
+    #hotspotMap .leaflet-control-zoom a,
+    .hotspots-tool-btn,
+    .hotspots-nav-btn {
+      border-color: rgba(221, 212, 237, 0.16);
+      background: rgba(30, 27, 46, 0.94);
+      color: rgba(239, 233, 247, 0.86);
+      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.28);
+    }
+
+    #hotspotMap .leaflet-control-zoom a:hover,
+    .hotspots-tool-btn:hover,
+    .hotspots-tool-btn.is-active {
+      border-color: rgba(167, 139, 250, 0.72);
+      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+      color: #ffffff;
+      box-shadow: 0 14px 28px rgba(124, 58, 237, 0.28);
+    }
+
+    #hotspotMap .leaflet-popup-content-wrapper,
+    #hotspotMap .leaflet-popup-tip {
+      background: #1e1b2e;
+      border-color: rgba(139, 92, 246, 0.2);
+      color: #e9e3ef;
+    }
+
+    .hotspot-chips .violeta-chip,
+    .route-top-search .route-field,
+    .route-fields-stack .route-field {
+      background: rgba(30, 27, 46, 0.96);
+      border-color: rgba(139, 92, 246, 0.2);
+      color: #e9e3ef;
+      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
+    }
+
+    .hotspot-chips .violeta-chip.active {
+      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+      border-color: rgba(167, 139, 250, 0.72);
+      color: #ffffff;
+      box-shadow: 0 14px 26px rgba(124, 58, 237, 0.3);
+    }
+
+    .route-card-sheet {
+      background: rgba(19, 17, 28, 0.98);
+      border: 1px solid rgba(221, 212, 237, 0.12);
+      box-shadow: 0 -18px 36px rgba(0, 0, 0, 0.34);
+    }
+
+    .route-card-body {
       background: transparent;
     }
 
-    .nav-item:hover,
-    .nav-item.active {
-      background: transparent;
-      color: #7c3aed;
+    .route-top-search .route-field i,
+    .route-fields-stack .route-field i,
+    .hotspots-nav-btn {
+      color: #a78bfa;
     }
 
-    .nav-item.center {
-      width: 56px;
-      height: 56px;
-      flex: 0 0 56px;
-      transform: translateY(-20px);
-      font-size: 1.28rem;
-      border: 4px solid #f8fafc;
-      box-shadow: 0 8px 16px rgba(239, 68, 68, 0.3), inset 0 -2px 0 rgba(0, 0, 0, 0.08);
-      background: #ef4444;
+    .route-top-search .route-field input,
+    .route-fields-stack .route-field input,
+    .route-search-item,
+    .route-search-item__title {
+      color: #f8f5ff;
     }
 
-    .nav-item.center:hover {
-      transform: translateY(-20px);
-      background: #ef4444;
+    .route-score-label {
+      color: #c4b5fd;
     }
+
+    .route-top-search .route-field input::placeholder,
+    .route-fields-stack .route-field input::placeholder,
+    .route-search-item__sub,
+    .route-step-sub,
+    .route-speed-row,
+    .route-safety-meta {
+      color: rgba(233, 227, 239, 0.62);
+    }
+
+    #originResults .route-search-dropdown,
+    #destResults .route-search-dropdown {
+      background: rgba(30, 27, 46, 0.98);
+      border-color: rgba(139, 92, 246, 0.22);
+      box-shadow: 0 18px 34px rgba(0, 0, 0, 0.34);
+    }
+
+    .route-search-item:hover,
+    .route-search-item:focus-visible {
+      background: rgba(139, 92, 246, 0.16);
+    }
+
+    .route-search-item__icon {
+      background: rgba(139, 92, 246, 0.18);
+      color: #c4b5fd;
+    }
+
+    .route-mode-btn {
+      background: rgba(45, 36, 56, 0.88);
+      color: rgba(233, 227, 239, 0.68);
+    }
+
+    .route-mode-btn:hover {
+      background: rgba(139, 92, 246, 0.18);
+      color: #ffffff;
+    }
+
+    .route-mode-btn.is-active {
+      background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+      box-shadow: 0 14px 26px rgba(124, 58, 237, 0.28);
+    }
+
+    .route-score-card,
+    #routeAlert,
+    .route-step-card {
+      background: linear-gradient(145deg, #1e1b2e, #2a2436) !important;
+      border-color: rgba(139, 92, 246, 0.22) !important;
+      color: #e9e3ef;
+      box-shadow: 0 16px 28px rgba(0, 0, 0, 0.22);
+    }
+
+    .route-score-number,
+    .route-steps-title,
+    .route-step-title {
+      color: #ffffff;
+    }
+
+    .route-score-ring {
+      background: rgba(19, 17, 28, 0.82);
+      border-color: rgba(221, 212, 237, 0.14);
+      color: #c4b5fd;
+    }
+
+    .hotspots-reports-panel {
+      background: rgba(19, 17, 28, 0.98);
+      border-color: rgba(139, 92, 246, 0.18);
+      box-shadow: 0 -18px 38px rgba(0, 0, 0, 0.34);
+    }
+
+    .hotspots-reports-panel__head {
+      border-bottom-color: rgba(221, 212, 237, 0.12);
+      color: #e9e3ef;
+    }
+
+    .hotspots-reports-panel__head h3 {
+      color: #ffffff;
+    }
+
+    .hotspots-reports-panel__head p,
+    .hotspots-report-empty {
+      color: rgba(233, 227, 239, 0.62);
+    }
+
+    .hotspots-reports-panel__close,
+    .hotspots-report-item,
+    .hotspots-report-empty {
+      background: rgba(30, 27, 46, 0.94);
+      border-color: rgba(139, 92, 246, 0.18);
+      box-shadow: none;
+    }
+
   }
 
   /* Slightly smoother/softer zoom easing than Leaflet defaults */

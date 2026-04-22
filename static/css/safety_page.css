@@ -292,6 +292,58 @@
   border: 1px solid var(--border);
 }
 
+.safety-redesign-page .mobile-active-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.safety-redesign-page .mobile-active-actions .secondary-btn,
+.safety-redesign-page .mobile-active-actions .neutral-btn {
+  min-height: 50px;
+  padding: 14px 16px;
+  border-radius: 18px;
+}
+
+.safety-redesign-page .mobile-hero-card {
+  min-height: 0;
+  padding: 18px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 82% 10%, rgba(139, 92, 246, 0.2), transparent 28%),
+    linear-gradient(180deg, #f5eefb, #e9edf6);
+  box-shadow: 0 18px 34px rgba(19, 17, 28, 0.08);
+}
+
+.safety-redesign-page .mobile-hero-card::before {
+  opacity: 0.52;
+}
+
+.safety-redesign-page .mobile-hero-card .desktop-hero-inner {
+  min-height: 0;
+  gap: 18px;
+}
+
+.safety-redesign-page .mobile-hero-card .desktop-hero-copy {
+  gap: 8px;
+}
+
+.safety-redesign-page .mobile-hero-card .desktop-hero-title {
+  font-size: clamp(2rem, 12vw, 2.7rem);
+}
+
+.safety-redesign-page .mobile-hero-card .desktop-header__sub {
+  font-size: 0.9rem;
+  line-height: 1.52;
+}
+
+.safety-redesign-page .mobile-hero-card .desktop-support-card {
+  padding: 14px;
+  border-radius: 18px;
+  display: grid;
+  gap: 8px;
+}
+
 .safety-redesign-page .link-btn {
   border: 0;
   background: transparent;
