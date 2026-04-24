@@ -580,7 +580,7 @@
             preview.src = photoUrl;
         }
         if (bioInput) {
-            bioInput.value = userBio || '';
+            bioInput.value = (userBio || '').slice(0, 50);
         }
         new bootstrap.Modal(document.getElementById('changePhotoModal')).show();
     }
@@ -590,6 +590,10 @@
         const fileToSend = changePhotoCropFile || fileInput.files[0];
         const bioInput = document.getElementById('changePhotoBio');
         const bioValue = bioInput ? bioInput.value.trim() : '';
+        if (bioValue.length > 50) {
+            alert('La biografía debe tener máximo 50 caracteres.');
+            return;
+        }
         if (!fileToSend && !bioValue) {
             alert('Selecciona una imagen o agrega una descripción.');
             return;

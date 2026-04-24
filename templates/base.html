@@ -16,7 +16,7 @@
     {% if request.endpoint in ['index', 'hotspots_page', 'safety_center', 'login'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260421-strike3-banned-v1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260424-profile-web-v1">
     {% if request.endpoint == 'index' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/post_create.css') }}?v=20260403-post-modal-motion-v17">
     {% endif %}
@@ -308,72 +308,175 @@
 
     <!-- Report Comment Modal -->
     <div class="modal fade" id="reportCommentModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content bg-surface border border-secondary text-white">
-                <div class="modal-header border-secondary">
-                    <h5 class="modal-title">Reportar comentario</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        <div class="modal-dialog modal-dialog-centered report-comment-modal__dialog">
+            <div class="modal-content report-comment-modal__shell">
+                <div class="modal-header report-comment-modal__header">
+                    <h5 class="modal-title report-comment-modal__title">
+                        <i class="fas fa-comment-slash" aria-hidden="true"></i>
+                        <span>Reportar comentario</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Cerrar"></button>
                 </div>
-                <form id="reportCommentForm" onsubmit="submitCommentReport(event)">
-                    <div class="modal-body">
-                        <div class="d-flex align-items-center gap-2 mb-3">
-                            <span class="report-icon"><i class="fas fa-flag"></i></span>
-                            <p class="text-secondary small mb-0">Selecciona la clasificación que mejor describe el problema.</p>
+                <form id="reportCommentForm" onsubmit="submitCommentReport(event)" class="report-comment-modal__form">
+                    <div id="reportCommentFormContent" class="report-comment-modal__scroll">
+                        <div class="report-comment-modal__intro">
+                            <i class="fas fa-shield-heart" aria-hidden="true"></i>
+                            <p>Tu seguridad es nuestra prioridad. Selecciona la categoría que mejor describe el problema con este comentario.</p>
                         </div>
-                        <div class="d-grid gap-2">
-                            <label class="report-option">
-                                <input type="radio" name="comment_report_reason" value="Doxxing o datos personales">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Doxxing o datos personales</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="comment_report_reason" value="Ubicación exacta, rastreo o rutina">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Ubicación exacta, rastreo o rutina</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="comment_report_reason" value="Acoso o insultos">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Acoso o insultos</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="comment_report_reason" value="Spam o fraude">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Spam o fraude</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="comment_report_reason" value="Amenaza o violencia">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Amenaza o violencia</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="comment_report_reason" value="Contenido sexual no solicitado">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Contenido sexual no solicitado</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="comment_report_reason" value="Contenido íntimo o sexual sin consentimiento">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Contenido íntimo o sexual sin consentimiento</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="comment_report_reason" value="Archivo o enlace sospechoso">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Archivo o enlace sospechoso</span>
-                            </label>
+
+                        <div class="report-comment-modal__accordion" id="reportCommentAccordion">
+                            <details class="report-comment-group report-comment-group--violet">
+                                <summary class="report-comment-group__summary">
+                                    <span class="report-comment-group__summary-main">
+                                        <span class="report-comment-group__icon">
+                                            <i class="fas fa-user-shield" aria-hidden="true"></i>
+                                        </span>
+                                        <span class="report-comment-group__copy">
+                                            <span class="report-comment-group__title">Seguridad personal y privacidad</span>
+                                            <span class="report-comment-group__subtitle">Doxxing, ubicación, contenido íntimo</span>
+                                        </span>
+                                    </span>
+                                    <span class="report-comment-group__chevron">
+                                        <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                    </span>
+                                </summary>
+                                <div class="report-comment-group__body">
+                                    <div class="report-comment-choice-list">
+                                        <label class="report-comment-choice">
+                                            <input type="radio" name="comment_report_reason" value="Doxxing o datos personales">
+                                            <span class="report-comment-choice__card report-comment-choice__card--violet">
+                                                <span class="report-comment-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-comment-choice__text">Doxxing o exposición de datos personales</span>
+                                            </span>
+                                        </label>
+                                        <label class="report-comment-choice">
+                                            <input type="radio" name="comment_report_reason" value="Ubicación exacta, rastreo o rutina">
+                                            <span class="report-comment-choice__card report-comment-choice__card--violet">
+                                                <span class="report-comment-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-comment-choice__text">Ubicación exacta, rastreo o rutina</span>
+                                            </span>
+                                        </label>
+                                        <label class="report-comment-choice">
+                                            <input type="radio" name="comment_report_reason" value="Contenido íntimo o sexual sin consentimiento">
+                                            <span class="report-comment-choice__card report-comment-choice__card--violet">
+                                                <span class="report-comment-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-comment-choice__text">Contenido íntimo o sexual sin consentimiento</span>
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </details>
+
+                            <details class="report-comment-group report-comment-group--rose">
+                                <summary class="report-comment-group__summary">
+                                    <span class="report-comment-group__summary-main">
+                                        <span class="report-comment-group__icon">
+                                            <i class="fas fa-ban" aria-hidden="true"></i>
+                                        </span>
+                                        <span class="report-comment-group__copy">
+                                            <span class="report-comment-group__title">Acoso y violencia</span>
+                                            <span class="report-comment-group__subtitle">Insultos, amenazas, acoso sexual</span>
+                                        </span>
+                                    </span>
+                                    <span class="report-comment-group__chevron">
+                                        <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                    </span>
+                                </summary>
+                                <div class="report-comment-group__body">
+                                    <div class="report-comment-choice-list">
+                                        <label class="report-comment-choice">
+                                            <input type="radio" name="comment_report_reason" value="Acoso o insultos">
+                                            <span class="report-comment-choice__card report-comment-choice__card--rose">
+                                                <span class="report-comment-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-comment-choice__text">Acoso o insultos</span>
+                                            </span>
+                                        </label>
+                                        <label class="report-comment-choice">
+                                            <input type="radio" name="comment_report_reason" value="Amenaza o violencia">
+                                            <span class="report-comment-choice__card report-comment-choice__card--rose">
+                                                <span class="report-comment-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-comment-choice__text">Amenaza o incitación a la violencia</span>
+                                            </span>
+                                        </label>
+                                        <label class="report-comment-choice">
+                                            <input type="radio" name="comment_report_reason" value="Contenido sexual no solicitado">
+                                            <span class="report-comment-choice__card report-comment-choice__card--rose">
+                                                <span class="report-comment-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-comment-choice__text">Contenido sexual no solicitado</span>
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </details>
+
+                            <details class="report-comment-group report-comment-group--amber">
+                                <summary class="report-comment-group__summary">
+                                    <span class="report-comment-group__summary-main">
+                                        <span class="report-comment-group__icon">
+                                            <i class="fas fa-shield-virus" aria-hidden="true"></i>
+                                        </span>
+                                        <span class="report-comment-group__copy">
+                                            <span class="report-comment-group__title">Spam o contenido sospechoso</span>
+                                            <span class="report-comment-group__subtitle">Fraude, enlaces maliciosos, spam</span>
+                                        </span>
+                                    </span>
+                                    <span class="report-comment-group__chevron">
+                                        <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                    </span>
+                                </summary>
+                                <div class="report-comment-group__body">
+                                    <div class="report-comment-choice-list">
+                                        <label class="report-comment-choice">
+                                            <input type="radio" name="comment_report_reason" value="Spam o fraude">
+                                            <span class="report-comment-choice__card report-comment-choice__card--amber">
+                                                <span class="report-comment-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-comment-choice__text">Spam o fraude</span>
+                                            </span>
+                                        </label>
+                                        <label class="report-comment-choice">
+                                            <input type="radio" name="comment_report_reason" value="Archivo o enlace sospechoso">
+                                            <span class="report-comment-choice__card report-comment-choice__card--amber">
+                                                <span class="report-comment-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-comment-choice__text">Archivo o enlace sospechoso</span>
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </details>
                         </div>
-                        <div class="mt-3">
-                            <label for="reportCommentDetails" class="form-label text-secondary">Comentario</label>
-                            <textarea id="reportCommentDetails" class="form-control bg-body border-secondary text-white" rows="3" placeholder="Agrega un comentario adicional..."></textarea>
+
+                        <div id="reportCommentDetailsSection" class="report-comment-modal__details is-disabled">
+                            <label for="reportCommentDetails" class="report-comment-modal__details-label">
+                                ¿Puedes darnos más detalles? <span>(Opcional)</span>
+                            </label>
+                            <textarea id="reportCommentDetails" class="report-comment-modal__textarea" rows="3"
+                                placeholder="Explícanos brevemente el contexto del comentario..."></textarea>
                         </div>
-                        <div class="report-modal-note mt-3">
-                            Si detectamos alto riesgo, este comentario se ocultará de inmediato. En otros casos pasará a revisión.
+
+                        <div class="report-comment-modal__note">
+                            <i class="fas fa-shield-alt" aria-hidden="true"></i>
+                            <p>Si detectamos alto riesgo en este comentario, se ocultará de inmediato. En otros casos, nuestro equipo lo revisará cuidadosamente.</p>
                         </div>
-                        <div class="alert alert-danger d-none mt-3" id="reportCommentError"></div>
+
+                        <div class="alert alert-danger d-none report-comment-modal__error" id="reportCommentError"></div>
                     </div>
-                    <div class="modal-footer border-secondary">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Enviar reporte</button>
+
+                    <div id="reportCommentSuccessState" class="report-comment-success d-none" aria-live="polite">
+                        <div class="report-comment-success__icon">
+                            <i class="fas fa-check" aria-hidden="true"></i>
+                        </div>
+                        <h3 class="report-comment-success__title">Reporte enviado</h3>
+                        <p class="report-comment-success__text" id="reportCommentSuccessText">Gracias por ayudarnos a mantener la comunidad libre de comentarios maliciosos.</p>
+                        <button type="button" class="report-comment-success__close" data-bs-dismiss="modal">Cerrar ventana</button>
+                    </div>
+
+                    <div id="reportCommentFooter" class="report-comment-modal__footer">
+                        <button type="button" class="report-comment-modal__cancel" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" id="reportCommentSubmitBtn" class="report-comment-modal__submit" disabled>
+                            <span id="reportCommentSubmitText">Enviar reporte</span>
+                            <i id="reportCommentSubmitSpinner" class="fas fa-spinner fa-spin d-none" aria-hidden="true"></i>
+                        </button>
                     </div>
                 </form>
             </div>
@@ -382,96 +485,196 @@
 
     <!-- Report Post Modal -->
     <div class="modal fade" id="reportPostModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content bg-surface border border-secondary text-white">
-                <div class="modal-header border-secondary">
-                    <h5 class="modal-title">Reportar publicación</h5>
+        <div class="modal-dialog modal-dialog-centered report-post-modal__dialog">
+            <div class="modal-content report-post-modal__shell">
+                <div class="modal-header report-post-modal__header">
+                    <h5 class="modal-title report-post-modal__title">
+                        <i class="fas fa-flag" aria-hidden="true"></i>
+                        <span>Reportar publicación</span>
+                    </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                        aria-label="Close"></button>
+                        aria-label="Cerrar"></button>
                 </div>
-                <form id="reportPostForm" onsubmit="submitReport(event)">
-                    <div class="modal-body">
-                        <div class="d-flex align-items-center gap-2 mb-3">
-                            <span class="report-icon">
-                                <i class="fas fa-exclamation-triangle"></i>
-                            </span>
-                            <p class="text-secondary small mb-0">
-                                Selecciona la categoría que mejor describe el problema.
-                            </p>
+                <form id="reportPostForm" onsubmit="submitReport(event)" class="report-post-modal__form">
+                    <div id="reportPostFormContent" class="report-post-modal__scroll">
+                        <div class="report-post-modal__intro">
+                            <i class="fas fa-shield-heart" aria-hidden="true"></i>
+                            <p>Tu seguridad es nuestra prioridad. Selecciona la categoría principal y luego el motivo específico para ayudarnos a entender qué está pasando.</p>
                         </div>
-                        <div class="d-grid gap-2">
-                            <label class="report-option">
-                                <input type="radio" name="report_reason" value="Doxxing o datos personales">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Doxxing o datos personales</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="report_reason" value="Ubicación exacta, rastreo o rutina">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Ubicación exacta, rastreo o rutina</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="report_reason" value="Amenaza o violencia">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Amenaza o violencia</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="report_reason" value="Contenido íntimo o sexual sin consentimiento">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Contenido íntimo o sexual sin consentimiento</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="report_reason" value="Suplantación de identidad">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Suplantación de identidad</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="report_reason" value="Fraude o phishing">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Fraude o phishing</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="report_reason" value="Información falsa">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Información falsa</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="report_reason" value="La imagen no corresponde al evento">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">La imagen no corresponde al evento</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="report_reason" value="La imagen fue hecha con IA">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">La imagen fue hecha con IA</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="report_reason"
-                                    value="Descripción con lenguaje verbal insultante">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">Descripción con lenguaje verbal insultante</span>
-                            </label>
-                            <label class="report-option">
-                                <input type="radio" name="report_reason"
-                                    value="La ubicación no corresponde al lugar donde se tomó la foto">
-                                <span class="report-option-check"></span>
-                                <span class="report-option-text">La ubicación no corresponde al lugar donde se tomó la
-                                    foto</span>
-                            </label>
+
+                        <div class="report-post-modal__accordion" id="reportPostAccordion">
+                            <details class="report-post-group report-post-group--indigo">
+                                <summary class="report-post-group__summary">
+                                    <span class="report-post-group__summary-main">
+                                        <span class="report-post-group__icon">
+                                            <i class="fas fa-user-shield" aria-hidden="true"></i>
+                                        </span>
+                                        <span class="report-post-group__copy">
+                                            <span class="report-post-group__title">Seguridad personal y privacidad</span>
+                                            <span class="report-post-group__subtitle">Doxxing, ubicación, contenido íntimo</span>
+                                        </span>
+                                    </span>
+                                    <span class="report-post-group__chevron">
+                                        <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                    </span>
+                                </summary>
+                                <div class="report-post-group__body">
+                                    <div class="report-post-choice-list">
+                                        <label class="report-post-choice">
+                                            <input type="radio" name="report_reason" value="Doxxing o datos personales">
+                                            <span class="report-post-choice__card report-post-choice__card--indigo">
+                                                <span class="report-post-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-post-choice__text">Doxxing o exposición de datos personales</span>
+                                            </span>
+                                        </label>
+                                        <label class="report-post-choice">
+                                            <input type="radio" name="report_reason" value="Ubicación exacta, rastreo o rutina">
+                                            <span class="report-post-choice__card report-post-choice__card--indigo">
+                                                <span class="report-post-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-post-choice__text">Ubicación exacta, rastreo o rutina</span>
+                                            </span>
+                                        </label>
+                                        <label class="report-post-choice">
+                                            <input type="radio" name="report_reason" value="Contenido íntimo o sexual sin consentimiento">
+                                            <span class="report-post-choice__card report-post-choice__card--indigo">
+                                                <span class="report-post-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-post-choice__text">Contenido íntimo o sexual sin consentimiento</span>
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </details>
+
+                            <details class="report-post-group report-post-group--rose">
+                                <summary class="report-post-group__summary">
+                                    <span class="report-post-group__summary-main">
+                                        <span class="report-post-group__icon">
+                                            <i class="fas fa-hand-paper" aria-hidden="true"></i>
+                                        </span>
+                                        <span class="report-post-group__copy">
+                                            <span class="report-post-group__title">Comportamiento abusivo</span>
+                                            <span class="report-post-group__subtitle">Acoso, amenazas, suplantación</span>
+                                        </span>
+                                    </span>
+                                    <span class="report-post-group__chevron">
+                                        <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                    </span>
+                                </summary>
+                                <div class="report-post-group__body">
+                                    <div class="report-post-choice-list">
+                                        <label class="report-post-choice">
+                                            <input type="radio" name="report_reason" value="Amenaza o violencia">
+                                            <span class="report-post-choice__card report-post-choice__card--rose">
+                                                <span class="report-post-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-post-choice__text">Amenaza, incitación a la violencia u odio</span>
+                                            </span>
+                                        </label>
+                                        <label class="report-post-choice">
+                                            <input type="radio" name="report_reason" value="Descripción con lenguaje verbal insultante">
+                                            <span class="report-post-choice__card report-post-choice__card--rose">
+                                                <span class="report-post-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-post-choice__text">Acoso o lenguaje verbal insultante</span>
+                                            </span>
+                                        </label>
+                                        <label class="report-post-choice">
+                                            <input type="radio" name="report_reason" value="Suplantación de identidad">
+                                            <span class="report-post-choice__card report-post-choice__card--rose">
+                                                <span class="report-post-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-post-choice__text">Suplantación de identidad</span>
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </details>
+
+                            <details class="report-post-group report-post-group--amber">
+                                <summary class="report-post-group__summary">
+                                    <span class="report-post-group__summary-main">
+                                        <span class="report-post-group__icon">
+                                            <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                                        </span>
+                                        <span class="report-post-group__copy">
+                                            <span class="report-post-group__title">Contenido engañoso o fraudulento</span>
+                                            <span class="report-post-group__subtitle">Fraude, fake news, imágenes IA</span>
+                                        </span>
+                                    </span>
+                                    <span class="report-post-group__chevron">
+                                        <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                    </span>
+                                </summary>
+                                <div class="report-post-group__body">
+                                    <div class="report-post-choice-list">
+                                        <label class="report-post-choice">
+                                            <input type="radio" name="report_reason" value="Fraude o phishing">
+                                            <span class="report-post-choice__card report-post-choice__card--amber">
+                                                <span class="report-post-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-post-choice__text">Fraude, estafa o phishing</span>
+                                            </span>
+                                        </label>
+                                        <label class="report-post-choice">
+                                            <input type="radio" name="report_reason" value="Información falsa">
+                                            <span class="report-post-choice__card report-post-choice__card--amber">
+                                                <span class="report-post-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-post-choice__text">Información falsa</span>
+                                            </span>
+                                        </label>
+                                        <label class="report-post-choice">
+                                            <input type="radio" name="report_reason" value="La imagen no corresponde al evento">
+                                            <span class="report-post-choice__card report-post-choice__card--amber">
+                                                <span class="report-post-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-post-choice__text">La imagen no corresponde al evento</span>
+                                            </span>
+                                        </label>
+                                        <label class="report-post-choice">
+                                            <input type="radio" name="report_reason" value="La imagen fue hecha con IA">
+                                            <span class="report-post-choice__card report-post-choice__card--amber">
+                                                <span class="report-post-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-post-choice__text">La imagen fue hecha con IA</span>
+                                            </span>
+                                        </label>
+                                        <label class="report-post-choice">
+                                            <input type="radio" name="report_reason" value="La ubicación no corresponde al lugar donde se tomó la foto">
+                                            <span class="report-post-choice__card report-post-choice__card--amber">
+                                                <span class="report-post-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                                <span class="report-post-choice__text">La ubicación no corresponde al lugar donde se tomó la foto</span>
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </details>
                         </div>
-                        <div class="mt-3">
-                            <label for="reportDetails" class="form-label text-secondary">Comentario (opcional)</label>
-                            <textarea id="reportDetails" class="form-control bg-body border-secondary text-white"
-                                rows="3" placeholder="Agrega un comentario adicional..."></textarea>
+
+                        <div id="reportPostDetailsSection" class="report-post-modal__details is-disabled">
+                            <label for="reportDetails" class="report-post-modal__details-label">
+                                ¿Puedes darnos más detalles? <span>(Opcional)</span>
+                            </label>
+                            <textarea id="reportDetails" class="report-post-modal__textarea" rows="3"
+                                placeholder="Explícanos brevemente qué ocurre para que nuestro equipo pueda actuar rápido..."></textarea>
                         </div>
-                        <div class="report-modal-note mt-3">
-                            Si detectamos alto riesgo, esta publicación se ocultará de inmediato. En otros casos pasará a revisión.
+
+                        <div class="report-post-modal__note">
+                            <i class="fas fa-shield-alt" aria-hidden="true"></i>
+                            <p>Si tu integridad física o tu privacidad están en alto riesgo, esta publicación se ocultará de inmediato. Nuestro equipo de moderación revisará todos los reportes de manera confidencial.</p>
                         </div>
-                        <div class="alert alert-danger d-none mt-3" id="reportPostError"></div>
+
+                        <div class="alert alert-danger d-none report-post-modal__error" id="reportPostError"></div>
                     </div>
-                    <div class="modal-footer border-secondary">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Enviar reporte</button>
+
+                    <div id="reportPostSuccessState" class="report-post-success d-none" aria-live="polite">
+                        <div class="report-post-success__icon">
+                            <i class="fas fa-check" aria-hidden="true"></i>
+                        </div>
+                        <h3 class="report-post-success__title">Reporte enviado</h3>
+                        <p class="report-post-success__text" id="reportPostSuccessText">Gracias por ayudarnos a mantener la comunidad segura. Revisaremos tu reporte lo antes posible.</p>
+                        <button type="button" class="report-post-success__close" data-bs-dismiss="modal">Cerrar ventana</button>
+                    </div>
+
+                    <div id="reportPostFooter" class="report-post-modal__footer">
+                        <button type="button" class="report-post-modal__cancel" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" id="reportPostSubmitBtn" class="report-post-modal__submit" disabled>
+                            <span id="reportPostSubmitText">Enviar reporte</span>
+                            <i id="reportPostSubmitSpinner" class="fas fa-spinner fa-spin d-none" aria-hidden="true"></i>
+                        </button>
                     </div>
                 </form>
             </div>
@@ -519,7 +722,7 @@
         window.VERIFY_REQUIRED_MSG = 'Para poder ver el contenido tenemos que verificar tu identidad';
         window.VIOLETA_SAFETY_PUBLISH_POLICY = {{ safety_publish_policy|tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/app.js') }}?v=20260409-nav-safe-v3"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=20260424-report-comment-modal-v1"></script>
     {% if show_warning_strike_overlay or request.endpoint == 'account_restricted' %}
     <script src="{{ url_for('static', filename='js/strike_overlay.js') }}?v=20260420-strike-file-preview-v1"></script>
     {% endif %}

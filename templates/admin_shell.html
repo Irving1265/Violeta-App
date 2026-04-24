@@ -126,7 +126,7 @@ window.DEFERRED_PAGE_CONFIG = {
       contentUrl: {{ url_for('admin_panel_tab_content', tab=active_admin_tab, reports_subtab=active_reports_subtab, page=active_page_number|default(1))|tojson }}
     }
   ],
-  scriptSrc: {{ (url_for('static', filename='js/admin_page.js') ~ '?v=20260402-perf-v5')|tojson }},
+  scriptSrc: {{ (url_for('static', filename='js/admin_page.js') ~ '?v=20260424-bio-limit-v1')|tojson }},
   initFn: 'initAdminPageEnhancements'
 };
 </script>

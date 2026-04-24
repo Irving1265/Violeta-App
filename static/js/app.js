@@ -40,6 +40,183 @@ let currentReportCommentId = null;
 let currentReportCommentPostId = null;
 const commentLoadPromises = new Map();
 
+function getReportPostModalRefs() {
+    const modalEl = document.getElementById('reportPostModal');
+    if (!modalEl) {
+        return {};
+    }
+
+    return {
+        modalEl,
+        form: document.getElementById('reportPostForm'),
+        detailsEl: document.getElementById('reportDetails'),
+        errorEl: document.getElementById('reportPostError'),
+        detailsSection: document.getElementById('reportPostDetailsSection'),
+        formContent: document.getElementById('reportPostFormContent'),
+        successState: document.getElementById('reportPostSuccessState'),
+        successText: document.getElementById('reportPostSuccessText'),
+        footer: document.getElementById('reportPostFooter'),
+        submitBtn: document.getElementById('reportPostSubmitBtn'),
+        submitText: document.getElementById('reportPostSubmitText'),
+        submitSpinner: document.getElementById('reportPostSubmitSpinner'),
+        radios: modalEl.querySelectorAll('input[name="report_reason"]'),
+        groups: modalEl.querySelectorAll('.report-post-group')
+    };
+}
+
+function setReportPostSubmittingState(isSubmitting) {
+    const { submitBtn, submitText, submitSpinner } = getReportPostModalRefs();
+    if (!submitBtn) {
+        return;
+    }
+
+    submitBtn.dataset.loading = isSubmitting ? '1' : '';
+    submitBtn.disabled = isSubmitting || !document.querySelector('#reportPostModal input[name="report_reason"]:checked');
+
+    if (submitText) {
+        submitText.textContent = isSubmitting ? 'Enviando...' : 'Enviar reporte';
+    }
+    if (submitSpinner) {
+        submitSpinner.classList.toggle('d-none', !isSubmitting);
+    }
+}
+
+function updateReportPostFormState() {
+    const { modalEl, detailsSection, submitBtn } = getReportPostModalRefs();
+    if (!modalEl) {
+        return;
+    }
+
+    const hasSelection = !!modalEl.querySelector('input[name="report_reason"]:checked');
+    if (detailsSection) {
+        detailsSection.classList.toggle('is-disabled', !hasSelection);
+    }
+
+    if (submitBtn && submitBtn.dataset.loading !== '1') {
+        submitBtn.disabled = !hasSelection;
+    }
+}
+
+function closeOtherReportPostGroups(openGroup) {
+    const { groups } = getReportPostModalRefs();
+    if (!groups || !groups.length) {
+        return;
+    }
+
+    groups.forEach((group) => {
+        if (group !== openGroup) {
+            group.open = false;
+        }
+    });
+}
+
+function showReportPostSuccessState(message) {
+    const { formContent, footer, successState, successText } = getReportPostModalRefs();
+    if (formContent) {
+        formContent.classList.add('d-none');
+    }
+    if (footer) {
+        footer.classList.add('d-none');
+    }
+    if (successText) {
+        successText.textContent = message || 'Gracias por ayudarnos a mantener la comunidad segura. Revisaremos tu reporte lo antes posible.';
+    }
+    if (successState) {
+        successState.classList.remove('d-none');
+    }
+}
+
+function resetReportPostModalState() {
+    const {
+        form,
+        detailsEl,
+        errorEl,
+        detailsSection,
+        formContent,
+        successState,
+        successText,
+        footer,
+        submitBtn,
+        submitText,
+        submitSpinner,
+        radios,
+        groups
+    } = getReportPostModalRefs();
+
+    if (form) {
+        form.reset();
+    }
+    if (radios && radios.length) {
+        radios.forEach((radio) => {
+            radio.checked = false;
+        });
+    }
+    if (groups && groups.length) {
+        groups.forEach((group) => {
+            group.open = false;
+        });
+    }
+    if (detailsEl) {
+        detailsEl.value = '';
+    }
+    if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.classList.add('d-none');
+    }
+    if (detailsSection) {
+        detailsSection.classList.add('is-disabled');
+    }
+    if (formContent) {
+        formContent.classList.remove('d-none');
+        formContent.scrollTop = 0;
+    }
+    if (footer) {
+        footer.classList.remove('d-none');
+    }
+    if (successState) {
+        successState.classList.add('d-none');
+    }
+    if (successText) {
+        successText.textContent = 'Gracias por ayudarnos a mantener la comunidad segura. Revisaremos tu reporte lo antes posible.';
+    }
+    if (submitBtn) {
+        submitBtn.dataset.loading = '';
+        submitBtn.disabled = true;
+    }
+    if (submitText) {
+        submitText.textContent = 'Enviar reporte';
+    }
+    if (submitSpinner) {
+        submitSpinner.classList.add('d-none');
+    }
+}
+
+function initReportPostModal() {
+    const { modalEl, radios, groups } = getReportPostModalRefs();
+    if (!modalEl) {
+        return;
+    }
+
+    radios.forEach((radio) => {
+        radio.addEventListener('change', updateReportPostFormState);
+    });
+
+    groups.forEach((group) => {
+        group.addEventListener('toggle', () => {
+            if (group.open) {
+                closeOtherReportPostGroups(group);
+            }
+        });
+    });
+
+    modalEl.addEventListener('hidden.bs.modal', () => {
+        resetReportPostModalState();
+        currentReportPostId = null;
+    });
+
+    updateReportPostFormState();
+}
+
 function extractRemainingSeconds(text) {
     const msg = String(text || '');
     const m = msg.match(/([0-9]+)\s*segundos?/i);
@@ -52,41 +229,31 @@ function openReportModal(postId) {
         return;
     }
     currentReportPostId = postId;
-    const modalEl = document.getElementById('reportPostModal');
-    const errorEl = document.getElementById('reportPostError');
-    const detailsEl = document.getElementById('reportDetails');
+    const { modalEl } = getReportPostModalRefs();
 
     if (!modalEl) {
         return;
     }
 
-    // Reset form state
-    const radios = modalEl.querySelectorAll('input[name="report_reason"]');
-    radios.forEach(r => { r.checked = false; });
-    if (detailsEl) {
-        detailsEl.value = '';
-    }
-    if (errorEl) {
-        errorEl.classList.add('d-none');
-        errorEl.textContent = '';
-    }
+    resetReportPostModalState();
 
-    const modal = new bootstrap.Modal(modalEl);
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
 }
 
 async function submitReport(event) {
     event.preventDefault();
-    const modalEl = document.getElementById('reportPostModal');
-    const errorEl = document.getElementById('reportPostError');
-    const form = event.target;
-    const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+    const {
+        modalEl,
+        errorEl,
+        detailsEl
+    } = getReportPostModalRefs();
+
     if (!modalEl || !currentReportPostId) {
         return;
     }
 
     const selected = modalEl.querySelector('input[name="report_reason"]:checked');
-    const detailsEl = document.getElementById('reportDetails');
     const details = detailsEl ? detailsEl.value.trim() : '';
 
     if (!selected) {
@@ -99,14 +266,12 @@ async function submitReport(event) {
 
     const postId = Number(currentReportPostId);
     const postCard = document.querySelector(`[data-post-id="${postId}"]`);
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.dataset.originalText = submitBtn.textContent || 'Enviar reporte';
-        submitBtn.textContent = 'Enviando...';
+    if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.classList.add('d-none');
     }
 
-    const modal = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
-    modal.hide();
+    setReportPostSubmittingState(true);
 
     try {
         const response = await fetch(`/report_post/${postId}`, {
@@ -132,7 +297,7 @@ async function submitReport(event) {
         }
 
         const caseLabel = data.report_id ? ` Folio #${data.report_id}.` : '';
-        showAlert(`${data.message || 'Gracias. Tu reporte fue enviado.'}${caseLabel}`, 'success');
+        showReportPostSuccessState(`${data.message || 'Gracias. Tu reporte fue enviado.'}${caseLabel}`);
         currentReportPostId = null;
     } catch (error) {
         console.error('Error submitting report:', error);
@@ -141,14 +306,13 @@ async function submitReport(event) {
             errorEl.classList.remove('d-none');
         }
         showAlert(error.message || 'Ocurrió un error al enviar el reporte.', 'danger');
-        modal.show();
     } finally {
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = submitBtn.dataset.originalText || 'Enviar reporte';
-        }
+        setReportPostSubmittingState(false);
+        updateReportPostFormState();
     }
 }
+
+initReportPostModal();
 
 // Funcionalidad para dar like a publicaciones
 async function toggleLike(postId) {
@@ -432,16 +596,8 @@ async function submitComment(event, postId) {
 function openCommentReportModal(commentId, postId) {
     currentReportCommentId = Number(commentId);
     currentReportCommentPostId = Number(postId);
-    const modalEl = document.getElementById('reportCommentModal');
-    const form = document.getElementById('reportCommentForm');
-    const errorEl = document.getElementById('reportCommentError');
-    const detailsEl = document.getElementById('reportCommentDetails');
-    if (form) form.reset();
-    if (detailsEl) detailsEl.value = '';
-    if (errorEl) {
-        errorEl.textContent = '';
-        errorEl.classList.add('d-none');
-    }
+    const { modalEl } = getReportCommentModalRefs();
+    resetReportCommentModalState();
     if (!modalEl || typeof bootstrap === 'undefined') return;
     bootstrap.Modal.getOrCreateInstance(modalEl).show();
 }
@@ -471,12 +627,12 @@ function optimisticallyHideReportedComment(postId, commentId) {
 
 async function submitCommentReport(event) {
     event.preventDefault();
-    const errorEl = document.getElementById('reportCommentError');
-    const selectedReason = document.querySelector('input[name="comment_report_reason"]:checked');
-    const detailsEl = document.getElementById('reportCommentDetails');
-    const modalEl = document.getElementById('reportCommentModal');
-    const form = event.target;
-    const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+    const {
+        modalEl,
+        errorEl,
+        detailsEl
+    } = getReportCommentModalRefs();
+    const selectedReason = modalEl ? modalEl.querySelector('input[name="comment_report_reason"]:checked') : null;
 
     if (!currentReportCommentId || !currentReportCommentPostId) {
         if (errorEl) {
@@ -496,16 +652,11 @@ async function submitCommentReport(event) {
 
     const commentId = currentReportCommentId;
     const postId = currentReportCommentPostId;
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.dataset.originalText = submitBtn.textContent || 'Enviar reporte';
-        submitBtn.textContent = 'Enviando...';
+    if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.classList.add('d-none');
     }
-
-    if (modalEl && typeof bootstrap !== 'undefined') {
-        const instance = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
-        instance.hide();
-    }
+    setReportCommentSubmittingState(true);
 
     try {
         const response = await fetch(`/api/comment/${commentId}/report`, {
@@ -532,7 +683,7 @@ async function submitCommentReport(event) {
         currentReportCommentId = null;
         currentReportCommentPostId = null;
         loadComments(postId, true);
-        notifyCommentAction(data.message || 'El reporte fue enviado correctamente.', 'success');
+        showReportCommentSuccessState(data.message || 'Gracias por ayudarnos a mantener la comunidad libre de comentarios maliciosos.');
     } catch (error) {
         if (errorEl) {
             errorEl.textContent = error.message || 'No se pudo enviar el reporte.';
@@ -543,12 +694,191 @@ async function submitCommentReport(event) {
             showAlert(error.message || 'No se pudo enviar el reporte.', 'danger');
         }
     } finally {
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = submitBtn.dataset.originalText || 'Enviar reporte';
-        }
+        setReportCommentSubmittingState(false);
+        updateReportCommentFormState();
     }
 }
+
+function getReportCommentModalRefs() {
+    const modalEl = document.getElementById('reportCommentModal');
+    if (!modalEl) {
+        return {};
+    }
+
+    return {
+        modalEl,
+        form: document.getElementById('reportCommentForm'),
+        detailsEl: document.getElementById('reportCommentDetails'),
+        errorEl: document.getElementById('reportCommentError'),
+        detailsSection: document.getElementById('reportCommentDetailsSection'),
+        formContent: document.getElementById('reportCommentFormContent'),
+        successState: document.getElementById('reportCommentSuccessState'),
+        successText: document.getElementById('reportCommentSuccessText'),
+        footer: document.getElementById('reportCommentFooter'),
+        submitBtn: document.getElementById('reportCommentSubmitBtn'),
+        submitText: document.getElementById('reportCommentSubmitText'),
+        submitSpinner: document.getElementById('reportCommentSubmitSpinner'),
+        radios: modalEl.querySelectorAll('input[name="comment_report_reason"]'),
+        groups: modalEl.querySelectorAll('.report-comment-group')
+    };
+}
+
+function setReportCommentSubmittingState(isSubmitting) {
+    const { modalEl, submitBtn, submitText, submitSpinner } = getReportCommentModalRefs();
+    if (!submitBtn) {
+        return;
+    }
+
+    const hasSelection = !!(modalEl && modalEl.querySelector('input[name="comment_report_reason"]:checked'));
+    submitBtn.dataset.loading = isSubmitting ? '1' : '';
+    submitBtn.disabled = isSubmitting || !hasSelection;
+
+    if (submitText) {
+        submitText.textContent = isSubmitting ? 'Enviando...' : 'Enviar reporte';
+    }
+    if (submitSpinner) {
+        submitSpinner.classList.toggle('d-none', !isSubmitting);
+    }
+}
+
+function updateReportCommentFormState() {
+    const { modalEl, detailsSection, submitBtn } = getReportCommentModalRefs();
+    if (!modalEl) {
+        return;
+    }
+
+    const hasSelection = !!modalEl.querySelector('input[name="comment_report_reason"]:checked');
+    if (detailsSection) {
+        detailsSection.classList.toggle('is-disabled', !hasSelection);
+    }
+
+    if (submitBtn && submitBtn.dataset.loading !== '1') {
+        submitBtn.disabled = !hasSelection;
+    }
+}
+
+function closeOtherReportCommentGroups(openGroup) {
+    const { groups } = getReportCommentModalRefs();
+    if (!groups || !groups.length) {
+        return;
+    }
+
+    groups.forEach((group) => {
+        if (group !== openGroup) {
+            group.open = false;
+        }
+    });
+}
+
+function showReportCommentSuccessState(message) {
+    const { formContent, footer, successState, successText } = getReportCommentModalRefs();
+    if (formContent) {
+        formContent.classList.add('d-none');
+    }
+    if (footer) {
+        footer.classList.add('d-none');
+    }
+    if (successText) {
+        successText.textContent = message || 'Gracias por ayudarnos a mantener la comunidad libre de comentarios maliciosos.';
+    }
+    if (successState) {
+        successState.classList.remove('d-none');
+    }
+}
+
+function resetReportCommentModalState() {
+    const {
+        form,
+        detailsEl,
+        errorEl,
+        detailsSection,
+        formContent,
+        successState,
+        successText,
+        footer,
+        submitBtn,
+        submitText,
+        submitSpinner,
+        radios,
+        groups
+    } = getReportCommentModalRefs();
+
+    if (form) {
+        form.reset();
+    }
+    if (radios && radios.length) {
+        radios.forEach((radio) => {
+            radio.checked = false;
+        });
+    }
+    if (groups && groups.length) {
+        groups.forEach((group) => {
+            group.open = false;
+        });
+    }
+    if (detailsEl) {
+        detailsEl.value = '';
+    }
+    if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.classList.add('d-none');
+    }
+    if (detailsSection) {
+        detailsSection.classList.add('is-disabled');
+    }
+    if (formContent) {
+        formContent.classList.remove('d-none');
+        formContent.scrollTop = 0;
+    }
+    if (footer) {
+        footer.classList.remove('d-none');
+    }
+    if (successState) {
+        successState.classList.add('d-none');
+    }
+    if (successText) {
+        successText.textContent = 'Gracias por ayudarnos a mantener la comunidad libre de comentarios maliciosos.';
+    }
+    if (submitBtn) {
+        submitBtn.dataset.loading = '';
+        submitBtn.disabled = true;
+    }
+    if (submitText) {
+        submitText.textContent = 'Enviar reporte';
+    }
+    if (submitSpinner) {
+        submitSpinner.classList.add('d-none');
+    }
+}
+
+function initReportCommentModal() {
+    const { modalEl, radios, groups } = getReportCommentModalRefs();
+    if (!modalEl) {
+        return;
+    }
+
+    radios.forEach((radio) => {
+        radio.addEventListener('change', updateReportCommentFormState);
+    });
+
+    groups.forEach((group) => {
+        group.addEventListener('toggle', () => {
+            if (group.open) {
+                closeOtherReportCommentGroups(group);
+            }
+        });
+    });
+
+    modalEl.addEventListener('hidden.bs.modal', () => {
+        resetReportCommentModalState();
+        currentReportCommentId = null;
+        currentReportCommentPostId = null;
+    });
+
+    updateReportCommentFormState();
+}
+
+initReportCommentModal();
 
 function notifyCommentAction(message, type = 'info') {
     if (typeof showAlert === 'function') {

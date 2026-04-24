@@ -7,6 +7,7 @@
     let currentUser = CHAT_PAGE_CONFIG.currentUser || '';
     let currentUserId = CHAT_PAGE_CONFIG.currentUserId ?? null;
     let currentIsAdmin = !!CHAT_PAGE_CONFIG.currentIsAdmin;
+    let currentCanManageRooms = !!CHAT_PAGE_CONFIG.currentCanManageRooms || currentIsAdmin;
     let currentUserAvatar = CHAT_PAGE_CONFIG.currentUserAvatar || '/static/images/default_avatar.jpg';
     const CHAT_CSRF_TOKEN = CHAT_PAGE_CONFIG.csrfToken || document.querySelector('meta[name="csrf-token"]')?.content || '';
     const CHAT_LOGOUT_URL = CHAT_PAGE_CONFIG.logoutUrl || '/logout';
@@ -222,10 +223,10 @@
                 if (preview) preview.src = currentRoomData.image_url || '/static/images/favicon.png';
                 if (descInput) descInput.value = currentRoomData.description || '';
                 if (deleteBtn) {
-                    deleteBtn.classList.toggle('d-none', !currentIsAdmin);
+                    deleteBtn.classList.toggle('d-none', !currentCanManageRooms);
                 }
                 if (clearBtn) {
-                    clearBtn.classList.toggle('d-none', !currentIsAdmin);
+                    clearBtn.classList.toggle('d-none', !currentCanManageRooms);
                 }
                 if (modeAll && modeRestricted) {
                     const open = currentRoomData.messages_open !== false;
@@ -586,6 +587,8 @@
                 });
             });
         }
+
+        initReportChatMessageModal();
 
         if (messagesContainer) {
             messagesContainer.addEventListener('click', (e) => {
@@ -1081,7 +1084,7 @@
         nameEl.textContent = currentRoomData.name || 'Chat';
         descEl.textContent = currentRoomData.description || 'Sin descripción';
 
-        const canEdit = currentIsAdmin || (currentRoomData.created_by && currentRoomData.created_by === currentUserId);
+        const canEdit = currentCanManageRooms || (currentRoomData.created_by && currentRoomData.created_by === currentUserId);
         editBtn.classList.toggle('d-none', !canEdit);
 
         if (currentRoomData.messages_open === false) {
@@ -1318,22 +1321,29 @@
         const modalHtml = `
             <div class="modal fade" id="createRoomModal" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content vio-card" style="background: #2d1b40; color: #fff;">
+                    <div class="modal-content vio-glass-modal">
                         <div class="modal-header violet-modal-header">
-                            <h5 class="modal-title">Crear nueva sala de chat</h5>
-                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            <h5 class="modal-title">
+                                <span class="create-room-title-icon"><i class="fas fa-comments me-2"></i></span>Crear nueva sala
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                         </div>
                         <div class="modal-body violet-modal-body">
                             <form id="createRoomForm">
-                                <div class="mb-3">
+                                <div class="mb-2">
                                     <label for="roomName" class="form-label">Nombre de la sala</label>
-                                    <input type="text" class="form-control" id="roomName" required style="background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); color: #fff;">
+                                    <input type="text" class="form-control vio-input" id="roomName" required placeholder="Ej. Alerta Vecinal Centro">
                                 </div>
+                                <p class="create-room-helper mt-2 mb-0">
+                                    Escribe un nombre claro para que las demás usuarias identifiquen fácilmente el propósito de este chat.
+                                </p>
                             </form>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="button" class="btn btn-primary" id="createRoomSubmitBtn"><i class="fas fa-plus"></i> Crear sala</button>
+                            <button type="button" class="btn btn-vio-cancel" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-vio-primary" id="createRoomSubmitBtn">
+                                <i class="fas fa-plus me-2"></i>Crear sala
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1729,29 +1739,200 @@
         }
     }
 
-    function openChatReportModal(messageId) {
-        currentReportMessageId = messageId;
+    function getReportChatMessageModalRefs() {
         const modalEl = document.getElementById('reportChatMessageModal');
-        const form = document.getElementById('reportChatMessageForm');
-        const errorEl = document.getElementById('reportChatMessageError');
-        if (form) form.reset();
+        if (!modalEl) {
+            return {};
+        }
+
+        return {
+            modalEl,
+            form: document.getElementById('reportChatMessageForm'),
+            detailsEl: document.getElementById('reportChatMessageDetails'),
+            errorEl: document.getElementById('reportChatMessageError'),
+            detailsSection: document.getElementById('reportChatMessageDetailsSection'),
+            formContent: document.getElementById('reportChatMessageFormContent'),
+            successState: document.getElementById('reportChatMessageSuccessState'),
+            successText: document.getElementById('reportChatMessageSuccessText'),
+            footer: document.getElementById('reportChatMessageFooter'),
+            submitBtn: document.getElementById('reportChatMessageSubmitBtn'),
+            submitText: document.getElementById('reportChatMessageSubmitText'),
+            submitSpinner: document.getElementById('reportChatMessageSubmitSpinner'),
+            radios: modalEl.querySelectorAll('input[name="chat_report_reason"]'),
+            groups: modalEl.querySelectorAll('.report-chat-group')
+        };
+    }
+
+    function setReportChatMessageSubmittingState(isSubmitting) {
+        const { modalEl, submitBtn, submitText, submitSpinner } = getReportChatMessageModalRefs();
+        if (!submitBtn) {
+            return;
+        }
+
+        const hasSelection = !!(modalEl && modalEl.querySelector('input[name="chat_report_reason"]:checked'));
+        submitBtn.dataset.loading = isSubmitting ? '1' : '';
+        submitBtn.disabled = isSubmitting || !hasSelection;
+
+        if (submitText) {
+            submitText.textContent = isSubmitting ? 'Enviando...' : 'Enviar reporte';
+        }
+        if (submitSpinner) {
+            submitSpinner.classList.toggle('d-none', !isSubmitting);
+        }
+    }
+
+    function updateReportChatMessageFormState() {
+        const { modalEl, detailsSection, submitBtn } = getReportChatMessageModalRefs();
+        if (!modalEl) {
+            return;
+        }
+
+        const hasSelection = !!modalEl.querySelector('input[name="chat_report_reason"]:checked');
+        if (detailsSection) {
+            detailsSection.classList.toggle('is-disabled', !hasSelection);
+        }
+
+        if (submitBtn && submitBtn.dataset.loading !== '1') {
+            submitBtn.disabled = !hasSelection;
+        }
+    }
+
+    function closeOtherReportChatMessageGroups(openGroup) {
+        const { groups } = getReportChatMessageModalRefs();
+        if (!groups || !groups.length) {
+            return;
+        }
+
+        groups.forEach((group) => {
+            if (group !== openGroup) {
+                group.open = false;
+            }
+        });
+    }
+
+    function showReportChatMessageSuccessState(message) {
+        const { formContent, footer, successState, successText } = getReportChatMessageModalRefs();
+        if (formContent) {
+            formContent.classList.add('d-none');
+        }
+        if (footer) {
+            footer.classList.add('d-none');
+        }
+        if (successText) {
+            successText.textContent = message || 'Gracias por ayudarnos a mantener el chat seguro para todas.';
+        }
+        if (successState) {
+            successState.classList.remove('d-none');
+        }
+    }
+
+    function resetReportChatMessageModalState() {
+        const {
+            form,
+            detailsEl,
+            errorEl,
+            detailsSection,
+            formContent,
+            successState,
+            successText,
+            footer,
+            submitBtn,
+            submitText,
+            submitSpinner,
+            radios,
+            groups
+        } = getReportChatMessageModalRefs();
+
+        if (form) {
+            form.reset();
+        }
+        if (radios && radios.length) {
+            radios.forEach((radio) => {
+                radio.checked = false;
+            });
+        }
+        if (groups && groups.length) {
+            groups.forEach((group) => {
+                group.open = false;
+            });
+        }
+        if (detailsEl) {
+            detailsEl.value = '';
+        }
         if (errorEl) {
             errorEl.textContent = '';
             errorEl.classList.add('d-none');
         }
-        const detailsEl = document.getElementById('reportChatMessageDetails');
-        if (detailsEl) detailsEl.value = '';
+        if (detailsSection) {
+            detailsSection.classList.add('is-disabled');
+        }
+        if (formContent) {
+            formContent.classList.remove('d-none');
+            formContent.scrollTop = 0;
+        }
+        if (footer) {
+            footer.classList.remove('d-none');
+        }
+        if (successState) {
+            successState.classList.add('d-none');
+        }
+        if (successText) {
+            successText.textContent = 'Gracias por ayudarnos a mantener el chat seguro para todas.';
+        }
+        if (submitBtn) {
+            submitBtn.dataset.loading = '';
+            submitBtn.disabled = true;
+        }
+        if (submitText) {
+            submitText.textContent = 'Enviar reporte';
+        }
+        if (submitSpinner) {
+            submitSpinner.classList.add('d-none');
+        }
+    }
+
+    function initReportChatMessageModal() {
+        const { modalEl, radios, groups } = getReportChatMessageModalRefs();
+        if (!modalEl) {
+            return;
+        }
+
+        radios.forEach((radio) => {
+            radio.addEventListener('change', updateReportChatMessageFormState);
+        });
+
+        groups.forEach((group) => {
+            group.addEventListener('toggle', () => {
+                if (group.open) {
+                    closeOtherReportChatMessageGroups(group);
+                }
+            });
+        });
+
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            resetReportChatMessageModalState();
+            currentReportMessageId = null;
+        });
+
+        updateReportChatMessageFormState();
+    }
+
+    function openChatReportModal(messageId) {
+        currentReportMessageId = messageId;
+        const { modalEl } = getReportChatMessageModalRefs();
+        resetReportChatMessageModalState();
         if (!modalEl || typeof bootstrap === 'undefined') return;
         bootstrap.Modal.getOrCreateInstance(modalEl).show();
     }
 
-    function submitChatMessageReport(event) {
+    async function submitChatMessageReport(event) {
         event.preventDefault();
-        const errorEl = document.getElementById('reportChatMessageError');
-        const reasonInput = document.querySelector('input[name="chat_report_reason"]:checked');
-        const detailsEl = document.getElementById('reportChatMessageDetails');
-        const form = document.getElementById('reportChatMessageForm');
-        const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+        const {
+            modalEl,
+            errorEl,
+            detailsEl
+        } = getReportChatMessageModalRefs();
+        const reasonInput = modalEl ? modalEl.querySelector('input[name="chat_report_reason"]:checked') : null;
         const messageId = currentReportMessageId;
 
         if (errorEl) {
@@ -1775,57 +1956,55 @@
             return;
         }
 
-        if (submitBtn) submitBtn.disabled = true;
+        setReportChatMessageSubmittingState(true);
         const reason = reasonInput.value;
         const details = detailsEl ? detailsEl.value.trim() : '';
 
-        fetch(`/api/chat/message/${messageId}/report`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': CHAT_CSRF_TOKEN
-            },
-            body: JSON.stringify({ reason, details })
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (!data.success) {
-                    throw new Error(data.error || 'No se pudo enviar el reporte');
-                }
-
-                const modalEl = document.getElementById('reportChatMessageModal');
-                if (modalEl && typeof bootstrap !== 'undefined') {
-                    const instance = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
-                    instance.hide();
-                }
-
-                if (data.hidden_immediately) {
-                    applyMessageDeleted(messageId, 'reported');
-                    const roomId = data.room_id || currentRoomId;
-                    if (roomId && roomIndex[roomId] && roomIndex[roomId].last_message && Number(roomIndex[roomId].last_message.id) === Number(messageId)) {
-                        updateRoomInList(roomId, {
-                            ...roomIndex[roomId].last_message,
-                            room_id: Number(roomId),
-                            id: Number(messageId),
-                            is_deleted: true,
-                            deleted_reason: 'reported'
-                        });
-                    }
-                }
-                currentReportMessageId = null;
-                notifyChatAction(data.message || 'El reporte fue enviado correctamente.', 'success');
-            })
-            .catch(error => {
-                if (errorEl) {
-                    errorEl.textContent = error.message || 'No se pudo enviar el reporte.';
-                    errorEl.classList.remove('d-none');
-                } else {
-                    alert(error.message || 'No se pudo enviar el reporte.');
-                }
-            })
-            .finally(() => {
-                if (submitBtn) submitBtn.disabled = false;
+        try {
+            const response = await fetch(`/api/chat/message/${messageId}/report`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': CHAT_CSRF_TOKEN
+                },
+                body: JSON.stringify({ reason, details })
             });
+
+            if (typeof handleAuthRedirect === 'function' && handleAuthRedirect(response)) {
+                return;
+            }
+
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'No se pudo enviar el reporte');
+            }
+
+            if (data.hidden_immediately) {
+                applyMessageDeleted(messageId, 'reported');
+                const roomId = data.room_id || currentRoomId;
+                if (roomId && roomIndex[roomId] && roomIndex[roomId].last_message && Number(roomIndex[roomId].last_message.id) === Number(messageId)) {
+                    updateRoomInList(roomId, {
+                        ...roomIndex[roomId].last_message,
+                        room_id: Number(roomId),
+                        id: Number(messageId),
+                        is_deleted: true,
+                        deleted_reason: 'reported'
+                    });
+                }
+            }
+            currentReportMessageId = null;
+            showReportChatMessageSuccessState(data.message || 'Gracias por ayudarnos a mantener el chat seguro para todas.');
+        } catch (error) {
+            if (errorEl) {
+                errorEl.textContent = error.message || 'No se pudo enviar el reporte.';
+                errorEl.classList.remove('d-none');
+            } else {
+                notifyChatAction(error.message || 'No se pudo enviar el reporte.', 'danger');
+            }
+        } finally {
+            setReportChatMessageSubmittingState(false);
+            updateReportChatMessageFormState();
+        }
     }
 
     function applyMessageDeleted(messageId, deletedReason = 'deleted') {

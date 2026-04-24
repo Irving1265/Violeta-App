@@ -6,7 +6,7 @@
             <aside class="chat-sidebar-pane">
                 <div class="chat-header">
                     <div class="chat-header-top">
-                        <h1 class="chat-title">Chat</h1>
+                        <h1 class="chat-title brand-logo__word">Chat</h1>
                         <p class="chat-subtitle">Conecta con otras usuarias de la comunidad</p>
                     </div>
                     <div class="chat-search-row" id="chatSearchRow">
@@ -37,8 +37,8 @@
                         <div class="chat-room-name" id="chatRoomName">Chat</div>
                         <div class="chat-room-desc" id="chatRoomDesc">Sin descripción</div>
                     </div>
-                    <button class="btn btn-outline-light btn-sm d-none" id="editChatRoomBtn">
-                        <i class="fas fa-pen me-1"></i> Editar
+                    <button class="btn btn-ghost btn-sm chat-settings-btn d-none" id="editChatRoomBtn" type="button" title="Configurar grupo" aria-label="Configurar grupo">
+                        <i class="fas fa-gear"></i>
                     </button>
                 </div>
 
@@ -73,53 +73,70 @@
 <!-- Edit Room Modal -->
 <div class="modal fade" id="editRoomModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content vio-card" style="background: #1f1b2d; color: #fff;">
+        <div class="modal-content vio-glass-modal">
             <div class="modal-header violet-modal-header">
-                <h5 class="modal-title">Editar sala</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title">Editar configuración de sala</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Cerrar"></button>
             </div>
             <div class="modal-body violet-modal-body">
-                <div class="room-edit-preview">
-                    <img id="editRoomPreview" src="{{ url_for('static', filename='images/favicon.png') }}" alt="preview">
+                <div class="avatar-upload-wrapper">
+                    <button type="button" class="avatar-preview-container" id="editRoomPickBtn"
+                        aria-label="Cambiar foto de sala">
+                        <img id="editRoomPreview" src="{{ url_for('static', filename='images/favicon.png') }}"
+                            alt="preview">
+                        <span class="avatar-overlay">
+                            <i class="fas fa-camera"></i>
+                        </span>
+                    </button>
+                    <span class="avatar-hint">Toca para cambiar la foto</span>
+                    <input type="file" class="d-none" id="editRoomFile" accept="image/*">
                 </div>
-                <input type="file" class="d-none" id="editRoomFile" accept="image/*">
-                <button type="button" class="btn btn-outline-light w-100 mt-3" id="editRoomPickBtn">
-                    <i class="fa-regular fa-image me-1"></i> Cambiar foto
-                </button>
-                <div class="mt-3">
-                    <label class="form-label">Descripción</label>
-                    <textarea id="editRoomDescInput" class="form-control" rows="3"
-                        style="background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); color: #fff;"></textarea>
+
+                <div class="mb-4">
+                    <label class="form-label" for="editRoomDescInput">Descripción de la sala</label>
+                    <textarea id="editRoomDescInput" class="form-control vio-input" rows="3"
+                        placeholder="Escribe el propósito de esta sala..."></textarea>
                 </div>
-                <div class="mt-3">
-                    <label class="form-label">Mensajes en la sala</label>
-                    <div class="d-grid gap-2">
-                        <label class="form-check text-white" style="font-size: 0.9rem;">
-                            <input class="form-check-input" type="radio" name="editRoomMessageMode"
-                                id="editRoomModeAll" value="all">
-                            Todos los participantes pueden enviar mensajes
+
+                <div class="mb-3">
+                    <label class="form-label">Permisos de mensajería</label>
+                    <div class="radio-cards-grid">
+                        <label class="radio-card-label">
+                            <input type="radio" name="editRoomMessageMode" id="editRoomModeAll" value="all">
+                            <span class="radio-card-content">
+                                <span class="radio-card-icon">
+                                    <i class="fas fa-users"></i>
+                                </span>
+                                <span class="radio-card-text">Todos los participantes pueden enviar mensajes</span>
+                            </span>
                         </label>
-                        <label class="form-check text-white" style="font-size: 0.9rem;">
-                            <input class="form-check-input" type="radio" name="editRoomMessageMode"
-                                id="editRoomModeRestricted" value="restricted">
-                            Solo admin y creador pueden enviar mensajes
+
+                        <label class="radio-card-label">
+                            <input type="radio" name="editRoomMessageMode" id="editRoomModeRestricted"
+                                value="restricted">
+                            <span class="radio-card-content">
+                                <span class="radio-card-icon">
+                                    <i class="fas fa-shield-halved"></i>
+                                </span>
+                                <span class="radio-card-text">Solo admins y creador pueden enviar mensajes</span>
+                            </span>
                         </label>
                     </div>
                 </div>
-                <div class="mt-4">
-                    <button type="button" class="btn btn-outline-danger w-100" id="deleteRoomBtn">
-                        <i class="fas fa-trash me-1"></i> Borrar chat
+
+                <div class="danger-zone">
+                    <button type="button" class="btn btn-vio-warning d-none" id="clearRoomBtn">
+                        <i class="fas fa-broom me-2"></i> Vaciar chat
                     </button>
-                </div>
-                <div class="mt-3">
-                    <button type="button" class="btn btn-outline-warning w-100 d-none" id="clearRoomBtn">
-                        <i class="fas fa-broom me-1"></i> Vaciar chat
+                    <button type="button" class="btn btn-vio-danger" id="deleteRoomBtn">
+                        <i class="fas fa-trash me-2"></i> Borrar sala
                     </button>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="saveRoomBtn">Guardar</button>
+                <button type="button" class="btn btn-vio-cancel" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-vio-primary" id="saveRoomBtn">Guardar cambios</button>
             </div>
         </div>
     </div>
@@ -150,78 +167,175 @@
 </div>
 
 <div class="modal fade" id="reportChatMessageModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content bg-surface border border-secondary text-white">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title">Reportar mensaje</h5>
+    <div class="modal-dialog modal-dialog-centered report-chat-modal__dialog">
+        <div class="modal-content report-chat-modal__shell">
+            <div class="modal-header report-chat-modal__header">
+                <h5 class="modal-title report-chat-modal__title">
+                    <i class="fas fa-flag" aria-hidden="true"></i>
+                    <span>Reportar mensaje</span>
+                </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                    aria-label="Close"></button>
+                    aria-label="Cerrar"></button>
             </div>
-            <form id="reportChatMessageForm" onsubmit="submitChatMessageReport(event)">
-                <div class="modal-body">
-                    <div class="d-flex align-items-center gap-2 mb-3">
-                        <span class="report-icon">
-                            <i class="fas fa-flag"></i>
-                        </span>
-                        <p class="text-secondary small mb-0">
-                            Selecciona la clasificación que mejor describe el problema.
-                        </p>
+            <form id="reportChatMessageForm" onsubmit="submitChatMessageReport(event)" class="report-chat-modal__form">
+                <div id="reportChatMessageFormContent" class="report-chat-modal__scroll">
+                    <div class="report-chat-modal__intro">
+                        <i class="fas fa-shield-heart" aria-hidden="true"></i>
+                        <p>Tu seguridad es nuestra prioridad. Selecciona la categoría que mejor describe el problema con este mensaje.</p>
                     </div>
-                    <div class="d-grid gap-2">
-                        <label class="report-option">
-                            <input type="radio" name="chat_report_reason" value="Doxxing o datos personales">
-                            <span class="report-option-check"></span>
-                            <span class="report-option-text">Doxxing o datos personales</span>
-                        </label>
-                        <label class="report-option">
-                            <input type="radio" name="chat_report_reason" value="Ubicación exacta, rastreo o rutina">
-                            <span class="report-option-check"></span>
-                            <span class="report-option-text">Ubicación exacta, rastreo o rutina</span>
-                        </label>
-                        <label class="report-option">
-                            <input type="radio" name="chat_report_reason" value="Acoso o insultos">
-                            <span class="report-option-check"></span>
-                            <span class="report-option-text">Acoso o insultos</span>
-                        </label>
-                        <label class="report-option">
-                            <input type="radio" name="chat_report_reason" value="Spam o fraude">
-                            <span class="report-option-check"></span>
-                            <span class="report-option-text">Spam o fraude</span>
-                        </label>
-                        <label class="report-option">
-                            <input type="radio" name="chat_report_reason" value="Amenaza o violencia">
-                            <span class="report-option-check"></span>
-                            <span class="report-option-text">Amenaza o violencia</span>
-                        </label>
-                        <label class="report-option">
-                            <input type="radio" name="chat_report_reason" value="Contenido íntimo o sexual sin consentimiento">
-                            <span class="report-option-check"></span>
-                            <span class="report-option-text">Contenido íntimo o sexual sin consentimiento</span>
-                        </label>
-                        <label class="report-option">
-                            <input type="radio" name="chat_report_reason" value="Contenido sexual no solicitado">
-                            <span class="report-option-check"></span>
-                            <span class="report-option-text">Contenido sexual no solicitado</span>
-                        </label>
-                        <label class="report-option">
-                            <input type="radio" name="chat_report_reason" value="Archivo o enlace sospechoso">
-                            <span class="report-option-check"></span>
-                            <span class="report-option-text">Archivo o enlace sospechoso</span>
-                        </label>
+
+                    <div class="report-chat-modal__accordion" id="reportChatMessageAccordion">
+                        <details class="report-chat-group report-chat-group--violet">
+                            <summary class="report-chat-group__summary">
+                                <span class="report-chat-group__summary-main">
+                                    <span class="report-chat-group__icon">
+                                        <i class="fas fa-user-shield" aria-hidden="true"></i>
+                                    </span>
+                                    <span class="report-chat-group__copy">
+                                        <span class="report-chat-group__title">Seguridad personal y privacidad</span>
+                                        <span class="report-chat-group__subtitle">Doxxing, ubicación, contenido íntimo</span>
+                                    </span>
+                                </span>
+                                <span class="report-chat-group__chevron">
+                                    <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                </span>
+                            </summary>
+                            <div class="report-chat-group__body">
+                                <div class="report-chat-choice-list">
+                                    <label class="report-chat-choice">
+                                        <input type="radio" name="chat_report_reason" value="Doxxing o datos personales">
+                                        <span class="report-chat-choice__card report-chat-choice__card--violet">
+                                            <span class="report-chat-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                            <span class="report-chat-choice__text">Doxxing o exposición de datos personales</span>
+                                        </span>
+                                    </label>
+                                    <label class="report-chat-choice">
+                                        <input type="radio" name="chat_report_reason" value="Ubicación exacta, rastreo o rutina">
+                                        <span class="report-chat-choice__card report-chat-choice__card--violet">
+                                            <span class="report-chat-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                            <span class="report-chat-choice__text">Ubicación exacta, rastreo o rutina</span>
+                                        </span>
+                                    </label>
+                                    <label class="report-chat-choice">
+                                        <input type="radio" name="chat_report_reason" value="Contenido íntimo o sexual sin consentimiento">
+                                        <span class="report-chat-choice__card report-chat-choice__card--violet">
+                                            <span class="report-chat-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                            <span class="report-chat-choice__text">Contenido íntimo o sexual sin consentimiento</span>
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+                        </details>
+
+                        <details class="report-chat-group report-chat-group--rose">
+                            <summary class="report-chat-group__summary">
+                                <span class="report-chat-group__summary-main">
+                                    <span class="report-chat-group__icon">
+                                        <i class="fas fa-ban" aria-hidden="true"></i>
+                                    </span>
+                                    <span class="report-chat-group__copy">
+                                        <span class="report-chat-group__title">Acoso y violencia</span>
+                                        <span class="report-chat-group__subtitle">Insultos, amenazas, contenido inapropiado</span>
+                                    </span>
+                                </span>
+                                <span class="report-chat-group__chevron">
+                                    <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                </span>
+                            </summary>
+                            <div class="report-chat-group__body">
+                                <div class="report-chat-choice-list">
+                                    <label class="report-chat-choice">
+                                        <input type="radio" name="chat_report_reason" value="Acoso o insultos">
+                                        <span class="report-chat-choice__card report-chat-choice__card--rose">
+                                            <span class="report-chat-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                            <span class="report-chat-choice__text">Acoso o insultos</span>
+                                        </span>
+                                    </label>
+                                    <label class="report-chat-choice">
+                                        <input type="radio" name="chat_report_reason" value="Amenaza o violencia">
+                                        <span class="report-chat-choice__card report-chat-choice__card--rose">
+                                            <span class="report-chat-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                            <span class="report-chat-choice__text">Amenaza o incitación a la violencia</span>
+                                        </span>
+                                    </label>
+                                    <label class="report-chat-choice">
+                                        <input type="radio" name="chat_report_reason" value="Contenido sexual no solicitado">
+                                        <span class="report-chat-choice__card report-chat-choice__card--rose">
+                                            <span class="report-chat-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                            <span class="report-chat-choice__text">Contenido sexual no solicitado</span>
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+                        </details>
+
+                        <details class="report-chat-group report-chat-group--amber">
+                            <summary class="report-chat-group__summary">
+                                <span class="report-chat-group__summary-main">
+                                    <span class="report-chat-group__icon">
+                                        <i class="fas fa-shield-virus" aria-hidden="true"></i>
+                                    </span>
+                                    <span class="report-chat-group__copy">
+                                        <span class="report-chat-group__title">Spam o contenido sospechoso</span>
+                                        <span class="report-chat-group__subtitle">Fraude, enlaces maliciosos, spam</span>
+                                    </span>
+                                </span>
+                                <span class="report-chat-group__chevron">
+                                    <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                </span>
+                            </summary>
+                            <div class="report-chat-group__body">
+                                <div class="report-chat-choice-list">
+                                    <label class="report-chat-choice">
+                                        <input type="radio" name="chat_report_reason" value="Spam o fraude">
+                                        <span class="report-chat-choice__card report-chat-choice__card--amber">
+                                            <span class="report-chat-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                            <span class="report-chat-choice__text">Spam o fraude</span>
+                                        </span>
+                                    </label>
+                                    <label class="report-chat-choice">
+                                        <input type="radio" name="chat_report_reason" value="Archivo o enlace sospechoso">
+                                        <span class="report-chat-choice__card report-chat-choice__card--amber">
+                                            <span class="report-chat-choice__mark"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                            <span class="report-chat-choice__text">Archivo o enlace sospechoso</span>
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+                        </details>
                     </div>
-                    <div class="mt-3">
-                        <label for="reportChatMessageDetails" class="form-label text-secondary">Comentario</label>
-                        <textarea id="reportChatMessageDetails" class="form-control bg-body border-secondary text-white"
-                            rows="3" placeholder="Agrega un comentario adicional..."></textarea>
+
+                    <div id="reportChatMessageDetailsSection" class="report-chat-modal__details is-disabled">
+                        <label for="reportChatMessageDetails" class="report-chat-modal__details-label">
+                            ¿Puedes darnos más detalles? <span>(Opcional)</span>
+                        </label>
+                        <textarea id="reportChatMessageDetails" class="report-chat-modal__textarea" rows="3"
+                            placeholder="Explícanos brevemente el contexto de este mensaje..."></textarea>
                     </div>
-                    <div class="report-modal-note mt-3">
-                        Si detectamos alto riesgo, este mensaje se ocultará de inmediato. En otros casos pasará a revisión.
+
+                    <div class="report-chat-modal__note">
+                        <i class="fas fa-shield-alt" aria-hidden="true"></i>
+                        <p>Si detectamos alto riesgo en este mensaje, se ocultará o bloqueará de inmediato. En otros casos, nuestro equipo lo revisará cuidadosamente.</p>
                     </div>
-                    <div class="alert alert-danger d-none mt-3" id="reportChatMessageError"></div>
+
+                    <div class="alert alert-danger d-none report-chat-modal__error" id="reportChatMessageError"></div>
                 </div>
-                <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Enviar reporte</button>
+
+                <div id="reportChatMessageSuccessState" class="report-chat-success d-none" aria-live="polite">
+                    <div class="report-chat-success__icon">
+                        <i class="fas fa-check" aria-hidden="true"></i>
+                    </div>
+                    <h3 class="report-chat-success__title">Reporte enviado</h3>
+                    <p class="report-chat-success__text" id="reportChatMessageSuccessText">Gracias por ayudarnos a mantener el chat seguro para todas.</p>
+                    <button type="button" class="report-chat-success__close" data-bs-dismiss="modal">Cerrar ventana</button>
+                </div>
+
+                <div id="reportChatMessageFooter" class="report-chat-modal__footer">
+                    <button type="button" class="report-chat-modal__cancel" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" id="reportChatMessageSubmitBtn" class="report-chat-modal__submit" disabled>
+                        <span id="reportChatMessageSubmitText">Enviar reporte</span>
+                        <i id="reportChatMessageSubmitSpinner" class="fas fa-spinner fa-spin d-none" aria-hidden="true"></i>
+                    </button>
                 </div>
             </form>
         </div>
@@ -236,11 +350,12 @@ window.CHAT_PAGE_CONFIG = {
   currentUser: {{ (current_user.username if current_user.is_authenticated else '')|tojson }},
   currentUserId: {{ current_user.id if current_user.is_authenticated else 'null' }},
   currentIsAdmin: {{ 'true' if current_user_is_super_admin else 'false' }},
+  currentCanManageRooms: {{ 'true' if user_has_permission(current_user, 'chat.rooms.manage') else 'false' }},
   currentUserAvatar: {{ (avatar_url_for_user(current_user) if current_user.is_authenticated else url_for('static', filename='images/default_avatar.jpg'))|tojson }},
   logoutUrl: {{ url_for('logout')|tojson }},
   csrfToken: {{ csrf_token()|tojson }}
 };
 </script>
 <script defer src="{{ url_for('static', filename='vendor/socketio/socket.io.min.js') }}"></script>
-<script defer src="{{ url_for('static', filename='js/chat_page.js') }}?v=20260413-chat-room-v2"></script>
+<script defer src="{{ url_for('static', filename='js/chat_page.js') }}?v=20260424-report-chat-modal-v1"></script>
 {% endblock %}

@@ -468,12 +468,12 @@
                 id="bio"
                 name="bio"
                 rows="4"
-                maxlength="300"
+                maxlength="50"
                 placeholder="Cuentale a la comunidad sobre ti..."
                 data-initial="{{ (user.bio or '') }}">{{ (user.bio or '') }}</textarea>
               <div class="profile-edit-v2__meta">
-                <span>Maximo 300 caracteres</span>
-                <span id="bioCount" class="profile-edit-v2__meta-counter">0 / 300</span>
+                <span>Maximo 50 caracteres</span>
+                <span id="bioCount" class="profile-edit-v2__meta-counter">0 / 50</span>
               </div>
             </div>
 
@@ -624,6 +624,7 @@
     const reqLength = document.getElementById('profileReqLength');
     const reqAlphanumeric = document.getElementById('profileReqAlphanumeric');
     const initialTab = "{{ active_tab|default('profile') }}";
+    const BIO_MAX_LENGTH = 50;
 
     let cropper = null;
     const cropModal = new bootstrap.Modal(cropperModalEl);
@@ -653,9 +654,12 @@
     setActiveTab(window.location.hash === '#security' || initialTab === 'security' ? 'security' : 'profile', false);
 
     function updateBioCounter() {
+      if (bio.value.length > BIO_MAX_LENGTH) {
+        bio.value = bio.value.slice(0, BIO_MAX_LENGTH);
+      }
       const len = bio.value.length;
-      bioCount.textContent = `${len} / 300`;
-      bioCount.classList.toggle('is-warning', len > 280);
+      bioCount.textContent = `${len} / ${BIO_MAX_LENGTH}`;
+      bioCount.classList.toggle('is-warning', len > 45);
     }
 
     bio.addEventListener('input', updateBioCounter);

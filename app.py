@@ -8342,6 +8342,8 @@ def create_app():
         user = User.query.get_or_404(user_id)
 
         bio = (request.form.get('bio') or '').strip()
+        if len(bio) > 50:
+            return jsonify({'error': 'La biografía debe tener máximo 50 caracteres.'}), 400
         file = request.files.get('photo')
 
         if not file or file.filename == '':
@@ -9217,8 +9219,8 @@ def create_app():
 
             bio = (request.form.get('bio') or '').strip()
             # Limitar longitud para evitar textos enormes
-            if len(bio) > 300:
-                error = 'La biografía debe tener máximo 300 caracteres.'
+            if len(bio) > 50:
+                error = 'La biografía debe tener máximo 50 caracteres.'
             else:
                 user.bio = bio
 
