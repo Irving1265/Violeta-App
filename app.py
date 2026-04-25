@@ -3357,14 +3357,41 @@ def create_app():
         'monterrey': (25.60, 25.75, -100.42, -100.25),
         'san-pedro': (25.62, 25.70, -100.45, -100.35),
         'guadalupe': (25.65, 25.72, -100.28, -100.18),
+        'san-nicolas': (25.69, 25.78, -100.33, -100.22),
         'apodaca': (25.73, 25.82, -100.25, -100.12),
         'escobedo': (25.75, 25.85, -100.38, -100.28),
         'santa-catarina': (25.62, 25.72, -100.52, -100.42),
     }
+    FEED_REPORT_CATEGORIES = (
+        'Poca iluminación',
+        'Banquetas en mal estado',
+        'Zona insegura',
+        'Terrenos baldíos',
+    )
     _feed_sidebar_cache: dict[tuple, dict[str, object]] = {}
     _runtime_response_cache: dict[tuple, dict[str, object]] = {}
     _runtime_cache_client = None
     _runtime_cache_client_failed = False
+
+    def normalized_feed_key(value: str | None) -> str:
+        raw = (value or '').strip().casefold()
+        decomposed = unicodedata.normalize('NFD', raw)
+        return ''.join(char for char in decomposed if unicodedata.category(char) != 'Mn')
+
+    def canonical_report_category(value: str | None) -> str | None:
+        name = (value or '').strip()
+        if not name:
+            return None
+        key = normalized_feed_key(name)
+        if key in ('terrenos baldios', 'baldios', 'baldio', 'punto ciego'):
+            return 'Terrenos baldíos'
+        if key == 'poca iluminacion':
+            return 'Poca iluminación'
+        if key == 'banquetas en mal estado':
+            return 'Banquetas en mal estado'
+        if key in ('zona insegura', 'zonas inseguras'):
+            return 'Zona insegura'
+        return name
 
     def extract_report_categories(cats_raw):
         if not cats_raw:
@@ -3382,17 +3409,67 @@ def create_app():
             name = str(c).strip()
             if not name:
                 continue
-            key = name.casefold()
-            if key in ('terrenos baldios', 'terrenos baldíos', 'baldios', 'baldío', 'baldio', 'baldíos', 'punto ciego'):
-                name = 'Terrenos baldíos'
-            elif key in ('poca iluminacion', 'poca iluminación'):
-                name = 'Poca iluminación'
-            elif key in ('banquetas en mal estado',):
-                name = 'Banquetas en mal estado'
-            elif key in ('zona insegura', 'zonas inseguras'):
-                name = 'Zona insegura'
-            normalized.add(name)
+            normalized_name = canonical_report_category(name)
+            if normalized_name:
+                normalized.add(normalized_name)
         return normalized
+
+    def parse_feed_filter_args(args):
+        raw_categories = []
+        for key in ('category', 'categories'):
+            for raw_value in args.getlist(key):
+                raw_categories.extend(str(raw_value or '').split(','))
+
+        categories = []
+        seen_categories = set()
+        for raw in raw_categories:
+            category = canonical_report_category(raw)
+            if not category:
+                continue
+            category_key = normalized_feed_key(category)
+            if category_key in seen_categories:
+                continue
+            seen_categories.add(category_key)
+            categories.append(category)
+
+        def truthy(value):
+            return str(value or '').strip().casefold() in ('1', 'true', 'yes', 'si', 'sí', 'on')
+
+        lat = parse_float(args.get('lat') or args.get('latitude'))
+        lng = parse_float(args.get('lng') or args.get('longitude'))
+        near_enabled = truthy(args.get('near')) and valid_coords(lat, lng)
+        return {
+            'categories': categories,
+            'today': truthy(args.get('today')),
+            'near': near_enabled,
+            'lat': float(lat) if near_enabled else None,
+            'lng': float(lng) if near_enabled else None,
+            'radius_km': 3.0,
+        }
+
+    def feed_filters_cache_key(filters: dict | None):
+        filters = filters or {}
+        return (
+            tuple(filters.get('categories') or []),
+            bool(filters.get('today')),
+            bool(filters.get('near')),
+            round(float(filters.get('lat')), 5) if filters.get('lat') is not None else None,
+            round(float(filters.get('lng')), 5) if filters.get('lng') is not None else None,
+            float(filters.get('radius_km') or 3.0),
+        )
+
+    def current_app_day_bounds_utc():
+        tz_name = app.config.get('APP_TIMEZONE') or 'America/Monterrey'
+        try:
+            app_tz = ZoneInfo(tz_name)
+        except Exception:
+            app_tz = datetime.now().astimezone().tzinfo or timezone.utc
+        now_local = datetime.now(tz=app_tz)
+        start_today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        start_tomorrow_local = start_today_local + timedelta(days=1)
+        start_today = start_today_local.astimezone(timezone.utc).replace(tzinfo=None)
+        start_tomorrow = start_tomorrow_local.astimezone(timezone.utc).replace(tzinfo=None)
+        return start_today, start_tomorrow
 
     def apply_feed_city_filter(query, selected_city: str):
         if not selected_city or selected_city == 'all':
@@ -3408,7 +3485,40 @@ def create_app():
             )
         return query.filter(Post.city.ilike(f"%{selected_city}%"))
 
-    def build_feed_posts_query(selected_city: str, viewer=None, *, eager: bool = False):
+    def apply_feed_advanced_filters(query, filters: dict | None):
+        filters = filters or {}
+        categories = filters.get('categories') or []
+        if categories:
+            category_clauses = [Post.categories.ilike(f'%{category}%') for category in categories]
+            query = query.filter(Post.categories.isnot(None), Post.categories != '', or_(*category_clauses))
+
+        if filters.get('today'):
+            start_today, start_tomorrow = current_app_day_bounds_utc()
+            query = query.filter(Post.created_at >= start_today, Post.created_at < start_tomorrow)
+
+        if filters.get('near') and valid_coords(filters.get('lat'), filters.get('lng')):
+            c_lat = float(filters.get('lat'))
+            c_lng = float(filters.get('lng'))
+            radius_km = float(filters.get('radius_km') or 3.0)
+            lat_margin = radius_km / 110.574
+            cos_lat = max(abs(cos(radians(c_lat))), 0.1)
+            lng_margin = radius_km / (111.320 * cos_lat)
+            candidates = query.filter(
+                Post.latitude.isnot(None),
+                Post.longitude.isnot(None),
+                Post.latitude.between(c_lat - lat_margin, c_lat + lat_margin),
+                Post.longitude.between(c_lng - lng_margin, c_lng + lng_margin),
+            ).with_entities(Post.id, Post.latitude, Post.longitude).all()
+            nearby_ids = [
+                post_id
+                for post_id, lat, lng in candidates
+                if valid_coords(lat, lng) and haversine_distance_m(float(lat), float(lng), c_lat, c_lng) <= radius_km * 1000
+            ]
+            query = query.filter(Post.id.in_(nearby_ids if nearby_ids else [-1]))
+
+        return query
+
+    def build_feed_posts_query(selected_city: str, viewer=None, *, eager: bool = False, filters: dict | None = None):
         base_query = Post.query
         if eager:
             base_query = base_query.options(
@@ -3420,6 +3530,7 @@ def create_app():
         if blocked_ids:
             query = query.filter(~Post.user_id.in_(blocked_ids))
         query = apply_feed_city_filter(query, selected_city)
+        query = apply_feed_advanced_filters(query, filters)
         return query, blocked_ids
 
     def compute_feed_sidebar_counts(query):
@@ -3834,15 +3945,16 @@ def create_app():
             return redirect(url_for('login'))
 
         selected_city = (request.args.get('city') or 'all').strip().lower()
+        feed_filters = parse_feed_filter_args(request.args)
         page = request.args.get('page', 1, type=int)
         per_page = app.config.get('FEED_PAGE_SIZE', 3)
         blocked_ids = blocked_user_ids_for(current_user) if current_user.is_authenticated else set()
-        page_cache_key = ('page_home', current_user.id, selected_city, page, per_page, tuple(sorted(blocked_ids)))
+        page_cache_key = ('page_home', current_user.id, selected_city, feed_filters_cache_key(feed_filters), page, per_page, tuple(sorted(blocked_ids)))
         cached_response = get_cached_html_page(page_cache_key, 20)
         if cached_response is not None:
             return cached_response
 
-        query, _ = build_feed_posts_query(selected_city, current_user, eager=True)
+        query, _ = build_feed_posts_query(selected_city, current_user, eager=True, filters=feed_filters)
         report_counts = []
         report_counts_today = []
 
@@ -3869,6 +3981,8 @@ def create_app():
             comment_form=comment_form,
             share_form=share_form,
             selected_city=selected_city,
+            feed_filters=feed_filters,
+            feed_categories=FEED_REPORT_CATEGORIES,
             report_counts=report_counts,
             report_counts_today=report_counts_today,
         )
@@ -3889,11 +4003,12 @@ def create_app():
     @app.route('/feed')
     def feed():
         selected_city = (request.args.get('city') or 'all').strip().lower()
+        feed_filters = parse_feed_filter_args(request.args)
         page = request.args.get('page', 1, type=int)
         per_page = app.config.get('FEED_PAGE_SIZE', 3)
         viewer_id = getattr(current_user, 'id', None) if current_user.is_authenticated else None
-        query, blocked_ids = build_feed_posts_query(selected_city, current_user, eager=True)
-        cache_key = ('feed_page', viewer_id, selected_city, page, per_page, tuple(sorted(blocked_ids)))
+        query, blocked_ids = build_feed_posts_query(selected_city, current_user, eager=True, filters=feed_filters)
+        cache_key = ('feed_page', viewer_id, selected_city, feed_filters_cache_key(feed_filters), page, per_page, tuple(sorted(blocked_ids)))
         cached_payload = get_runtime_cached_payload(cache_key, 20)
         if cached_payload is not None:
             return jsonify(cached_payload)

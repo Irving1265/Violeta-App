@@ -1,26 +1,31 @@
 {% extends 'base.html' %}
+{% set city_selected = selected_city or 'all' %}
+{% set selected_categories = feed_filters.get('categories') if feed_filters else [] %}
+{% set today_selected = feed_filters.get('today') if feed_filters else false %}
+{% set near_selected = feed_filters.get('near') if feed_filters else false %}
 
 {% block content %}
 <header class="violeta-header">
     <div class="violeta-header-content">
         <h1 class="violeta-title">Explorar</h1>
-        <div class="violeta-header-actions">
-
-            
-
-
-        </div>
     </div>
 
-    <!-- Search Bar -->
-    <div class="violeta-search-section">
-        <div class="violeta-search-container">
-            <i class="fas fa-search violeta-search-icon"></i>
-            <input type="text" class="violeta-search-input" placeholder="Buscar zonas..." id="searchInput">
-            <button class="violeta-filter-btn" title="Filtros" data-bs-toggle="modal" data-bs-target="#cityFiltersModal"
-                id="openCityFilters">
-                <i class="fas fa-sliders-h"></i>
+    <div class="violeta-city-filters-section">
+        <div class="violeta-filter-header">
+            <span class="violeta-filter-label">
+                <i class="fas fa-map-marked-alt"></i> Zonas seleccionadas
+            </span>
+            <button class="violeta-advanced-btn" type="button" id="openAdvancedFilters">
+                <i class="fas fa-sliders-h"></i> Avanzado
             </button>
+        </div>
+
+        <div class="violeta-chip-container" id="cityChipContainer">
+            <button class="violeta-chip {{ 'active' if city_selected == 'all' else '' }}" data-city="all">Todas</button>
+            <button class="violeta-chip {{ 'active' if city_selected == 'monterrey' else '' }}" data-city="monterrey">Monterrey</button>
+            <button class="violeta-chip {{ 'active' if city_selected == 'san-pedro' else '' }}" data-city="san-pedro">San Pedro</button>
+            <button class="violeta-chip {{ 'active' if city_selected == 'guadalupe' else '' }}" data-city="guadalupe">Guadalupe</button>
+            <button class="violeta-chip {{ 'active' if city_selected == 'san-nicolas' else '' }}" data-city="san-nicolas">San Nicolás</button>
         </div>
     </div>
 
@@ -152,38 +157,56 @@
 {% endblock %}
 
 {% block modals %}
-<div class="modal fade" id="cityFiltersModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content bg-surface border border-secondary text-white violeta-filter-modal">
-            <div class="modal-header border-secondary">
-                <div>
-                    <h5 class="modal-title">Filtrar por ciudad</h5>
-                    <div class="violeta-filters-sub">Elige una zona para ver publicaciones</div>
+<div class="v-modal-overlay" id="advancedModal" aria-hidden="true">
+    <div class="v-modal-content" role="dialog" aria-modal="true" aria-labelledby="advancedFiltersTitle">
+        <div class="v-modal-header">
+            <h3 id="advancedFiltersTitle">Filtros Avanzados</h3>
+            <button id="closeModal" class="v-modal-close" type="button" aria-label="Cerrar filtros">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="v-modal-body">
+            <div class="v-filter-group">
+                <span class="v-filter-group-title">Categoría</span>
+                <div class="v-options-grid" id="categoryOptions">
+                    <button class="v-option-card {{ 'active' if 'Terrenos baldíos' in selected_categories else '' }}" type="button" data-filter="category" data-val="Terrenos baldíos">
+                        <i class="fas fa-tree"></i>
+                        Baldíos
+                    </button>
+                    <button class="v-option-card {{ 'active' if 'Poca iluminación' in selected_categories else '' }}" type="button" data-filter="category" data-val="Poca iluminación">
+                        <i class="fa-regular fa-lightbulb"></i>
+                        Poca iluminación
+                    </button>
+                    <button class="v-option-card {{ 'active' if 'Banquetas en mal estado' in selected_categories else '' }}" type="button" data-filter="category" data-val="Banquetas en mal estado">
+                        <i class="fas fa-shoe-prints"></i>
+                        Banquetas en mal estado
+                    </button>
+                    <button class="v-option-card {{ 'active' if 'Zona insegura' in selected_categories else '' }}" type="button" data-filter="category" data-val="Zona insegura">
+                        <i class="fas fa-shield-halved"></i>
+                        Zona insegura
+                    </button>
                 </div>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                    aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <div class="violeta-chips-section violeta-chips-modal">
-                    <div class="violeta-chips-container">
-                        {% set city_selected = selected_city or 'all' %}
-                        <button class="violeta-chip {{ 'active' if city_selected == 'all' else '' }}"
-                            data-city="all">Todos</button>
-                        <button class="violeta-chip {{ 'active' if city_selected == 'monterrey' else '' }}"
-                            data-city="monterrey">Monterrey</button>
-                        <button class="violeta-chip {{ 'active' if city_selected == 'san-pedro' else '' }}"
-                            data-city="san-pedro">San Pedro</button>
-                        <button class="violeta-chip {{ 'active' if city_selected == 'guadalupe' else '' }}"
-                            data-city="guadalupe">Guadalupe</button>
-                        <button class="violeta-chip {{ 'active' if city_selected == 'apodaca' else '' }}"
-                            data-city="apodaca">Apodaca</button>
-                        <button class="violeta-chip {{ 'active' if city_selected == 'escobedo' else '' }}"
-                            data-city="escobedo">Escobedo</button>
-                        <button class="violeta-chip {{ 'active' if city_selected == 'santa-catarina' else '' }}"
-                            data-city="santa-catarina">Santa Catarina</button>
-                    </div>
+
+            <div class="v-filter-group">
+                <span class="v-filter-group-title">Más filtros</span>
+                <div class="v-options-grid" id="extraOptions">
+                    <button class="v-option-card {{ 'active' if near_selected else '' }}" type="button" data-filter="near" data-val="mi-zona">
+                        <i class="fas fa-location-crosshairs"></i>
+                        Por mi zona
+                    </button>
+                    <button class="v-option-card {{ 'active' if today_selected else '' }}" type="button" data-filter="today" data-val="hoy">
+                        <i class="fas fa-calendar-day"></i>
+                        Reportados hoy
+                    </button>
                 </div>
             </div>
+        </div>
+
+        <div class="v-modal-footer">
+            <button class="btn-v-secondary" type="button" id="resetFilters">Limpiar</button>
+            <button class="btn-v-primary" type="button" id="applyFilters">Aplicar Filtros</button>
         </div>
     </div>
 </div>
@@ -197,8 +220,13 @@
 <script>
     window.INDEX_PAGE_CONFIG = {
         hotspotsUrl: {{ url_for('hotspots_page')|tojson }},
-        selectedCity: {{ (selected_city or 'all')|tojson }}
+        selectedCity: {{ (selected_city or 'all')|tojson }},
+        feedFilters: {
+            categories: {{ selected_categories|tojson }},
+            today: {{ today_selected|tojson }},
+            near: {{ near_selected|tojson }}
+        }
     };
 </script>
-<script src="{{ url_for('static', filename='js/index_page.js') }}?v=20260402-perf-v3" defer></script>
+<script src="{{ url_for('static', filename='js/index_page.js') }}?v=20260425-reports-toggle-animation-v1" defer></script>
 {% endblock %}

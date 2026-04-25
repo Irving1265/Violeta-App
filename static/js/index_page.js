@@ -186,21 +186,114 @@
         };
     })();
 
-    // City Filters modal (fallback)
+    // Advanced feed filters
     (function () {
-        const btn = document.getElementById('openCityFilters');
-        const modalEl = document.getElementById('cityFiltersModal');
-        if (!btn || !modalEl) return;
-        btn.addEventListener('click', (e) => {
-            if (window.bootstrap && bootstrap.Modal) {
-                const instance = bootstrap.Modal.getOrCreateInstance(modalEl);
-                instance.show();
+        const modal = document.getElementById('advancedModal');
+        const openBtn = document.getElementById('openAdvancedFilters');
+        const closeBtn = document.getElementById('closeModal');
+        const applyBtn = document.getElementById('applyFilters');
+        const resetBtn = document.getElementById('resetFilters');
+        if (!modal || !openBtn || !closeBtn || !applyBtn || !resetBtn) return;
+
+        const optionCards = modal.querySelectorAll('.v-option-card');
+
+        function openModal() {
+            modal.classList.add('active');
+            modal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeModal() {
+            modal.classList.remove('active');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        function setApplyLoading(isLoading) {
+            applyBtn.disabled = Boolean(isLoading);
+            applyBtn.innerHTML = isLoading
+                ? '<i class="fas fa-circle-notch fa-spin"></i> Aplicando...'
+                : 'Aplicar Filtros';
+        }
+
+        function goWithFilters(latLng) {
+            const url = new URL(window.location.href);
+            const selectedCategories = Array.from(modal.querySelectorAll('.v-option-card.active[data-filter="category"]'))
+                .map(card => card.dataset.val)
+                .filter(Boolean);
+            const nearActive = Boolean(modal.querySelector('.v-option-card.active[data-filter="near"]'));
+            const todayActive = Boolean(modal.querySelector('.v-option-card.active[data-filter="today"]'));
+
+            if (selectedCategories.length) {
+                url.searchParams.set('categories', selectedCategories.join(','));
             } else {
-                modalEl.classList.add('show');
-                modalEl.style.display = 'block';
-                modalEl.removeAttribute('aria-hidden');
+                url.searchParams.delete('categories');
+                url.searchParams.delete('category');
             }
-            e.preventDefault();
+
+            if (todayActive) {
+                url.searchParams.set('today', '1');
+            } else {
+                url.searchParams.delete('today');
+            }
+
+            if (nearActive && latLng) {
+                url.searchParams.set('near', '1');
+                url.searchParams.set('lat', String(latLng.lat));
+                url.searchParams.set('lng', String(latLng.lng));
+            } else if (!nearActive) {
+                url.searchParams.delete('near');
+                url.searchParams.delete('lat');
+                url.searchParams.delete('lng');
+            }
+
+            url.searchParams.delete('page');
+            const nav = window.__smoothNavigate || function (u) { window.location.href = u; };
+            nav(url.toString());
+        }
+
+        openBtn.addEventListener('click', openModal);
+        closeBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) closeModal();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && modal.classList.contains('active')) closeModal();
+        });
+
+        optionCards.forEach(card => {
+            card.addEventListener('click', () => {
+                card.classList.toggle('active');
+            });
+        });
+
+        resetBtn.addEventListener('click', () => {
+            optionCards.forEach(card => card.classList.remove('active'));
+        });
+
+        applyBtn.addEventListener('click', () => {
+            const nearActive = Boolean(modal.querySelector('.v-option-card.active[data-filter="near"]'));
+            setApplyLoading(true);
+            if (!nearActive) {
+                goWithFilters(null);
+                return;
+            }
+            if (!navigator.geolocation) {
+                setApplyLoading(false);
+                window.alert('Tu navegador no permite obtener tu ubicación para filtrar por mi zona.');
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    goWithFilters({
+                        lat: Number(position.coords.latitude).toFixed(6),
+                        lng: Number(position.coords.longitude).toFixed(6)
+                    });
+                },
+                () => {
+                    setApplyLoading(false);
+                    window.alert('No pudimos obtener tu ubicación. Activa permisos para usar "Por mi zona".');
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+            );
         });
     })();
 
@@ -227,11 +320,6 @@
         }
 
         chips.forEach(c => c.addEventListener('click', () => {
-            const modalEl = document.getElementById('cityFiltersModal');
-            if (modalEl && window.bootstrap) {
-                const modalInstance = bootstrap.Modal.getInstance(modalEl);
-                if (modalInstance) modalInstance.hide();
-            }
             goToCity(c.dataset.city, c);
         }));
     })();
@@ -258,8 +346,14 @@
 
             try {
                 const nextPage = currentPage + 1;
-                const url = `/feed?page=${encodeURIComponent(nextPage)}&city=${encodeURIComponent(selectedCity)}`;
-                const response = await fetch(url, { headers: { Accept: 'application/json' } });
+                const url = new URL('/feed', window.location.origin);
+                const currentParams = new URLSearchParams(window.location.search);
+                currentParams.forEach((value, key) => url.searchParams.set(key, value));
+                url.searchParams.set('page', String(nextPage));
+                if (!url.searchParams.get('city')) {
+                    url.searchParams.set('city', selectedCity);
+                }
+                const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
                 if (!response.ok) {
                     throw new Error('feed-load-failed');
                 }
@@ -314,6 +408,59 @@
 
         let mode = 'category';
         let todayEmptyState = document.getElementById('feedTodayEmptyState');
+        const widgetCard = btn.closest('.trends-widget');
+        const cardAnimationTimers = new WeakMap();
+        const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        function restartAnimation(element, className, duration = 420) {
+            if (!element || prefersReducedMotion) return;
+            element.classList.remove(className);
+            void element.offsetWidth;
+            element.classList.add(className);
+            window.setTimeout(() => element.classList.remove(className), duration);
+        }
+
+        function animateModeChange(activePanel) {
+            restartAnimation(btn, 'is-toggling', 520);
+            restartAnimation(widgetCard, 'is-filtering-reports', 520);
+            restartAnimation(activePanel, 'reports-panel-enter', 360);
+        }
+
+        function clearCardAnimation(card) {
+            const timer = cardAnimationTimers.get(card);
+            if (timer) {
+                window.clearTimeout(timer);
+                cardAnimationTimers.delete(card);
+            }
+        }
+
+        function showCard(card, animate) {
+            clearCardAnimation(card);
+            card.classList.remove('report-filter-exit', 'd-none');
+            if (animate) {
+                restartAnimation(card, 'report-filter-enter', 460);
+            } else {
+                card.classList.remove('report-filter-enter');
+            }
+        }
+
+        function hideCard(card, animate) {
+            clearCardAnimation(card);
+            card.classList.remove('report-filter-enter');
+            if (!animate || card.classList.contains('d-none') || prefersReducedMotion) {
+                card.classList.add('d-none');
+                card.classList.remove('report-filter-exit');
+                return;
+            }
+
+            card.classList.add('report-filter-exit');
+            const timer = window.setTimeout(() => {
+                card.classList.add('d-none');
+                card.classList.remove('report-filter-exit');
+                cardAnimationTimers.delete(card);
+            }, 240);
+            cardAnimationTimers.set(card, timer);
+        }
 
         function renderList(listEl, items, emptyTitle, emptyText) {
             if (!listEl) return;
@@ -376,7 +523,7 @@
             todayEmptyState = block;
         }
 
-        function applyFeedTodayFilter(onlyToday) {
+        function applyFeedTodayFilter(onlyToday, { animate = false } = {}) {
             if (!postsContainer) return;
             ensureTodayEmptyState();
 
@@ -386,22 +533,29 @@
 
             cards.forEach(card => {
                 if (!onlyToday) {
-                    card.classList.remove('d-none');
+                    showCard(card, animate);
                     visibleCount += 1;
                     return;
                 }
                 const postYmd = (card.dataset.postDate || '').trim();
                 const shouldShow = postYmd === todayYmd;
-                card.classList.toggle('d-none', !shouldShow);
-                if (shouldShow) visibleCount += 1;
+                if (shouldShow) {
+                    showCard(card, animate);
+                    visibleCount += 1;
+                } else {
+                    hideCard(card, animate);
+                }
             });
 
             if (todayEmptyState) {
                 todayEmptyState.style.display = onlyToday && cards.length > 0 && visibleCount === 0 ? 'block' : 'none';
+                if (onlyToday && cards.length > 0 && visibleCount === 0 && animate) {
+                    restartAnimation(todayEmptyState, 'report-filter-enter', 460);
+                }
             }
         }
 
-        const setMode = (nextMode) => {
+        const setMode = (nextMode, { animate = false } = {}) => {
             mode = nextMode;
             const isToday = mode === 'today';
             byCategory.style.display = isToday ? 'none' : 'block';
@@ -411,11 +565,14 @@
             btn.title = isToday ? 'Ver por categoria' : 'Ver reportes de hoy';
             btn.setAttribute('aria-label', btn.title);
             icon.className = isToday ? 'fa-solid fa-list' : 'fa-solid fa-calendar-day';
-            applyFeedTodayFilter(isToday);
+            if (animate) {
+                animateModeChange(isToday ? today : byCategory);
+            }
+            applyFeedTodayFilter(isToday, { animate });
         };
 
         btn.addEventListener('click', () => {
-            setMode(mode === 'category' ? 'today' : 'category');
+            setMode(mode === 'category' ? 'today' : 'category', { animate: true });
         });
 
         if (typeof window.requestIdleCallback === 'function') {
