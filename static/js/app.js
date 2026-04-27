@@ -354,11 +354,20 @@ async function toggleLike(postId) {
         if (!likeBtn || !likesCount) {
             return;
         }
+        const likeIcon = likeBtn.querySelector('i');
 
         if (data.liked) {
             likeBtn.classList.add('active');
+            if (likeIcon) {
+                likeIcon.classList.remove('far');
+                likeIcon.classList.add('fas');
+            }
         } else {
             likeBtn.classList.remove('active');
+            if (likeIcon) {
+                likeIcon.classList.remove('fas');
+                likeIcon.classList.add('far');
+            }
         }
 
         likesCount.textContent = data.likes_count;
@@ -396,6 +405,10 @@ function toggleComments(postId) {
 
     if (isHidden) {
         loadComments(postId);
+        const input = commentsSection.querySelector('[name="content"]');
+        if (input) {
+            setTimeout(() => input.focus(), 80);
+        }
     }
 }
 
@@ -424,7 +437,7 @@ function buildCommentMarkup(comment, postId, options = {}) {
         ? 'comment-report-btn comment-report-btn--always-visible'
         : 'comment-report-btn';
     const reportBtn = (!hidden && canReportComment(comment))
-        ? `<button class="${reportBtnClass}" type="button" onclick="openCommentReportModal(${comment.id}, ${postId})" title="Reportar comentario"><i class="fas fa-flag"></i></button>`
+        ? `<button class="${reportBtnClass}" type="button" onclick="openCommentReportModal(${comment.id}, ${postId})" title="Reportar comentario" aria-label="Reportar comentario"><i class="fas fa-flag"></i></button>`
         : '';
     const hiddenClass = hidden ? ' violet-comment--hidden' : '';
     const textClass = hidden ? ' violet-comment-text--hidden' : '';
@@ -433,18 +446,12 @@ function buildCommentMarkup(comment, postId, options = {}) {
         <div class="violet-comment${hiddenClass}" data-comment-id="${comment.id}">
             <img class="violet-comment-avatar" src="${avatarSrc}" alt="avatar" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='/static/images/default_avatar.jpg';">
             <div class="violet-comment-content">
-                <div class="violet-comment-header">
-                    <div class="violet-comment-identity">
-                        <div class="violet-comment-name-row">
-                            <span class="violet-comment-username">${escapeHtml(comment.username)}${renderModerationBadge(comment.moderation_level)}${renderAdminBadge(comment.is_super_admin)}</span>
-                            ${reportBtn}
-                        </div>
-                    </div>
-                    <div class="violet-comment-header-actions">
-                        <span class="violet-comment-time">${timeLabel}</span>
-                    </div>
+                ${reportBtn}
+                <div class="violet-comment-mainline">
+                    <span class="violet-comment-username">${escapeHtml(comment.username)}${renderModerationBadge(comment.moderation_level)}${renderAdminBadge(comment.is_super_admin)}</span>
+                    <span class="violet-comment-text${textClass}">${bodyText}</span>
                 </div>
-                <div class="violet-comment-text${textClass}">${bodyText}</div>
+                <div class="violet-comment-time">${timeLabel}</div>
             </div>
         </div>
     `;

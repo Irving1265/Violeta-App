@@ -1,6 +1,10 @@
-<div class="card post-card" data-post-id="{{ post.id }}" data-post-date="{{ post.created_at.strftime('%Y-%m-%d') if post.created_at else '' }}">
+<div class="card post-card violet-post-card" data-post-id="{{ post.id }}" data-post-date="{{ post.created_at.strftime('%Y-%m-%d') if post.created_at else '' }}">
     {% set categories_list = post.categories | from_json if post.categories else [] %}
     {% set safe_loc = public_location_for_post(post, current_user) %}
+    {% set post_author_level = moderation_badge_level(post.author) %}
+    {% set post_author_is_staff = user_has_staff_badge(post.author) %}
+    {% set month_names = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'] %}
+    {% set post_date_label = post.created_at.strftime('%d') ~ ' ' ~ month_names[post.created_at.month - 1] ~ ' ' ~ post.created_at.strftime('%Y') if post.created_at else '' %}
     {% set country_label = safe_loc.country %}
     {% if country_label|lower == 'mexico' %}
     {% set country_label = 'México' %}
@@ -25,75 +29,87 @@
     {% set location_label = 'Monterrey, México' %}
     {% endif %}
 
-    <div class="card-header">
+    <div class="card-header post-card-header">
         <div class="post-header-main">
             <div class="post-author-wrap">
-                <a href="{{ url_for('user_profile', username=post.author.username) }}">
-                    <img class="avatar" loading="lazy" decoding="async"
+                <a href="{{ url_for('user_profile', username=post.author.username) }}" class="post-avatar-link">
+                    <img class="avatar post-author-avatar" loading="lazy" decoding="async"
                         src="{{ avatar_url_for_user(post.author) }}"
-                        alt="avatar"
+                        alt="{{ post.author.username }}"
                         onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
+                    {% if post_author_is_staff %}
+                    <span class="post-avatar-badge" title="Admin verificada" aria-label="Admin verificada">
+                        <img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin">
+                    </span>
+                    {% endif %}
                 </a>
                 <div class="post-author-meta">
-                    <div class="fw-bold post-author-name-row">
-                        <a href="{{ url_for('user_profile', username=post.author.username) }}">{{ post.author.username }}</a>
-                        {% set post_author_level = moderation_badge_level(post.author) %}
+                    <div class="post-author-title-row">
+                        <a href="{{ url_for('user_profile', username=post.author.username) }}" class="post-author-name">{{ post.author.username }}</a>
                         {% if post_author_level > 0 %}
                         <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if post_author_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if post_author_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if post_author_level >= 2 else 'Usuaria con un strike' }}">
                             <i class="fas fa-triangle-exclamation"></i>
                         </span>
                         {% endif %}
-                        {% if user_has_staff_badge(post.author) %}<span class="admin-badge" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
-                    </div>
-                    <div class="post-meta-row">
-                        <div class="small text-muted post-location">
-                            <i class="fas fa-map-marker-alt"></i> {{ location_label }}
-                        </div>
-                        {% if categories_list %}
-                        <div class="post-inline-categories">
-                            {% for category in categories_list %}
-                            {% set normalized = category|lower %}
-                            {% set cat_class = 'violet-badge--default' %}
-                            {% if 'ilumin' in normalized %}
-                            {% set cat_class = 'violet-badge--lighting' %}
-                            {% elif 'banqueta' in normalized %}
-                            {% set cat_class = 'violet-badge--sidewalk' %}
-                            {% elif 'insegur' in normalized %}
-                            {% set cat_class = 'violet-badge--unsafe' %}
-                            {% elif 'bald' in normalized %}
-                            {% set cat_class = 'violet-badge--vacant' %}
-                            {% endif %}
-                            <span class="violet-badge {{ cat_class }}">{{ category }}</span>
-                            {% endfor %}
-                        </div>
+                        {% if post_date_label %}
+                        <span class="post-meta-dot">•</span>
+                        <span class="post-date-inline post-time" data-timestamp="{{ post.created_at.timestamp() if post.created_at else 0 }}">{{ post_date_label }}</span>
                         {% endif %}
+                    </div>
+                    <div class="post-location">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>{{ location_label }}</span>
                     </div>
                 </div>
             </div>
             <div class="post-header-actions">
-                {% if current_user.is_authenticated %}
-                <button class="btn btn-ghost p-2 report-btn" title="Reportar publicación"
-                    aria-label="Reportar publicación" onclick="openReportModal({{ post.id }})">
-                    <i class="fas fa-exclamation-triangle"></i>
-                </button>
-                {% else %}
-                <a href="{{ url_for('login') }}" class="btn btn-ghost p-2 report-btn" title="Reportar publicación"
-                    aria-label="Reportar publicación">
-                    <i class="fas fa-exclamation-triangle"></i>
-                </a>
-                {% endif %}
-                <button class="btn btn-ghost p-2"
+                <button class="post-top-action post-map-toggle" type="button" title="Ver mapa" aria-label="Ver mapa"
                     onclick="toggleMap({{ post.id }}, {{ '%.6f'|format(safe_loc.lat) if safe_loc.lat is not none else 'null' }}, {{ '%.6f'|format(safe_loc.lng) if safe_loc.lng is not none else 'null' }}, this)">
                     <i class="fas fa-map-marked-alt"></i>
                 </button>
+                {% if current_user.is_authenticated %}
+                <button class="post-top-action report-btn" type="button" title="Reportar publicación"
+                    aria-label="Reportar publicación" onclick="openReportModal({{ post.id }})">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+                {% else %}
+                <a href="{{ url_for('login') }}" class="post-top-action report-btn" title="Reportar publicación"
+                    aria-label="Reportar publicación">
+                    <i class="fas fa-ellipsis-v"></i>
+                </a>
+                {% endif %}
             </div>
         </div>
     </div>
 
+    {% if categories_list %}
+    <div class="post-category-strip">
+        {% for category in categories_list %}
+        {% set normalized = category|lower %}
+        {% set cat_class = 'violet-badge--default' %}
+        {% set cat_icon = 'fas fa-tag' %}
+        {% if 'ilumin' in normalized %}
+        {% set cat_class = 'violet-badge--lighting' %}
+        {% set cat_icon = 'fa-regular fa-lightbulb' %}
+        {% elif 'banqueta' in normalized %}
+        {% set cat_class = 'violet-badge--sidewalk' %}
+        {% set cat_icon = 'fas fa-shoe-prints' %}
+        {% elif 'insegur' in normalized %}
+        {% set cat_class = 'violet-badge--unsafe' %}
+        {% set cat_icon = 'fas fa-shield-halved' %}
+        {% elif 'bald' in normalized %}
+        {% set cat_class = 'violet-badge--vacant' %}
+        {% set cat_icon = 'fas fa-tree' %}
+        {% endif %}
+        <span class="violet-badge {{ cat_class }}"><i class="{{ cat_icon }}"></i>{{ category }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Flip Container for Map/Image -->
     <div class="post-content-container" id="flip-{{ post.id }}">
         <div class="post-image-wrapper face-front" id="img-wrapper-{{ post.id }}">
-            <img src="{{ media_url(post.image_filename) }}" class="post-image" alt="Post image" loading="lazy" decoding="async">
+            <img src="{{ media_url(post.image_filename) }}" class="post-image violet-post-image" alt="Post image" loading="lazy" decoding="async">
         </div>
         <div class="post-map-wrapper face-back" id="map-wrapper-{{ post.id }}">
             <div id="map-{{ post.id }}" style="height: 100%; width: 100%;"></div>
@@ -110,91 +126,87 @@
 {% set prefetch_comments = request.endpoint == 'post_detail' %}
 {% set preload_comments = false %}
 
-<div class="post-actions d-flex align-items-center">
-    <div class="d-flex align-items-center me-2">
+<div class="post-actions">
+    <div class="post-action-cluster">
         {% if current_user.is_authenticated %}
             {% if can_like %}
-            <button class="action-btn like-btn {{ 'active' if liked_by_me }}" onclick="toggleLike({{ post.id }})">
-                <i class="fas fa-heart"></i>
+            <button class="action-btn like-btn {{ 'active' if liked_by_me }}" onclick="toggleLike({{ post.id }})" aria-label="Me gusta">
+                <span class="post-action-icon"><i class="{{ 'fas' if liked_by_me else 'far' }} fa-heart"></i></span>
+                <span class="likes-count fw-bold">{{ likes_count }}</span>
             </button>
             {% else %}
             <button class="action-btn like-btn" type="button" disabled title="Likes desactivados por la autora">
-                <i class="fas fa-heart"></i>
+                <span class="post-action-icon"><i class="far fa-heart"></i></span>
+                <span class="likes-count fw-bold">{{ likes_count }}</span>
             </button>
             {% endif %}
         {% else %}
             {% if likes_open %}
-            <a href="{{ url_for('login') }}" class="action-btn">
-                <i class="fas fa-heart"></i>
+            <a href="{{ url_for('login') }}" class="action-btn like-btn" aria-label="Inicia sesión para dar like">
+                <span class="post-action-icon"><i class="far fa-heart"></i></span>
+                <span class="likes-count fw-bold">{{ likes_count }}</span>
             </a>
             {% else %}
             <button class="action-btn" type="button" disabled title="Likes desactivados por la autora">
-                <i class="fas fa-heart"></i>
+                <span class="post-action-icon"><i class="far fa-heart"></i></span>
+                <span class="likes-count fw-bold">{{ likes_count }}</span>
             </button>
             {% endif %}
         {% endif %}
-        <span class="likes-count ms-1 fw-bold">{{ likes_count }}</span>
-    </div>
 
-    <div class="d-flex align-items-center">
         {% if current_user.is_authenticated %}
             {% if can_comment %}
-            <button class="action-btn comment-btn" onclick="toggleComments({{ post.id }})">
-                <i class="fas fa-comment"></i>
+            <button class="action-btn comment-btn" onclick="toggleComments({{ post.id }})" aria-label="Ver comentarios">
+                <span class="post-action-icon"><i class="far fa-comment"></i></span>
+                <span class="comments-count fw-bold">{{ comments_count }}</span>
             </button>
             {% else %}
             <button class="action-btn comment-btn" type="button" disabled title="Comentarios desactivados por la autora">
-                <i class="fas fa-comment"></i>
+                <span class="post-action-icon"><i class="far fa-comment"></i></span>
+                <span class="comments-count fw-bold">{{ comments_count }}</span>
             </button>
             {% endif %}
         {% else %}
             {% if comments_open %}
-            <a href="{{ url_for('login') }}" class="action-btn comment-btn">
-                <i class="fas fa-comment"></i>
+            <a href="{{ url_for('login') }}" class="action-btn comment-btn" aria-label="Inicia sesión para comentar">
+                <span class="post-action-icon"><i class="far fa-comment"></i></span>
+                <span class="comments-count fw-bold">{{ comments_count }}</span>
             </a>
             {% else %}
             <button class="action-btn comment-btn" type="button" disabled title="Comentarios desactivados por la autora">
-                <i class="fas fa-comment"></i>
+                <span class="post-action-icon"><i class="far fa-comment"></i></span>
+                <span class="comments-count fw-bold">{{ comments_count }}</span>
             </button>
             {% endif %}
         {% endif %}
-        <span class="comments-count ms-1 fw-bold">{{ comments_count }}</span>
     </div>
 </div>
 
 {% if not likes_open or not comments_open %}
-<div class="px-3 pb-1">
-    <div class="small text-muted">
+<div class="post-limited-note">
+    <div>
         <i class="fas fa-shield-alt me-1"></i>
         Interacción limitada por la autora
     </div>
 </div>
 {% endif %}
 
-<div class="px-3 pb-2">
-
-        {% if post.caption %}
-        <div class="mb-2">
-            <span class="fw-bold">{{ post.author.username }}</span>
-            {% if post_author_level > 0 %}
-            <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if post_author_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if post_author_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if post_author_level >= 2 else 'Usuaria con un strike' }}">
-                <i class="fas fa-triangle-exclamation"></i>
-            </span>
-            {% endif %}
-            {% if user_has_staff_badge(post.author) %}<span class="admin-badge admin-badge--sm" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
-            {{ post.caption }}
-        </div>
-        {% endif %}
-
-        <div class="text-muted small post-time"
-            data-timestamp="{{ post.created_at.timestamp() if post.created_at else 0 }}">
-            {{ post.created_at.strftime('%d/%m/%Y') }}
-        </div>
-    </div>
+{% if post.caption %}
+<div class="post-caption-block">
+    <span class="post-caption-author">{{ post.author.username }}</span>
+    {% if post_author_level > 0 %}
+    <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if post_author_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if post_author_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if post_author_level >= 2 else 'Usuaria con un strike' }}">
+        <i class="fas fa-triangle-exclamation"></i>
+    </span>
+    {% endif %}
+    {% if post_author_is_staff %}<span class="admin-badge admin-badge--sm" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+    <span>{{ post.caption }}</span>
+</div>
+{% endif %}
 
     <!-- Comments Section -->
-    <div class="comments-section d-none border-top p-3" id="comments-{{ post.id }}" data-comments-loaded="{{ 'true' if preload_comments else 'false' }}" data-prefetch-comments="{{ 'true' if prefetch_comments else 'false' }}">
-        <div class="comments-list violet-comments-list mb-3" style="max-height: 300px; overflow-y: auto; padding-right: 5px;">
+    <div class="comments-section post-comments-panel d-none" id="comments-{{ post.id }}" data-comments-loaded="{{ 'true' if preload_comments else 'false' }}" data-prefetch-comments="{{ 'true' if prefetch_comments else 'false' }}">
+        <div class="comments-list violet-comments-list">
             <div class="violet-comments-visible">
                 {% if preload_comments %}
                 {% for comment in post.comments if not comment.is_hidden %}
@@ -206,30 +218,24 @@
                             onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
                     </a>
                     <div class="violet-comment-content">
-                        <div class="violet-comment-header">
-                            <div class="violet-comment-identity">
-                                <div class="violet-comment-name-row">
-                                    <a href="{{ url_for('user_profile', username=comment.author.username) }}" class="violet-comment-username text-decoration-none">
-                                        {{ comment.author.username }}
-                                        {% if comment_level > 0 %}
-                                        <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if comment_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if comment_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if comment_level >= 2 else 'Usuaria con un strike' }}">
-                                            <i class="fas fa-triangle-exclamation"></i>
-                                        </span>
-                                        {% endif %}
-                                        {% if user_has_staff_badge(comment.author) %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
-                                    </a>
-                                    {% if current_user.is_authenticated and (current_user.id != comment.user_id or current_user_is_super_admin) %}
-                                    <button type="button" class="comment-report-btn {% if current_user_is_super_admin %}comment-report-btn--always-visible{% endif %}" onclick="openCommentReportModal({{ comment.id }}, {{ post.id }})" title="Reportar comentario">
-                                        <i class="fas fa-flag"></i>
-                                    </button>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="violet-comment-header-actions">
-                                <span class="violet-comment-time">{{ comment.created_at.strftime('%d/%m/%Y') if comment.created_at else '' }}</span>
-                            </div>
+                        {% if current_user.is_authenticated and (current_user.id != comment.user_id or current_user_is_super_admin) %}
+                        <button type="button" class="comment-report-btn {% if current_user_is_super_admin %}comment-report-btn--always-visible{% endif %}" onclick="openCommentReportModal({{ comment.id }}, {{ post.id }})" title="Reportar comentario" aria-label="Reportar comentario">
+                            <i class="fas fa-flag"></i>
+                        </button>
+                        {% endif %}
+                        <div class="violet-comment-mainline">
+                            <a href="{{ url_for('user_profile', username=comment.author.username) }}" class="violet-comment-username text-decoration-none">
+                                {{ comment.author.username }}
+                                {% if comment_level > 0 %}
+                                <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if comment_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if comment_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if comment_level >= 2 else 'Usuaria con un strike' }}">
+                                    <i class="fas fa-triangle-exclamation"></i>
+                                </span>
+                                {% endif %}
+                                {% if user_has_staff_badge(comment.author) %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+                            </a>
+                            <span class="violet-comment-text">{{ comment.content }}</span>
                         </div>
-                        <div class="violet-comment-text">{{ comment.content }}</div>
+                        <div class="violet-comment-time">{{ comment.created_at.strftime('%d/%m/%Y') if comment.created_at else '' }}</div>
                     </div>
                 </div>
                 {% endfor %}
@@ -249,23 +255,19 @@
                                 onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
                         </a>
                         <div class="violet-comment-content">
-                            <div class="violet-comment-header">
-                                <div class="violet-comment-identity">
-                                    <div class="violet-comment-name-row">
-                                        <a href="{{ url_for('user_profile', username=comment.author.username) }}" class="violet-comment-username text-decoration-none">
-                                            {{ comment.author.username }}
-                                            {% if comment_level > 0 %}
-                                            <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if comment_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if comment_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if comment_level >= 2 else 'Usuaria con un strike' }}">
-                                                <i class="fas fa-triangle-exclamation"></i>
-                                            </span>
-                                            {% endif %}
-                                            {% if user_has_staff_badge(comment.author) %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
-                                        </a>
-                                    </div>
-                                </div>
-                                <span class="violet-comment-time">{{ comment.created_at.strftime('%d/%m/%Y') if comment.created_at else '' }}</span>
+                            <div class="violet-comment-mainline">
+                                <a href="{{ url_for('user_profile', username=comment.author.username) }}" class="violet-comment-username text-decoration-none">
+                                    {{ comment.author.username }}
+                                    {% if comment_level > 0 %}
+                                    <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if comment_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if comment_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if comment_level >= 2 else 'Usuaria con un strike' }}">
+                                        <i class="fas fa-triangle-exclamation"></i>
+                                    </span>
+                                    {% endif %}
+                                    {% if user_has_staff_badge(comment.author) %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+                                </a>
+                                <span class="violet-comment-text violet-comment-text--hidden">Este comentario fue ocultado por moderación.</span>
                             </div>
-                            <div class="violet-comment-text violet-comment-text--hidden">Este comentario fue ocultado por moderación.</div>
+                            <div class="violet-comment-time">{{ comment.created_at.strftime('%d/%m/%Y') if comment.created_at else '' }}</div>
                         </div>
                     </div>
                     {% endfor %}
@@ -274,13 +276,19 @@
             </div>
         </div>
         {% if current_user.is_authenticated and can_comment %}
-        <form class="d-flex gap-2" onsubmit="submitComment(event, {{ post.id }})">
-            <input type="text" class="form-control form-control-sm" placeholder="Añadir un comentario..." name="content"
-                required>
-            <button type="submit" class="btn btn-ghost btn-sm text-primary">Publicar</button>
+        <form class="post-comment-form" onsubmit="submitComment(event, {{ post.id }})">
+            <img src="{{ avatar_url_for_user(current_user) }}" class="post-comment-self-avatar" alt="Tu avatar" loading="lazy" decoding="async"
+                onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
+            <div class="post-comment-input-wrap">
+                <input type="text" class="form-control form-control-sm post-comment-input" id="comment-input-{{ post.id }}" placeholder="Añadir un comentario..." name="content"
+                    required>
+                <button type="submit" class="post-comment-submit" aria-label="Publicar comentario">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
         </form>
         {% elif current_user.is_authenticated and not can_comment %}
-        <div class="small text-muted">
+        <div class="post-comments-locked">
             <i class="fas fa-lock me-1"></i> Esta publicación no acepta comentarios.
         </div>
         {% endif %}

@@ -12,9 +12,14 @@ function toggleMap(postId, lat, lng, btn) {
     const isFlipped = flipContainer.classList.contains('flipped');
 
     // Update button icon
-    const icon = btn.querySelector('i');
-    if (icon) {
-        icon.className = isFlipped ? 'fas fa-image' : 'fas fa-map-marked-alt';
+    if (btn) {
+        const icon = btn.querySelector('i');
+        if (icon) {
+            icon.className = isFlipped ? 'fas fa-image' : 'fas fa-map-marked-alt';
+        }
+        const label = isFlipped ? 'Ver imagen' : 'Ver mapa';
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
     }
 
     // Initialize map if flipping to back and not already initialized

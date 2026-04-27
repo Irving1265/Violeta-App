@@ -16,7 +16,7 @@
     {% if request.endpoint in ['index', 'hotspots_page', 'safety_center', 'login'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260425-reports-toggle-animation-v1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260425-mobile-profile-avatar-v3">
     {% if request.endpoint == 'index' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/post_create.css') }}?v=20260403-post-modal-motion-v17">
     {% endif %}
@@ -184,8 +184,10 @@
             {% if current_user.is_authenticated %}
             {% set user_active = request.endpoint in ['user_profile','profile','edit_profile'] %}
             <a href="{{ url_for('user_profile', username=current_user.username) }}"
-                class="nav-item {{ 'active' if user_active else '' }}">
-                <i class="{{ 'fa-solid' if user_active else 'fa-regular' }} fa-user"></i>
+                class="nav-item nav-item-profile {{ 'active' if user_active else '' }}" aria-label="Perfil">
+                <img src="{{ avatar_url_for_user(current_user) }}" alt="Perfil" class="bottom-nav-profile-avatar"
+                    loading="lazy" decoding="async"
+                    onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
             </a>
             {% else %}
             <a href="{{ url_for('login') }}" class="nav-item">
@@ -722,7 +724,7 @@
         window.VERIFY_REQUIRED_MSG = 'Para poder ver el contenido tenemos que verificar tu identidad';
         window.VIOLETA_SAFETY_PUBLISH_POLICY = {{ safety_publish_policy|tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/app.js') }}?v=20260424-report-comment-modal-v1"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=20260425-post-card-redesign-v2"></script>
     {% if show_warning_strike_overlay or request.endpoint == 'account_restricted' %}
     <script src="{{ url_for('static', filename='js/strike_overlay.js') }}?v=20260420-strike-file-preview-v1"></script>
     {% endif %}
@@ -733,7 +735,7 @@
     <script src="{{ url_for('static', filename='js/post_create.js') }}?v=20260413-post-location-precision-v16"></script>
     {% endif %}
     {% if request.endpoint in ['index', 'user_profile', 'profile', 'post_detail'] %}
-    <script src="{{ url_for('static', filename='js/post_map.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/post_map.js') }}?v=20260425-post-card-redesign-v2"></script>
     {% endif %}
     <script>
         // Auto-cerrar cualquier alerta de flash después de 5s
