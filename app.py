@@ -31,7 +31,7 @@ from jinja2 import FileSystemBytecodeCache
 from werkzeug.utils import secure_filename
 from models import db, User, InviteCode, UserBlock, SafetyContact, PanicEvent, SafetyCheckin, CheckinRoutePoint, Post, Comment, Like, Share, Tag, PostMeta, ChatRoom, ChatParticipant, ChatMessage, ChatMessageReport, CommentReport, ModerationStrike, Report, VerificationRequest, AuditLog, post_tag
 from sqlalchemy import or_, and_, text, func, inspect, insert, case
-from sqlalchemy.orm import selectinload, noload
+from sqlalchemy.orm import selectinload, noload, load_only, make_transient_to_detached
 from config import Config
 from forms import LoginForm, RegisterForm, PostForm, CommentForm, ShareForm
 from datetime import datetime, timedelta, timezone
@@ -92,6 +92,30 @@ SAFETY_ALLOWED_DESTINATION_CITIES = {
 }
 
 _blocked_user_ids_cache: dict[int, tuple[float, set[int]]] = {}
+_USER_SNAPSHOT_CACHE_TTL_SECONDS = 10.0
+_USER_SNAPSHOT_FIELDS = (
+    'id',
+    'username',
+    'email',
+    'roles',
+    'profile_pic',
+    'bio',
+    'created_at',
+    'is_verified',
+    'verified_at',
+    'verification_method',
+    'invited_by_id',
+    'invite_attested_at',
+    'force_password_change',
+    'password_recovery_requested_at',
+    'abuse_strikes',
+    'muted_until',
+    'last_abuse_at',
+    'permanently_banned_at',
+    'permanent_ban_reason',
+)
+_user_snapshot_cache: dict[int, tuple[float, dict[str, object]]] = {}
+_USER_SNAPSHOT_LOCK = threading.Lock()
 _default_chat_room_seen_at = 0.0
 
 # Best-effort in-memory throttling for abuse-prone endpoints.
@@ -102,6 +126,52 @@ _RATE_LIMIT_LOCK = threading.Lock()
 def utc_now_naive() -> datetime:
     """Return UTC now as naive datetime to preserve current DB semantics."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _snapshot_user(user: User) -> dict[str, object]:
+    return {field: getattr(user, field, None) for field in _USER_SNAPSHOT_FIELDS}
+
+
+def _cached_user_snapshot(user_id: int) -> dict[str, object] | None:
+    now_ts = time.time()
+    with _USER_SNAPSHOT_LOCK:
+        cached = _user_snapshot_cache.get(int(user_id))
+        if not cached:
+            return None
+        cached_at, snapshot = cached
+        if (now_ts - cached_at) >= _USER_SNAPSHOT_CACHE_TTL_SECONDS:
+            _user_snapshot_cache.pop(int(user_id), None)
+            return None
+        return dict(snapshot)
+
+
+def _store_user_snapshot(user: User) -> None:
+    uid = getattr(user, 'id', None)
+    if uid is None:
+        return
+    with _USER_SNAPSHOT_LOCK:
+        _user_snapshot_cache[int(uid)] = (time.time(), _snapshot_user(user))
+        if len(_user_snapshot_cache) > 512:
+            oldest_uid = min(_user_snapshot_cache, key=lambda key: _user_snapshot_cache[key][0])
+            _user_snapshot_cache.pop(oldest_uid, None)
+
+
+def _rehydrate_user_snapshot(snapshot: dict[str, object]) -> User:
+    user = User(**{field: snapshot.get(field) for field in _USER_SNAPSHOT_FIELDS})
+    make_transient_to_detached(user)
+    return db.session.merge(user, load=False)
+
+
+def invalidate_user_snapshot_cache(*user_ids) -> None:
+    with _USER_SNAPSHOT_LOCK:
+        if not user_ids:
+            _user_snapshot_cache.clear()
+            return
+        for user_id in user_ids:
+            try:
+                _user_snapshot_cache.pop(int(user_id), None)
+            except (TypeError, ValueError):
+                continue
 
 
 def chat_message_deleted_reason(message: ChatMessage | None, reported_ids: set[int] | None = None) -> str | None:
@@ -1340,6 +1410,7 @@ def _clear_expired_moderation_restriction(user):
         db.session.add(user)
         try:
             db.session.commit()
+            invalidate_user_snapshot_cache(user.id)
         except Exception:
             db.session.rollback()
 
@@ -1632,6 +1703,7 @@ def apply_abuse_strike(
     )
     db.session.add(user)
     db.session.add(strike)
+    invalidate_user_snapshot_cache(user.id)
     return {
         'applied': True,
         'reason': 'ok',
@@ -2039,9 +2111,23 @@ def create_app():
 
     @login_manager.user_loader
     def load_user(user_id):
-        # Compatible con SQLAlchemy 2.x (Query.get es legacy)
         try:
-            return db.session.get(User, int(user_id))
+            uid = int(user_id)
+            cached_snapshot = _cached_user_snapshot(uid)
+            if cached_snapshot is not None:
+                return _rehydrate_user_snapshot(cached_snapshot)
+
+            user = (
+                User.query.options(
+                    load_only(*(getattr(User, field) for field in _USER_SNAPSHOT_FIELDS)),
+                    noload('*'),
+                )
+                .filter(User.id == uid)
+                .first()
+            )
+            if user is not None:
+                _store_user_snapshot(user)
+            return user
         except Exception as exc:
             db.session.rollback()
             _debug_log_suppressed('suppressed exception', exc)
@@ -3372,11 +3458,19 @@ def create_app():
         }
 
     def invalidate_post_discovery_caches():
+        invalidate_runtime_response_cache('feed_page')
+        invalidate_runtime_response_cache('page_home')
         invalidate_runtime_response_cache('hotspots')
         invalidate_runtime_response_cache('posts_in_radius')
         invalidate_runtime_response_cache('posts_by_city')
         invalidate_runtime_response_cache('feed_sidebar')
         _feed_sidebar_cache.clear()
+
+    def clear_runtime_caches_for_tests():
+        _runtime_response_cache.clear()
+        _feed_sidebar_cache.clear()
+
+    app.extensions['violeta_clear_runtime_caches'] = clear_runtime_caches_for_tests
 
     def try_release_pending_safety_posts_for_user(user, current_lat=None, current_lng=None):
         now = datetime.now(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
@@ -3588,6 +3682,29 @@ def create_app():
             round(float(filters.get('lat')), 5) if filters.get('lat') is not None else None,
             round(float(filters.get('lng')), 5) if filters.get('lng') is not None else None,
             float(filters.get('radius_km') or 3.0),
+        )
+
+    class LightweightPagination:
+        def __init__(self, *, items, page: int, per_page: int, has_next: bool):
+            self.items = items
+            self.page = page
+            self.per_page = per_page
+            self.has_next = bool(has_next)
+            self.has_prev = page > 1
+            self.next_num = page + 1 if self.has_next else None
+            self.prev_num = page - 1 if self.has_prev else None
+            self.total = None
+
+    def paginate_without_count(query, *, page: int, per_page: int) -> LightweightPagination:
+        safe_page = max(1, int(page or 1))
+        safe_per_page = max(1, int(per_page or 1))
+        rows = query.limit(safe_per_page + 1).offset((safe_page - 1) * safe_per_page).all()
+        has_next = len(rows) > safe_per_page
+        return LightweightPagination(
+            items=rows[:safe_per_page],
+            page=safe_page,
+            per_page=safe_per_page,
+            has_next=has_next,
         )
 
     def current_app_day_bounds_utc():
@@ -3808,14 +3925,7 @@ def create_app():
         return payload
 
     def get_cached_html_page(cache_key: tuple, ttl_seconds: float):
-        now_ts = time.time()
-        cached = _runtime_response_cache.get(cache_key)
-        if not cached:
-            return None
-        if (now_ts - float(cached.get('ts') or 0)) >= float(ttl_seconds):
-            _runtime_response_cache.pop(cache_key, None)
-            return None
-        cached_html = cached.get('payload')
+        cached_html = get_runtime_cached_payload(cache_key, ttl_seconds)
         if not cached_html:
             return None
         response = make_response(cached_html)
@@ -3823,13 +3933,7 @@ def create_app():
         return response
 
     def set_cached_html_page(cache_key: tuple, html: str, *, ttl_seconds: float = 15, max_entries: int = 128):
-        _runtime_response_cache[cache_key] = {
-            'ts': time.time(),
-            'payload': html,
-        }
-        if len(_runtime_response_cache) > max_entries:
-            oldest_key = min(_runtime_response_cache, key=lambda key: float(_runtime_response_cache[key].get('ts') or 0))
-            _runtime_response_cache.pop(oldest_key, None)
+        set_runtime_cached_payload(cache_key, html, ttl_seconds=ttl_seconds, max_entries=max_entries)
         response = make_response(html)
         response.mimetype = 'text/html'
         return response
@@ -4102,7 +4206,7 @@ def create_app():
 
         selected_city = (request.args.get('city') or 'all').strip().lower()
         feed_filters = parse_feed_filter_args(request.args)
-        page = request.args.get('page', 1, type=int)
+        page = max(1, request.args.get('page', 1, type=int) or 1)
         per_page = app.config.get('FEED_PAGE_SIZE', 3)
         blocked_ids = blocked_user_ids_for(current_user) if current_user.is_authenticated else set()
         page_cache_key = ('page_home', current_user.id, selected_city, feed_filters_cache_key(feed_filters), page, per_page, tuple(sorted(blocked_ids)))
@@ -4114,11 +4218,10 @@ def create_app():
         report_counts = []
         report_counts_today = []
 
-        posts = query.paginate(page=page, per_page=per_page, error_out=False)
+        posts = paginate_without_count(query, page=page, per_page=per_page)
         enrich_posts_for_cards(posts.items, current_user)
 
         if app.debug:
-            print(f"DEBUG: Total posts found: {posts.total}")
             print(f"DEBUG: Posts on current page: {len(posts.items)}")
             for i, post in enumerate(posts.items):
                 try:
@@ -4160,7 +4263,7 @@ def create_app():
     def feed():
         selected_city = (request.args.get('city') or 'all').strip().lower()
         feed_filters = parse_feed_filter_args(request.args)
-        page = request.args.get('page', 1, type=int)
+        page = max(1, request.args.get('page', 1, type=int) or 1)
         per_page = app.config.get('FEED_PAGE_SIZE', 3)
         viewer_id = getattr(current_user, 'id', None) if current_user.is_authenticated else None
         query, blocked_ids = build_feed_posts_query(selected_city, current_user, eager=True, filters=feed_filters)
@@ -4169,7 +4272,7 @@ def create_app():
         if cached_payload is not None:
             return jsonify(cached_payload)
 
-        posts = query.paginate(page=page, per_page=per_page, error_out=False)
+        posts = paginate_without_count(query, page=page, per_page=per_page)
         enrich_posts_for_cards(posts.items, current_user)
         html = render_template('_post_cards.html', posts=posts.items)
         data = []
@@ -4401,6 +4504,7 @@ def create_app():
             current_user.muted_until = None
             db.session.add(current_user)
             db.session.commit()
+            invalidate_user_snapshot_cache(current_user.id)
             session['dismissed_strike_id'] = strike.id
             session.modified = True
             return jsonify({
@@ -4478,6 +4582,7 @@ def create_app():
                 # Prevent session fixation by rotating session data at login.
                 session.clear()
                 login_user(user, remember=remember)
+                _store_user_snapshot(user)
                 if bool(getattr(user, 'force_password_change', False)):
                     flash('Tu cuenta tiene una contraseña temporal. Debes cambiarla antes de continuar.', 'warning')
                     return redirect(url_for('force_password_reset'))
@@ -4545,6 +4650,7 @@ def create_app():
                     current_user.password_recovery_requested_at = None
                     db.session.add(current_user)
                     db.session.commit()
+                    invalidate_user_snapshot_cache(current_user.id)
                     invalidate_admin_panel_page_cache()
                     flash('Tu contraseña se actualizó correctamente. Ya puedes continuar.', 'success')
                     return redirect(url_for('index'))
@@ -4591,6 +4697,7 @@ def create_app():
                 matched_user.password_recovery_requested_at = utc_now_naive()
                 db.session.add(matched_user)
                 db.session.commit()
+                invalidate_user_snapshot_cache(matched_user.id)
                 invalidate_admin_panel_page_cache()
             record_audit_event(
                 'user.password_recovery.requested',
@@ -4636,6 +4743,7 @@ def create_app():
                     user.force_password_change = False
                     user.password_recovery_requested_at = None
                     db.session.commit()
+                    invalidate_user_snapshot_cache(user.id)
                     invalidate_admin_panel_page_cache()
                     flash('Tu contraseña se actualizó correctamente. Inicia sesión con la nueva contraseña.', 'success')
                     return redirect(url_for('login'))
@@ -7450,11 +7558,7 @@ def create_app():
 
             db.session.commit()
             if high_risk:
-                invalidate_runtime_response_cache('hotspots')
-                invalidate_runtime_response_cache('posts_in_radius')
-                invalidate_runtime_response_cache('posts_by_city')
-                invalidate_runtime_response_cache('feed_sidebar')
-                _feed_sidebar_cache.clear()
+                invalidate_post_discovery_caches()
 
             if high_risk:
                 message = 'Reporte de alto riesgo enviado. La publicación se ocultó preventivamente mientras la revisamos.'
@@ -8406,6 +8510,7 @@ def create_app():
             user.is_verified = True
         db.session.add(req)
         db.session.commit()
+        invalidate_user_snapshot_cache(req.user_id)
         if video_to_delete:
             safe_remove_upload(video_to_delete)
         record_audit_event(
@@ -8439,6 +8544,7 @@ def create_app():
             user.is_verified = False
         db.session.add(req)
         db.session.commit()
+        invalidate_user_snapshot_cache(req.user_id)
         if video_to_delete:
             safe_remove_upload(video_to_delete)
         record_audit_event(
@@ -8564,6 +8670,7 @@ def create_app():
 
         # Profile picture
         safe_remove_upload(target_user.profile_pic)
+        invalidate_user_snapshot_cache(target_user.id)
 
         # Finally delete user
         db.session.delete(target_user)
@@ -8676,6 +8783,7 @@ def create_app():
 
         user.username = new_username
         db.session.commit()
+        invalidate_user_snapshot_cache(user.id)
         invalidate_admin_panel_page_cache()
         return jsonify({'success': True, 'message': f'Nombre de usuaria cambiado a {new_username}'})
 
@@ -8695,6 +8803,7 @@ def create_app():
                 return jsonify({'error': 'No se seleccionó archivo'}), 400
             user.bio = bio
             db.session.commit()
+            invalidate_user_snapshot_cache(user.id)
             invalidate_admin_panel_page_cache()
             return jsonify({'success': True, 'message': 'Descripción actualizada'})
 
@@ -8720,6 +8829,7 @@ def create_app():
             if bio != '':
                 user.bio = bio
             db.session.commit()
+            invalidate_user_snapshot_cache(user.id)
             invalidate_admin_panel_page_cache()
             return jsonify({'success': True, 'message': 'Foto de perfil actualizada', 'photo_url': url_for('uploaded_file', filename=unique_filename)})
         else:
@@ -8743,6 +8853,7 @@ def create_app():
             user.password_recovery_requested_at = None
             db.session.add(user)
             db.session.commit()
+            invalidate_user_snapshot_cache(user.id)
             record_audit_event(
                 'user.password_reset.assisted',
                 workspace='admin',
@@ -8799,6 +8910,7 @@ def create_app():
         db.session.add(user)
         try:
             db.session.commit()
+            invalidate_user_snapshot_cache(user.id)
         except Exception as exc:
             db.session.rollback()
             _debug_log_suppressed('suppressed exception', exc)
@@ -9287,11 +9399,7 @@ def create_app():
             _restore_reported_post(post, admin_note)
             db.session.commit()
             invalidate_admin_panel_page_cache()
-            invalidate_runtime_response_cache('hotspots')
-            invalidate_runtime_response_cache('posts_in_radius')
-            invalidate_runtime_response_cache('posts_by_city')
-            invalidate_runtime_response_cache('feed_sidebar')
-            _feed_sidebar_cache.clear()
+            invalidate_post_discovery_caches()
             return jsonify({'success': True, 'status': 'restored'})
         except Exception as e:
             db.session.rollback()
@@ -9341,11 +9449,7 @@ def create_app():
                 except Exception as exc:
                     _debug_log_suppressed('suppressed exception', exc)
             invalidate_admin_panel_page_cache()
-            invalidate_runtime_response_cache('hotspots')
-            invalidate_runtime_response_cache('posts_in_radius')
-            invalidate_runtime_response_cache('posts_by_city')
-            invalidate_runtime_response_cache('feed_sidebar')
-            _feed_sidebar_cache.clear()
+            invalidate_post_discovery_caches()
             return jsonify({
                 'success': True,
                 'status': 'struck',
@@ -9552,6 +9656,7 @@ def create_app():
                             user.password_recovery_requested_at = None
                             db.session.add(user)
                             db.session.commit()
+                            invalidate_user_snapshot_cache(user.id)
                             invalidate_admin_panel_page_cache()
                             flash('Tu contraseña se actualizó correctamente.', 'success')
                             return redirect(url_for('edit_profile') + '#security')
@@ -9645,6 +9750,7 @@ def create_app():
                 try:
                     db.session.add(user)
                     db.session.commit()
+                    invalidate_user_snapshot_cache(user.id)
                     flash('Perfil actualizado correctamente.', 'success')
                     return redirect(url_for('user_profile', username=user.username))
                 except Exception:
@@ -9732,6 +9838,7 @@ def create_app():
             user.profile_pic = new_name
             db.session.add(user)
             db.session.commit()
+            invalidate_user_snapshot_cache(user.id)
 
             try:
                 if old and old.lower() != 'default.jpg':

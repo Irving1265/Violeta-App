@@ -107,6 +107,11 @@ class VioletaSmokeTests(unittest.TestCase):
             db.session.remove()
             db.drop_all()
             app_module.ensure_startup_schema()
+        if hasattr(app_module, 'invalidate_user_snapshot_cache'):
+            app_module.invalidate_user_snapshot_cache()
+        clear_runtime_caches = app.extensions.get('violeta_clear_runtime_caches')
+        if clear_runtime_caches:
+            clear_runtime_caches()
 
     def tearDown(self):
         with app.app_context():
@@ -199,6 +204,7 @@ class VioletaSmokeTests(unittest.TestCase):
         publish_at: datetime | None = None,
         show_public: bool = True,
         location_visibility: str = 'exact',
+        categories: list[str] | None = None,
     ) -> int:
         filename = self.save_seed_image()
         with app.app_context():
@@ -211,6 +217,7 @@ class VioletaSmokeTests(unittest.TestCase):
                 location_name=location_name,
                 city=city,
                 country=country,
+                categories=json.dumps(categories) if categories else None,
                 created_at=created_at or datetime.now() - timedelta(minutes=30),
                 publish_at=publish_at or datetime.now() - timedelta(minutes=1),
             )
@@ -289,6 +296,12 @@ class VioletaSmokeTests(unittest.TestCase):
         data = response.get_json() or {}
         return [int(item['id']) for item in data.get('posts') or []]
 
+    def assert_timing_headers(self, response):
+        self.assertIn('Server-Timing', response.headers)
+        self.assertIn('X-Response-Time-ms', response.headers)
+        self.assertRegex(response.headers.get('Server-Timing', ''), r'^app;dur=\d+(\.\d+)?$')
+        float(response.headers.get('X-Response-Time-ms', ''))
+
     def fetch_feed_post(self, client, post_id: int):
         response = client.get('/feed')
         self.assertEqual(response.status_code, 200)
@@ -342,6 +355,216 @@ class VioletaSmokeTests(unittest.TestCase):
             strike.created_at = datetime.now() - timedelta(days=days_ago)
             db.session.add(strike)
             db.session.commit()
+
+    def test_login_success_invalid_credentials_and_required_session(self):
+        self.create_user('login_smoke')
+        client = app.test_client()
+
+        protected = client.get('/profile', follow_redirects=False)
+        self.assertEqual(protected.status_code, 302)
+        self.assertIn('/login', protected.headers.get('Location', ''))
+        self.assert_timing_headers(protected)
+
+        invalid = client.post(
+            '/login',
+            data={'login': 'login_smoke', 'password': 'wrong-password'},
+            follow_redirects=False,
+        )
+        self.assertEqual(invalid.status_code, 200)
+        self.assert_timing_headers(invalid)
+        with client.session_transaction() as sess:
+            self.assertNotIn('_user_id', sess)
+
+        valid = client.post(
+            '/login',
+            data={'login': 'login_smoke', 'password': 'Password123'},
+            follow_redirects=False,
+        )
+        self.assertEqual(valid.status_code, 302)
+        self.assertIn('/', valid.headers.get('Location', ''))
+        self.assert_timing_headers(valid)
+        with client.session_transaction() as sess:
+            self.assertTrue(sess.get('_user_id'))
+
+    def test_feed_render_pagination_filters_optimized_images_and_timing_headers(self):
+        original_page_size = app.config.get('FEED_PAGE_SIZE')
+        app.config['FEED_PAGE_SIZE'] = 2
+        def restore_page_size():
+            if original_page_size is None:
+                app.config.pop('FEED_PAGE_SIZE', None)
+            else:
+                app.config['FEED_PAGE_SIZE'] = original_page_size
+        self.addCleanup(restore_page_size)
+
+        author_id = self.create_user('autora_feed_critico')
+        viewer = self.client_for(author_id)
+        now = app_module.utc_now_naive()
+        near_post_id = self.create_public_post(
+            author_id,
+            caption='Reporte de banqueta cerca',
+            latitude=25.6866,
+            longitude=-100.3161,
+            created_at=now,
+            categories=['Banquetas en mal estado'],
+        )
+        second_post_id = self.create_public_post(
+            author_id,
+            caption='Reporte de poca iluminación',
+            latitude=25.6870,
+            longitude=-100.3164,
+            created_at=now - timedelta(minutes=2),
+            categories=['Poca iluminación'],
+        )
+        old_post_id = self.create_public_post(
+            author_id,
+            caption='Reporte antiguo',
+            latitude=25.6868,
+            longitude=-100.3162,
+            created_at=now - timedelta(days=2),
+            categories=['Terrenos baldíos'],
+        )
+        far_post_id = self.create_public_post(
+            author_id,
+            caption='Reporte lejano',
+            latitude=25.8000,
+            longitude=-100.4500,
+            created_at=now - timedelta(minutes=4),
+            categories=['Zona insegura'],
+        )
+
+        index_response = viewer.get('/')
+        self.assertEqual(index_response.status_code, 200)
+        self.assert_timing_headers(index_response)
+
+        feed_response = viewer.get('/feed')
+        self.assertEqual(feed_response.status_code, 200)
+        self.assert_timing_headers(feed_response)
+        payload = feed_response.get_json() or {}
+        self.assertTrue(payload.get('has_next'))
+        self.assertEqual(payload.get('page'), 1)
+        self.assertEqual(payload.get('next_page'), 2)
+        self.assertEqual(len(payload.get('posts') or []), 2)
+        self.assertEqual([int(item['id']) for item in payload['posts']], [near_post_id, second_post_id])
+        self.assertTrue(payload['posts'][0]['image_url'].startswith('/uploads/optimized/720/'))
+
+        page_two = viewer.get('/feed?page=2')
+        self.assertEqual(page_two.status_code, 200)
+        page_two_payload = page_two.get_json() or {}
+        self.assertEqual([int(item['id']) for item in page_two_payload.get('posts') or []], [far_post_id, old_post_id])
+        self.assertFalse(page_two_payload.get('has_next'))
+
+        category_response = viewer.get('/feed?categories=Banquetas%20en%20mal%20estado')
+        self.assertEqual(category_response.status_code, 200)
+        category_payload = category_response.get_json() or {}
+        self.assertEqual([int(item['id']) for item in category_payload.get('posts') or []], [near_post_id])
+        self.assertEqual(category_payload['posts'][0]['categories'], ['Banquetas en mal estado'])
+
+        today_response = viewer.get('/feed?today=1')
+        self.assertEqual(today_response.status_code, 200)
+        today_ids = [int(item['id']) for item in (today_response.get_json() or {}).get('posts') or []]
+        self.assertIn(near_post_id, today_ids)
+        self.assertIn(second_post_id, today_ids)
+        self.assertNotIn(old_post_id, today_ids)
+
+        near_response = viewer.get('/feed?near=1&lat=25.6866&lng=-100.3161')
+        self.assertEqual(near_response.status_code, 200)
+        near_ids = [int(item['id']) for item in (near_response.get_json() or {}).get('posts') or []]
+        self.assertIn(near_post_id, near_ids)
+        self.assertNotIn(far_post_id, near_ids)
+
+        empty_filters = viewer.get('/feed?categories=&near=1&today=0')
+        self.assertEqual(empty_filters.status_code, 200)
+
+    def test_upload_creates_post_with_categories_and_optimized_feed_url(self):
+        admin_id = self.create_user('admin')
+        client = self.client_for(admin_id)
+
+        response = client.post(
+            '/upload',
+            data={
+                'caption': 'Reporte con categorías #smoke',
+                'latitude': '25.7000',
+                'longitude': '-100.3300',
+                'location_name': 'Centro',
+                'city': 'Monterrey',
+                'country': 'México',
+                'location_visibility': 'exact',
+                'show_public': 'true',
+                'allow_likes': 'true',
+                'allow_comments': 'true',
+                'capture_source': 'upload',
+                'categories': ['Banquetas en mal estado', 'Terrenos baldíos'],
+                'image': self.image_upload('categorias.jpg'),
+            },
+            content_type='multipart/form-data',
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assert_timing_headers(response)
+
+        with app.app_context():
+            post = Post.query.order_by(Post.id.desc()).first()
+            self.assertIsNotNone(post)
+            assert post is not None
+            self.assertEqual(post.caption, 'Reporte con categorías #smoke')
+            self.assertEqual(json.loads(post.categories or '[]'), ['Banquetas en mal estado', 'Terrenos baldíos'])
+            post_id = int(post.id)
+
+        feed_post = self.fetch_feed_post(client, post_id)
+        self.assertIsNotNone(feed_post)
+        assert feed_post is not None
+        self.assertEqual(feed_post['categories'], ['Banquetas en mal estado', 'Terrenos baldíos'])
+        self.assertTrue(feed_post['image_url'].startswith('/uploads/optimized/720/'))
+
+    def test_admin_delete_user_removes_related_content_and_blocks_non_admin(self):
+        admin_id = self.create_user('admin')
+        target_id = self.create_user('delete_target')
+        other_id = self.create_user('delete_other')
+        reporter_id = self.create_user('delete_reporter')
+        target_profile_pic = self.save_seed_image('target-profile.jpg')
+
+        with app.app_context():
+            target = db.session.get(User, target_id)
+            assert target is not None
+            target.profile_pic = target_profile_pic
+            db.session.add(target)
+            db.session.commit()
+
+        target_post_id = self.create_public_post(target_id, caption='Post de usuaria a eliminar')
+        other_post_id = self.create_public_post(other_id, caption='Post de otra usuaria')
+        target_comment_id = self.create_comment(target_id, other_post_id, 'Comentario de usuaria a eliminar')
+        other_comment_id = self.create_comment(other_id, other_post_id, 'Comentario reportable')
+
+        with app.app_context():
+            target_post = db.session.get(Post, target_post_id)
+            assert target_post is not None
+            target_post_filename = target_post.image_filename
+            db.session.add(Like(user_id=target_id, post_id=other_post_id))
+            db.session.add(Report(post_id=target_post_id, reporter_id=reporter_id, reason='Información falso'))
+            db.session.add(Report(post_id=other_post_id, reporter_id=target_id, reason='Información falso'))
+            db.session.add(CommentReport(comment_id=other_comment_id, reporter_id=target_id, reason='Spam o fraude'))
+            db.session.commit()
+
+        non_admin_response = self.client_for(other_id).post(f'/admin/delete_user/{target_id}')
+        self.assertEqual(non_admin_response.status_code, 403)
+
+        admin_response = self.client_for(admin_id).post(f'/admin/delete_user/{target_id}')
+        self.assertEqual(admin_response.status_code, 200)
+        payload = admin_response.get_json() or {}
+        self.assertTrue(payload.get('success'))
+        self.assert_timing_headers(admin_response)
+
+        with app.app_context():
+            self.assertIsNone(db.session.get(User, target_id))
+            self.assertIsNone(db.session.get(Post, target_post_id))
+            self.assertIsNone(db.session.get(Comment, target_comment_id))
+            self.assertEqual(Like.query.filter_by(user_id=target_id).count(), 0)
+            self.assertEqual(Report.query.filter_by(reporter_id=target_id).count(), 0)
+            self.assertEqual(Report.query.filter_by(post_id=target_post_id).count(), 0)
+            self.assertEqual(CommentReport.query.filter_by(reporter_id=target_id).count(), 0)
+
+        self.assertFalse((UPLOAD_DIR / target_profile_pic).exists())
+        self.assertFalse((UPLOAD_DIR / target_post_filename).exists())
 
     def test_upload_camera_policy_and_safe_release(self):
         author_id = self.create_user('autora_feed')
@@ -818,6 +1041,7 @@ class VioletaSmokeTests(unittest.TestCase):
         moderation_client = self.client_for(moderation_reviewer_id)
 
         self.assertEqual(super_admin_client.get('/admin').status_code, 200)
+        self.assertEqual(super_admin_client.get('/admin/content').status_code, 200)
         self.assertEqual(super_admin_client.get(f'/admin/report_details/{post_id}').status_code, 200)
 
         assign_roles = super_admin_client.post(
