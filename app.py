@@ -1,5 +1,7 @@
 import os
 from uuid import uuid4
+import atexit
+from concurrent.futures import ThreadPoolExecutor
 
 from dotenv import load_dotenv
 
@@ -1967,6 +1969,14 @@ def create_app():
     jinja_cache_dir = os.path.join(app.instance_path, 'jinja-cache')
     os.makedirs(jinja_cache_dir, exist_ok=True)
     app.jinja_env.bytecode_cache = FileSystemBytecodeCache(jinja_cache_dir, '%s.cache')
+    background_executor = None
+    if app.config.get('BACKGROUND_JOBS_ENABLED'):
+        background_executor = ThreadPoolExecutor(
+            max_workers=max(1, int(app.config.get('BACKGROUND_JOB_WORKERS') or 2)),
+            thread_name_prefix='violeta-bg',
+        )
+        atexit.register(background_executor.shutdown, wait=False, cancel_futures=True)
+    app.extensions['violeta_background_executor'] = background_executor
 
     if not os.environ.get('SECRET_KEY'):
         app.logger.warning('SECRET_KEY no está definido en entorno. Se usa una clave efímera para esta sesión.')
@@ -2166,6 +2176,38 @@ def create_app():
         os.makedirs(folder, exist_ok=True)
         return folder
 
+    def submit_background_job(job_name: str, fn, *args, **kwargs):
+        if (
+            not app.config.get('BACKGROUND_JOBS_ENABLED')
+            or app.config.get('BACKGROUND_JOBS_INLINE')
+            or app.config.get('TESTING')
+        ):
+            return fn(*args, **kwargs)
+
+        executor = app.extensions.get('violeta_background_executor')
+        if executor is None:
+            return fn(*args, **kwargs)
+
+        def runner():
+            started_at = time.perf_counter()
+            try:
+                with app.app_context():
+                    return fn(*args, **kwargs)
+            except Exception as exc:
+                app.logger.exception('background_job_failed name=%s error=%s', job_name, exc)
+                return None
+            finally:
+                try:
+                    db.session.remove()
+                except Exception as cleanup_exc:
+                    _debug_log_suppressed('suppressed exception', cleanup_exc)
+                if app.debug:
+                    elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+                    app.logger.debug('background_job_finished name=%s duration_ms=%.1f', job_name, elapsed_ms)
+
+        return executor.submit(runner)
+
+    app.extensions['violeta_submit_background_job'] = submit_background_job
 
     def public_upload_storage_enabled() -> bool:
         return (
@@ -3471,6 +3513,68 @@ def create_app():
         _feed_sidebar_cache.clear()
 
     app.extensions['violeta_clear_runtime_caches'] = clear_runtime_caches_for_tests
+
+    def reverse_geocode_location_payload(lat, lng) -> dict[str, str | None]:
+        if not valid_coords(lat, lng):
+            return {}
+        try:
+            import json as _json
+            params = {
+                'format': 'json',
+                'lat': f'{float(lat):.6f}',
+                'lon': f'{float(lng):.6f}',
+                'addressdetails': '1',
+            }
+            url = f"https://nominatim.openstreetmap.org/reverse?{urlencode(params)}"
+            req = Request(url, headers={
+                'User-Agent': 'VioletaApp/1.0 (+contact@example.com)'
+            })
+            with urlopen(req, timeout=4) as resp:  # nosec B310
+                data = _json.loads(resp.read().decode('utf-8'))
+            address = data.get('address', {}) if isinstance(data, dict) else {}
+            street = address.get('road') or address.get('pedestrian') or address.get('footway')
+            town = address.get('city') or address.get('town') or address.get('village')
+            state = address.get('state')
+            parts = []
+            if street:
+                parts.append(street)
+            if town:
+                parts.append(town)
+            if state:
+                parts.append(state)
+            return {
+                'location_name': ', '.join(parts) or None,
+                'city': town,
+                'country': address.get('country'),
+            }
+        except Exception as exc:
+            if app.debug:
+                app.logger.debug('reverse_geocoding_failed lat=%s lng=%s error=%s', lat, lng, exc)
+            return {}
+
+    def fill_post_location_from_reverse_geocode(post_id: int, lat, lng) -> bool:
+        payload = reverse_geocode_location_payload(lat, lng)
+        if not payload:
+            return False
+        post = db.session.get(Post, int(post_id))
+        if post is None:
+            return False
+        changed = False
+        if not post.location_name and payload.get('location_name'):
+            post.location_name = payload['location_name']
+            changed = True
+        if not post.city and payload.get('city'):
+            post.city = payload['city']
+            changed = True
+        if not post.country and payload.get('country'):
+            post.country = payload['country']
+            changed = True
+        if not changed:
+            return False
+        db.session.add(post)
+        db.session.commit()
+        invalidate_post_discovery_caches()
+        return True
 
     def try_release_pending_safety_posts_for_user(user, current_lat=None, current_lng=None):
         now = datetime.now(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
@@ -4979,7 +5083,15 @@ def create_app():
             flash('No se pudo publicar la imagen en el almacenamiento externo.', 'danger')
             return redirect(url_for('index'))
 
-        prewarm_optimized_upload_variants(unique_name, source_path=save_path)
+        if app.config.get('ASYNC_UPLOAD_OPTIMIZATION', True):
+            submit_background_job(
+                'upload_optimized_variants',
+                prewarm_optimized_upload_variants,
+                unique_name,
+                source_path=save_path,
+            )
+        else:
+            prewarm_optimized_upload_variants(unique_name, source_path=save_path)
 
         # Campos del formulario (con fallback a request.form)
         caption = safe_field(form, 'caption') or ''
@@ -5045,47 +5157,13 @@ def create_app():
                 else:
                     publish_at = now
 
-        # Si faltan etiquetas de lugar, intentar reverse geocoding ligero (mejora UX)
-        # Usa Nominatim con timeout corto y User-Agent identificable
-        if not location_name:
-            try:
-                import json as _json
-                from urllib.request import Request, urlopen
-                from urllib.parse import urlencode, quote
-                params = {
-                    'format': 'json',
-                    'lat': f'{lat:.6f}',
-                    'lon': f'{lng:.6f}',
-                    'addressdetails': '1',
-                }
-                url = f"https://nominatim.openstreetmap.org/reverse?{urlencode(params)}"
-                req = Request(url, headers={
-                    'User-Agent': 'VioletaApp/1.0 (+contact@example.com)'
-                })
-                with urlopen(req, timeout=4) as resp:  # nosec B310
-                    data = _json.loads(resp.read().decode('utf-8'))
-                    address = data.get('address', {}) if isinstance(data, dict) else {}
-                    # Construir location_name tipo Instagram
-                    street = address.get('road') or address.get('pedestrian') or address.get('footway')
-                    town = address.get('city') or address.get('town') or address.get('village')
-                    state = address.get('state')
-                    parts = []
-                    if street:
-                        parts.append(street)
-                    if town:
-                        parts.append(town)
-                    if state:
-                        parts.append(state)
-                    built = ', '.join(parts)
-                    if built:
-                        location_name = built
-                    if not city:
-                        city = town
-                    if not country:
-                        country = address.get('country')
-            except Exception as _e:
-                if app.debug:
-                    print('DEBUG: reverse geocoding failed:', _e)
+        needs_reverse_geocode = not location_name and valid_coords(lat, lng)
+        if needs_reverse_geocode and not app.config.get('ASYNC_REVERSE_GEOCODING', True):
+            geo_payload = reverse_geocode_location_payload(lat, lng)
+            if geo_payload:
+                location_name = geo_payload.get('location_name') or location_name
+                city = city or geo_payload.get('city')
+                country = country or geo_payload.get('country')
 
         try:
             post = Post()
@@ -5175,6 +5253,15 @@ def create_app():
                 _debug_log_suppressed('suppressed exception', exc)
             flash('No se pudo crear la publicación.', 'danger')
             return redirect(url_for('index'))
+
+        if needs_reverse_geocode and app.config.get('ASYNC_REVERSE_GEOCODING', True):
+            submit_background_job(
+                'reverse_geocode_post',
+                fill_post_location_from_reverse_geocode,
+                post.id,
+                lat,
+                lng,
+            )
 
         if app.debug:
             try:

@@ -94,6 +94,11 @@ class Config:
     # Paginación y límites de vistas pesadas.
     FEED_PAGE_SIZE = max(1, int(os.environ.get('FEED_PAGE_SIZE') or 3))
     SLOW_REQUEST_LOG_MS = max(1, int(os.environ.get('SLOW_REQUEST_LOG_MS') or 750))
+    BACKGROUND_JOBS_ENABLED = _env_bool('BACKGROUND_JOBS_ENABLED', True)
+    BACKGROUND_JOBS_INLINE = _env_bool('BACKGROUND_JOBS_INLINE', False)
+    BACKGROUND_JOB_WORKERS = max(1, int(os.environ.get('BACKGROUND_JOB_WORKERS') or 2))
+    ASYNC_UPLOAD_OPTIMIZATION = _env_bool('ASYNC_UPLOAD_OPTIMIZATION', True)
+    ASYNC_REVERSE_GEOCODING = _env_bool('ASYNC_REVERSE_GEOCODING', True)
     PROFILE_POSTS_PAGE_SIZE = max(1, int(os.environ.get('PROFILE_POSTS_PAGE_SIZE') or 12))
     ADMIN_USERS_LIMIT = max(5, int(os.environ.get('ADMIN_USERS_LIMIT') or 8))
     ADMIN_POSTS_LIMIT = max(6, int(os.environ.get('ADMIN_POSTS_LIMIT') or 6))

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import importlib
+import hashlib
 import json
 import os
 import shutil
@@ -509,12 +510,69 @@ class VioletaSmokeTests(unittest.TestCase):
             self.assertEqual(post.caption, 'Reporte con categorías #smoke')
             self.assertEqual(json.loads(post.categories or '[]'), ['Banquetas en mal estado', 'Terrenos baldíos'])
             post_id = int(post.id)
+            post_filename = post.image_filename
 
         feed_post = self.fetch_feed_post(client, post_id)
         self.assertIsNotNone(feed_post)
         assert feed_post is not None
         self.assertEqual(feed_post['categories'], ['Banquetas en mal estado', 'Terrenos baldíos'])
         self.assertTrue(feed_post['image_url'].startswith('/uploads/optimized/720/'))
+        stem = os.path.splitext(os.path.basename(post_filename))[0]
+        digest = hashlib.sha256(post_filename.encode('utf-8')).hexdigest()[:12]
+        optimized_name = f'{stem}-{digest}-w720.webp'
+        self.assertTrue((UPLOAD_DIR / '_optimized' / 'w720' / optimized_name).exists())
+
+    def test_background_reverse_geocoding_fills_missing_post_location(self):
+        admin_id = self.create_user('admin')
+        client = self.client_for(admin_id)
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    'address': {
+                        'road': 'Calle Prueba',
+                        'city': 'Monterrey',
+                        'state': 'Nuevo León',
+                        'country': 'México',
+                    }
+                }).encode('utf-8')
+
+        def fake_urlopen(request_obj, timeout=4):  # noqa: ARG001
+            self.assertIn('nominatim.openstreetmap.org/reverse', request_obj.full_url)
+            return FakeResponse()
+
+        with mock.patch.object(app_module, 'urlopen', side_effect=fake_urlopen):
+            response = client.post(
+                '/upload',
+                data={
+                    'caption': 'Reporte sin nombre de ubicación',
+                    'latitude': '25.7000',
+                    'longitude': '-100.3300',
+                    'location_visibility': 'exact',
+                    'show_public': 'true',
+                    'allow_likes': 'true',
+                    'allow_comments': 'true',
+                    'capture_source': 'upload',
+                    'image': self.image_upload('sin-ubicacion.jpg'),
+                },
+                content_type='multipart/form-data',
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            post = Post.query.order_by(Post.id.desc()).first()
+            self.assertIsNotNone(post)
+            assert post is not None
+            self.assertEqual(post.location_name, 'Calle Prueba, Monterrey, Nuevo León')
+            self.assertEqual(post.city, 'Monterrey')
+            self.assertEqual(post.country, 'México')
 
     def test_admin_delete_user_removes_related_content_and_blocks_non_admin(self):
         admin_id = self.create_user('admin')
