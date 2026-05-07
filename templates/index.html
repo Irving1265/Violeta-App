@@ -8,6 +8,11 @@
 <header class="violeta-header">
     <div class="violeta-header-content">
         <h1 class="violeta-title">Explorar</h1>
+        {% if current_user.is_authenticated and current_user_can_access_admin_panel %}
+        <a href="{{ url_for('admin_panel') }}" class="violeta-admin-mobile-btn" aria-label="Abrir panel de admin" title="Panel de admin">
+            <i class="fa-solid fa-user-shield"></i>
+        </a>
+        {% endif %}
     </div>
 
     <div class="violeta-city-filters-section">

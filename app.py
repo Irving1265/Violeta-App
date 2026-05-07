@@ -8275,6 +8275,16 @@ def create_app():
             (Share.sender_id == target_user.id) | (Share.receiver_id == target_user.id)
         ).delete(synchronize_session=False)
 
+        # Invite relationships. created_by_user_id is required, so creator-owned
+        # codes must be removed before deleting the account.
+        User.query.filter_by(invited_by_id=target_user.id).update(
+            {'invited_by_id': None}, synchronize_session=False
+        )
+        InviteCode.query.filter_by(used_by_user_id=target_user.id).update(
+            {'used_by_user_id': None}, synchronize_session=False
+        )
+        InviteCode.query.filter_by(created_by_user_id=target_user.id).delete(synchronize_session=False)
+
         # Reports created by user
         Report.query.filter_by(reporter_id=target_user.id).delete(synchronize_session=False)
         Report.query.filter_by(resolved_by=target_user.id).update({'resolved_by': None}, synchronize_session=False)

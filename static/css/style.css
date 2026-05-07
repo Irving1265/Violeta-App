@@ -5511,6 +5511,35 @@ body.profile-delete-modal-open {
     letter-spacing: -0.5px;
 }
 
+.violeta-admin-mobile-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(139, 92, 246, 0.24);
+    border-radius: 14px;
+    background: rgba(139, 92, 246, 0.12);
+    color: #ddd6fe;
+    text-decoration: none;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.violeta-admin-mobile-btn:hover,
+.violeta-admin-mobile-btn:focus-visible {
+    border-color: rgba(167, 139, 250, 0.42);
+    background: rgba(139, 92, 246, 0.22);
+    color: #ffffff;
+    outline: none;
+    transform: translateY(-1px);
+}
+
+@media (min-width: 768px) {
+    .violeta-admin-mobile-btn {
+        display: none;
+    }
+}
+
 .violeta-city-filters-section {
     background-color: #1a1525;
     border: 1px solid rgba(255, 255, 255, 0.05);

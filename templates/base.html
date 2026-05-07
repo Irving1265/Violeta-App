@@ -16,7 +16,7 @@
     {% if request.endpoint in ['index', 'hotspots_page', 'safety_center', 'login'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260425-mobile-profile-avatar-v3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260506-mobile-admin-header-v1">
     {% if request.endpoint == 'index' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/post_create.css') }}?v=20260403-post-modal-motion-v17">
     {% endif %}
