@@ -108,7 +108,10 @@
           </form>
           {% endif %}
           <a href="{{ url_for('post_detail', post_id=p.id) }}">
-            <img src="{{ url_for('uploaded_file', filename=p.image_filename) }}" alt="Post">
+            <img src="{{ optimized_media_url(p.image_filename, 360) }}"
+              srcset="{{ optimized_media_url(p.image_filename, 360) }} 360w, {{ optimized_media_url(p.image_filename, 720) }} 720w"
+              sizes="(max-width: 768px) 33vw, 220px"
+              alt="Post" loading="lazy" decoding="async">
             {% if p.is_pending %}
             <div class="grid-pending-overlay"
               title="Se publicará cuando pasen {{ safety_publish_policy.min_delay_minutes }} min y te alejes {{ safety_publish_policy.distance_meters }} m, o en máximo {{ safety_publish_policy.fallback_minutes }} min."

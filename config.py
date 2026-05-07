@@ -93,6 +93,7 @@ class Config:
 
     # Paginación y límites de vistas pesadas.
     FEED_PAGE_SIZE = max(1, int(os.environ.get('FEED_PAGE_SIZE') or 3))
+    SLOW_REQUEST_LOG_MS = max(1, int(os.environ.get('SLOW_REQUEST_LOG_MS') or 750))
     PROFILE_POSTS_PAGE_SIZE = max(1, int(os.environ.get('PROFILE_POSTS_PAGE_SIZE') or 12))
     ADMIN_USERS_LIMIT = max(5, int(os.environ.get('ADMIN_USERS_LIMIT') or 8))
     ADMIN_POSTS_LIMIT = max(6, int(os.environ.get('ADMIN_POSTS_LIMIT') or 6))

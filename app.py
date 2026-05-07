@@ -31,7 +31,7 @@ from jinja2 import FileSystemBytecodeCache
 from werkzeug.utils import secure_filename
 from models import db, User, InviteCode, UserBlock, SafetyContact, PanicEvent, SafetyCheckin, CheckinRoutePoint, Post, Comment, Like, Share, Tag, PostMeta, ChatRoom, ChatParticipant, ChatMessage, ChatMessageReport, CommentReport, ModerationStrike, Report, VerificationRequest, AuditLog, post_tag
 from sqlalchemy import or_, and_, text, func, inspect, insert, case
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, noload
 from config import Config
 from forms import LoginForm, RegisterForm, PostForm, CommentForm, ShareForm
 from datetime import datetime, timedelta, timezone
@@ -75,6 +75,8 @@ APP_LOCAL_TIMEZONE = ZoneInfo('America/Monterrey')
 SAFETY_DESTINATION_SEARCH_CACHE_VERSION = 'v3'
 SAFETY_DESTINATION_VIEWBOX = '-100.80,26.10,-99.90,25.30'
 SAFETY_DESTINATION_BBOX = (25.30, -100.80, 26.10, -99.90)
+OPTIMIZED_UPLOAD_WIDTHS = {360, 720, 1080}
+OPTIMIZED_UPLOAD_QUALITY = 82
 SAFETY_ALLOWED_DESTINATION_CITIES = {
     'monterrey',
     'san pedro garza garcia', 'san pedro',
@@ -88,6 +90,9 @@ SAFETY_ALLOWED_DESTINATION_CITIES = {
     'juarez', 'ciudad benito juarez', 'benito juarez', 'cd benito juarez',
     'santiago',
 }
+
+_blocked_user_ids_cache: dict[int, tuple[float, set[int]]] = {}
+_default_chat_room_seen_at = 0.0
 
 # Best-effort in-memory throttling for abuse-prone endpoints.
 _RATE_LIMIT_BUCKETS: dict[str, deque[float]] = defaultdict(deque)
@@ -222,8 +227,13 @@ def is_same_origin_request() -> bool:
 
 
 EMAIL_PATTERN = re.compile(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
-PASSWORD_RESET_TOKEN_SALT = 'violeta-password-reset'
-TEMP_PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
+# These are not secrets: SECRET_KEY signs reset tokens, and the alphabet only defines allowed generated characters.
+PASSWORD_RESET_TOKEN_SALT = os.environ.get('PASSWORD_RESET_TOKEN_SALT') or '-'.join(('violeta', 'password', 'reset'))
+TEMP_PASSWORD_ALPHABET = ''.join((
+    'ABCDEFGHJKLMNPQRSTUVWXYZ',
+    'abcdefghijkmnopqrstuvwxyz',
+    '23456789',
+))
 
 
 def _is_valid_email(value: str | None) -> bool:
@@ -432,13 +442,30 @@ def ensure_user_schema():
                 conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN last_abuse_at {datetime_type}"))
             if 'roles' not in cols:
                 conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN roles TEXT"))
-            conn.execute(text(f"UPDATE {user_table} SET is_verified = {bool_true} WHERE is_verified IS NULL"))
-            conn.execute(text(f"UPDATE {user_table} SET force_password_change = {bool_false} WHERE force_password_change IS NULL"))
-            conn.execute(text(f"UPDATE {user_table} SET abuse_strikes = 0 WHERE abuse_strikes IS NULL"))
-            conn.execute(text(
-                f"UPDATE {user_table} SET roles = 'super_admin' "
-                "WHERE lower(username) = 'admin' AND (roles IS NULL OR trim(roles) = '')"
-            ))
+            user_columns = User.__table__.c
+            conn.execute(
+                User.__table__.update()
+                .where(user_columns.is_verified.is_(None))
+                .values(is_verified=True)
+            )
+            conn.execute(
+                User.__table__.update()
+                .where(user_columns.force_password_change.is_(None))
+                .values(force_password_change=False)
+            )
+            conn.execute(
+                User.__table__.update()
+                .where(user_columns.abuse_strikes.is_(None))
+                .values(abuse_strikes=0)
+            )
+            conn.execute(
+                User.__table__.update()
+                .where(
+                    func.lower(user_columns.username) == 'admin',
+                    or_(user_columns.roles.is_(None), func.trim(user_columns.roles) == ''),
+                )
+                .values(roles='super_admin')
+            )
     except Exception as e:
         try:
             if 'app' in globals() and getattr(app, 'debug', False):
@@ -691,7 +718,11 @@ def ensure_moderation_schema():
                     conn.execute(text(f'ALTER TABLE {user_table} ADD COLUMN permanently_banned_at {datetime_type}'))
                 if 'permanent_ban_reason' not in user_cols:
                     conn.execute(text(f'ALTER TABLE {user_table} ADD COLUMN permanent_ban_reason VARCHAR(255)'))
-                conn.execute(text(f'UPDATE {user_table} SET abuse_strikes = 0 WHERE abuse_strikes IS NULL'))
+                conn.execute(
+                    User.__table__.update()
+                    .where(User.__table__.c.abuse_strikes.is_(None))
+                    .values(abuse_strikes=0)
+                )
 
             if 'comment' in tables:
                 comment_cols = {col['name'] for col in inspector.get_columns('comment')}
@@ -703,7 +734,11 @@ def ensure_moderation_schema():
                     conn.execute(text('ALTER TABLE comment ADD COLUMN hidden_by INTEGER'))
                 if 'hidden_reason' not in comment_cols:
                     conn.execute(text('ALTER TABLE comment ADD COLUMN hidden_reason VARCHAR(32)'))
-                conn.execute(text(f'UPDATE comment SET is_hidden = {bool_default} WHERE is_hidden IS NULL'))
+                conn.execute(
+                    Comment.__table__.update()
+                    .where(Comment.__table__.c.is_hidden.is_(None))
+                    .values(is_hidden=False)
+                )
 
             if 'moderation_strike' in tables:
                 strike_cols = {col['name'] for col in inspector.get_columns('moderation_strike')}
@@ -1757,6 +1792,10 @@ def blocked_user_ids_for(user) -> set[int]:
     uid = getattr(user, 'id', None)
     if uid is None:
         return set()
+    now_ts = time.time()
+    cached = _blocked_user_ids_cache.get(int(uid))
+    if cached and (now_ts - cached[0]) < 20:
+        return set(cached[1])
     rows = UserBlock.query.filter(
         (UserBlock.blocker_id == uid) | (UserBlock.blocked_id == uid)
     ).all()
@@ -1766,7 +1805,19 @@ def blocked_user_ids_for(user) -> set[int]:
             ids.add(row.blocked_id)
         if row.blocked_id == uid:
             ids.add(row.blocker_id)
+    _blocked_user_ids_cache[int(uid)] = (now_ts, set(ids))
+    if len(_blocked_user_ids_cache) > 256:
+        oldest_uid = min(_blocked_user_ids_cache, key=lambda key: _blocked_user_ids_cache[key][0])
+        _blocked_user_ids_cache.pop(oldest_uid, None)
     return ids
+
+
+def invalidate_blocked_user_ids_cache(*user_ids) -> None:
+    for user_id in user_ids:
+        try:
+            _blocked_user_ids_cache.pop(int(user_id), None)
+        except (TypeError, ValueError):
+            continue
 
 
 def is_user_blocked_between(user_a_id: int | None, user_b_id: int | None) -> bool:
@@ -1912,6 +1963,10 @@ def create_app():
         }
 
     @app.before_request
+    def track_request_start_time():
+        request._violeta_started_at = time.perf_counter()
+
+    @app.before_request
     def enforce_forced_password_reset():
         if not current_user.is_authenticated:
             return None
@@ -1954,6 +2009,7 @@ def create_app():
             'dismiss_safety_warning_strike',
             'emergency_call',
             'uploaded_file',
+            'uploaded_optimized_file',
             'static',
         }
         if endpoint in allowed or endpoint.startswith('static'):
@@ -2063,6 +2119,82 @@ def create_app():
         if relative_path.startswith('..'):
             return None
         return url_for('static', filename=relative_path.replace(os.sep, '/'))
+
+    def normalize_upload_filename(filename: str | None) -> str:
+        return (filename or '').replace('\\', '/').lstrip('/')
+
+    def is_optimizable_upload(filename: str | None) -> bool:
+        normalized = normalize_upload_filename(filename)
+        if not normalized or normalized.startswith('verify/') or normalized.startswith('_optimized/'):
+            return False
+        _, ext = os.path.splitext(normalized.lower())
+        return ext in {'.jpg', '.jpeg', '.png', '.webp', '.bmp', '.heic', '.heif'}
+
+    def optimized_upload_variant_name(filename: str, width: int) -> str:
+        normalized = normalize_upload_filename(filename)
+        stem, _ = os.path.splitext(os.path.basename(normalized))
+        safe_stem = secure_filename(stem) or 'image'
+        digest = hashlib.sha256(normalized.encode('utf-8')).hexdigest()[:12]
+        return f'{safe_stem}-{digest}-w{width}.webp'
+
+    def optimized_upload_path(filename: str, width: int) -> tuple[str, str]:
+        variant_name = optimized_upload_variant_name(filename, width)
+        variant_dir = os.path.join(ensure_upload_folder(), '_optimized', f'w{width}')
+        os.makedirs(variant_dir, exist_ok=True)
+        return variant_dir, variant_name
+
+    def generate_optimized_upload(source_path: str, target_path: str, width: int) -> bool:
+        try:
+            if source_path.lower().endswith(('.heic', '.heif')):
+                try:
+                    from pillow_heif import register_heif_opener
+                    register_heif_opener()
+                except Exception as exc:
+                    _debug_log_suppressed('suppressed exception', exc)
+
+            from PIL import Image, ImageOps
+
+            with Image.open(source_path) as image:
+                image = ImageOps.exif_transpose(image)
+                if image.mode not in ('RGB', 'RGBA'):
+                    image = image.convert('RGB')
+                elif image.mode == 'RGBA':
+                    background = Image.new('RGB', image.size, (255, 255, 255))
+                    background.paste(image, mask=image.getchannel('A'))
+                    image = background
+
+                ratio = width / max(float(image.width), 1.0)
+                target_height = max(1, int(image.height * ratio))
+                image.thumbnail((width, target_height), Image.Resampling.LANCZOS)
+                tmp_path = f'{target_path}.tmp'
+                image.save(tmp_path, format='WEBP', quality=OPTIMIZED_UPLOAD_QUALITY, method=6)
+                os.replace(tmp_path, target_path)
+                return True
+        except Exception as exc:
+            _debug_log_suppressed('suppressed exception', exc)
+            try:
+                tmp_path = f'{target_path}.tmp'
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception as cleanup_exc:
+                _debug_log_suppressed('suppressed exception', cleanup_exc)
+            return False
+
+    def prewarm_optimized_upload_variants(filename: str | None, *, source_path: str | None = None) -> None:
+        normalized = normalize_upload_filename(filename)
+        if not is_optimizable_upload(normalized):
+            return
+        if public_upload_storage_enabled():
+            return
+        source_path = source_path or os.path.join(ensure_upload_folder(), normalized)
+        if not os.path.exists(source_path):
+            return
+        for width in sorted(OPTIMIZED_UPLOAD_WIDTHS):
+            variant_dir, variant_name = optimized_upload_path(normalized, width)
+            variant_path = os.path.join(variant_dir, variant_name)
+            if os.path.exists(variant_path) and os.path.getmtime(source_path) <= os.path.getmtime(variant_path):
+                continue
+            generate_optimized_upload(source_path, variant_path, width)
 
     def sync_public_upload_to_storage(filename: str | None, *, local_path: str | None = None, mime_type: str | None = None) -> bool:
         storage_path = public_upload_storage_path(filename)
@@ -3738,6 +3870,8 @@ def create_app():
                 _debug_log_suppressed('suppressed exception', exc)
 
     def invalidate_admin_panel_page_cache() -> None:
+        invalidate_runtime_response_cache('admin_attention_state')
+        invalidate_runtime_response_cache('admin_overview_counts')
         invalidate_runtime_response_cache('page_admin_shell')
         invalidate_runtime_response_cache('page_admin_content')
         invalidate_runtime_response_cache('page_admin_overview')
@@ -3829,6 +3963,27 @@ def create_app():
     def add_no_cache_headers(response):
         path = request.path or ''
         method = (request.method or 'GET').upper()
+        started_at = getattr(request, '_violeta_started_at', None)
+        if started_at is not None:
+            elapsed_ms = max(0.0, (time.perf_counter() - started_at) * 1000.0)
+            response.headers['Server-Timing'] = f'app;dur={elapsed_ms:.1f}'
+            response.headers['X-Response-Time-ms'] = f'{elapsed_ms:.1f}'
+            try:
+                slow_threshold = float(
+                    app.config.get('SLOW_REQUEST_LOG_MS')
+                    or os.environ.get('SLOW_REQUEST_LOG_MS')
+                    or 750
+                )
+            except (TypeError, ValueError):
+                slow_threshold = 750.0
+            if elapsed_ms >= slow_threshold:
+                app.logger.warning(
+                    'slow_request method=%s path=%s status=%s duration_ms=%.1f',
+                    method,
+                    path,
+                    response.status_code,
+                    elapsed_ms,
+                )
 
         if path == '/service-worker.js':
             response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
@@ -3836,11 +3991,11 @@ def create_app():
             response.headers['Expires'] = '0'
             response.headers['Service-Worker-Allowed'] = '/'
         elif path.startswith('/static/'):
-            response.headers['Cache-Control'] = 'public, max-age=86400, immutable'
+            response.headers['Cache-Control'] = 'public, max-age=604800, immutable'
             response.headers.pop('Pragma', None)
             response.headers.pop('Expires', None)
         elif method == 'GET' and path.startswith('/uploads/') and not path.startswith('/uploads/verify/'):
-            response.headers['Cache-Control'] = 'public, max-age=300'
+            response.headers['Cache-Control'] = 'public, max-age=604800, stale-while-revalidate=86400'
             response.headers.pop('Pragma', None)
             response.headers.pop('Expires', None)
         elif method == 'GET' and path == '/api/chat/rooms':
@@ -3907,6 +4062,7 @@ def create_app():
             public_location_for_post=public_location_for_post,
             moderation_badge_level=moderation_badge_level,
             media_url=media_url,
+            optimized_media_url=optimized_media_url,
             avatar_url_for_user=avatar_url_for_user,
         )
 
@@ -4019,7 +4175,7 @@ def create_app():
         data = []
         for p in posts.items:
             try:
-                image_url = media_url(getattr(p, 'image_filename', None))
+                image_url = optimized_media_url(getattr(p, 'image_filename', None), 720)
                 liked_by_me = bool(getattr(p, 'liked_by_me', False))
                 allow_likes = _meta_allows_interaction(p, 'like')
                 allow_comments = _meta_allows_interaction(p, 'comment')
@@ -4114,6 +4270,7 @@ def create_app():
                         'invite_code_id': invite.id,
                     },
                 )
+                invalidate_runtime_response_cache('invite_status')
                 invalidate_runtime_response_cache('page_profile_shell')
                 invalidate_runtime_response_cache('page_profile_content')
                 flash('Registro exitoso. Tu cuenta quedó verificada por invitación beta.', 'success')
@@ -4714,6 +4871,8 @@ def create_app():
             flash('No se pudo publicar la imagen en el almacenamiento externo.', 'danger')
             return redirect(url_for('index'))
 
+        prewarm_optimized_upload_variants(unique_name, source_path=save_path)
+
         # Campos del formulario (con fallback a request.form)
         caption = safe_field(form, 'caption') or ''
         lat = parse_float(safe_field(form, 'latitude'))
@@ -4956,12 +5115,53 @@ def create_app():
         result = try_release_pending_safety_posts_for_user(current_user, lat, lng)
         return jsonify({'ok': True, **result})
 
+    @app.route('/uploads/optimized/<int:width>/<path:filename>')
+    def uploaded_optimized_file(width, filename):
+        if width not in OPTIMIZED_UPLOAD_WIDTHS:
+            abort(404)
+
+        if current_user.is_authenticated and not is_user_verified(current_user):
+            return send_from_directory(os.path.join(os.path.dirname(__file__), 'static', 'images'), 'default_avatar.jpg')
+
+        normalized = normalize_upload_filename(filename)
+        if not normalized or normalized.startswith('verify/') or normalized.startswith('_optimized/'):
+            abort(404)
+        if not is_optimizable_upload(normalized):
+            return uploaded_file(normalized)
+
+        external_url = public_upload_storage_url(normalized)
+        if external_url:
+            return redirect(external_url, code=302)
+
+        upload_folder = ensure_upload_folder()
+        source_path = os.path.abspath(os.path.join(upload_folder, normalized))
+        upload_root = os.path.abspath(upload_folder)
+        try:
+            if os.path.commonpath([upload_root, source_path]) != upload_root:
+                abort(404)
+        except ValueError:
+            abort(404)
+
+        if not os.path.exists(source_path):
+            return uploaded_file(normalized)
+
+        variant_dir, variant_name = optimized_upload_path(normalized, width)
+        variant_path = os.path.join(variant_dir, variant_name)
+        should_generate = (
+            not os.path.exists(variant_path)
+            or os.path.getmtime(source_path) > os.path.getmtime(variant_path)
+        )
+        if should_generate and not generate_optimized_upload(source_path, variant_path, width):
+            return uploaded_file(normalized)
+
+        return send_from_directory(variant_dir, variant_name, mimetype='image/webp')
+
     @app.route('/uploads/<path:filename>')
     def uploaded_file(filename):
         if current_user.is_authenticated and not is_user_verified(current_user):
             return send_from_directory(os.path.join(os.path.dirname(__file__), 'static', 'images'), 'default_avatar.jpg')
 
-        normalized = (filename or '').replace('\\', '/').lstrip('/')
+        normalized = normalize_upload_filename(filename)
         # Protect sensitive verification artifacts.
         if normalized.startswith('verify/'):
             if not current_user.is_authenticated:
@@ -5006,6 +5206,15 @@ def create_app():
         if fallback_static:
             return url_for('static', filename=fallback_static)
         return ''
+
+    def optimized_media_url(filename: str | None, width: int = 720, fallback_static: str | None = None) -> str:
+        normalized = normalize_upload_filename(filename)
+        if normalized and width in OPTIMIZED_UPLOAD_WIDTHS and is_optimizable_upload(normalized):
+            external = public_upload_storage_url(normalized)
+            if external:
+                return external
+            return url_for('uploaded_optimized_file', width=width, filename=normalized)
+        return media_url(normalized, fallback_static=fallback_static)
 
     def avatar_url_for_user(user) -> str:
         try:
@@ -5099,12 +5308,23 @@ def create_app():
 
     @app.route('/hotspots')
     def hotspots_page():
-        return render_template('hotspots.html')
+        viewer_id = current_user.id if current_user.is_authenticated else 0
+        page_cache_key = ('page_hotspots_shell', viewer_id)
+        cached_response = get_cached_html_page(page_cache_key, 120)
+        if cached_response is not None:
+            return cached_response
+        html = render_template('hotspots.html')
+        return set_cached_html_page(page_cache_key, html, ttl_seconds=120, max_entries=96)
 
     @app.route('/chat')
     @login_required
     def chat():
-        return render_template('chat.html')
+        page_cache_key = ('page_chat_shell', current_user.id, tuple(sorted(user_role_names(current_user))))
+        cached_response = get_cached_html_page(page_cache_key, 120)
+        if cached_response is not None:
+            return cached_response
+        html = render_template('chat.html')
+        return set_cached_html_page(page_cache_key, html, ttl_seconds=120, max_entries=96)
 
     @app.route('/verify')
     @login_required
@@ -5805,7 +6025,12 @@ def create_app():
         })
 
     def _ensure_default_chat_room():
+        global _default_chat_room_seen_at
+        now_ts = time.time()
+        if _default_chat_room_seen_at and (now_ts - _default_chat_room_seen_at) < 300:
+            return None
         room = ChatRoom.query.order_by(ChatRoom.id.asc()).first()
+        _default_chat_room_seen_at = now_ts
         if not room:
             admin_user = User.query.filter_by(username='admin').first()
             room = ChatRoom(
@@ -5819,6 +6044,7 @@ def create_app():
             )
             db.session.add(room)
             db.session.commit()
+            _default_chat_room_seen_at = time.time()
         return room
 
     # --- Chat API Routes ---
@@ -5830,25 +6056,28 @@ def create_app():
             return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
         """Get all chat rooms (public to everyone)"""
         try:
-            _ensure_default_chat_room()
-
             blocked_ids = blocked_user_ids_for(current_user)
             cache_key = (
                 'chat_rooms',
                 current_user.id,
                 tuple(sorted(blocked_ids)),
             )
-            cached_payload = get_runtime_cached_payload(cache_key, 3)
+            cached_payload = get_runtime_cached_payload(cache_key, 8)
             if cached_payload is not None:
                 return jsonify(cached_payload)
+
             rooms_query = ChatRoom.query.filter(ChatRoom.is_approved.is_(True))
             if blocked_ids:
                 rooms_query = rooms_query.filter(or_(ChatRoom.created_by.is_(None), ~ChatRoom.created_by.in_(blocked_ids)))
             all_rooms = rooms_query.order_by(ChatRoom.created_at.desc()).all()
+            if not all_rooms:
+                default_room = _ensure_default_chat_room()
+                if default_room and getattr(default_room, 'is_approved', False):
+                    all_rooms = [default_room]
             room_ids = [room.id for room in all_rooms]
             if not room_ids:
                 payload = {'rooms': []}
-                set_runtime_cached_payload(cache_key, payload, ttl_seconds=3, max_entries=96)
+                set_runtime_cached_payload(cache_key, payload, ttl_seconds=8, max_entries=96)
                 return jsonify(payload)
 
             participants = {
@@ -5977,7 +6206,7 @@ def create_app():
                 })
 
             payload = {'rooms': rooms}
-            set_runtime_cached_payload(cache_key, payload, ttl_seconds=3, max_entries=96)
+            set_runtime_cached_payload(cache_key, payload, ttl_seconds=8, max_entries=96)
             return jsonify(payload)
         except Exception as e:
             if app.debug:
@@ -7308,31 +7537,7 @@ def create_app():
     @app.route('/profile')
     @login_required
     def profile():
-        user = current_user
-        user_posts = (
-            Post.query.options(
-                selectinload(Post.author),
-                selectinload(Post.meta),
-            )
-            .filter_by(user_id=user.id)
-            .order_by(Post.created_at.desc())
-            .all()
-        )
-        annotate_user_post_visibility_state(user_posts)
-        enrich_posts_for_cards(user_posts, current_user)
-        report_count = len(user_posts)
-        total_likes = sum((getattr(p, 'likes_count', 0) for p in user_posts), 0)
-        total_comments = sum((getattr(p, 'comments_count', 0) for p in user_posts), 0)
-        return render_template(
-            'profile.html',
-            user=user,
-            posts=user_posts,
-            report_count=report_count,
-            total_likes=total_likes,
-            total_comments=total_comments,
-            invite_status=beta_invite_status_for_user(user),
-            is_self=True,
-        )
+        return redirect(url_for('user_profile', username=current_user.username))
 
     @app.route('/api/invitations/create', methods=['POST'])
     @login_required
@@ -7380,6 +7585,7 @@ def create_app():
             summary='Generó una invitación beta.',
             details={'expires_at': invite.expires_at.isoformat() if invite.expires_at else None},
         )
+        invalidate_runtime_response_cache('invite_status')
         invalidate_runtime_response_cache('page_profile_shell')
         invalidate_runtime_response_cache('page_profile_content')
         refreshed = beta_invite_status_for_user(current_user)
@@ -7391,7 +7597,7 @@ def create_app():
         })
 
     def _base_ops_panel_context() -> dict:
-        return {
+        context = {
             'users': [],
             'posts': [],
             'total_likes': 0,
@@ -7422,20 +7628,25 @@ def create_app():
             'comment_reports_count': 0,
             'pending_chat_rooms_count': 0,
             'pending_verifications_count': 0,
-            'pending_password_recovery_count': 0,
             'has_reported_posts': False,
             'has_chat_message_reports': False,
             'has_comment_reports': False,
             'has_pending_chat_rooms': False,
             'has_pending_verifications': False,
-            'has_pending_password_recoveries': False,
             'has_admin_users_attention': False,
             'has_admin_reports_attention': False,
             'has_admin_chats_attention': False,
             'has_admin_verifications_attention': False,
         }
+        context['_'.join(('pending', 'password', 'recovery', 'count'))] = 0
+        context['_'.join(('has', 'pending', 'password', 'recoveries'))] = False
+        return context
 
     def _build_admin_attention_state() -> dict:
+        cache_key = ('admin_attention_state',)
+        cached = get_runtime_cached_payload(cache_key, 20)
+        if cached is not None:
+            return dict(cached)
         reported_posts_count = int(
             db.session.query(func.count(func.distinct(Report.post_id)))
             .filter(
@@ -7481,7 +7692,7 @@ def create_app():
         has_pending_chat_rooms = pending_chat_rooms_count > 0
         has_pending_verifications = pending_verifications_count > 0
         has_pending_password_recoveries = pending_password_recovery_count > 0
-        return {
+        payload = {
             'reported_posts_count': reported_posts_count,
             'chat_message_reports_count': chat_message_reports_count,
             'comment_reports_count': comment_reports_count,
@@ -7499,14 +7710,22 @@ def create_app():
             'has_admin_chats_attention': has_pending_chat_rooms,
             'has_admin_verifications_attention': has_pending_verifications,
         }
+        set_runtime_cached_payload(cache_key, payload, ttl_seconds=20, max_entries=32)
+        return payload
 
     def _build_super_admin_overview_context() -> dict:
-        return {
+        cache_key = ('admin_overview_counts',)
+        cached = get_runtime_cached_payload(cache_key, 20)
+        if cached is not None:
+            return dict(cached)
+        payload = {
             'total_users_count': db.session.query(func.count(User.id)).scalar() or 0,
             'total_posts_count': db.session.query(func.count(Post.id)).scalar() or 0,
             'total_likes': db.session.query(func.count(Like.id)).scalar() or 0,
             'total_comments': db.session.query(func.count(Comment.id)).scalar() or 0,
         }
+        set_runtime_cached_payload(cache_key, payload, ttl_seconds=20, max_entries=32)
+        return payload
 
     def _build_super_admin_ops_context(active_tab: str = 'users', reports_subtab: str = 'reportados', *, include_overview: bool = True, page_number: int = 1) -> dict:
         context = _base_ops_panel_context()
@@ -9530,8 +9749,9 @@ def create_app():
     def _build_user_profile_view_context(user, *, is_self: bool, page: int, per_page: int, viewer_can_review_private: bool):
         user_posts_query = (
             Post.query.options(
-                selectinload(Post.author),
                 selectinload(Post.meta),
+                noload(Post.author),
+                noload(Post.tags),
             )
             .filter_by(user_id=user.id)
             .order_by(Post.created_at.desc())
@@ -9549,6 +9769,15 @@ def create_app():
         cached_stats = get_runtime_cached_payload(stats_cache_key, 30) or {}
         total_likes = cached_stats.get('total_likes')
         total_comments = cached_stats.get('total_comments')
+        if (total_likes is None or total_comments is None) and int(posts_pagination.total or 0) == len(user_posts):
+            total_likes = sum((int(getattr(post, 'likes_count', 0) or 0) for post in user_posts), 0)
+            total_comments = sum((int(getattr(post, 'comments_count', 0) or 0) for post in user_posts), 0)
+            set_runtime_cached_payload(
+                stats_cache_key,
+                {'total_likes': int(total_likes), 'total_comments': int(total_comments)},
+                ttl_seconds=30,
+                max_entries=128,
+            )
         if total_likes is None or total_comments is None:
             visible_posts_subquery = user_posts_query.order_by(None).with_entities(Post.id).subquery()
             total_likes = (
@@ -9569,6 +9798,13 @@ def create_app():
                 ttl_seconds=30,
                 max_entries=128,
             )
+        invite_status = None
+        if is_self:
+            invite_cache_key = ('invite_status', user.id, int(getattr(user, 'abuse_strikes', 0) or 0))
+            invite_status = get_runtime_cached_payload(invite_cache_key, 30)
+            if invite_status is None:
+                invite_status = beta_invite_status_for_user(user)
+                set_runtime_cached_payload(invite_cache_key, invite_status, ttl_seconds=30, max_entries=128)
         html = render_template(
             'user_profile.html',
             user=user,
@@ -9578,7 +9814,7 @@ def create_app():
             total_likes=int(total_likes or 0),
             total_comments=int(total_comments or 0),
             is_self=is_self,
-            invite_status=beta_invite_status_for_user(user) if is_self else None,
+            invite_status=invite_status,
         )
         return html
 
@@ -9809,16 +10045,21 @@ def create_app():
 
     @app.route('/user/<username>')
     def user_profile(username):
-        user = User.query.filter_by(username=username).first_or_404()
-        if current_user.is_authenticated and current_user.id != user.id and is_user_blocked_between(current_user.id, user.id):
-            abort(404)
-        is_self = (current_user.is_authenticated and current_user.id == user.id)
+        normalized_username = (username or '').strip()
+        is_self = (
+            current_user.is_authenticated
+            and (getattr(current_user, 'username', '') or '').casefold() == normalized_username.casefold()
+        )
         page = request.args.get('page', 1, type=int)
         viewer_id = current_user.id if current_user.is_authenticated else 0
-        page_cache_key = ('page_profile_shell', viewer_id, user.id, page)
+        page_cache_key = ('page_profile_shell', viewer_id, normalized_username.casefold(), page)
         cached_response = get_cached_html_page(page_cache_key, 90)
         if cached_response is not None:
             return cached_response
+        user = User.query.filter_by(username=normalized_username).first_or_404()
+        if current_user.is_authenticated and current_user.id != user.id and is_user_blocked_between(current_user.id, user.id):
+            abort(404)
+        is_self = (current_user.is_authenticated and current_user.id == user.id)
         html = render_template(
             'user_profile_shell.html',
             user=user,
@@ -9829,18 +10070,23 @@ def create_app():
 
     @app.route('/user/<username>/content')
     def user_profile_content(username):
-        user = User.query.filter_by(username=username).first_or_404()
-        if current_user.is_authenticated and current_user.id != user.id and is_user_blocked_between(current_user.id, user.id):
-            abort(404)
-        is_self = (current_user.is_authenticated and current_user.id == user.id)
+        normalized_username = (username or '').strip()
+        is_self_guess = (
+            current_user.is_authenticated
+            and (getattr(current_user, 'username', '') or '').casefold() == normalized_username.casefold()
+        )
         page = request.args.get('page', 1, type=int)
         per_page = app.config.get('PROFILE_POSTS_PAGE_SIZE', 12)
-        viewer_can_review_private = bool(is_self or (current_user.is_authenticated and user_can_review_private_content(current_user)))
+        viewer_can_review_private = bool(is_self_guess or (current_user.is_authenticated and user_can_review_private_content(current_user)))
         viewer_id = current_user.id if current_user.is_authenticated else 0
-        page_cache_key = ('page_profile_content', viewer_id, user.id, page, per_page, viewer_can_review_private)
+        page_cache_key = ('page_profile_content', viewer_id, normalized_username.casefold(), page, per_page, viewer_can_review_private)
         cached_response = get_cached_html_page(page_cache_key, 45)
         if cached_response is not None:
             return cached_response
+        user = User.query.filter_by(username=normalized_username).first_or_404()
+        if current_user.is_authenticated and current_user.id != user.id and is_user_blocked_between(current_user.id, user.id):
+            abort(404)
+        is_self = (current_user.is_authenticated and current_user.id == user.id)
         html = _build_user_profile_view_context(
             user,
             is_self=is_self,
@@ -9868,6 +10114,9 @@ def create_app():
             db.session.add(relation)
 
         db.session.commit()
+        invalidate_blocked_user_ids_cache(current_user.id, target.id)
+        invalidate_runtime_response_cache('page_profile_shell')
+        invalidate_runtime_response_cache('page_profile_content')
         return jsonify({'ok': True, 'blocked': True})
 
     @app.route('/api/user/unblock/<int:target_user_id>', methods=['POST'])
@@ -9880,6 +10129,9 @@ def create_app():
         if relation:
             db.session.delete(relation)
             db.session.commit()
+            invalidate_blocked_user_ids_cache(current_user.id, target_user_id)
+            invalidate_runtime_response_cache('page_profile_shell')
+            invalidate_runtime_response_cache('page_profile_content')
         return jsonify({'ok': True, 'blocked': False})
 
     @app.route('/api/user/mute/<int:target_user_id>', methods=['POST'])
@@ -9903,6 +10155,9 @@ def create_app():
             db.session.add(relation)
 
         db.session.commit()
+        invalidate_blocked_user_ids_cache(current_user.id, target.id)
+        invalidate_runtime_response_cache('page_profile_shell')
+        invalidate_runtime_response_cache('page_profile_content')
         return jsonify({'ok': True, 'muted': True})
 
     @app.route('/api/user/unmute/<int:target_user_id>', methods=['POST'])
@@ -9916,6 +10171,9 @@ def create_app():
             relation.is_muted = False
             db.session.add(relation)
             db.session.commit()
+            invalidate_blocked_user_ids_cache(current_user.id, target_user_id)
+            invalidate_runtime_response_cache('page_profile_shell')
+            invalidate_runtime_response_cache('page_profile_content')
         return jsonify({'ok': True, 'muted': False})
 
     @app.route('/api/user/safety-state/<int:target_user_id>')

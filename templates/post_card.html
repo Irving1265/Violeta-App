@@ -109,7 +109,10 @@
     <!-- Flip Container for Map/Image -->
     <div class="post-content-container" id="flip-{{ post.id }}">
         <div class="post-image-wrapper face-front" id="img-wrapper-{{ post.id }}">
-            <img src="{{ media_url(post.image_filename) }}" class="post-image violet-post-image" alt="Post image" loading="lazy" decoding="async">
+            <img src="{{ optimized_media_url(post.image_filename, 720) }}"
+                srcset="{{ optimized_media_url(post.image_filename, 360) }} 360w, {{ optimized_media_url(post.image_filename, 720) }} 720w, {{ optimized_media_url(post.image_filename, 1080) }} 1080w"
+                sizes="(max-width: 768px) 100vw, 680px"
+                class="post-image violet-post-image" alt="Post image" loading="lazy" decoding="async">
         </div>
         <div class="post-map-wrapper face-back" id="map-wrapper-{{ post.id }}">
             <div id="map-{{ post.id }}" style="height: 100%; width: 100%;"></div>
