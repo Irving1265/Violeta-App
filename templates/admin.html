@@ -101,11 +101,15 @@
 
     <!-- Users Section -->
     <div id="view-users" class="admin-view{% if active_tab != 'users' %} d-none{% endif %}">
+        {% set user_filters = admin_user_filters|default({}) %}
+        {% set has_user_filters = (user_filters.q|default('')) or user_filters.status|default('all') != 'all' or user_filters.strikes|default('all') != 'all' or user_filters.reports|default('all') != 'all' %}
         <div class="admin-data-card">
             <div class="admin-data-card__head">
                 <h3>Lista de usuarias recientes</h3>
                 <div class="admin-data-card__meta">
-                    <div class="small text-secondary">Mostrando {{ users|length }} de {{ total_users_count if total_users_count is defined else users|length }} usuarias</div>
+                    <div class="small text-secondary">
+                        Mostrando {{ users|length }} de {{ total_users_count if total_users_count is defined else users|length }}{% if has_user_filters %} resultados filtrados{% else %} usuarias{% endif %}
+                    </div>
                     {% if pending_password_recovery_count %}
                     <div class="admin-attention-chip" id="pendingRecoveryChip">
                         <i class="fas fa-key"></i>
@@ -115,10 +119,50 @@
                 </div>
             </div>
             <div class="admin-users-search-wrap">
-                <label class="admin-global-search">
-                    <i class="fas fa-search"></i>
-                    <input id="adminGlobalFilter" type="search" placeholder="Buscar usuaria, alerta..." autocomplete="off">
-                </label>
+                <form class="admin-user-filter-panel" method="get" action="{{ url_for('admin_panel') }}" id="adminUserFilterForm">
+                    <input type="hidden" name="tab" value="users">
+                    <label class="admin-global-search">
+                        <i class="fas fa-search"></i>
+                        <input id="adminGlobalFilter" name="user_q" type="search" placeholder="Buscar usuaria o email..." value="{{ user_filters.q|default('') }}" autocomplete="off">
+                    </label>
+                    <div class="admin-user-filter-grid">
+                        <label class="admin-user-filter-select">
+                            <span>Estado</span>
+                            <select name="user_status" id="adminUserStatusFilter">
+                                <option value="all" {{ 'selected' if user_filters.status|default('all') == 'all' else '' }}>Todas</option>
+                                <option value="verified" {{ 'selected' if user_filters.status|default('all') == 'verified' else '' }}>Verificadas</option>
+                                <option value="unverified" {{ 'selected' if user_filters.status|default('all') == 'unverified' else '' }}>Sin verificar</option>
+                                <option value="recovery" {{ 'selected' if user_filters.status|default('all') == 'recovery' else '' }}>Recuperación</option>
+                                <option value="with_posts" {{ 'selected' if user_filters.status|default('all') == 'with_posts' else '' }}>Con publicaciones</option>
+                                <option value="no_posts" {{ 'selected' if user_filters.status|default('all') == 'no_posts' else '' }}>Sin publicaciones</option>
+                            </select>
+                        </label>
+                        <label class="admin-user-filter-select">
+                            <span>Strikes</span>
+                            <select name="user_strikes" id="adminUserStrikesFilter">
+                                <option value="all" {{ 'selected' if user_filters.strikes|default('all') == 'all' else '' }}>Todos</option>
+                                <option value="none" {{ 'selected' if user_filters.strikes|default('all') == 'none' else '' }}>Sin strikes</option>
+                                <option value="one" {{ 'selected' if user_filters.strikes|default('all') == 'one' else '' }}>1 strike</option>
+                                <option value="two_plus" {{ 'selected' if user_filters.strikes|default('all') == 'two_plus' else '' }}>2+ strikes</option>
+                            </select>
+                        </label>
+                        <label class="admin-user-filter-select">
+                            <span>Reportes</span>
+                            <select name="user_reports" id="adminUserReportsFilter">
+                                <option value="all" {{ 'selected' if user_filters.reports|default('all') == 'all' else '' }}>Todos</option>
+                                <option value="with_reports" {{ 'selected' if user_filters.reports|default('all') == 'with_reports' else '' }}>Con reportes activos</option>
+                                <option value="no_reports" {{ 'selected' if user_filters.reports|default('all') == 'no_reports' else '' }}>Sin reportes activos</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="admin-user-filter-actions">
+                        <button class="admin-user-filter-apply" type="submit"><i class="fas fa-filter"></i> Aplicar</button>
+                        <a class="admin-user-filter-reset" href="{{ url_for('admin_panel', tab='users') }}">Limpiar</a>
+                    </div>
+                    <div class="admin-user-filter-summary" id="adminUserFilterSummary">
+                        {{ total_users_count if total_users_count is defined else users|length }} resultado{% if (total_users_count if total_users_count is defined else users|length) != 1 %}s{% endif %}{% if has_user_filters and total_users_unfiltered_count is defined %} de {{ total_users_unfiltered_count }} usuarias{% endif %}
+                    </div>
+                </form>
             </div>
             <div class="bulk-toolbar admin-table-bulk-toolbar">
                 <label class="bulk-check">
@@ -144,7 +188,10 @@
                     <tbody id="usersList">
                         {% for user in users %}
                         {% set protected_staff = user_is_protected_staff(user) %}
-                        <tr class="user-item{% if user.password_recovery_requested_at %} is-recovery-pending{% endif %}" data-user-id="{{ user.id }}" data-password-recovery-pending="{{ '1' if user.password_recovery_requested_at else '0' }}">
+                        {% set user_level = moderation_badge_level(user) %}
+                        {% set user_report_count = user.active_report_count|default(0) %}
+                        {% set user_status_key = 'recovery' if user.password_recovery_requested_at else ('active' if user.username == 'admin' else ('with_posts' if user.post_count|default(0) > 0 else 'offline')) %}
+                        <tr class="user-item{% if user.password_recovery_requested_at %} is-recovery-pending{% endif %}" data-user-id="{{ user.id }}" data-password-recovery-pending="{{ '1' if user.password_recovery_requested_at else '0' }}" data-user-status="{{ user_status_key }}" data-user-verified="{{ '1' if user.is_verified else '0' }}" data-user-posts="{{ user.post_count|default(0) }}" data-user-strikes="{{ user_level }}" data-user-reports-active="{{ user_report_count }}" data-user-search="{{ (user.username ~ ' ' ~ user.email)|lower }}">
                             <td class="admin-users-table__check">
                                 <input class="form-check-input user-select" type="checkbox" data-id="{{ user.id }}" {% if protected_staff %}disabled{% endif %}>
                             </td>
@@ -163,7 +210,6 @@
                                                 <i class="fas fa-key"></i> Recuperación pendiente
                                             </span>
                                             {% endif %}
-                                            {% set user_level = moderation_badge_level(user) %}
                                             {% if user_level > 0 %}
                                             <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if user_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if user_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if user_level >= 2 else 'Usuaria con un strike' }}">
                                                 <i class="fas fa-triangle-exclamation"></i>
@@ -197,11 +243,15 @@
                                 <div class="admin-activity-pills">
                                     <span class="admin-activity-pill"><i class="fas fa-images"></i> {{ user.post_count|default(0) }}</span>
                                     <span class="admin-activity-pill"><i class="fas fa-heart"></i> {{ user.like_count|default(0) }}</span>
+                                    <span class="admin-activity-pill{% if user_report_count > 0 %} is-warning{% endif %}"><i class="fas fa-flag"></i> {{ user_report_count }}</span>
                                 </div>
                             </td>
                             <td>{{ user.created_at.strftime('%d/%m/%Y') if user.created_at else 'N/A' }}</td>
                             <td class="text-end">
                                 <div class="admin-action-row">
+                                    <button class="admin-icon-action is-history" onclick="openUserAudit('{{ user.id }}')" title="Ver historial">
+                                        <i class="fas fa-clock-rotate-left"></i>
+                                    </button>
                                     {% if not protected_staff %}
                                     <button class="admin-icon-action" onclick="editUsername('{{ user.id }}', '{{ user.username }}')" title="Editar nombre">
                                         <i class="fas fa-edit"></i>
@@ -232,15 +282,17 @@
                 </table>
             </div>
             <div class="admin-table-footer">
-                <div class="text-secondary small">Mostrando {{ users|length }} usuarias recientes de {{ total_users_count if total_users_count is defined else users|length }}</div>
+                <div class="text-secondary small">
+                    Mostrando {{ users|length }} usuarias recientes de {{ total_users_count if total_users_count is defined else users|length }}{% if has_user_filters and total_users_unfiltered_count is defined %} resultados filtrados · {{ total_users_unfiltered_count }} totales{% endif %}
+                </div>
                 {% if tab_total_pages|default(1) > 1 %}
                 <div class="d-flex align-items-center gap-2 ms-auto flex-wrap justify-content-end">
                     <span class="small text-secondary">Página {{ tab_page }} de {{ tab_total_pages }}</span>
                     {% if tab_has_prev %}
-                    <a href="{{ url_for('admin_panel', tab='users', page=tab_page - 1) }}" class="btn btn-outline-light btn-sm rounded-pill">Anterior</a>
+                    <a href="{{ url_for('admin_panel', tab='users', page=tab_page - 1, user_q=user_filters.q|default(''), user_status=user_filters.status|default('all'), user_strikes=user_filters.strikes|default('all'), user_reports=user_filters.reports|default('all')) }}" class="btn btn-outline-light btn-sm rounded-pill">Anterior</a>
                     {% endif %}
                     {% if tab_has_next %}
-                    <a href="{{ url_for('admin_panel', tab='users', page=tab_page + 1) }}" class="btn btn-outline-light btn-sm rounded-pill">Siguiente</a>
+                    <a href="{{ url_for('admin_panel', tab='users', page=tab_page + 1, user_q=user_filters.q|default(''), user_status=user_filters.status|default('all'), user_strikes=user_filters.strikes|default('all'), user_reports=user_filters.reports|default('all')) }}" class="btn btn-outline-light btn-sm rounded-pill">Siguiente</a>
                     {% endif %}
                 </div>
                 {% endif %}
@@ -440,6 +492,51 @@
                 {% if has_comment_reports %}<span class="tab-dot"></span>{% endif %} Comentarios reportados
             </button>
         </div>
+        {% set report_filters = admin_report_filters|default({}) %}
+        {% set report_filter_options = admin_report_filter_options|default({}) %}
+        {% set has_report_filters = (report_filters.q|default('')) or report_filters.status|default('active') != 'active' or report_filters.reason|default('all') != 'all' or report_filters.since|default('all') != 'all' %}
+        <form class="admin-report-filter-panel" method="get" action="{{ url_for('admin_panel') }}" id="adminReportFilterForm">
+            <input type="hidden" name="tab" value="reportes">
+            <input type="hidden" name="reports_subtab" value="{{ active_reports_subtab }}">
+            <label class="admin-report-search">
+                <i class="fas fa-search"></i>
+                <input id="adminReportSearch" name="report_q" type="search" placeholder="Buscar motivo, usuaria, lugar o texto..." value="{{ report_filters.q|default('') }}" autocomplete="off">
+            </label>
+            <div class="admin-report-filter-grid">
+                <label class="admin-report-filter-select">
+                    <span>Estado</span>
+                    <select name="report_status" id="adminReportStatusFilter">
+                        {% for option in report_filter_options.statuses|default([]) %}
+                        <option value="{{ option.value }}" {{ 'selected' if report_filters.status|default('active') == option.value else '' }}>{{ option.label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="admin-report-filter-select">
+                    <span>Motivo</span>
+                    <select name="report_reason" id="adminReportReasonFilter">
+                        <option value="all" {{ 'selected' if report_filters.reason|default('all') == 'all' else '' }}>Todos los motivos</option>
+                        {% for reason in report_filter_options.reasons|default([]) %}
+                        <option value="{{ reason }}" {{ 'selected' if report_filters.reason|default('all') == reason else '' }}>{{ reason }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="admin-report-filter-select">
+                    <span>Fecha</span>
+                    <select name="report_since" id="adminReportSinceFilter">
+                        {% for option in report_filter_options.since|default([]) %}
+                        <option value="{{ option.value }}" {{ 'selected' if report_filters.since|default('all') == option.value else '' }}>{{ option.label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </div>
+            <div class="admin-report-filter-actions">
+                <button class="admin-report-filter-apply" type="submit"><i class="fas fa-filter"></i> Aplicar</button>
+                <a class="admin-report-filter-reset" href="{{ url_for('admin_panel', tab='reportes', reports_subtab=active_reports_subtab) }}">Limpiar</a>
+            </div>
+            <div class="admin-report-filter-summary">
+                {{ admin_report_filtered_count|default(0) }} resultado{% if admin_report_filtered_count|default(0) != 1 %}s{% endif %}{% if has_report_filters %} filtrado{% if admin_report_filtered_count|default(0) != 1 %}s{% endif %}{% endif %}
+            </div>
+        </form>
 
         <div id="report-subview-reportados" class="report-subview{% if active_reports_subtab != 'reportados' %} d-none{% endif %}" role="tabpanel" aria-labelledby="report-subtab-reportados">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4">
@@ -449,13 +546,27 @@
         <div class="row g-3" id="reportedGrid">
             {% set ns = namespace(has=false) %}
             {% for post in reported_posts %}
-            {% set active_reports = post.active_reports_admin|default([]) %}
+            {% set active_reports = post.filtered_reports_admin|default(post.active_reports_admin|default([])) %}
             {% if active_reports %}
             {% set ns.has = true %}
             {% set report_ref = active_reports|first %}
             {% set author_level = moderation_badge_level(post.author) %}
-            {% set report_status_label = 'Pendiente' %}
-            {% set report_status_class = 'message-report-card__status--pending' %}
+            {% if report_ref and report_ref.status == 'struck' %}
+                {% set report_status_label = 'Strike aplicado' %}
+                {% set report_status_class = 'message-report-card__status--struck' %}
+            {% elif report_ref and report_ref.status == 'restored' %}
+                {% set report_status_label = 'Restaurado' %}
+                {% set report_status_class = 'message-report-card__status--restored' %}
+            {% elif report_ref and report_ref.status == 'dismissed' %}
+                {% set report_status_label = 'Descartado' %}
+                {% set report_status_class = 'message-report-card__status--dismissed' %}
+            {% elif report_ref and report_ref.status == 'resolved' %}
+                {% set report_status_label = 'Resuelto' %}
+                {% set report_status_class = 'message-report-card__status--restored' %}
+            {% else %}
+                {% set report_status_label = 'Pendiente' %}
+                {% set report_status_class = 'message-report-card__status--pending' %}
+            {% endif %}
             {% set ns_reasons = namespace(items=[]) %}
             {% for r in active_reports %}
             {% if r.reason not in ns_reasons.items %}

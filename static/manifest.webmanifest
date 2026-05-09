@@ -1,0 +1,50 @@
+{
+  "name": "Violeta",
+  "short_name": "Violeta",
+  "description": "Reportes comunitarios y seguridad local.",
+  "id": "/?source=pwa",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#110c18",
+  "theme_color": "#7c3aed",
+  "categories": ["social", "utilities", "navigation"],
+  "lang": "es-MX",
+  "icons": [
+    {
+      "src": "/static/images/pwa/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/images/pwa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/images/pwa/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Crear reporte",
+      "short_name": "Reportar",
+      "description": "Abrir el feed para crear un reporte.",
+      "url": "/?shortcut=create-report",
+      "icons": [{ "src": "/static/images/pwa/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Centro de seguridad",
+      "short_name": "Seguridad",
+      "description": "Abrir herramientas de seguridad.",
+      "url": "/safety?shortcut=safety",
+      "icons": [{ "src": "/static/images/pwa/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

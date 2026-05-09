@@ -61,6 +61,14 @@ REGIO_COLORS = {
 }
 
 
+def safe_http_urlopen(request_or_url, *, timeout: int):
+    url = request_or_url.full_url if isinstance(request_or_url, urllib.request.Request) else str(request_or_url)
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(f"URL no permitida para descarga HTTP: {url}")
+    return urllib.request.urlopen(request_or_url, timeout=timeout)  # nosec B310
+
+
 @dataclass
 class StopNode:
     stop_id: int
@@ -107,7 +115,7 @@ def overpass_query(query: str, timeout: int = 60, tries: int = 2) -> Dict:
                     data=payload,
                     headers={"User-Agent": USER_AGENT},
                 )
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                with safe_http_urlopen(req, timeout=timeout) as resp:
                     return json.loads(resp.read().decode("utf-8"))
             except Exception as e:
                 last_err = e
@@ -305,7 +313,7 @@ def match_stops_to_line(line: List[List[float]], stops: List[StopNode], max_dist
 def fetch_html(url: str, timeout: int = 30, user_agent: Optional[str] = None) -> str:
     ua = user_agent or USER_AGENT
     req = urllib.request.Request(url, headers={"User-Agent": ua})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with safe_http_urlopen(req, timeout=timeout) as resp:
         return resp.read().decode("utf-8", "ignore")
 
 

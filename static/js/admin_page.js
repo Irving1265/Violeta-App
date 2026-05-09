@@ -25,6 +25,14 @@
         timer: null,
         requestId: 0,
     };
+    const ADMIN_ATTENTION_INITIAL = ADMIN_PAGE_CONFIG.attentionState || {};
+    const ADMIN_ATTENTION_STATE = {
+        timer: null,
+        requestId: 0,
+        initialized: false,
+        total: Number(ADMIN_ATTENTION_INITIAL.reportsTotal || 0),
+        latest: ADMIN_ATTENTION_INITIAL.latestReportCreatedAt || '',
+    };
 
     function getGlobalSearchTerm() {
         return (document.getElementById('adminGlobalFilter')?.value || '').trim().toLowerCase();
@@ -96,6 +104,143 @@
 
     function removeTabDot(buttonSelector) {
         document.querySelector(`${buttonSelector} .tab-dot`)?.remove();
+    }
+
+    function ensureTabDot(buttonSelector) {
+        const button = document.querySelector(buttonSelector);
+        if (!button || button.querySelector('.tab-dot')) return;
+        const dot = document.createElement('span');
+        dot.className = 'tab-dot';
+        button.insertBefore(dot, button.firstChild);
+    }
+
+    function normalizeAdminAttentionPayload(payload) {
+        return {
+            total: Number(payload?.admin_reports_total_count || 0),
+            postReports: Number(payload?.post_reports_count || 0),
+            reportedPosts: Number(payload?.reported_posts_count || 0),
+            chatReports: Number(payload?.chat_message_reports_count || 0),
+            commentReports: Number(payload?.comment_reports_count || 0),
+            pendingChats: Number(payload?.pending_chat_rooms_count || 0),
+            pendingVerifications: Number(payload?.pending_verifications_count || 0),
+            pendingRecoveries: Number(payload?.pending_password_recovery_count || 0),
+            latest: String(payload?.latest_admin_report_created_at || ''),
+        };
+    }
+
+    function syncAdminAttentionDots(state) {
+        if (!state) return;
+
+        if (state.pendingRecoveries > 0) ensureTabDot('#tab-users');
+        else removeTabDot('#tab-users');
+
+        if (state.total > 0) ensureTabDot('#tab-reportes');
+        else removeTabDot('#tab-reportes');
+
+        if (state.reportedPosts > 0) ensureTabDot('#report-subtab-reportados');
+        else removeTabDot('#report-subtab-reportados');
+
+        if (state.chatReports > 0) ensureTabDot('#report-subtab-reportes-chat');
+        else removeTabDot('#report-subtab-reportes-chat');
+
+        if (state.commentReports > 0) ensureTabDot('#report-subtab-reportes-comentarios');
+        else removeTabDot('#report-subtab-reportes-comentarios');
+
+        if (state.pendingChats > 0) ensureTabDot('#tab-chats');
+        else removeTabDot('#tab-chats');
+
+        if (state.pendingVerifications > 0) ensureTabDot('#tab-verificaciones');
+        else removeTabDot('#tab-verificaciones');
+    }
+
+    function showAdminReportNotification(state, previousState) {
+        if (!state || state.total <= 0) return;
+        document.querySelectorAll('.admin-report-toast').forEach((toast) => toast.remove());
+
+        const increasedBy = Math.max(1, state.total - Number(previousState?.total || 0));
+        const detail = [
+            state.postReports ? `${state.postReports} de publicación` : '',
+            state.chatReports ? `${state.chatReports} de chat` : '',
+            state.commentReports ? `${state.commentReports} de comentario` : '',
+        ].filter(Boolean).join(' · ');
+
+        const toast = document.createElement('div');
+        toast.className = 'admin-report-toast';
+        toast.setAttribute('role', 'status');
+        toast.setAttribute('aria-live', 'polite');
+        toast.innerHTML = `
+            <div class="admin-report-toast__icon"><i class="fas fa-flag"></i></div>
+            <div class="admin-report-toast__body">
+                <div class="admin-report-toast__title">${increasedBy === 1 ? 'Nuevo reporte pendiente' : `${increasedBy} reportes nuevos`}</div>
+                <div class="admin-report-toast__copy">${detail || `${state.total} reportes activos`} esperan revisión.</div>
+            </div>
+            <button class="admin-report-toast__action" type="button">Ver reportes</button>
+            <button class="admin-report-toast__close" type="button" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+        `;
+
+        toast.querySelector('.admin-report-toast__action')?.addEventListener('click', () => {
+            const url = new URL('/admin', window.location.origin);
+            url.searchParams.set('tab', 'reportes');
+            window.location.assign(url.toString());
+        });
+        toast.querySelector('.admin-report-toast__close')?.addEventListener('click', () => toast.remove());
+        document.body.appendChild(toast);
+        requestAnimationFrame(() => toast.classList.add('is-visible'));
+        setTimeout(() => {
+            toast.classList.remove('is-visible');
+            setTimeout(() => toast.remove(), 260);
+        }, 9000);
+    }
+
+    function fetchAdminAttentionState(options = {}) {
+        const silent = !!options.silent;
+        const suppressToast = !!options.suppressToast;
+        const reqId = ++ADMIN_ATTENTION_STATE.requestId;
+        return fetch(`/admin/attention-state?_ts=${Date.now()}`, {
+            cache: 'no-store',
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) throw new Error('No se pudo cargar el estado de reportes.');
+                return response.json();
+            })
+            .then((payload) => {
+                if (reqId !== ADMIN_ATTENTION_STATE.requestId || !payload?.success) return;
+                const nextState = normalizeAdminAttentionPayload(payload);
+                const previousState = {
+                    total: ADMIN_ATTENTION_STATE.total,
+                    latest: ADMIN_ATTENTION_STATE.latest,
+                };
+                const hasNewReports = ADMIN_ATTENTION_STATE.initialized
+                    && !suppressToast
+                    && nextState.total > 0
+                    && (
+                        nextState.total > previousState.total
+                        || (nextState.latest && previousState.latest && nextState.latest > previousState.latest)
+                    );
+
+                ADMIN_ATTENTION_STATE.initialized = true;
+                ADMIN_ATTENTION_STATE.total = nextState.total;
+                ADMIN_ATTENTION_STATE.latest = nextState.latest;
+                syncAdminAttentionDots(nextState);
+
+                if (hasNewReports) {
+                    showAdminReportNotification(nextState, previousState);
+                }
+            })
+            .catch((error) => {
+                if (!silent) console.error('admin attention state error:', error);
+            });
+    }
+
+    function startAdminAttentionPolling() {
+        if (ADMIN_ATTENTION_STATE.timer) {
+            clearInterval(ADMIN_ATTENTION_STATE.timer);
+        }
+        fetchAdminAttentionState({ silent: true, suppressToast: true });
+        ADMIN_ATTENTION_STATE.timer = setInterval(() => {
+            fetchAdminAttentionState({ silent: true });
+        }, 30000);
     }
 
     function syncPostsViewState() {
@@ -187,6 +332,7 @@
         if (reportedCount === 0 && reportedChatCount === 0 && reportedCommentCount === 0) {
             removeTabDot('#tab-reportes');
         }
+        fetchAdminAttentionState({ silent: true, suppressToast: true });
     }
 
     function ensureReportedGridEmptyState(gridId, itemSelector, message) {
@@ -1111,18 +1257,52 @@
     function filterUsers() {
         const localTerm = (document.getElementById('userSearch')?.value || '').toLowerCase();
         const searchTerm = (localTerm || getGlobalSearchTerm()).toLowerCase();
-        const items = document.querySelectorAll('.user-item');
+        const statusFilter = document.getElementById('adminUserStatusFilter')?.value || 'all';
+        const strikesFilter = document.getElementById('adminUserStrikesFilter')?.value || 'all';
+        const reportsFilter = document.getElementById('adminUserReportsFilter')?.value || 'all';
+        const items = Array.from(document.querySelectorAll('.user-item'));
+        let visibleCount = 0;
 
         items.forEach(item => {
-            const username = (item.querySelector('.user-username')?.textContent || '').toLowerCase();
-            const email = (item.querySelector('.user-email')?.textContent || '').toLowerCase();
+            const searchable = (item.dataset.userSearch || `${item.querySelector('.user-username')?.textContent || ''} ${item.querySelector('.user-email')?.textContent || ''}`).toLowerCase();
+            const status = item.dataset.userStatus || 'offline';
+            const verified = item.dataset.userVerified === '1';
+            const postCount = Number(item.dataset.userPosts || 0);
+            const strikeCount = Number(item.dataset.userStrikes || 0);
+            const activeReports = Number(item.dataset.userReportsActive || 0);
 
-            if (username.includes(searchTerm) || email.includes(searchTerm)) {
+            const matchesText = !searchTerm || searchable.includes(searchTerm);
+            const matchesStatus = statusFilter === 'all'
+                || (statusFilter === 'verified' && verified)
+                || (statusFilter === 'unverified' && !verified)
+                || (statusFilter === 'recovery' && status === 'recovery')
+                || (statusFilter === 'with_posts' && postCount > 0)
+                || (statusFilter === 'no_posts' && postCount === 0);
+            const matchesStrikes = strikesFilter === 'all'
+                || (strikesFilter === 'none' && strikeCount === 0)
+                || (strikesFilter === 'one' && strikeCount === 1)
+                || (strikesFilter === 'two_plus' && strikeCount >= 2);
+            const matchesReports = reportsFilter === 'all'
+                || (reportsFilter === 'with_reports' && activeReports > 0)
+                || (reportsFilter === 'no_reports' && activeReports === 0);
+
+            if (matchesText && matchesStatus && matchesStrikes && matchesReports) {
                 item.classList.remove('d-none');
+                visibleCount += 1;
             } else {
                 item.classList.add('d-none');
             }
         });
+
+        const summary = document.getElementById('adminUserFilterSummary');
+        if (summary) {
+            summary.textContent = `${visibleCount} visible${visibleCount === 1 ? '' : 's'} en esta página`;
+        }
+        syncBulkSelectionState(
+            document.getElementById('selectAllUsers'),
+            '.user-select',
+            document.getElementById('usersSelectedCount')
+        );
     }
 
     function filterPosts() {
@@ -1241,6 +1421,12 @@
                 applyActiveTabFilter();
             });
         }
+        ['adminUserStatusFilter', 'adminUserStrikesFilter', 'adminUserReportsFilter'].forEach((id) => {
+            const control = document.getElementById(id);
+            if (!control || control.dataset.adminBound === '1') return;
+            control.dataset.adminBound = '1';
+            control.addEventListener('change', filterUsers);
+        });
 
         if (!window.__adminVisibilityBound) {
             window.__adminVisibilityBound = true;
@@ -1250,9 +1436,14 @@
                         clearInterval(ADMIN_ACTIVITY_STATE.timer);
                         ADMIN_ACTIVITY_STATE.timer = null;
                     }
+                    if (ADMIN_ATTENTION_STATE.timer) {
+                        clearInterval(ADMIN_ATTENTION_STATE.timer);
+                        ADMIN_ATTENTION_STATE.timer = null;
+                    }
                 } else {
                     fetchAdminActivity(ADMIN_ACTIVITY_STATE.days, { animate: false, silent: true });
                     startAdminActivityAutoRefresh();
+                    startAdminAttentionPolling();
                 }
             });
         }
@@ -1263,6 +1454,10 @@
                 if (ADMIN_ACTIVITY_STATE.timer) {
                     clearInterval(ADMIN_ACTIVITY_STATE.timer);
                     ADMIN_ACTIVITY_STATE.timer = null;
+                }
+                if (ADMIN_ATTENTION_STATE.timer) {
+                    clearInterval(ADMIN_ATTENTION_STATE.timer);
+                    ADMIN_ATTENTION_STATE.timer = null;
                 }
             });
         }
@@ -1287,6 +1482,7 @@
         bindAdminStaticControls();
         fetchAdminActivity(ADMIN_ACTIVITY_STATE.days, { animate: true });
         startAdminActivityAutoRefresh();
+        startAdminAttentionPolling();
     }
 
     function bulkDeleteUsers() {
@@ -1376,6 +1572,188 @@
         const hours = Math.floor(minutes / 60);
         if (hours < 24) return `Hace ${hours} hora${hours === 1 ? '' : 's'}`;
         return 'Hace tiempo';
+    }
+
+    function escapeAdminHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function formatAuditDate(dateStr) {
+        if (!dateStr) return 'Sin fecha';
+        const date = new Date(dateStr);
+        if (Number.isNaN(date.getTime())) return 'Sin fecha';
+        return date.toLocaleString('es-MX', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    }
+
+    function renderAuditEmpty(message) {
+        return `<div class="admin-user-audit-empty">${escapeAdminHtml(message)}</div>`;
+    }
+
+    function renderAuditSummary(data) {
+        const user = data?.user || {};
+        const summary = data?.summary || {};
+        const roles = Array.isArray(user.roles) && user.roles.length ? user.roles.join(', ') : 'Sin roles staff';
+        return `
+            <article class="admin-user-audit-hero">
+                <div class="admin-user-audit-hero__main">
+                    <div class="admin-user-audit-avatar">${escapeAdminHtml((user.username || 'U').slice(0, 2).toUpperCase())}</div>
+                    <div>
+                        <h3>@${escapeAdminHtml(user.username || 'usuaria')}</h3>
+                        <p>${escapeAdminHtml(user.email || '')}</p>
+                        <div class="admin-user-audit-tags">
+                            <span>${user.is_verified ? 'Verificada' : 'Sin verificar'}</span>
+                            <span>${escapeAdminHtml(roles)}</span>
+                            ${user.password_recovery_pending ? '<span class="is-warning">Recuperación pendiente</span>' : ''}
+                        </div>
+                    </div>
+                </div>
+                <div class="admin-user-audit-created">Alta: ${escapeAdminHtml(formatAuditDate(user.created_at))}</div>
+            </article>
+            <div class="admin-user-audit-kpis">
+                <div><strong>${Number(summary.posts || 0)}</strong><span>Posts</span></div>
+                <div><strong>${Number(summary.comments || 0)}</strong><span>Comentarios</span></div>
+                <div><strong>${Number(summary.active_reports || 0)}</strong><span>Reportes activos</span></div>
+                <div><strong>${Number(summary.strikes || 0)}</strong><span>Strikes</span></div>
+            </div>
+        `;
+    }
+
+    function renderStrikeList(strikes) {
+        if (!Array.isArray(strikes) || !strikes.length) {
+            return renderAuditEmpty('No hay strikes registrados.');
+        }
+        return strikes.map((strike) => `
+            <div class="admin-user-audit-item">
+                <div class="admin-user-audit-item__top">
+                    <strong>Strike ${Number(strike.strike_number || 0)}</strong>
+                    <span>${escapeAdminHtml(formatAuditDate(strike.created_at))}</span>
+                </div>
+                <div class="admin-user-audit-item__reason">${escapeAdminHtml(strike.reason || 'Incumplimiento')}</div>
+                <p>${escapeAdminHtml(strike.content_excerpt || strike.details || strike.source_label || 'Sin detalle adicional')}</p>
+                <div class="admin-user-audit-item__meta">
+                    <span>${escapeAdminHtml(strike.source_type || 'fuente')}</span>
+                    <span>${escapeAdminHtml(strike.consequence || 'warning')}</span>
+                    <span>Por ${escapeAdminHtml(strike.issued_by || 'Sistema')}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderReportList(reports) {
+        if (!Array.isArray(reports) || !reports.length) {
+            return renderAuditEmpty('No hay reportes recibidos.');
+        }
+        const typeLabel = {
+            post: 'Publicación',
+            comment: 'Comentario',
+            chat: 'Chat',
+        };
+        return reports.map((report) => `
+            <div class="admin-user-audit-item">
+                <div class="admin-user-audit-item__top">
+                    <strong>${escapeAdminHtml(typeLabel[report.source_type] || 'Reporte')}</strong>
+                    <span>${escapeAdminHtml(formatAuditDate(report.created_at))}</span>
+                </div>
+                <div class="admin-user-audit-item__reason">${escapeAdminHtml(report.reason || 'Sin motivo')}</div>
+                <p>${escapeAdminHtml(report.content_excerpt || report.details || 'Sin detalle adicional')}</p>
+                <div class="admin-user-audit-item__meta">
+                    <span>Estado: ${escapeAdminHtml(report.status || 'pending')}</span>
+                    <span>Reportó ${escapeAdminHtml(report.reporter || 'Usuaria')}</span>
+                    ${report.resolver ? `<span>Resolvió ${escapeAdminHtml(report.resolver)}</span>` : ''}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderAuditLogList(logs) {
+        if (!Array.isArray(logs) || !logs.length) {
+            return renderAuditEmpty('No hay acciones recientes registradas.');
+        }
+        return logs.map((log) => `
+            <div class="admin-user-audit-timeline__item">
+                <span class="admin-user-audit-timeline__dot"></span>
+                <div>
+                    <div class="admin-user-audit-item__top">
+                        <strong>${escapeAdminHtml(log.summary || log.event_type || 'Acción')}</strong>
+                        <span>${escapeAdminHtml(formatAuditDate(log.created_at))}</span>
+                    </div>
+                    <p>${escapeAdminHtml(log.event_type || '')}${log.workspace ? ` · ${escapeAdminHtml(log.workspace)}` : ''}</p>
+                    <div class="admin-user-audit-item__meta">
+                        <span>Actor: ${escapeAdminHtml(log.actor || 'Sistema')}</span>
+                        ${log.resource_type ? `<span>${escapeAdminHtml(log.resource_type)} #${escapeAdminHtml(log.resource_id || '')}</span>` : ''}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function openUserAudit(userId) {
+        const modalEl = document.getElementById('userAuditModal');
+        if (!modalEl || !userId) return;
+        const loading = document.getElementById('userAuditLoading');
+        const errorBox = document.getElementById('userAuditError');
+        const content = document.getElementById('userAuditContent');
+        const title = document.getElementById('userAuditTitle');
+        const subtitle = document.getElementById('userAuditSubtitle');
+        const summary = document.getElementById('userAuditSummary');
+        const strikes = document.getElementById('userAuditStrikes');
+        const reports = document.getElementById('userAuditReports');
+        const logs = document.getElementById('userAuditLogs');
+
+        title.textContent = 'Historial de usuaria';
+        subtitle.textContent = 'Cargando información...';
+        loading?.classList.remove('d-none');
+        errorBox?.classList.add('d-none');
+        content?.classList.add('d-none');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+
+        fetch(`/admin/user/${userId}/audit_summary`, {
+            cache: 'no-store',
+            headers: { Accept: 'application/json' },
+        })
+            .then(async (response) => {
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'No se pudo cargar el historial.');
+                }
+                return data;
+            })
+            .then((data) => {
+                const user = data.user || {};
+                title.textContent = `Historial de @${user.username || 'usuaria'}`;
+                subtitle.textContent = `${Number(data.summary?.active_reports || 0)} reportes activos · ${Number(data.summary?.strikes || 0)} strikes · ${Number(data.summary?.reports_made || 0)} reportes enviados`;
+                if (summary) summary.innerHTML = renderAuditSummary(data);
+                if (strikes) strikes.innerHTML = renderStrikeList(data.strikes);
+                if (reports) reports.innerHTML = renderReportList(data.reports);
+                if (logs) logs.innerHTML = renderAuditLogList(data.audit_logs);
+                const strikesCount = document.getElementById('userAuditStrikesCount');
+                const reportsCount = document.getElementById('userAuditReportsCount');
+                const logsCount = document.getElementById('userAuditLogsCount');
+                if (strikesCount) strikesCount.textContent = String((data.strikes || []).length);
+                if (reportsCount) reportsCount.textContent = String((data.reports || []).length);
+                if (logsCount) logsCount.textContent = String((data.audit_logs || []).length);
+                loading?.classList.add('d-none');
+                content?.classList.remove('d-none');
+            })
+            .catch((error) => {
+                loading?.classList.add('d-none');
+                if (errorBox) {
+                    errorBox.textContent = error.message || 'No se pudo cargar el historial.';
+                    errorBox.classList.remove('d-none');
+                }
+            });
     }
 
     function openReportDetails(event, postId) {

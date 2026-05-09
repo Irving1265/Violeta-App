@@ -1,0 +1,276 @@
+{% extends 'base.html' %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_page.css') }}?v=20260508-admin-bg-diagnostics-v1">
+{% endblock %}
+
+{% block content %}
+{% set health = background_job_health|default({}) %}
+{% set rows = background_job_rows|default([]) %}
+{% set recommendations = background_job_recommendations|default([]) %}
+{% set config = background_job_config|default({}) %}
+{% set maintenance = background_job_maintenance|default({}) %}
+{% set retention = background_job_retention|default({}) %}
+{% set filters = background_job_filters|default({}) %}
+
+<div class="container-fluid px-0 px-md-3 px-xl-4 pb-5 admin-ops-page admin-background-diagnostics-page">
+    <section class="admin-background-diagnostics-hero admin-background-diagnostics-hero--{{ health.status|default('healthy') }}">
+        <div>
+            <a href="{{ url_for('admin_panel') }}" class="admin-background-diagnostics-back">
+                <i class="fas fa-arrow-left"></i> Volver al panel
+            </a>
+            <h1>Diagnóstico background</h1>
+            <p>Estado detallado de imágenes, geocoding, thumbnails WebP y correos procesados fuera del request.</p>
+        </div>
+        <span class="admin-background-diagnostics-status">{{ health.status_label|default('Estable') }}</span>
+    </section>
+
+    <section class="admin-background-diagnostics-summary" aria-label="Resumen de tareas background">
+        <article>
+            <strong>{{ health.queued_count|default(0) }}</strong>
+            <span>Encoladas</span>
+        </article>
+        <article>
+            <strong>{{ health.completed_count|default(0) }}</strong>
+            <span>Completadas</span>
+        </article>
+        <article class="{% if health.retry_count|default(0) > 0 %}is-warning{% endif %}">
+            <strong>{{ health.retry_count|default(0) }}</strong>
+            <span>Reintentos</span>
+        </article>
+        <article class="{% if health.failed_count|default(0) > 0 %}is-danger{% endif %}">
+            <strong>{{ health.failed_count|default(0) }}</strong>
+            <span>Fallas</span>
+        </article>
+    </section>
+
+    <section class="admin-background-diagnostics-card admin-background-filter-card" aria-label="Filtros de diagnóstico background">
+        <div class="admin-background-filter-card__head">
+            <div>
+                <h2>Filtrar diagnóstico</h2>
+                <p>Reduce el historial por tarea, estado y fecha para encontrar fallas rápido.</p>
+            </div>
+            {% if filters.active_count|default(0) > 0 %}
+            <span>{{ filters.active_count }} filtro{{ '' if filters.active_count == 1 else 's' }}</span>
+            {% endif %}
+        </div>
+        <form class="admin-background-filter-form" method="get" action="{{ url_for('admin_background_jobs') }}">
+            <label>
+                <span>Tarea</span>
+                <select name="bg_job">
+                    {% for option in filters.job_options|default([]) %}
+                    <option value="{{ option.value }}" {% if option.value == filters.job_name %}selected{% endif %}>{{ option.label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                <span>Estado</span>
+                <select name="bg_status">
+                    {% for option in filters.status_options|default([]) %}
+                    <option value="{{ option.value }}" {% if option.value == filters.status %}selected{% endif %}>{{ option.label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                <span>Fecha</span>
+                <select name="bg_since">
+                    {% for option in filters.since_options|default([]) %}
+                    <option value="{{ option.value }}" {% if option.value == filters.since %}selected{% endif %}>{{ option.label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <div class="admin-background-filter-actions">
+                <button type="submit"><i class="fas fa-filter"></i> Aplicar</button>
+                <a class="admin-background-filter-reset" href="{{ url_for('admin_background_jobs') }}">Limpiar</a>
+                <a class="admin-background-filter-export" href="{{ url_for('admin_background_jobs_export', bg_job=filters.job_name, bg_status=filters.status, bg_since=filters.since) }}">
+                    <i class="fas fa-file-csv"></i> Exportar
+                </a>
+            </div>
+        </form>
+        <div class="admin-background-filter-summary">
+            <span><i class="fas fa-layer-group"></i> {{ filters.job_label|default('Todas las tareas') }}</span>
+            <span><i class="fas fa-signal"></i> {{ filters.status_label|default('Todos los estados') }}</span>
+            <span><i class="fas fa-calendar-day"></i> {{ filters.since_label|default('Todo el historial') }}</span>
+        </div>
+    </section>
+
+    <section class="admin-background-diagnostics-grid">
+        <article class="admin-background-diagnostics-card admin-background-maintenance-card">
+            <div class="admin-background-diagnostics-card__head">
+                <div>
+                    <h2>Mantenimiento manual</h2>
+                    <p>Reintenta tareas recuperables sin entrar a consola.</p>
+                </div>
+                <i class="fas fa-rotate"></i>
+            </div>
+
+            <div class="admin-background-maintenance-actions">
+                <form method="post" action="{{ url_for('admin_background_jobs_retry') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="image_processing">
+                    <button type="submit" {% if maintenance.image_retry_count|default(0) < 1 %}disabled{% endif %}>
+                        <span><i class="fas fa-image"></i> Reprocesar imágenes</span>
+                        <strong>{{ maintenance.image_retry_count|default(0) }}</strong>
+                    </button>
+                </form>
+                <form method="post" action="{{ url_for('admin_background_jobs_retry') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="geocoding">
+                    <button type="submit" {% if maintenance.geocode_retry_count|default(0) < 1 %}disabled{% endif %}>
+                        <span><i class="fas fa-location-dot"></i> Completar geocoding</span>
+                        <strong>{{ maintenance.geocode_retry_count|default(0) }}</strong>
+                    </button>
+                </form>
+                <form method="post" action="{{ url_for('admin_background_jobs_retry') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="all">
+                    <button type="submit" {% if (maintenance.image_retry_count|default(0) + maintenance.geocode_retry_count|default(0)) < 1 %}disabled{% endif %}>
+                        <span><i class="fas fa-wand-magic-sparkles"></i> Reintentar todo</span>
+                        <strong>{{ maintenance.image_retry_count|default(0) + maintenance.geocode_retry_count|default(0) }}</strong>
+                    </button>
+                </form>
+                <form method="post" action="{{ url_for('admin_background_jobs_purge') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" {% if retention.expired_events|default(0) < 1 %}disabled{% endif %}>
+                        <span><i class="fas fa-broom"></i> Limpiar historial viejo</span>
+                        <strong>{{ retention.expired_events|default(0) }}</strong>
+                    </button>
+                </form>
+            </div>
+
+            <div class="admin-background-maintenance-preview">
+                <div>
+                    <strong>Imágenes candidatas</strong>
+                    {% if maintenance.image_retry_candidates %}
+                        {% for item in maintenance.image_retry_candidates %}
+                        <span>#{{ item.id }} · {{ item.label }}</span>
+                        {% endfor %}
+                    {% else %}
+                        <span>No hay imágenes pendientes seguras.</span>
+                    {% endif %}
+                </div>
+                <div>
+                    <strong>Geocoding pendiente</strong>
+                    {% if maintenance.geocode_retry_candidates %}
+                        {% for item in maintenance.geocode_retry_candidates %}
+                        <span>#{{ item.id }} · {{ item.label }}</span>
+                        {% endfor %}
+                    {% else %}
+                        <span>No hay ubicaciones pendientes.</span>
+                    {% endif %}
+                </div>
+            </div>
+        </article>
+
+        <article class="admin-background-diagnostics-card">
+            <div class="admin-background-diagnostics-card__head">
+                <div>
+                    <h2>Tareas por tipo</h2>
+                    <p>Revisa qué proceso acumula fallas o reintentos.</p>
+                </div>
+                <i class="fas fa-list-check"></i>
+            </div>
+            {% if rows %}
+            <div class="admin-background-job-table" role="table" aria-label="Tareas background por tipo">
+                <div class="admin-background-job-table__row admin-background-job-table__row--head" role="row">
+                    <span role="columnheader">Tarea</span>
+                    <span role="columnheader">OK</span>
+                    <span role="columnheader">Retry</span>
+                    <span role="columnheader">Fail</span>
+                    <span role="columnheader">Estado</span>
+                </div>
+                {% for row in rows %}
+                <div class="admin-background-job-table__row admin-background-job-table__row--{{ row.status }}" role="row">
+                    <strong role="cell">{{ row.job_label }}</strong>
+                    <span role="cell">{{ row.completed_count }}</span>
+                    <span role="cell">{{ row.retry_count }}</span>
+                    <span role="cell">{{ row.failed_count }}</span>
+                    <em role="cell">{{ row.status_label }}</em>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="admin-background-health__empty">Aún no hay tareas registradas.</div>
+            {% endif %}
+        </article>
+
+        <article class="admin-background-diagnostics-card">
+            <div class="admin-background-diagnostics-card__head">
+                <div>
+                    <h2>Recomendaciones</h2>
+                    <p>Acciones sugeridas según el estado actual.</p>
+                </div>
+                <i class="fas fa-screwdriver-wrench"></i>
+            </div>
+            <div class="admin-background-recommendations">
+                {% for item in recommendations %}
+                <div class="admin-background-recommendation admin-background-recommendation--{{ item.level|default('info') }}">
+                    <span><i class="fas fa-circle-info"></i></span>
+                    <div>
+                        <strong>{{ item.title }}</strong>
+                        <p>{{ item.body }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </article>
+    </section>
+
+    <section class="admin-background-diagnostics-grid">
+        <article class="admin-background-diagnostics-card">
+            <div class="admin-background-diagnostics-card__head">
+                <div>
+                    <h2>Eventos recientes</h2>
+                    <p>Últimas tareas registradas según los filtros actuales.</p>
+                </div>
+                <i class="fas fa-clock-rotate-left"></i>
+            </div>
+            <div class="admin-background-diagnostics-events">
+                {% if health.recent_events %}
+                    {% for event in health.recent_events %}
+                    <div class="admin-background-event admin-background-event--{{ event.status|default('queued') }}">
+                        <span class="admin-background-event__dot" aria-hidden="true"></span>
+                        <div>
+                            <strong>{{ event.job_label }}</strong>
+                            <span>
+                                {{ event.status_label }}
+                                {% if event.attempt %} · intento {{ event.attempt }}{% endif %}
+                                {% if event.duration_ms %} · {{ event.duration_ms }} ms{% endif %}
+                            </span>
+                            {% if event.error %}
+                            <small>{{ event.error }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="admin-background-health__empty">No hay eventos recientes.</div>
+                {% endif %}
+            </div>
+        </article>
+
+        <article class="admin-background-diagnostics-card">
+            <div class="admin-background-diagnostics-card__head">
+                <div>
+                    <h2>Configuración activa</h2>
+                    <p>Valores efectivos para el worker local.</p>
+                </div>
+                <i class="fas fa-sliders"></i>
+            </div>
+            <dl class="admin-background-config-list">
+                <div><dt>Background jobs</dt><dd>{{ 'Activo' if config.enabled else 'Inactivo' }}</dd></div>
+                <div><dt>Modo inline</dt><dd>{{ 'Sí' if config.inline else 'No' }}</dd></div>
+                <div><dt>Workers</dt><dd>{{ config.workers|default(1) }}</dd></div>
+                <div><dt>Máx. reintentos</dt><dd>{{ config.max_retries|default(0) }}</dd></div>
+                <div><dt>Delay retry</dt><dd>{{ config.retry_delay_seconds|default(0) }} s</dd></div>
+                <div><dt>Retención historial</dt><dd>{{ config.event_retention_days|default(30) }} días</dd></div>
+                <div><dt>Eventos guardados</dt><dd>{{ retention.total_events|default(0) }}</dd></div>
+                <div><dt>Imagen async</dt><dd>{{ 'Sí' if config.async_image_processing else 'No' }}</dd></div>
+                <div><dt>WebP async</dt><dd>{{ 'Sí' if config.async_upload_optimization else 'No' }}</dd></div>
+                <div><dt>Geocoding async</dt><dd>{{ 'Sí' if config.async_reverse_geocoding else 'No' }}</dd></div>
+                <div><dt>Email async</dt><dd>{{ 'Sí' if config.async_email_delivery else 'No' }}</dd></div>
+            </dl>
+        </article>
+    </section>
+</div>
+{% endblock %}

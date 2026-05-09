@@ -1,3 +1,5 @@
+{% set metrics = admin_metrics|default({}) %}
+{% set bg_health = background_job_health|default({}) %}
 <section class="admin-overview-grid">
     <div class="admin-overview-left">
         <article class="admin-welcome-card">
@@ -52,5 +54,194 @@
         </div>
         <div class="admin-activity-legend" id="adminActivityLegend"></div>
         <div class="admin-activity-updated" id="adminActivityUpdatedAt"></div>
+    </article>
+</section>
+
+<section class="admin-priority-strip" aria-label="Prioridades rápidas de administración">
+    <a class="admin-priority-card{% if admin_reports_total_count|default(0) > 0 %} is-alert{% endif %}" href="{{ url_for('admin_panel', tab='reportes') }}">
+        <span class="admin-priority-card__icon"><i class="fas fa-flag"></i></span>
+        <span class="admin-priority-card__body">
+            <strong>{{ admin_reports_total_count|default(0) }}</strong>
+            <span>Reportes abiertos</span>
+        </span>
+        <i class="fas fa-chevron-right admin-priority-card__arrow" aria-hidden="true"></i>
+    </a>
+    <a class="admin-priority-card{% if pending_password_recovery_count|default(0) > 0 %} is-warning{% endif %}" href="{{ url_for('admin_panel', tab='users', user_status='recovery') }}">
+        <span class="admin-priority-card__icon"><i class="fas fa-key"></i></span>
+        <span class="admin-priority-card__body">
+            <strong>{{ pending_password_recovery_count|default(0) }}</strong>
+            <span>Recuperación</span>
+        </span>
+        <i class="fas fa-chevron-right admin-priority-card__arrow" aria-hidden="true"></i>
+    </a>
+    <a class="admin-priority-card{% if pending_verifications_count|default(0) > 0 %} is-info{% endif %}" href="{{ url_for('admin_panel', tab='verificaciones') }}">
+        <span class="admin-priority-card__icon"><i class="fas fa-user-check"></i></span>
+        <span class="admin-priority-card__body">
+            <strong>{{ pending_verifications_count|default(0) }}</strong>
+            <span>Verificaciones</span>
+        </span>
+        <i class="fas fa-chevron-right admin-priority-card__arrow" aria-hidden="true"></i>
+    </a>
+    <a class="admin-priority-card{% if pending_chat_rooms_count|default(0) > 0 %} is-success{% endif %}" href="{{ url_for('admin_panel', tab='chats') }}">
+        <span class="admin-priority-card__icon"><i class="fas fa-comments"></i></span>
+        <span class="admin-priority-card__body">
+            <strong>{{ pending_chat_rooms_count|default(0) }}</strong>
+            <span>Chats pendientes</span>
+        </span>
+        <i class="fas fa-chevron-right admin-priority-card__arrow" aria-hidden="true"></i>
+    </a>
+</section>
+
+<section class="admin-background-health admin-background-health--{{ bg_health.status|default('healthy') }}" aria-label="Salud de procesos en segundo plano">
+    <div class="admin-background-health__head">
+        <div class="admin-background-health__title">
+            <span class="admin-background-health__icon"><i class="fas fa-bolt"></i></span>
+            <div>
+                <h2>Procesos en segundo plano</h2>
+                <p>Imagenes, geocoding y correos fuera del request.</p>
+            </div>
+        </div>
+        <div class="admin-background-health__actions">
+            <span class="admin-background-health__status">{{ bg_health.status_label|default('Estable') }}</span>
+            <a class="admin-background-health__link" href="{{ url_for('admin_background_jobs') }}">
+                Diagnóstico <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+    </div>
+
+    <div class="admin-background-health__stats">
+        <article>
+            <strong>{{ bg_health.queued_count|default(0) }}</strong>
+            <span>Encoladas</span>
+        </article>
+        <article>
+            <strong>{{ bg_health.completed_count|default(0) }}</strong>
+            <span>Completadas</span>
+        </article>
+        <article class="{% if bg_health.retry_count|default(0) > 0 %}is-warning{% endif %}">
+            <strong>{{ bg_health.retry_count|default(0) }}</strong>
+            <span>Reintentos</span>
+        </article>
+        <article class="{% if bg_health.failed_count|default(0) > 0 %}is-danger{% endif %}">
+            <strong>{{ bg_health.failed_count|default(0) }}</strong>
+            <span>Fallas</span>
+        </article>
+    </div>
+
+    <div class="admin-background-health__events">
+        {% if bg_health.recent_events %}
+            {% for event in bg_health.recent_events[:4] %}
+            <div class="admin-background-event admin-background-event--{{ event.status|default('queued') }}">
+                <span class="admin-background-event__dot" aria-hidden="true"></span>
+                <div>
+                    <strong>{{ event.job_label }}</strong>
+                    <span>
+                        {{ event.status_label }}
+                        {% if event.attempt %} · intento {{ event.attempt }}{% endif %}
+                        {% if event.duration_ms %} · {{ event.duration_ms }} ms{% endif %}
+                    </span>
+                    {% if event.error %}
+                    <small>{{ event.error }}</small>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="admin-background-health__empty">No hay tareas recientes. El sistema esta listo para procesar trabajo pesado.</div>
+        {% endif %}
+    </div>
+</section>
+
+<section class="admin-metrics-dashboard" id="adminMetricsDashboard" aria-label="Métricas operativas">
+    <div class="admin-metrics-dashboard__head">
+        <div>
+            <h2>Métricas operativas</h2>
+            <p>Resumen rápido para priorizar moderación desde teléfono.</p>
+        </div>
+        <span>{{ metrics.window_days|default(30) }} días</span>
+    </div>
+    <article class="admin-metric-card">
+        <div class="admin-metric-card__icon"><i class="fas fa-clock"></i></div>
+        <div class="admin-metric-card__body">
+            <span class="admin-metric-card__label">Tiempo de respuesta</span>
+            <strong>{{ metrics.avg_resolution_label|default('Sin datos') }}</strong>
+            <span>{{ metrics.resolved_reports_count|default(0) }} cierre{% if metrics.resolved_reports_count|default(0) != 1 %}s{% endif %} en {{ metrics.window_days|default(30) }} días</span>
+        </div>
+    </article>
+    <article class="admin-metric-card">
+        <div class="admin-metric-card__icon is-green"><i class="fas fa-user-check"></i></div>
+        <div class="admin-metric-card__body">
+            <span class="admin-metric-card__label">Usuarias verificadas</span>
+            <strong>{{ metrics.verification_rate|default(0) }}%</strong>
+            <span>{{ metrics.verified_users_count|default(0) }} de {{ metrics.total_users_count|default(0) }} cuentas</span>
+        </div>
+    </article>
+    <article class="admin-metric-card">
+        <div class="admin-metric-card__icon is-rose"><i class="fas fa-eye-slash"></i></div>
+        <div class="admin-metric-card__body">
+            <span class="admin-metric-card__label">Publicaciones ocultas</span>
+            <strong>{{ metrics.hidden_posts_count|default(0) }}</strong>
+            <span>{{ metrics.hidden_posts_rate|default(0) }}% del total publicado</span>
+        </div>
+    </article>
+    <article class="admin-metric-card">
+        <div class="admin-metric-card__icon is-amber"><i class="fas fa-flag"></i></div>
+        <div class="admin-metric-card__body">
+            <span class="admin-metric-card__label">Reportes abiertos</span>
+            <strong>{{ metrics.open_reports_count|default(0) }}</strong>
+            <span>Post, chat y comentarios pendientes</span>
+        </div>
+    </article>
+</section>
+
+<section class="admin-metrics-lists">
+    <article class="admin-metric-list-card">
+        <div class="admin-metric-list-card__head">
+            <div>
+                <h3>Reportes por zona</h3>
+                <p>Últimos {{ metrics.window_days|default(30) }} días</p>
+            </div>
+            <i class="fas fa-map-location-dot"></i>
+        </div>
+        {% if metrics.reports_by_zone %}
+        <div class="admin-metric-bars">
+            {% for item in metrics.reports_by_zone %}
+            <div class="admin-metric-bar-row">
+                <div class="admin-metric-bar-row__meta">
+                    <strong>{{ item.zone }}</strong>
+                    <span>{{ item.count }} reporte{% if item.count != 1 %}s{% endif %}</span>
+                </div>
+                <div class="admin-metric-bar"><span style="--metric-width: {{ item.share_percent|default(0) }}%;"></span></div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="admin-metric-empty">Aún no hay reportes por zona en este rango.</div>
+        {% endif %}
+    </article>
+
+    <article class="admin-metric-list-card">
+        <div class="admin-metric-list-card__head">
+            <div>
+                <h3>Ocultas por zona</h3>
+                <p>Estado actual de moderación</p>
+            </div>
+            <i class="fas fa-shield-halved"></i>
+        </div>
+        {% if metrics.hidden_posts_by_zone %}
+        <div class="admin-metric-bars">
+            {% for item in metrics.hidden_posts_by_zone %}
+            <div class="admin-metric-bar-row">
+                <div class="admin-metric-bar-row__meta">
+                    <strong>{{ item.zone }}</strong>
+                    <span>{{ item.count }} oculta{% if item.count != 1 %}s{% endif %}</span>
+                </div>
+                <div class="admin-metric-bar admin-metric-bar--rose"><span style="--metric-width: {{ item.share_percent|default(0) }}%;"></span></div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="admin-metric-empty">No hay publicaciones ocultas actualmente.</div>
+        {% endif %}
     </article>
 </section>

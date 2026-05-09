@@ -6,7 +6,7 @@ import os
 import sys
 from pathlib import Path
 
-from sqlalchemy import MetaData, create_engine, inspect, text
+from sqlalchemy import MetaData, create_engine, func, select
 from sqlalchemy.engine import Engine
 
 
@@ -38,13 +38,14 @@ def batched_rows(conn, table, batch_size: int):
 
 
 def ensure_empty_target(engine: Engine) -> None:
-    inspector = inspect(engine)
+    metadata = MetaData()
+    metadata.reflect(bind=engine)
     with engine.connect() as conn:
-        for table_name in inspector.get_table_names():
-            count = conn.execute(text(f'SELECT COUNT(*) FROM "{table_name}"')).scalar()
+        for table in metadata.sorted_tables:
+            count = conn.execute(select(func.count()).select_from(table)).scalar()
             if count and int(count) > 0:
                 raise RuntimeError(
-                    f'La tabla destino "{table_name}" ya tiene datos. '
+                    f'La tabla destino "{table.name}" ya tiene datos. '
                     'Usa una base vacía o vacíala antes de migrar.'
                 )
 
@@ -61,14 +62,12 @@ def sync_postgres_sequences(engine: Engine, metadata: MetaData) -> None:
             pk_col = pk_cols[0]
             if pk_col.name != 'id':
                 continue
-            stmt = text(
-                f"""
-                SELECT setval(
-                    pg_get_serial_sequence('"public"."{table.name}"', 'id'),
-                    COALESCE((SELECT MAX(id) FROM "{table.name}"), 1),
-                    (SELECT COUNT(*) > 0 FROM "{table.name}")
+            stmt = select(
+                func.setval(
+                    func.pg_get_serial_sequence(table.fullname, 'id'),
+                    func.coalesce(select(func.max(pk_col)).scalar_subquery(), 1),
+                    select((func.count() > 0)).select_from(table).scalar_subquery(),
                 )
-                """
             )
             conn.execute(stmt)
 

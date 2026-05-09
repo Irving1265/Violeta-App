@@ -104,12 +104,57 @@ El diseño "Violeta" se centra en una estética nocturna y elegante, utilizando 
     ```
     La aplicación iniciará en `http://localhost:5000`.
 
+### Validación antes de subir cambios
+
+Ejecuta el mismo bloque que corre GitHub Actions:
+
+```bash
+./.venv/bin/python scripts/ci_checks.py
+```
+
+Este comando compila los archivos críticos, bloquea hallazgos Bandit `High` y ejecuta el smoke suite completo. Si falla, corrige localmente antes de hacer commit o subir a GitHub.
+
+Para revisar layout real en navegador, teléfono y web:
+
+```bash
+RUN_UI_SMOKE=1 ./.venv/bin/python scripts/ci_checks.py
+```
+
+Ese smoke levanta una base temporal, crea usuarias de prueba y valida feed, perfil, seguridad, chat y admin en viewports móvil/escritorio. Requiere Playwright Chromium instalado localmente.
+
+### Health checks de producción
+
+La app expone un endpoint seguro para monitoreo:
+
+```bash
+curl http://localhost:8000/healthz
+```
+
+También puedes ejecutarlo desde Flask CLI:
+
+```bash
+flask --app app:app health-check
+```
+
+El check valida base de datos, cache, uploads y workers background sin exponer secretos ni URLs internas. Usa `/healthz` como health check en Render o cualquier plataforma de deploy.
+
+### Preflight antes de deploy
+
+Antes de subir a producción, corre:
+
+```bash
+flask --app app:app preflight-check --strict
+```
+
+Este comando revisa configuración crítica de producción: `SECRET_KEY`, base de datos, storage de uploads, correo, cookies seguras, Redis recomendado y health check. No imprime secretos ni URLs completas.
+
 ### PostgreSQL administrado
 
 Si vas a mover la app a una base administrada, revisa:
 
 - [Migración a PostgreSQL](./docs/postgresql.md)
 - [Gobernanza de datos y privacidad](./docs/data-governance.md)
+- [Runbook operativo](./docs/operational-runbook.md)
 
 ---
 

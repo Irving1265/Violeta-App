@@ -52,6 +52,7 @@ os.environ['SAFETY_PUBLISH_MIN_DELAY_MINUTES'] = '15'
 os.environ['SAFETY_PUBLISH_DISTANCE_METERS'] = '200'
 os.environ['SAFETY_PUBLISH_FALLBACK_MINUTES'] = '60'
 os.environ['AUDIT_LOG_RETENTION_DAYS'] = '365'
+os.environ['BACKGROUND_JOB_EVENT_RETENTION_DAYS'] = '30'
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -76,6 +77,7 @@ ChatMessageReport = app_module.ChatMessageReport
 ModerationStrike = app_module.ModerationStrike
 VerificationRequest = app_module.VerificationRequest
 AuditLog = app_module.AuditLog
+BackgroundJobEvent = app_module.BackgroundJobEvent
 ROLE_SUPER_ADMIN = getattr(app_module, 'ROLE_SUPER_ADMIN', 'super_admin')
 
 app.config.update(
@@ -387,6 +389,1204 @@ class VioletaSmokeTests(unittest.TestCase):
         with client.session_transaction() as sess:
             self.assertTrue(sess.get('_user_id'))
 
+    def test_health_check_public_safe_and_degrades_on_cache_failure(self):
+        client = app.test_client()
+        response = client.get('/healthz')
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json() or {}
+        self.assertEqual(payload.get('status'), 'ok')
+        checks = payload.get('checks') or {}
+        self.assertEqual((checks.get('database') or {}).get('status'), 'ok')
+        self.assertEqual((checks.get('uploads') or {}).get('status'), 'ok')
+        self.assertIn((checks.get('cache') or {}).get('status'), {'disabled', 'ok'})
+        self.assertIn((checks.get('background_jobs') or {}).get('status'), {'ok', 'inline', 'disabled'})
+        self.assertIn('no-store', response.headers.get('Cache-Control', ''))
+        body = response.get_data(as_text=True)
+        self.assertNotIn(os.environ['SECRET_KEY'], body)
+        self.assertNotIn(os.environ['DATABASE_URL'], body)
+
+        cli_result = app.test_cli_runner().invoke(args=['health-check'])
+        self.assertEqual(cli_result.exit_code, 0)
+        self.assertIn('"status": "ok"', cli_result.output)
+        self.assertNotIn(os.environ['SECRET_KEY'], cli_result.output)
+        self.assertNotIn(os.environ['DATABASE_URL'], cli_result.output)
+
+        original_redis_url = app.config.get('REDIS_URL')
+
+        def restore_redis_config():
+            app.config['REDIS_URL'] = original_redis_url
+
+        self.addCleanup(restore_redis_config)
+        app.config['REDIS_URL'] = 'redis://127.0.0.1:1/0'
+        degraded = client.get('/healthz')
+        self.assertEqual(degraded.status_code, 503)
+        degraded_payload = degraded.get_json() or {}
+        self.assertEqual(degraded_payload.get('status'), 'degraded')
+        self.assertIn('cache', degraded_payload.get('failing_checks') or [])
+
+    def test_preflight_check_reports_warnings_and_strict_failures_without_secrets(self):
+        original_config = {
+            'SQLALCHEMY_DATABASE_URI': app.config.get('SQLALCHEMY_DATABASE_URI'),
+            'UPLOAD_BACKEND': app.config.get('UPLOAD_BACKEND'),
+            'MAIL_DELIVERY_METHOD': app.config.get('MAIL_DELIVERY_METHOD'),
+            'MAIL_SERVER': app.config.get('MAIL_SERVER'),
+            'MAIL_USERNAME': app.config.get('MAIL_USERNAME'),
+            'MAIL_PASSWORD': app.config.get('MAIL_PASSWORD'),
+            'MAIL_DEFAULT_SENDER': app.config.get('MAIL_DEFAULT_SENDER'),
+            'SESSION_COOKIE_SECURE': app.config.get('SESSION_COOKIE_SECURE'),
+            'REDIS_URL': app.config.get('REDIS_URL'),
+            'BACKGROUND_JOBS_ENABLED': app.config.get('BACKGROUND_JOBS_ENABLED'),
+        }
+
+        def restore_config():
+            app.config.update(original_config)
+
+        self.addCleanup(restore_config)
+        app.config.update(
+            SQLALCHEMY_DATABASE_URI=f"sqlite:///{DB_PATH}",
+            UPLOAD_BACKEND='local',
+            MAIL_DELIVERY_METHOD='smtp',
+            MAIL_SERVER='smtp.example.com',
+            MAIL_USERNAME='sender@example.com',
+            MAIL_PASSWORD='',
+            MAIL_DEFAULT_SENDER='sender@example.com',
+            SESSION_COOKIE_SECURE=False,
+            REDIS_URL='',
+            BACKGROUND_JOBS_ENABLED=True,
+        )
+
+        runner = app.test_cli_runner()
+        normal = runner.invoke(args=['preflight-check'])
+        self.assertEqual(normal.exit_code, 0)
+        self.assertIn('"status": "warning"', normal.output)
+        self.assertIn('sqlite_database', normal.output)
+        self.assertNotIn(os.environ['SECRET_KEY'], normal.output)
+        self.assertNotIn(str(DB_PATH), normal.output)
+
+        strict = runner.invoke(args=['preflight-check', '--strict'])
+        self.assertEqual(strict.exit_code, 1)
+        self.assertIn('"status": "fail"', strict.output)
+        self.assertIn('sqlite_in_strict_mode', strict.output)
+        self.assertIn('local_uploads_in_strict_mode', strict.output)
+        self.assertIn('session_cookie_not_secure', strict.output)
+        self.assertNotIn(os.environ['SECRET_KEY'], strict.output)
+        self.assertNotIn(str(DB_PATH), strict.output)
+
+    def test_security_overlay_styles_load_only_when_needed(self):
+        verified_id = self.create_user('overlay_verificada', verified=True)
+        unverified_id = self.create_user('overlay_no_verificada', verified=False)
+
+        verified_response = self.client_for(verified_id).get('/')
+        self.assertEqual(verified_response.status_code, 200)
+        verified_html = verified_response.get_data(as_text=True)
+        self.assertNotIn('security_overlays.css', verified_html)
+        self.assertNotIn('verify-gate-overlay', verified_html)
+        self.assertNotIn('user-unverified', verified_html)
+
+        unverified_response = self.client_for(unverified_id).get('/')
+        self.assertEqual(unverified_response.status_code, 200)
+        unverified_html = unverified_response.get_data(as_text=True)
+        self.assertIn('security_overlays.css', unverified_html)
+        self.assertIn('verify-gate-overlay', unverified_html)
+        self.assertIn('user-unverified', unverified_html)
+
+    def test_page_script_bundles_are_loaded_by_need(self):
+        user_id = self.create_user('bundle_smoke', verified=True)
+        post_id = self.create_public_post(user_id, caption='Reporte para bundles')
+
+        login_html = app.test_client().get('/login').get_data(as_text=True)
+        self.assertIn('/static/js/app_core.js?', login_html)
+        self.assertNotIn('/static/js/app.js?', login_html)
+        self.assertNotIn('/static/js/app_realtime.js?', login_html)
+
+        client = self.client_for(user_id)
+        feed_html = client.get('/').get_data(as_text=True)
+        self.assertIn('/static/js/app.js?', feed_html)
+        self.assertIn('/static/js/post_map.js?', feed_html)
+        self.assertNotIn('/static/js/app_core.js?', feed_html)
+        self.assertNotIn('/static/js/app_realtime.js?', feed_html)
+
+        post_html = client.get(f'/post/{post_id}').get_data(as_text=True)
+        self.assertIn('/static/js/app.js?', post_html)
+        self.assertIn('/static/js/post_map.js?', post_html)
+        self.assertNotIn('/static/js/app_core.js?', post_html)
+        self.assertNotIn('/static/js/app_realtime.js?', post_html)
+
+        chat_html = client.get('/chat').get_data(as_text=True)
+        self.assertIn('/static/js/app_core.js?', chat_html)
+        self.assertIn('/static/js/app_realtime.js?', chat_html)
+        self.assertNotIn('/static/js/app.js?', chat_html)
+        self.assertNotIn('/static/js/post_map.js?', chat_html)
+
+        profile_html = client.get('/user/bundle_smoke').get_data(as_text=True)
+        self.assertIn('/static/js/app_core.js?', profile_html)
+        self.assertIn('/static/js/app_realtime.js?', profile_html)
+        self.assertNotIn('/static/js/app.js?', profile_html)
+        self.assertNotIn('/static/js/post_map.js?', profile_html)
+
+    def test_admin_attention_state_reports_new_moderation_work(self):
+        admin_id = self.create_user('admin')
+        reporter_id = self.create_user('reportera_attention')
+        post_author_id = self.create_user('autora_attention_post')
+        comment_author_id = self.create_user('autora_attention_comment')
+        chat_author_id = self.create_user('autora_attention_chat')
+        non_admin_id = self.create_user('sin_admin_attention')
+
+        post_id = self.create_public_post(post_author_id, caption='Reporte para atención admin')
+        comment_id = self.create_comment(comment_author_id, post_id, 'Comentario para reportar')
+        _, message_id = self.create_chat_message(chat_author_id, room_name='Sala attention', content='Mensaje para reportar')
+
+        non_admin_response = self.client_for(non_admin_id).get('/admin/attention-state')
+        self.assertEqual(non_admin_response.status_code, 403)
+
+        admin = self.client_for(admin_id)
+        initial = admin.get('/admin/attention-state')
+        self.assertEqual(initial.status_code, 200)
+        initial_payload = initial.get_json() or {}
+        self.assertEqual(initial_payload.get('admin_reports_total_count'), 0)
+        self.assertIsNone(initial_payload.get('latest_admin_report_created_at'))
+
+        reporter = self.client_for(reporter_id)
+        post_report = reporter.post(
+            f'/report_post/{post_id}',
+            json={'reason': 'Información falsa', 'details': 'No coincide con el lugar'},
+        )
+        self.assertEqual(post_report.status_code, 200)
+        comment_report = reporter.post(
+            f'/api/comment/{comment_id}/report',
+            json={'reason': 'Acoso o insultos', 'details': 'Requiere revisión'},
+        )
+        self.assertEqual(comment_report.status_code, 200)
+        chat_report = reporter.post(
+            f'/api/chat/message/{message_id}/report',
+            json={'reason': 'Spam o fraude', 'details': 'Parece sospechoso'},
+        )
+        self.assertEqual(chat_report.status_code, 200)
+
+        updated = admin.get('/admin/attention-state')
+        self.assertEqual(updated.status_code, 200)
+        payload = updated.get_json() or {}
+        self.assertTrue(payload.get('success'))
+        self.assertEqual(payload.get('post_reports_count'), 1)
+        self.assertEqual(payload.get('reported_posts_count'), 1)
+        self.assertEqual(payload.get('chat_message_reports_count'), 1)
+        self.assertEqual(payload.get('comment_reports_count'), 1)
+        self.assertEqual(payload.get('admin_reports_total_count'), 3)
+        self.assertTrue(payload.get('has_admin_reports_attention'))
+        self.assertIsInstance(payload.get('latest_admin_report_created_at'), str)
+
+        shell_html = admin.get('/admin').get_data(as_text=True)
+        self.assertIn('attentionState', shell_html)
+        self.assertIn('reportsTotal: 3', shell_html)
+
+    def test_admin_metrics_dashboard_summarizes_operational_health(self):
+        admin_id = self.create_user('admin')
+        reporter_id = self.create_user('reportera_metrics')
+        author_id = self.create_user('autora_metrics')
+        self.create_user('sin_verificar_metrics', verified=False)
+
+        monterrey_post_id = self.create_public_post(
+            author_id,
+            caption='Reporte visible en Monterrey',
+            city='Monterrey',
+            show_public=True,
+        )
+        san_pedro_post_id = self.create_public_post(
+            author_id,
+            caption='Reporte oculto en San Pedro',
+            city='San Pedro',
+            show_public=False,
+        )
+        comment_id = self.create_comment(author_id, monterrey_post_id, 'Comentario resuelto')
+
+        now = app_module.utc_now_naive()
+        with app.app_context():
+            db.session.add(Report(
+                post_id=monterrey_post_id,
+                reporter_id=reporter_id,
+                reason='Información falsa',
+                status='resolved',
+                created_at=now - timedelta(hours=2),
+                resolved_at=now - timedelta(hours=1),
+                resolved_by=admin_id,
+            ))
+            db.session.add(Report(
+                post_id=san_pedro_post_id,
+                reporter_id=reporter_id,
+                reason='Doxxing o datos personales',
+                status='pending',
+                created_at=now - timedelta(hours=1),
+            ))
+            db.session.add(CommentReport(
+                comment_id=comment_id,
+                reporter_id=reporter_id,
+                reason='Acoso o insultos',
+                status='resolved',
+                created_at=now - timedelta(hours=3),
+                resolved_at=now - timedelta(hours=2),
+                resolved_by=admin_id,
+            ))
+            recovery_user = db.session.get(User, reporter_id)
+            assert recovery_user is not None
+            recovery_user.password_recovery_requested_at = now - timedelta(minutes=20)
+            db.session.add(VerificationRequest(
+                user_id=author_id,
+                status='pending',
+                phone='8112345678',
+                submitted_at=now - timedelta(minutes=15),
+            ))
+            db.session.add(ChatRoom(
+                name='Chat pendiente de aprobación',
+                is_private=False,
+                is_approved=False,
+                created_by=author_id,
+            ))
+            db.session.commit()
+
+        bg_stats = app.extensions.get('violeta_background_job_stats')
+        bg_events = app.extensions.get('violeta_background_job_events')
+        bg_lock = app.extensions.get('violeta_background_job_stats_lock')
+        self.assertIsNotNone(bg_stats)
+        self.assertIsNotNone(bg_events)
+        saved_bg_stats = dict(bg_stats)
+        saved_bg_events = list(bg_events)
+
+        def restore_background_health():
+            if bg_lock is not None:
+                with bg_lock:
+                    bg_stats.clear()
+                    bg_stats.update(saved_bg_stats)
+                    bg_events.clear()
+                    bg_events.extend(saved_bg_events)
+            else:
+                bg_stats.clear()
+                bg_stats.update(saved_bg_stats)
+                bg_events.clear()
+                bg_events.extend(saved_bg_events)
+
+        self.addCleanup(restore_background_health)
+
+        if bg_lock is not None:
+            bg_lock.acquire()
+        try:
+            bg_stats.clear()
+            bg_stats.update({
+                'queued': 4,
+                'completed': 2,
+                'retry': 1,
+                'failed': 1,
+                'upload_image_processing.queued': 2,
+                'upload_image_processing.completed': 1,
+                'upload_image_processing.failed': 1,
+                'reverse_geocode_post.retry': 1,
+            })
+            bg_events.clear()
+            bg_events.appendleft({
+                'job_name': 'upload_image_processing',
+                'status': 'failed',
+                'attempt': 3,
+                'error': 'No se pudo procesar imagen',
+                'duration_ms': 127.4,
+                'created_at': now.isoformat(),
+            })
+            bg_events.appendleft({
+                'job_name': 'reverse_geocode_post',
+                'status': 'retry',
+                'attempt': 1,
+                'error': 'timeout',
+                'duration_ms': None,
+                'created_at': now.isoformat(),
+            })
+        finally:
+            if bg_lock is not None:
+                bg_lock.release()
+
+        non_admin_response = self.client_for(reporter_id).get('/admin/metrics')
+        self.assertEqual(non_admin_response.status_code, 403)
+        non_admin_diagnostics = self.client_for(reporter_id).get(
+            '/admin/background-jobs?format=json',
+            headers={'Accept': 'application/json'},
+        )
+        self.assertEqual(non_admin_diagnostics.status_code, 403)
+
+        admin = self.client_for(admin_id)
+        response = admin.get('/admin/metrics')
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json() or {}
+        self.assertTrue(payload.get('success'))
+        metrics = payload.get('admin_metrics') or {}
+        background_health = payload.get('background_job_health') or {}
+        self.assertEqual(metrics.get('window_days'), 30)
+        self.assertEqual(metrics.get('verified_users_count'), 3)
+        self.assertEqual(metrics.get('total_users_count'), 4)
+        self.assertEqual(metrics.get('verification_rate'), 75)
+        self.assertEqual(metrics.get('hidden_posts_count'), 1)
+        self.assertEqual(metrics.get('open_reports_count'), 1)
+        self.assertEqual(metrics.get('resolved_reports_count'), 2)
+        self.assertEqual(background_health.get('status'), 'danger')
+        self.assertEqual(background_health.get('status_label'), 'Revisar fallas')
+        self.assertEqual(background_health.get('failed_count'), 1)
+        self.assertEqual(background_health.get('retry_count'), 1)
+        self.assertTrue(any(
+            event.get('job_label') == 'Procesamiento de imagen' and event.get('status') == 'failed'
+            for event in background_health.get('recent_events') or []
+        ))
+
+        diagnostics_response = admin.get('/admin/background-jobs?format=json')
+        self.assertEqual(diagnostics_response.status_code, 200)
+        diagnostics_payload = diagnostics_response.get_json() or {}
+        self.assertTrue(diagnostics_payload.get('success'))
+        diagnostics_health = diagnostics_payload.get('background_job_health') or {}
+        diagnostics_rows = diagnostics_payload.get('background_job_rows') or []
+        diagnostics_recommendations = diagnostics_payload.get('background_job_recommendations') or []
+        self.assertEqual(diagnostics_health.get('status'), 'danger')
+        self.assertTrue(any(row.get('job_label') == 'Procesamiento de imagen' for row in diagnostics_rows))
+        self.assertTrue(any(item.get('title') == 'Atender fallas recientes' for item in diagnostics_recommendations))
+        self.assertEqual((diagnostics_payload.get('background_job_config') or {}).get('max_retries'), app.config.get('BACKGROUND_JOB_MAX_RETRIES'))
+
+        zone_counts = {
+            item.get('zone'): item.get('count')
+            for item in metrics.get('reports_by_zone') or []
+        }
+        self.assertEqual(zone_counts.get('Monterrey'), 1)
+        self.assertEqual(zone_counts.get('San Pedro'), 1)
+        hidden_zone_counts = {
+            item.get('zone'): item.get('count')
+            for item in metrics.get('hidden_posts_by_zone') or []
+        }
+        self.assertEqual(hidden_zone_counts.get('San Pedro'), 1)
+
+        overview_html = admin.get('/admin/overview').get_data(as_text=True)
+        self.assertIn('Métricas operativas', overview_html)
+        self.assertIn('admin-priority-strip', overview_html)
+        self.assertIn('admin-background-health', overview_html)
+        self.assertIn('Procesos en segundo plano', overview_html)
+        self.assertIn('Revisar fallas', overview_html)
+        self.assertIn('Procesamiento de imagen', overview_html)
+        self.assertIn('No se pudo procesar imagen', overview_html)
+        self.assertIn('Diagnóstico', overview_html)
+        self.assertIn('Reportes por zona', overview_html)
+        self.assertIn('Tiempo de respuesta', overview_html)
+        self.assertIn('Reportes abiertos', overview_html)
+        self.assertIn('Recuperación', overview_html)
+        self.assertIn('Verificaciones', overview_html)
+        self.assertIn('Chats pendientes', overview_html)
+        self.assertIn('San Pedro', overview_html)
+        self.assertRegex(overview_html, r'<strong>1</strong>\s*<span>Reportes abiertos</span>')
+        self.assertRegex(overview_html, r'<strong>1</strong>\s*<span>Recuperación</span>')
+        self.assertRegex(overview_html, r'<strong>1</strong>\s*<span>Verificaciones</span>')
+        self.assertRegex(overview_html, r'<strong>1</strong>\s*<span>Chats pendientes</span>')
+
+        diagnostics_html = admin.get('/admin/background-jobs').get_data(as_text=True)
+        self.assertIn('Diagnóstico background', diagnostics_html)
+        self.assertIn('Tareas por tipo', diagnostics_html)
+        self.assertIn('Recomendaciones', diagnostics_html)
+        self.assertIn('Procesamiento de imagen', diagnostics_html)
+        self.assertIn('Atender fallas recientes', diagnostics_html)
+
+    def test_admin_user_filters_search_status_strikes_and_reports(self):
+        admin_id = self.create_user('admin')
+        reporter_id = self.create_user('reportera_filtros_admin')
+        searched_id = self.create_user('buscada_filtros_admin')
+        unverified_id = self.create_user('sin_verificar_filtros_admin', verified=False)
+        strike_id = self.create_user('strikes_filtros_admin')
+        reported_author_id = self.create_user('reportada_filtros_admin')
+        self.create_user('sin_match_filtros_admin')
+        post_id = self.create_public_post(reported_author_id, caption='Post con reporte activo')
+
+        with app.app_context():
+            searched = db.session.get(User, searched_id)
+            assert searched is not None
+            searched.email = 'busqueda-directa@example.com'
+            strike_user = db.session.get(User, strike_id)
+            assert strike_user is not None
+            strike_user.abuse_strikes = 2
+            db.session.add(Report(
+                post_id=post_id,
+                reporter_id=reporter_id,
+                reason='Información falsa',
+                status='pending',
+            ))
+            db.session.commit()
+
+        admin = self.client_for(admin_id)
+        base_response = admin.get('/admin/content?tab=users')
+        self.assertEqual(base_response.status_code, 200)
+        base_html = base_response.get_data(as_text=True)
+        self.assertIn('admin-user-filter-panel', base_html)
+        self.assertIn('adminUserStatusFilter', base_html)
+
+        search_response = admin.get('/admin/content?tab=users&user_q=busqueda-directa')
+        self.assertEqual(search_response.status_code, 200)
+        search_html = search_response.get_data(as_text=True)
+        self.assertIn('buscada_filtros_admin', search_html)
+        self.assertNotIn('sin_match_filtros_admin', search_html)
+
+        unverified_response = admin.get('/admin/content?tab=users&user_status=unverified')
+        self.assertEqual(unverified_response.status_code, 200)
+        unverified_html = unverified_response.get_data(as_text=True)
+        self.assertIn('sin_verificar_filtros_admin', unverified_html)
+        self.assertNotIn('buscada_filtros_admin', unverified_html)
+
+        strikes_response = admin.get('/admin/content?tab=users&user_strikes=two_plus')
+        self.assertEqual(strikes_response.status_code, 200)
+        strikes_html = strikes_response.get_data(as_text=True)
+        self.assertIn('strikes_filtros_admin', strikes_html)
+        self.assertNotIn('buscada_filtros_admin', strikes_html)
+
+        reports_response = admin.get('/admin/content?tab=users&user_reports=with_reports')
+        self.assertEqual(reports_response.status_code, 200)
+        reports_html = reports_response.get_data(as_text=True)
+        self.assertIn('reportada_filtros_admin', reports_html)
+        self.assertIn('fa-flag', reports_html)
+        self.assertNotIn('sin_match_filtros_admin', reports_html)
+
+    def test_admin_user_audit_summary_shows_strikes_reports_and_actions(self):
+        admin_id = self.create_user('admin')
+        target_id = self.create_user('historial_visible_admin')
+        reporter_id = self.create_user('reportera_historial_admin')
+        post_id = self.create_public_post(target_id, caption='Post para historial visible')
+        comment_id = self.create_comment(target_id, post_id, 'Comentario para historial visible')
+        _, message_id = self.create_chat_message(
+            target_id,
+            room_name='Sala historial visible',
+            content='Mensaje para historial visible',
+        )
+
+        with app.app_context():
+            db.session.add(Report(
+                post_id=post_id,
+                reporter_id=reporter_id,
+                reason='Información falsa',
+                details='Detalle del reporte de publicación',
+                status='pending',
+            ))
+            db.session.add(CommentReport(
+                comment_id=comment_id,
+                reporter_id=reporter_id,
+                reason='Acoso o insultos',
+                details='Detalle del reporte de comentario',
+                status='reviewing',
+            ))
+            db.session.add(ChatMessageReport(
+                message_id=message_id,
+                reporter_id=reporter_id,
+                reason='Spam o fraude',
+                details='Detalle del reporte de chat',
+                status='pending',
+            ))
+            db.session.add(ModerationStrike(
+                user_id=target_id,
+                issued_by=admin_id,
+                source_type='post',
+                source_id=post_id,
+                source_label='Publicación reportada',
+                reason='Información falsa',
+                details='Strike visible para auditoría',
+                content_excerpt='Extracto visible para auditoría',
+                strike_number=1,
+                consequence='warning',
+            ))
+            target = db.session.get(User, target_id)
+            assert target is not None
+            target.abuse_strikes = 1
+            db.session.commit()
+
+        self.create_audit_log(
+            actor_id=admin_id,
+            target_user_id=target_id,
+            event_type='user_roles.update',
+            workspace='admin',
+            summary='Actualizó roles visibles',
+        )
+
+        non_admin_response = self.client_for(reporter_id).get(f'/admin/user/{target_id}/audit_summary')
+        self.assertEqual(non_admin_response.status_code, 403)
+
+        response = self.client_for(admin_id).get(f'/admin/user/{target_id}/audit_summary')
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json() or {}
+        self.assertTrue(payload.get('success'))
+        self.assertEqual(payload.get('user', {}).get('username'), 'historial_visible_admin')
+
+        summary = payload.get('summary') or {}
+        self.assertEqual(summary.get('posts'), 1)
+        self.assertEqual(summary.get('comments'), 1)
+        self.assertEqual(summary.get('active_reports'), 3)
+        self.assertEqual(summary.get('strikes'), 1)
+
+        reports = payload.get('reports') or []
+        source_types = {report.get('source_type') for report in reports}
+        self.assertTrue({'post', 'comment', 'chat'}.issubset(source_types))
+        self.assertEqual((payload.get('strikes') or [{}])[0].get('reason'), 'Información falsa')
+        self.assertTrue(any(
+            log.get('event_type') == 'user_roles.update'
+            for log in (payload.get('audit_logs') or [])
+        ))
+
+        with app.app_context():
+            audit_view = AuditLog.query.filter_by(
+                event_type='user_audit.view',
+                actor_id=admin_id,
+                target_user_id=target_id,
+            ).first()
+            self.assertIsNotNone(audit_view)
+
+    def test_admin_report_filters_cover_posts_chat_and_comments(self):
+        admin_id = self.create_user('admin')
+        reporter_id = self.create_user('reportera_filtros_reportes')
+        author_id = self.create_user('autora_filtros_reportes')
+        post_match_id = self.create_public_post(
+            author_id,
+            caption='Banqueta rota avenida filtro',
+            location_name='Avenida Filtro',
+        )
+        post_restored_id = self.create_public_post(
+            author_id,
+            caption='Otro lugar restaurado filtro',
+            location_name='Zona Restaurada',
+        )
+        comment_match_id = self.create_comment(author_id, post_match_id, 'Comentario con insulto filtro')
+        comment_other_id = self.create_comment(author_id, post_restored_id, 'Comentario spam filtro')
+        _, message_match_id = self.create_chat_message(
+            author_id,
+            room_name='Sala de archivos filtro',
+            content='archivo sospechoso filtro',
+        )
+        _, message_other_id = self.create_chat_message(
+            author_id,
+            room_name='Sala de amenazas filtro',
+            content='mensaje amenaza filtro',
+        )
+
+        now = app_module.utc_now_naive()
+        with app.app_context():
+            db.session.add(Report(
+                post_id=post_match_id,
+                reporter_id=reporter_id,
+                reason='Amenaza o violencia',
+                details='banqueta peligrosa para filtrar',
+                status='pending',
+                created_at=now,
+            ))
+            db.session.add(Report(
+                post_id=post_restored_id,
+                reporter_id=reporter_id,
+                reason='Información falsa',
+                details='reporte ya restaurado',
+                status='restored',
+                created_at=now - timedelta(days=2),
+            ))
+            db.session.add(ChatMessageReport(
+                message_id=message_match_id,
+                reporter_id=reporter_id,
+                reason='Spam o fraude',
+                details='archivo sospechoso',
+                status='pending',
+                created_at=now,
+            ))
+            db.session.add(ChatMessageReport(
+                message_id=message_other_id,
+                reporter_id=reporter_id,
+                reason='Amenaza o violencia',
+                details='amenaza distinta',
+                status='pending',
+                created_at=now,
+            ))
+            db.session.add(CommentReport(
+                comment_id=comment_match_id,
+                reporter_id=reporter_id,
+                reason='Acoso o insultos',
+                details='insulto directo',
+                status='pending',
+                created_at=now,
+            ))
+            db.session.add(CommentReport(
+                comment_id=comment_other_id,
+                reporter_id=reporter_id,
+                reason='Spam o fraude',
+                details='spam distinto',
+                status='pending',
+                created_at=now - timedelta(days=10),
+            ))
+            db.session.commit()
+
+        admin = self.client_for(admin_id)
+        post_search = admin.get('/admin/content?tab=reportes&reports_subtab=reportados&report_q=banqueta')
+        self.assertEqual(post_search.status_code, 200)
+        post_search_html = post_search.get_data(as_text=True)
+        self.assertIn('admin-report-filter-panel', post_search_html)
+        self.assertIn('Banqueta rota avenida filtro', post_search_html)
+        self.assertNotIn('Otro lugar restaurado filtro', post_search_html)
+
+        restored_posts = admin.get('/admin/content?tab=reportes&reports_subtab=reportados&report_status=restored')
+        self.assertEqual(restored_posts.status_code, 200)
+        restored_html = restored_posts.get_data(as_text=True)
+        self.assertIn('Restaurado', restored_html)
+        self.assertIn('Otro lugar restaurado filtro', restored_html)
+        self.assertNotIn('Banqueta rota avenida filtro', restored_html)
+
+        chat_reason = admin.get('/admin/content?tab=reportes&reports_subtab=reportes-chat&report_reason=Spam+o+fraude')
+        self.assertEqual(chat_reason.status_code, 200)
+        chat_reason_html = chat_reason.get_data(as_text=True)
+        self.assertIn('archivo sospechoso filtro', chat_reason_html)
+        self.assertNotIn('mensaje amenaza filtro', chat_reason_html)
+
+        comment_search = admin.get('/admin/content?tab=reportes&reports_subtab=reportes-comentarios&report_since=today&report_q=insulto')
+        self.assertEqual(comment_search.status_code, 200)
+        comment_search_html = comment_search.get_data(as_text=True)
+        self.assertIn('Comentario con insulto filtro', comment_search_html)
+        self.assertNotIn('Comentario spam filtro', comment_search_html)
+
+        shell_html = admin.get('/admin?tab=reportes&reports_subtab=reportes-chat&report_reason=Spam+o+fraude').get_data(as_text=True)
+        self.assertIn('report_reason=Spam+o+fraude', shell_html)
+
+    def test_background_jobs_retry_false_results_and_record_status(self):
+        submit_job = app.extensions.get('violeta_submit_background_job')
+        self.assertTrue(callable(submit_job))
+
+        class FakeExecutor:
+            def __init__(self):
+                self.submitted = []
+
+            def submit(self, fn):
+                self.submitted.append(fn)
+                return object()
+
+        fake_executor = FakeExecutor()
+        original_config = {
+            key: app.config.get(key)
+            for key in (
+                'TESTING',
+                'BACKGROUND_JOBS_ENABLED',
+                'BACKGROUND_JOBS_INLINE',
+                'BACKGROUND_JOB_MAX_RETRIES',
+                'BACKGROUND_JOB_RETRY_DELAY_SECONDS',
+            )
+        }
+        original_executor = app.extensions.get('violeta_background_executor')
+
+        def restore():
+            app.config.update(original_config)
+            app.extensions['violeta_background_executor'] = original_executor
+
+        self.addCleanup(restore)
+
+        stats = app.extensions.get('violeta_background_job_stats')
+        self.assertIsNotNone(stats)
+        before_retry = stats.get('smoke_retry_job.retry', 0)
+        before_completed = stats.get('smoke_retry_job.completed', 0)
+        before_failed = stats.get('smoke_fail_job.failed', 0)
+
+        app.config.update(
+            TESTING=False,
+            BACKGROUND_JOBS_ENABLED=True,
+            BACKGROUND_JOBS_INLINE=False,
+            BACKGROUND_JOB_MAX_RETRIES=2,
+            BACKGROUND_JOB_RETRY_DELAY_SECONDS=0,
+        )
+        app.extensions['violeta_background_executor'] = fake_executor
+
+        attempts = []
+
+        def flaky_job():
+            attempts.append('attempt')
+            if len(attempts) < 3:
+                return False
+            return 'ok'
+
+        submit_job('smoke_retry_job', flaky_job)
+        self.assertEqual(len(fake_executor.submitted), 1)
+        with self.assertLogs(app.logger, level='WARNING') as retry_logs:
+            self.assertEqual(fake_executor.submitted[0](), 'ok')
+        self.assertEqual(len(attempts), 3)
+        self.assertEqual(stats.get('smoke_retry_job.retry', 0) - before_retry, 2)
+        self.assertEqual(stats.get('smoke_retry_job.completed', 0) - before_completed, 1)
+        self.assertTrue(any('background_job_retry name=smoke_retry_job' in item for item in retry_logs.output))
+
+        fail_attempts = []
+
+        def failing_job():
+            fail_attempts.append('attempt')
+            return False
+
+        submit_job('smoke_fail_job', failing_job)
+        self.assertEqual(len(fake_executor.submitted), 2)
+        with self.assertLogs(app.logger, level='WARNING') as fail_logs:
+            self.assertIsNone(fake_executor.submitted[1]())
+        self.assertEqual(len(fail_attempts), 3)
+        self.assertEqual(stats.get('smoke_fail_job.failed', 0) - before_failed, 1)
+        self.assertTrue(any('background_job_failed name=smoke_fail_job' in item for item in fail_logs.output))
+
+        events = list(app.extensions.get('violeta_background_job_events') or [])
+        self.assertTrue(any(
+            event.get('job_name') == 'smoke_retry_job' and event.get('status') == 'completed'
+            for event in events
+        ))
+        self.assertTrue(any(
+            event.get('job_name') == 'smoke_fail_job' and event.get('status') == 'failed'
+            for event in events
+        ))
+        with app.app_context():
+            persisted_statuses = {
+                event.status
+                for event in BackgroundJobEvent.query
+                .filter(BackgroundJobEvent.job_name.in_(['smoke_retry_job', 'smoke_fail_job']))
+                .all()
+            }
+            self.assertTrue({'queued', 'retry', 'completed', 'failed'}.issubset(persisted_statuses))
+
+        admin_id = self.create_user('background_persist_admin', roles=[ROLE_SUPER_ADMIN])
+        bg_events = app.extensions.get('violeta_background_job_events')
+        bg_lock = app.extensions.get('violeta_background_job_stats_lock')
+        saved_stats = dict(stats)
+        saved_events = list(bg_events or [])
+
+        def restore_background_memory():
+            if bg_lock is not None:
+                with bg_lock:
+                    stats.clear()
+                    stats.update(saved_stats)
+                    if bg_events is not None:
+                        bg_events.clear()
+                        bg_events.extend(saved_events)
+            else:
+                stats.clear()
+                stats.update(saved_stats)
+                if bg_events is not None:
+                    bg_events.clear()
+                    bg_events.extend(saved_events)
+
+        self.addCleanup(restore_background_memory)
+        if bg_lock is not None:
+            with bg_lock:
+                stats.clear()
+                if bg_events is not None:
+                    bg_events.clear()
+        else:
+            stats.clear()
+            if bg_events is not None:
+                bg_events.clear()
+
+        diagnostics_response = self.client_for(admin_id).get('/admin/background-jobs?format=json')
+        self.assertEqual(diagnostics_response.status_code, 200)
+        diagnostics = diagnostics_response.get_json() or {}
+        diagnostics_health = diagnostics.get('background_job_health') or {}
+        self.assertGreaterEqual(diagnostics_health.get('failed_count') or 0, 1)
+        self.assertTrue(any(
+            row.get('job_name') == 'smoke_retry_job' and row.get('completed_count', 0) >= 1
+            for row in (diagnostics.get('background_job_rows') or [])
+        ))
+
+    def test_background_job_event_retention_purges_old_rows(self):
+        admin_id = self.create_user('background_retention_admin', roles=[ROLE_SUPER_ADMIN])
+        now = datetime.now()
+        with app.app_context():
+            db.session.add(BackgroundJobEvent(
+                job_name='old_smoke_job',
+                status='failed',
+                attempt=1,
+                error='evento viejo',
+                created_at=now - timedelta(days=45),
+            ))
+            db.session.add(BackgroundJobEvent(
+                job_name='fresh_smoke_job',
+                status='completed',
+                attempt=1,
+                duration_ms=12.3,
+                created_at=now - timedelta(days=2),
+            ))
+            db.session.commit()
+
+        with mock.patch.dict(os.environ, {'BACKGROUND_JOB_EVENT_RETENTION_DAYS': '30'}):
+            with app.app_context():
+                self.assertEqual(app_module.count_expired_background_job_events(), 1)
+
+            admin = self.client_for(admin_id)
+            before = admin.get('/admin/background-jobs?format=json').get_json() or {}
+            before_retention = before.get('background_job_retention') or {}
+            self.assertEqual(before_retention.get('retention_days'), 30)
+            self.assertEqual(before_retention.get('expired_events'), 1)
+
+            purge_response = admin.post('/admin/background-jobs/purge', json={})
+            self.assertEqual(purge_response.status_code, 200)
+            purge_payload = purge_response.get_json() or {}
+            self.assertTrue(purge_payload.get('success'))
+            self.assertEqual(purge_payload.get('deleted_count'), 1)
+
+            with app.app_context():
+                remaining_names = {
+                    event.job_name
+                    for event in BackgroundJobEvent.query.order_by(BackgroundJobEvent.id.asc()).all()
+                }
+                self.assertNotIn('old_smoke_job', remaining_names)
+                self.assertIn('fresh_smoke_job', remaining_names)
+                self.assertEqual(app_module.count_expired_background_job_events(), 0)
+
+            after = admin.get('/admin/background-jobs?format=json').get_json() or {}
+            after_retention = after.get('background_job_retention') or {}
+            self.assertEqual(after_retention.get('expired_events'), 0)
+            self.assertGreaterEqual(after_retention.get('total_events') or 0, 1)
+
+    def test_background_job_diagnostics_filters_status_job_and_date(self):
+        admin_id = self.create_user('background_filter_admin', roles=[ROLE_SUPER_ADMIN])
+        now = datetime.now()
+        with app.app_context():
+            db.session.add(BackgroundJobEvent(
+                job_name='email_delivery',
+                status='failed',
+                attempt=2,
+                error='smtp timeout',
+                created_at=now - timedelta(days=2),
+            ))
+            db.session.add(BackgroundJobEvent(
+                job_name='email_delivery',
+                status='completed',
+                attempt=1,
+                duration_ms=18.4,
+                created_at=now - timedelta(days=2),
+            ))
+            db.session.add(BackgroundJobEvent(
+                job_name='reverse_geocode_post',
+                status='failed',
+                attempt=1,
+                error='network',
+                created_at=now - timedelta(days=10),
+            ))
+            db.session.add(BackgroundJobEvent(
+                job_name='upload_image_processing',
+                status='completed',
+                attempt=1,
+                duration_ms=22.1,
+                created_at=now,
+            ))
+            db.session.commit()
+
+        admin = self.client_for(admin_id)
+        response = admin.get(
+            '/admin/background-jobs?format=json&bg_job=email_delivery&bg_status=failed&bg_since=7d'
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json() or {}
+        filters = payload.get('background_job_filters') or {}
+        self.assertEqual(filters.get('job_name'), 'email_delivery')
+        self.assertEqual(filters.get('status'), 'failed')
+        self.assertEqual(filters.get('since'), '7d')
+        self.assertEqual(filters.get('active_count'), 3)
+
+        health = payload.get('background_job_health') or {}
+        self.assertEqual(health.get('failed_count'), 1)
+        self.assertEqual(health.get('completed_count'), 0)
+        self.assertTrue(all(
+            event.get('job_name') == 'email_delivery' and event.get('status') == 'failed'
+            for event in (health.get('recent_events') or [])
+        ))
+
+        rows = payload.get('background_job_rows') or []
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].get('job_name'), 'email_delivery')
+        self.assertEqual(rows[0].get('failed_count'), 1)
+        self.assertEqual(rows[0].get('completed_count'), 0)
+
+        today_response = admin.get('/admin/background-jobs?format=json&bg_status=completed&bg_since=today')
+        self.assertEqual(today_response.status_code, 200)
+        today_payload = today_response.get_json() or {}
+        today_rows = today_payload.get('background_job_rows') or []
+        self.assertTrue(any(row.get('job_name') == 'upload_image_processing' for row in today_rows))
+        self.assertFalse(any(row.get('job_name') == 'email_delivery' for row in today_rows))
+
+        html = admin.get('/admin/background-jobs?bg_job=email_delivery&bg_status=failed&bg_since=7d').get_data(as_text=True)
+        self.assertIn('Filtrar diagnóstico', html)
+        self.assertIn('Correos', html)
+        self.assertIn('Falló', html)
+        self.assertIn('Últimos 7 días', html)
+        self.assertIn('Exportar', html)
+
+        export_response = admin.get('/admin/background-jobs/export?bg_job=email_delivery&bg_status=failed&bg_since=7d')
+        self.assertEqual(export_response.status_code, 200)
+        self.assertIn('text/csv', export_response.headers.get('Content-Type', ''))
+        csv_text = export_response.get_data(as_text=True)
+        self.assertIn('email_delivery', csv_text)
+        self.assertIn('smtp timeout', csv_text)
+        self.assertNotIn('reverse_geocode_post', csv_text)
+
+    def test_admin_background_job_manual_retry_reprocesses_image_and_geocoding(self):
+        admin_id = self.create_user('admin')
+        author_id = self.create_user('background_retry_author')
+        non_admin_id = self.create_user('background_retry_non_admin')
+        image_post_id = self.create_public_post(
+            author_id,
+            caption='Imagen pendiente de reproceso',
+            show_public=False,
+            location_name='Centro',
+        )
+        reported_hidden_post_id = self.create_public_post(
+            author_id,
+            caption='Oculta por reporte activo',
+            show_public=False,
+            location_name='Reporte activo',
+        )
+        geocode_post_id = self.create_public_post(
+            author_id,
+            caption='Geocoding pendiente',
+            location_name='',
+            city='',
+            country='',
+            latitude=25.7000,
+            longitude=-100.3300,
+        )
+
+        now = app_module.utc_now_naive()
+        with app.app_context():
+            db.session.add(Report(
+                post_id=reported_hidden_post_id,
+                reporter_id=non_admin_id,
+                reason='Doxxing o datos personales',
+                status='pending',
+                created_at=now,
+            ))
+            db.session.commit()
+
+        admin = self.client_for(admin_id)
+        diagnostics_html = admin.get('/admin/background-jobs').get_data(as_text=True)
+        self.assertIn('Mantenimiento manual', diagnostics_html)
+        self.assertIn('Reprocesar imágenes', diagnostics_html)
+        self.assertIn('Completar geocoding', diagnostics_html)
+        self.assertIn('Imagen pendiente de reproceso', diagnostics_html)
+        self.assertNotIn('Oculta por reporte activo', diagnostics_html)
+
+        non_admin_response = self.client_for(non_admin_id).post(
+            '/admin/background-jobs/retry',
+            json={'action': 'all'},
+            headers={'Accept': 'application/json'},
+        )
+        self.assertEqual(non_admin_response.status_code, 403)
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    'address': {
+                        'road': 'Calle Reintento',
+                        'city': 'Monterrey',
+                        'state': 'Nuevo León',
+                        'country': 'México',
+                    }
+                }).encode('utf-8')
+
+        def fake_urlopen(request_obj, timeout=4):  # noqa: ARG001
+            self.assertIn('nominatim.openstreetmap.org/reverse', request_obj.full_url)
+            return FakeResponse()
+
+        invalid_response = admin.post('/admin/background-jobs/retry', json={'action': 'desconocida'})
+        self.assertEqual(invalid_response.status_code, 400)
+
+        with mock.patch.object(app_module, 'urlopen', side_effect=fake_urlopen):
+            retry_response = admin.post('/admin/background-jobs/retry', json={'action': 'all', 'limit': 10})
+        self.assertEqual(retry_response.status_code, 200)
+        payload = retry_response.get_json() or {}
+        self.assertTrue(payload.get('success'))
+        self.assertEqual(payload.get('queued_count'), 2)
+        queued_types = {item.get('type') for item in payload.get('queued') or []}
+        self.assertEqual(queued_types, {'image_processing', 'geocoding'})
+
+        with app.app_context():
+            image_meta = PostMeta.query.filter_by(post_id=image_post_id).first()
+            self.assertIsNotNone(image_meta)
+            assert image_meta is not None
+            self.assertTrue(bool(image_meta.show_public))
+
+            reported_meta = PostMeta.query.filter_by(post_id=reported_hidden_post_id).first()
+            self.assertIsNotNone(reported_meta)
+            assert reported_meta is not None
+            self.assertFalse(bool(reported_meta.show_public))
+
+            geocode_post = db.session.get(Post, geocode_post_id)
+            self.assertIsNotNone(geocode_post)
+            assert geocode_post is not None
+            self.assertEqual(geocode_post.location_name, 'Calle Reintento, Monterrey, Nuevo León')
+            self.assertEqual(geocode_post.city, 'Monterrey')
+            self.assertEqual(geocode_post.country, 'México')
+
+    def test_email_delivery_queues_background_job_when_enabled(self):
+        deliver_email = app.extensions.get('violeta_deliver_email_message')
+        self.assertTrue(callable(deliver_email))
+
+        class FakeExecutor:
+            def __init__(self):
+                self.submitted = []
+
+            def submit(self, fn):
+                self.submitted.append(fn)
+                return object()
+
+        fake_executor = FakeExecutor()
+        original_config = {
+            key: app.config.get(key)
+            for key in (
+                'TESTING',
+                'BACKGROUND_JOBS_ENABLED',
+                'BACKGROUND_JOBS_INLINE',
+                'ASYNC_EMAIL_DELIVERY',
+                'MAIL_DELIVERY_METHOD',
+                'MAIL_SERVER',
+                'MAIL_USERNAME',
+                'MAIL_DEFAULT_SENDER',
+            )
+        }
+        original_executor = app.extensions.get('violeta_background_executor')
+
+        def restore():
+            app.config.update(original_config)
+            app.extensions['violeta_background_executor'] = original_executor
+
+        self.addCleanup(restore)
+
+        app.config.update(
+            TESTING=False,
+            BACKGROUND_JOBS_ENABLED=True,
+            BACKGROUND_JOBS_INLINE=False,
+            ASYNC_EMAIL_DELIVERY=True,
+            MAIL_DELIVERY_METHOD='smtp',
+            MAIL_SERVER='smtp.example.test',
+            MAIL_USERNAME='',
+            MAIL_DEFAULT_SENDER='no-reply@example.test',
+        )
+        app.extensions['violeta_background_executor'] = fake_executor
+
+        queued = deliver_email('Prueba', ['usuaria@example.test'], 'Texto de prueba')
+        self.assertTrue(queued)
+        self.assertEqual(len(fake_executor.submitted), 1)
+
+        app.config.update(MAIL_SERVER='', MAIL_DEFAULT_SENDER='')
+        not_queued = deliver_email('Prueba', ['usuaria@example.test'], 'Texto de prueba')
+        self.assertFalse(not_queued)
+        self.assertEqual(len(fake_executor.submitted), 1)
+
+    def test_static_and_upload_cache_headers(self):
+        public_filename = self.save_seed_image('cache-public.jpg')
+        verify_dir = UPLOAD_DIR / 'verify'
+        verify_dir.mkdir(parents=True, exist_ok=True)
+        verify_filename = 'verify/cache-private.jpg'
+        Image.new('RGB', (32, 32), (24, 12, 48)).save(UPLOAD_DIR / verify_filename, format='JPEG')
+
+        static_response = app.test_client().get('/static/images/default_avatar.jpg')
+        self.assertEqual(static_response.status_code, 200)
+        self.assertIn('public, max-age=604800, immutable', static_response.headers.get('Cache-Control', ''))
+
+        public_response = app.test_client().get(f'/uploads/{public_filename}')
+        self.assertEqual(public_response.status_code, 200)
+        self.assertIn('public, max-age=604800', public_response.headers.get('Cache-Control', ''))
+        self.assertIn('stale-while-revalidate=86400', public_response.headers.get('Cache-Control', ''))
+
+        verify_response = app.test_client().get(f'/uploads/{verify_filename}')
+        self.assertEqual(verify_response.status_code, 403)
+        self.assertEqual(verify_response.headers.get('Cache-Control'), 'no-cache, no-store, must-revalidate')
+
+        optimized_response = app.test_client().get(f'/uploads/optimized/720/{public_filename}')
+        self.assertEqual(optimized_response.status_code, 200)
+        self.assertIn('public, max-age=31536000, immutable', optimized_response.headers.get('Cache-Control', ''))
+
+    def test_optimized_upload_fallback_queues_missing_variant(self):
+        public_filename = self.save_seed_image('async-optimized.jpg')
+        stem = os.path.splitext(os.path.basename(public_filename))[0]
+        digest = hashlib.sha256(public_filename.encode('utf-8')).hexdigest()[:12]
+        optimized_path = UPLOAD_DIR / '_optimized' / 'w720' / f'{stem}-{digest}-w720.webp'
+        self.assertFalse(optimized_path.exists())
+
+        class FakeExecutor:
+            def __init__(self):
+                self.submitted = []
+
+            def submit(self, fn):
+                self.submitted.append(fn)
+                return object()
+
+        fake_executor = FakeExecutor()
+        original_config = {
+            key: app.config.get(key)
+            for key in (
+                'TESTING',
+                'BACKGROUND_JOBS_ENABLED',
+                'BACKGROUND_JOBS_INLINE',
+                'ASYNC_UPLOAD_OPTIMIZATION',
+            )
+        }
+        original_executor = app.extensions.get('violeta_background_executor')
+
+        def restore():
+            app.config.update(original_config)
+            app.extensions['violeta_background_executor'] = original_executor
+
+        self.addCleanup(restore)
+        app.config.update(
+            TESTING=False,
+            BACKGROUND_JOBS_ENABLED=True,
+            BACKGROUND_JOBS_INLINE=False,
+            ASYNC_UPLOAD_OPTIMIZATION=True,
+        )
+        app.extensions['violeta_background_executor'] = fake_executor
+
+        first_response = app.test_client().get(f'/uploads/optimized/720/{public_filename}')
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(first_response.headers.get('X-Violeta-Optimized-Fallback'), '1')
+        self.assertIn('public, max-age=60', first_response.headers.get('Cache-Control', ''))
+        self.assertIn('stale-while-revalidate=86400', first_response.headers.get('Cache-Control', ''))
+        self.assertEqual(len(fake_executor.submitted), 1)
+        self.assertFalse(optimized_path.exists())
+
+        fake_executor.submitted[0]()
+        self.assertTrue(optimized_path.exists())
+
+        second_response = app.test_client().get(f'/uploads/optimized/720/{public_filename}')
+        self.assertEqual(second_response.status_code, 200)
+        self.assertNotEqual(second_response.headers.get('X-Violeta-Optimized-Fallback'), '1')
+        self.assertIn('image/webp', second_response.headers.get('Content-Type', ''))
+        self.assertIn('public, max-age=31536000, immutable', second_response.headers.get('Cache-Control', ''))
+
+    def test_pwa_manifest_service_worker_and_offline_shell(self):
+        user_id = self.create_user('pwa_smoke')
+        html_response = self.client_for(user_id).get('/')
+        self.assertEqual(html_response.status_code, 200)
+        html = html_response.get_data(as_text=True)
+        self.assertIn('rel="manifest"', html)
+        self.assertIn('/manifest.webmanifest', html)
+        self.assertIn('name="theme-color"', html)
+        self.assertIn('viewport-fit=cover', html)
+        self.assertNotIn('user-scalable=no', html)
+
+        manifest_response = app.test_client().get('/manifest.webmanifest')
+        self.assertEqual(manifest_response.status_code, 200)
+        self.assertIn('application/manifest+json', manifest_response.headers.get('Content-Type', ''))
+        self.assertIn('public, max-age=604800', manifest_response.headers.get('Cache-Control', ''))
+        manifest = json.loads(manifest_response.get_data(as_text=True))
+        self.assertEqual(manifest.get('name'), 'Violeta')
+        self.assertEqual(manifest.get('display'), 'standalone')
+        self.assertEqual(manifest.get('start_url'), '/?source=pwa')
+        self.assertTrue(any(icon.get('sizes') == '192x192' for icon in manifest.get('icons') or []))
+        self.assertTrue(any(icon.get('purpose') == 'maskable' for icon in manifest.get('icons') or []))
+        self.assertTrue(any(shortcut.get('url', '').startswith('/safety') for shortcut in manifest.get('shortcuts') or []))
+
+        service_worker_response = app.test_client().get('/service-worker.js')
+        self.assertEqual(service_worker_response.status_code, 200)
+        self.assertEqual(service_worker_response.headers.get('Service-Worker-Allowed'), '/')
+        self.assertEqual(service_worker_response.headers.get('Cache-Control'), 'no-cache, no-store, must-revalidate')
+        service_worker = service_worker_response.get_data(as_text=True)
+        self.assertIn('APP_SHELL_CACHE', service_worker)
+        self.assertIn('/static/offline.html', service_worker)
+        self.assertIn('getOfflineShell', service_worker)
+
+        offline_response = app.test_client().get('/static/offline.html')
+        self.assertEqual(offline_response.status_code, 200)
+        offline_html = offline_response.get_data(as_text=True)
+        self.assertIn('Sin conexion', offline_html)
+        self.assertIn('Reintentar', offline_html)
+
     def test_feed_render_pagination_filters_optimized_images_and_timing_headers(self):
         original_page_size = app.config.get('FEED_PAGE_SIZE')
         app.config['FEED_PAGE_SIZE'] = 2
@@ -521,6 +1721,81 @@ class VioletaSmokeTests(unittest.TestCase):
         digest = hashlib.sha256(post_filename.encode('utf-8')).hexdigest()[:12]
         optimized_name = f'{stem}-{digest}-w720.webp'
         self.assertTrue((UPLOAD_DIR / '_optimized' / 'w720' / optimized_name).exists())
+
+    def test_upload_queues_image_processing_and_hides_post_until_finished(self):
+        admin_id = self.create_user('admin')
+        client = self.client_for(admin_id)
+
+        class FakeExecutor:
+            def __init__(self):
+                self.submitted = []
+
+            def submit(self, fn):
+                self.submitted.append(fn)
+                return object()
+
+        fake_executor = FakeExecutor()
+        original_config = {
+            key: app.config.get(key)
+            for key in (
+                'TESTING',
+                'BACKGROUND_JOBS_ENABLED',
+                'BACKGROUND_JOBS_INLINE',
+                'ASYNC_IMAGE_PROCESSING',
+                'ASYNC_UPLOAD_OPTIMIZATION',
+            )
+        }
+        original_executor = app.extensions.get('violeta_background_executor')
+
+        def restore():
+            app.config.update(original_config)
+            app.extensions['violeta_background_executor'] = original_executor
+
+        self.addCleanup(restore)
+
+        app.config.update(
+            TESTING=False,
+            BACKGROUND_JOBS_ENABLED=True,
+            BACKGROUND_JOBS_INLINE=False,
+            ASYNC_IMAGE_PROCESSING=True,
+            ASYNC_UPLOAD_OPTIMIZATION=True,
+        )
+        app.extensions['violeta_background_executor'] = fake_executor
+
+        response = client.post(
+            '/upload',
+            data={
+                'caption': 'Reporte con procesamiento async',
+                'latitude': '25.7000',
+                'longitude': '-100.3300',
+                'location_name': 'Centro',
+                'city': 'Monterrey',
+                'country': 'México',
+                'location_visibility': 'exact',
+                'show_public': 'true',
+                'allow_likes': 'true',
+                'allow_comments': 'true',
+                'capture_source': 'upload',
+                'image': self.image_upload('async-processing.jpg'),
+            },
+            content_type='multipart/form-data',
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(len(fake_executor.submitted), 1)
+
+        with app.app_context():
+            post = Post.query.order_by(Post.id.desc()).first()
+            self.assertIsNotNone(post)
+            assert post is not None
+            meta = PostMeta.query.filter_by(post_id=post.id).first()
+            self.assertIsNotNone(meta)
+            assert meta is not None
+            self.assertFalse(bool(meta.show_public))
+            post_id = int(post.id)
+
+        self.assertIsNone(self.fetch_feed_post(client, post_id))
 
     def test_background_reverse_geocoding_fills_missing_post_location(self):
         admin_id = self.create_user('admin')
@@ -1265,6 +2540,11 @@ class VioletaSmokeTests(unittest.TestCase):
                 self.assertEqual(blocked_like.status_code, 423)
                 blocked_payload = blocked_like.get_json() or {}
                 self.assertEqual((blocked_payload.get('restriction') or {}).get('type'), 'temporary')
+                restricted_page = restricted.get('/account-restricted')
+                self.assertEqual(restricted_page.status_code, 200)
+                restricted_html = restricted_page.get_data(as_text=True)
+                self.assertIn('security_overlays.css', restricted_html)
+                self.assertIn('strike-overlay--restricted', restricted_html)
 
         offender = self.get_user(offender_id)
         self.assertIsNotNone(offender.permanently_banned_at)

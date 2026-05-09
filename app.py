@@ -4,6 +4,7 @@ import atexit
 from concurrent.futures import ThreadPoolExecutor
 
 from dotenv import load_dotenv
+import click
 
 load_dotenv()
 
@@ -31,7 +32,7 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from jinja2 import FileSystemBytecodeCache
 from werkzeug.utils import secure_filename
-from models import db, User, InviteCode, UserBlock, SafetyContact, PanicEvent, SafetyCheckin, CheckinRoutePoint, Post, Comment, Like, Share, Tag, PostMeta, ChatRoom, ChatParticipant, ChatMessage, ChatMessageReport, CommentReport, ModerationStrike, Report, VerificationRequest, AuditLog, post_tag
+from models import db, User, InviteCode, UserBlock, SafetyContact, PanicEvent, SafetyCheckin, CheckinRoutePoint, Post, Comment, Like, Share, Tag, PostMeta, ChatRoom, ChatParticipant, ChatMessage, ChatMessageReport, CommentReport, ModerationStrike, Report, VerificationRequest, AuditLog, BackgroundJobEvent, post_tag
 from sqlalchemy import or_, and_, text, func, inspect, insert, case
 from sqlalchemy.orm import selectinload, noload, load_only, make_transient_to_detached
 from config import Config
@@ -868,6 +869,10 @@ def ensure_startup_schema():
         purge_expired_audit_logs()
     except Exception as exc:
         _debug_log_suppressed('suppressed audit purge exception', exc)
+    try:
+        purge_expired_background_job_events()
+    except Exception as exc:
+        _debug_log_suppressed('suppressed background job event purge exception', exc)
 
 
 AUDIT_DEFAULT_RETENTION_DAYS = 365
@@ -885,6 +890,9 @@ AUDIT_EVENT_FILTER_HINTS = (
     'safety.route_points.view',
     'panic.resolve',
 )
+BACKGROUND_JOB_EVENT_DEFAULT_RETENTION_DAYS = 30
+BACKGROUND_JOB_STATUS_FILTER_OPTIONS = ('all', 'queued', 'completed', 'retry', 'failed')
+BACKGROUND_JOB_SINCE_FILTER_OPTIONS = ('all', 'today', '7d', '30d')
 
 
 def audit_log_retention_days() -> int:
@@ -922,6 +930,47 @@ def purge_expired_audit_logs(retention_days: int | None = None) -> int:
     deleted = (
         AuditLog.query
         .filter(AuditLog.created_at.isnot(None), AuditLog.created_at < cutoff)
+        .delete(synchronize_session=False)
+    )
+    db.session.commit()
+    return int(deleted or 0)
+
+
+def background_job_event_retention_days() -> int:
+    raw = os.environ.get('BACKGROUND_JOB_EVENT_RETENTION_DAYS', str(BACKGROUND_JOB_EVENT_DEFAULT_RETENTION_DAYS))
+    try:
+        value = int(str(raw).strip() or BACKGROUND_JOB_EVENT_DEFAULT_RETENTION_DAYS)
+    except Exception:
+        value = BACKGROUND_JOB_EVENT_DEFAULT_RETENTION_DAYS
+    return max(0, min(3650, value))
+
+
+def background_job_event_retention_cutoff(retention_days: int | None = None) -> datetime | None:
+    retention = background_job_event_retention_days() if retention_days is None else int(retention_days)
+    if retention <= 0:
+        return None
+    return utc_now_naive() - timedelta(days=retention)
+
+
+def count_expired_background_job_events(retention_days: int | None = None) -> int:
+    cutoff = background_job_event_retention_cutoff(retention_days)
+    if cutoff is None:
+        return 0
+    return int(
+        BackgroundJobEvent.query
+        .filter(BackgroundJobEvent.created_at.isnot(None), BackgroundJobEvent.created_at < cutoff)
+        .count()
+        or 0
+    )
+
+
+def purge_expired_background_job_events(retention_days: int | None = None) -> int:
+    cutoff = background_job_event_retention_cutoff(retention_days)
+    if cutoff is None:
+        return 0
+    deleted = (
+        BackgroundJobEvent.query
+        .filter(BackgroundJobEvent.created_at.isnot(None), BackgroundJobEvent.created_at < cutoff)
         .delete(synchronize_session=False)
     )
     db.session.commit()
@@ -1977,6 +2026,9 @@ def create_app():
         )
         atexit.register(background_executor.shutdown, wait=False, cancel_futures=True)
     app.extensions['violeta_background_executor'] = background_executor
+    app.extensions['violeta_background_job_stats'] = defaultdict(int)
+    app.extensions['violeta_background_job_events'] = deque(maxlen=100)
+    app.extensions['violeta_background_job_stats_lock'] = threading.Lock()
 
     if not os.environ.get('SECRET_KEY'):
         app.logger.warning('SECRET_KEY no está definido en entorno. Se usa una clave efímera para esta sesión.')
@@ -2176,6 +2228,55 @@ def create_app():
         os.makedirs(folder, exist_ok=True)
         return folder
 
+    def record_background_job_event(
+        job_name: str,
+        status: str,
+        *,
+        attempt: int | None = None,
+        error: Exception | str | None = None,
+        duration_ms: float | None = None,
+    ) -> None:
+        stats = app.extensions.get('violeta_background_job_stats')
+        events = app.extensions.get('violeta_background_job_events')
+        lock = app.extensions.get('violeta_background_job_stats_lock')
+        error_text = str(error)[:240] if error else None
+        event = {
+            'job_name': job_name,
+            'status': status,
+            'attempt': attempt,
+            'error': error_text,
+            'duration_ms': round(duration_ms, 1) if duration_ms is not None else None,
+            'created_at': utc_now_naive().isoformat(),
+        }
+
+        def mutate():
+            if stats is not None:
+                stats[status] += 1
+                stats[f'{job_name}.{status}'] += 1
+            if events is not None:
+                events.appendleft(event)
+
+        if lock is not None:
+            with lock:
+                mutate()
+        else:
+            mutate()
+        try:
+            with app.app_context():
+                with db.engine.begin() as conn:
+                    conn.execute(
+                        BackgroundJobEvent.__table__.insert().values(
+                            job_name=job_name,
+                            status=status,
+                            attempt=attempt,
+                            error=error_text,
+                            duration_ms=duration_ms,
+                            created_at=utc_now_naive(),
+                        )
+                    )
+        except Exception as exc:
+            _debug_log_suppressed('suppressed background job event persistence exception', exc)
+
     def submit_background_job(job_name: str, fn, *args, **kwargs):
         if (
             not app.config.get('BACKGROUND_JOBS_ENABLED')
@@ -2188,26 +2289,103 @@ def create_app():
         if executor is None:
             return fn(*args, **kwargs)
 
+        try:
+            max_retries = max(0, int(app.config.get('BACKGROUND_JOB_MAX_RETRIES') or 0))
+        except (TypeError, ValueError):
+            max_retries = 0
+        try:
+            retry_delay = max(0.0, float(app.config.get('BACKGROUND_JOB_RETRY_DELAY_SECONDS') or 0.0))
+        except (TypeError, ValueError):
+            retry_delay = 0.0
+        max_attempts = max_retries + 1
+        record_background_job_event(job_name, 'queued')
+
         def runner():
             started_at = time.perf_counter()
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    with app.app_context():
+                        result = fn(*args, **kwargs)
+                    if result is False:
+                        raise RuntimeError(f'{job_name} returned False')
+                    elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+                    record_background_job_event(
+                        job_name,
+                        'completed',
+                        attempt=attempt,
+                        duration_ms=elapsed_ms,
+                    )
+                    if app.debug:
+                        app.logger.debug(
+                            'background_job_finished name=%s attempt=%s duration_ms=%.1f',
+                            job_name,
+                            attempt,
+                            elapsed_ms,
+                        )
+                    return result
+                except Exception as exc:
+                    try:
+                        db.session.rollback()
+                    except Exception as rollback_exc:
+                        _debug_log_suppressed('suppressed exception', rollback_exc)
+                    if attempt < max_attempts:
+                        record_background_job_event(job_name, 'retry', attempt=attempt, error=exc)
+                        app.logger.warning(
+                            'background_job_retry name=%s attempt=%s/%s error=%s',
+                            job_name,
+                            attempt,
+                            max_attempts,
+                            exc,
+                        )
+                        if retry_delay > 0:
+                            time.sleep(retry_delay)
+                        continue
+                    elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+                    record_background_job_event(
+                        job_name,
+                        'failed',
+                        attempt=attempt,
+                        error=exc,
+                        duration_ms=elapsed_ms,
+                    )
+                    app.logger.exception(
+                        'background_job_failed name=%s attempts=%s duration_ms=%.1f error=%s',
+                        job_name,
+                        attempt,
+                        elapsed_ms,
+                        exc,
+                    )
+                    return None
+                finally:
+                    try:
+                        db.session.remove()
+                    except Exception as cleanup_exc:
+                        _debug_log_suppressed('suppressed exception', cleanup_exc)
+
+            return None
+
+        try:
+            return executor.submit(runner)
+        except Exception as exc:
+            record_background_job_event(job_name, 'failed', attempt=0, error=exc)
+            app.logger.exception('background_job_enqueue_failed name=%s error=%s', job_name, exc)
             try:
-                with app.app_context():
-                    return fn(*args, **kwargs)
-            except Exception as exc:
-                app.logger.exception('background_job_failed name=%s error=%s', job_name, exc)
-                return None
+                return fn(*args, **kwargs)
             finally:
                 try:
                     db.session.remove()
                 except Exception as cleanup_exc:
                     _debug_log_suppressed('suppressed exception', cleanup_exc)
-                if app.debug:
-                    elapsed_ms = (time.perf_counter() - started_at) * 1000.0
-                    app.logger.debug('background_job_finished name=%s duration_ms=%.1f', job_name, elapsed_ms)
-
-        return executor.submit(runner)
 
     app.extensions['violeta_submit_background_job'] = submit_background_job
+
+    def can_enqueue_background_job() -> bool:
+        return (
+            bool(app.config.get('BACKGROUND_JOBS_ENABLED'))
+            and not bool(app.config.get('BACKGROUND_JOBS_INLINE'))
+            and not bool(app.config.get('TESTING'))
+            and app.extensions.get('violeta_background_executor') is not None
+        )
 
     def public_upload_storage_enabled() -> bool:
         return (
@@ -2323,6 +2501,28 @@ def create_app():
             if os.path.exists(variant_path) and os.path.getmtime(source_path) <= os.path.getmtime(variant_path):
                 continue
             generate_optimized_upload(source_path, variant_path, width)
+
+    _optimized_variant_jobs_inflight: set[str] = set()
+    _optimized_variant_jobs_lock = threading.Lock()
+
+    def enqueue_optimized_upload_variant(source_path: str, target_path: str, width: int) -> bool:
+        if not app.config.get('ASYNC_UPLOAD_OPTIMIZATION', True) or not can_enqueue_background_job():
+            return False
+        job_key = os.path.abspath(target_path)
+        with _optimized_variant_jobs_lock:
+            if job_key in _optimized_variant_jobs_inflight:
+                return True
+            _optimized_variant_jobs_inflight.add(job_key)
+
+        def run_variant_job():
+            try:
+                return generate_optimized_upload(source_path, target_path, width)
+            finally:
+                with _optimized_variant_jobs_lock:
+                    _optimized_variant_jobs_inflight.discard(job_key)
+
+        submit_background_job('upload_optimized_variant_on_demand', run_variant_job)
+        return True
 
     def sync_public_upload_to_storage(filename: str | None, *, local_path: str | None = None, mime_type: str | None = None) -> bool:
         storage_path = public_upload_storage_path(filename)
@@ -2806,6 +3006,85 @@ def create_app():
                 print('DEBUG: metadata strip failed:', exc)
             return False
 
+    def process_public_upload_image(
+        filename: str,
+        *,
+        local_path: str | None = None,
+        mime_type: str | None = None,
+        prewarm_optimized: bool = False,
+    ) -> bool:
+        normalized = normalize_upload_filename(filename)
+        if not normalized:
+            return False
+
+        local_path = local_path or os.path.join(ensure_upload_folder(), normalized)
+        _, ext = os.path.splitext(local_path or normalized)
+        ext = ext.lower()
+        safe_image_exts = {'.jpg', '.jpeg', '.png', '.webp', '.bmp'}
+
+        if ext in safe_image_exts:
+            strip_image_metadata_in_place(local_path)
+            try:
+                blur_t0 = datetime.now()
+                faces_blurred = blur_faces_in_image(local_path)
+                if app.debug:
+                    blur_ms = int((datetime.now() - blur_t0).total_seconds() * 1000)
+                    print(f'DEBUG: Faces blurred in upload processing: {faces_blurred}')
+                    print(f'DEBUG: Face blur elapsed: {blur_ms}ms')
+            except Exception as exc:
+                if app.debug:
+                    print('DEBUG: Face blur failed in upload processing:', exc)
+
+        if not sync_public_upload_to_storage(normalized, local_path=local_path, mime_type=mime_type):
+            return False
+
+        if prewarm_optimized:
+            prewarm_optimized_upload_variants(normalized, source_path=local_path)
+        return True
+
+    def should_process_upload_image_async(ext: str) -> bool:
+        return (
+            ext.lower() in {'.jpg', '.jpeg', '.png', '.webp', '.bmp'}
+            and bool(app.config.get('ASYNC_IMAGE_PROCESSING', True))
+            and can_enqueue_background_job()
+        )
+
+    def finalize_uploaded_post_image(
+        post_id: int,
+        filename: str,
+        *,
+        local_path: str | None = None,
+        mime_type: str | None = None,
+        desired_show_public: bool = True,
+    ) -> bool:
+        ok = process_public_upload_image(
+            filename,
+            local_path=local_path,
+            mime_type=mime_type,
+            prewarm_optimized=True,
+        )
+
+        post = db.session.get(Post, int(post_id))
+        if post is None:
+            return ok
+
+        meta = PostMeta.query.filter_by(post_id=post.id).first()
+        if not meta:
+            meta = PostMeta(post_id=post.id)
+
+        if ok:
+            meta.show_public = bool(desired_show_public)
+        else:
+            meta.show_public = False
+            app.logger.error('upload_image_processing_failed post_id=%s filename=%s', post_id, filename)
+
+        db.session.add(meta)
+        db.session.commit()
+        invalidate_post_discovery_caches()
+        return ok
+
+    app.extensions['violeta_finalize_uploaded_post_image'] = finalize_uploaded_post_image
+
     def _mail_delivery_method() -> str:
         configured = (app.config.get('MAIL_DELIVERY_METHOD') or '').strip().lower()
         if configured in {'smtp', 'resend'}:
@@ -2889,7 +3168,27 @@ def create_app():
                 print(f'DEBUG: Resend URLError: {exc}')
             return False
 
+    def _normalize_email_recipients(recipients: list[str] | tuple[str, ...] | None) -> list[str]:
+        return [str(recipient).strip() for recipient in (recipients or []) if str(recipient or '').strip()]
+
+    def _email_delivery_configured(recipients: list[str] | tuple[str, ...] | None) -> bool:
+        if not _normalize_email_recipients(recipients):
+            return False
+        method = _mail_delivery_method()
+        if method == 'resend':
+            return bool(
+                (app.config.get('RESEND_API_KEY') or '').strip()
+                and (app.config.get('RESEND_API_URL') or '').strip()
+                and (app.config.get('RESEND_FROM') or app.config.get('MAIL_DEFAULT_SENDER') or '').strip()
+            )
+
+        server = (app.config.get('MAIL_SERVER') or '').strip()
+        username = (app.config.get('MAIL_USERNAME') or '').strip()
+        sender = (app.config.get('MAIL_DEFAULT_SENDER') or username).strip()
+        return bool(server and sender)
+
     def send_email_message(subject: str, recipients: list[str], text_body: str, html_body: str | None = None) -> bool:
+        recipients = _normalize_email_recipients(recipients)
         method = _mail_delivery_method()
         try:
             if method == 'resend':
@@ -2899,6 +3198,30 @@ def create_app():
             if app.debug:
                 print(f'DEBUG: Error enviando correo ({method}): {type(exc).__name__} - {exc}')
             return False
+
+    def deliver_email_message(subject: str, recipients: list[str], text_body: str, html_body: str | None = None) -> bool:
+        recipients = _normalize_email_recipients(recipients)
+        if not _email_delivery_configured(recipients):
+            return False
+
+        can_enqueue = (
+            bool(app.config.get('ASYNC_EMAIL_DELIVERY', True))
+            and can_enqueue_background_job()
+        )
+        if not can_enqueue:
+            return send_email_message(subject, recipients, text_body, html_body)
+
+        future = submit_background_job(
+            'email_delivery',
+            send_email_message,
+            subject,
+            recipients,
+            text_body,
+            html_body,
+        )
+        return future is not None
+
+    app.extensions['violeta_deliver_email_message'] = deliver_email_message
 
     def send_verification_email(to_email: str, code: str) -> bool:
         subject = 'Tu código de verificación - Violeta'
@@ -2916,7 +3239,7 @@ def create_app():
             "<p style=\"margin:0;color:#c4b5fd;\">Este código expira en 10 minutos.</p>"
             "</div></body></html>"
         )
-        return send_email_message(subject, [to_email], text_body, html_body)
+        return deliver_email_message(subject, [to_email], text_body, html_body)
 
     def _password_reset_email_bodies(user: User, reset_link: str) -> tuple[str, str, str]:
         display_name = (getattr(user, 'username', '') or 'usuaria').strip()
@@ -2947,7 +3270,7 @@ def create_app():
     def send_password_reset_email(user: User, reset_link: str) -> bool:
         subject, text_body, html_body = _password_reset_email_bodies(user, reset_link)
         try:
-            return send_email_message(subject, [(user.email or '').strip()], text_body, html_body)
+            return deliver_email_message(subject, [(user.email or '').strip()], text_body, html_body)
         except Exception as e:
             if app.debug:
                 print(f'DEBUG: Error enviando correo de recuperación: {type(e).__name__} - {e}')
@@ -3049,7 +3372,7 @@ def create_app():
             '<p style="margin:0;color:#cbd5e1;">Si consideras que esto es un error, responde a este correo.</p>'
             '</div></body></html>'
         )
-        return send_email_message(subject, [recipient], text_body, html_body)
+        return deliver_email_message(subject, [recipient], text_body, html_body)
 
 
     def normalize_phone(raw: str) -> str:
@@ -3502,6 +3825,9 @@ def create_app():
     def invalidate_post_discovery_caches():
         invalidate_runtime_response_cache('feed_page')
         invalidate_runtime_response_cache('page_home')
+        invalidate_runtime_response_cache('page_profile_shell')
+        invalidate_runtime_response_cache('page_profile_content')
+        invalidate_runtime_response_cache('profile_stats')
         invalidate_runtime_response_cache('hotspots')
         invalidate_runtime_response_cache('posts_in_radius')
         invalidate_runtime_response_cache('posts_by_city')
@@ -3979,6 +4305,201 @@ def create_app():
             _runtime_cache_client_failed = True
             return None
 
+    def _safe_health_error(exc: Exception) -> str:
+        return exc.__class__.__name__
+
+    def build_health_payload() -> tuple[dict, int]:
+        checks: dict[str, dict[str, object]] = {}
+
+        try:
+            db.session.execute(text('SELECT 1')).scalar()
+            checks['database'] = {'status': 'ok'}
+        except Exception as exc:
+            db.session.rollback()
+            checks['database'] = {'status': 'fail', 'error': _safe_health_error(exc)}
+
+        redis_url = (app.config.get('REDIS_URL') or '').strip()
+        if redis_url:
+            redis_client = get_runtime_cache_client()
+            if redis_client is None:
+                checks['cache'] = {'status': 'fail', 'backend': 'redis'}
+            else:
+                try:
+                    redis_client.ping()
+                    checks['cache'] = {'status': 'ok', 'backend': 'redis'}
+                except Exception as exc:
+                    checks['cache'] = {'status': 'fail', 'backend': 'redis', 'error': _safe_health_error(exc)}
+        else:
+            checks['cache'] = {'status': 'disabled', 'backend': 'memory'}
+
+        upload_folder = app.config.get('UPLOAD_FOLDER') or ''
+        try:
+            upload_ok = bool(upload_folder and os.path.isdir(upload_folder) and os.access(upload_folder, os.W_OK))
+        except Exception:
+            upload_ok = False
+        checks['uploads'] = {'status': 'ok' if upload_ok else 'fail'}
+
+        background_enabled = bool(app.config.get('BACKGROUND_JOBS_ENABLED'))
+        background_inline = bool(app.config.get('BACKGROUND_JOBS_INLINE'))
+        background_executor_available = app.extensions.get('violeta_background_executor') is not None
+        if not background_enabled:
+            background_status = 'disabled'
+        elif background_inline:
+            background_status = 'inline'
+        elif background_executor_available:
+            background_status = 'ok'
+        else:
+            background_status = 'fail'
+        checks['background_jobs'] = {
+            'status': background_status,
+            'workers': max(1, int(app.config.get('BACKGROUND_JOB_WORKERS') or 1)),
+        }
+
+        failing_checks = [
+            name
+            for name, check in checks.items()
+            if check.get('status') == 'fail'
+        ]
+        status = 'ok' if not failing_checks else 'degraded'
+        payload = {
+            'status': status,
+            'checks': checks,
+            'failing_checks': failing_checks,
+            'updated_at': utc_now_naive().isoformat(),
+        }
+        return payload, (200 if status == 'ok' else 503)
+
+    def _preflight_issue(level: str, code: str, message: str) -> dict:
+        return {'level': level, 'code': code, 'message': message}
+
+    def build_preflight_payload(*, strict: bool = False) -> tuple[dict, int]:
+        issues: list[dict] = []
+
+        if not (os.environ.get('SECRET_KEY') or '').strip():
+            issues.append(_preflight_issue(
+                'error',
+                'missing_secret_key',
+                'Define SECRET_KEY persistente antes de desplegar.',
+            ))
+
+        database_uri = (app.config.get('SQLALCHEMY_DATABASE_URI') or '').strip()
+        database_is_sqlite = database_uri.startswith('sqlite')
+        if not database_uri:
+            issues.append(_preflight_issue('error', 'missing_database_url', 'DATABASE_URL no está configurado.'))
+        elif strict and database_is_sqlite:
+            issues.append(_preflight_issue(
+                'error',
+                'sqlite_in_strict_mode',
+                'En producción usa PostgreSQL administrado, no SQLite local.',
+            ))
+        elif database_is_sqlite:
+            issues.append(_preflight_issue(
+                'warning',
+                'sqlite_database',
+                'SQLite está bien para desarrollo, pero no para producción multiinstancia.',
+            ))
+
+        upload_backend = (app.config.get('UPLOAD_BACKEND') or 'local').strip().lower()
+        if upload_backend == 'supabase':
+            required_storage = {
+                'SUPABASE_URL': app.config.get('SUPABASE_URL'),
+                'SUPABASE_SERVICE_ROLE_KEY': app.config.get('SUPABASE_SERVICE_ROLE_KEY'),
+                'SUPABASE_STORAGE_BUCKET': app.config.get('SUPABASE_STORAGE_BUCKET'),
+            }
+            missing_storage = [key for key, value in required_storage.items() if not str(value or '').strip()]
+            if missing_storage:
+                issues.append(_preflight_issue(
+                    'error',
+                    'missing_supabase_storage',
+                    f'Faltan variables de storage: {", ".join(missing_storage)}.',
+                ))
+        elif strict:
+            issues.append(_preflight_issue(
+                'error',
+                'local_uploads_in_strict_mode',
+                'En producción usa UPLOAD_BACKEND=supabase para no perder archivos en disco efímero.',
+            ))
+        else:
+            issues.append(_preflight_issue(
+                'warning',
+                'local_uploads',
+                'UPLOAD_BACKEND=local es adecuado para desarrollo, no para producción con disco efímero.',
+            ))
+
+        mail_method = (app.config.get('MAIL_DELIVERY_METHOD') or '').strip().lower()
+        if mail_method == 'resend':
+            if not (app.config.get('RESEND_API_KEY') or '').strip() or not (app.config.get('RESEND_FROM') or app.config.get('MAIL_DEFAULT_SENDER') or '').strip():
+                issues.append(_preflight_issue(
+                    'error',
+                    'missing_resend_config',
+                    'Para Resend define RESEND_API_KEY y RESEND_FROM.',
+                ))
+        elif mail_method == 'smtp':
+            if not (app.config.get('MAIL_SERVER') or '').strip() or not (app.config.get('MAIL_DEFAULT_SENDER') or app.config.get('MAIL_USERNAME') or '').strip():
+                issues.append(_preflight_issue(
+                    'error',
+                    'missing_smtp_config',
+                    'Para SMTP define MAIL_SERVER y MAIL_DEFAULT_SENDER o MAIL_USERNAME.',
+                ))
+            elif strict and not (app.config.get('MAIL_PASSWORD') or '').strip():
+                issues.append(_preflight_issue(
+                    'error',
+                    'missing_smtp_password',
+                    'Para SMTP en producción define MAIL_PASSWORD o usa MAIL_DELIVERY_METHOD=resend.',
+                ))
+        else:
+            issues.append(_preflight_issue(
+                'warning',
+                'mail_not_configured',
+                'MAIL_DELIVERY_METHOD no está configurado; OTP y recuperación pueden fallar.',
+            ))
+
+        if strict and not (app.config.get('REDIS_URL') or '').strip():
+            issues.append(_preflight_issue(
+                'warning',
+                'redis_not_configured',
+                'REDIS_URL es recomendado para cache compartido entre procesos.',
+            ))
+
+        if strict and not bool(app.config.get('SESSION_COOKIE_SECURE')):
+            issues.append(_preflight_issue(
+                'error',
+                'session_cookie_not_secure',
+                'Activa SESSION_COOKIE_SECURE=true en producción HTTPS.',
+            ))
+
+        if not bool(app.config.get('BACKGROUND_JOBS_ENABLED')):
+            issues.append(_preflight_issue(
+                'warning',
+                'background_jobs_disabled',
+                'BACKGROUND_JOBS_ENABLED=false deja trabajo pesado dentro del request.',
+            ))
+
+        health_payload, health_status = build_health_payload()
+        if health_status >= 400:
+            issues.append(_preflight_issue(
+                'error',
+                'health_check_degraded',
+                'El health check está degradado; revisa checks antes de desplegar.',
+            ))
+
+        error_count = sum(1 for issue in issues if issue.get('level') == 'error')
+        warning_count = sum(1 for issue in issues if issue.get('level') == 'warning')
+        status = 'fail' if error_count else ('warning' if warning_count else 'ok')
+        payload = {
+            'status': status,
+            'strict': bool(strict),
+            'error_count': error_count,
+            'warning_count': warning_count,
+            'issues': issues,
+            'health': {
+                'status': health_payload.get('status'),
+                'failing_checks': health_payload.get('failing_checks') or [],
+            },
+            'updated_at': utc_now_naive().isoformat(),
+        }
+        return payload, (1 if error_count else 0)
+
     def runtime_cache_key_string(cache_key: tuple) -> str:
         prefix = str(cache_key[0]) if cache_key else 'cache'
         raw = json.dumps(cache_key, ensure_ascii=False, default=str, separators=(',', ':'))
@@ -4080,6 +4601,7 @@ def create_app():
     def invalidate_admin_panel_page_cache() -> None:
         invalidate_runtime_response_cache('admin_attention_state')
         invalidate_runtime_response_cache('admin_overview_counts')
+        invalidate_runtime_response_cache('admin_metrics')
         invalidate_runtime_response_cache('page_admin_shell')
         invalidate_runtime_response_cache('page_admin_content')
         invalidate_runtime_response_cache('page_admin_overview')
@@ -4198,12 +4720,27 @@ def create_app():
             response.headers['Pragma'] = 'no-cache'
             response.headers['Expires'] = '0'
             response.headers['Service-Worker-Allowed'] = '/'
+        elif path == '/manifest.webmanifest':
+            static_cache_seconds = int(app.config.get('STATIC_ASSET_CACHE_SECONDS') or 0)
+            response.headers['Cache-Control'] = f'public, max-age={static_cache_seconds}'
+            response.headers.pop('Pragma', None)
+            response.headers.pop('Expires', None)
         elif path.startswith('/static/'):
-            response.headers['Cache-Control'] = 'public, max-age=604800, immutable'
+            static_cache_seconds = int(app.config.get('STATIC_ASSET_CACHE_SECONDS') or 0)
+            response.headers['Cache-Control'] = f'public, max-age={static_cache_seconds}, immutable'
+            response.headers.pop('Pragma', None)
+            response.headers.pop('Expires', None)
+        elif method == 'GET' and path.startswith('/uploads/optimized/'):
+            if response.headers.get('X-Violeta-Optimized-Fallback') == '1':
+                response.headers['Cache-Control'] = 'public, max-age=60, stale-while-revalidate=86400'
+            else:
+                optimized_cache_seconds = int(app.config.get('OPTIMIZED_UPLOAD_CACHE_SECONDS') or 0)
+                response.headers['Cache-Control'] = f'public, max-age={optimized_cache_seconds}, immutable'
             response.headers.pop('Pragma', None)
             response.headers.pop('Expires', None)
         elif method == 'GET' and path.startswith('/uploads/') and not path.startswith('/uploads/verify/'):
-            response.headers['Cache-Control'] = 'public, max-age=604800, stale-while-revalidate=86400'
+            upload_cache_seconds = int(app.config.get('PUBLIC_UPLOAD_CACHE_SECONDS') or 0)
+            response.headers['Cache-Control'] = f'public, max-age={upload_cache_seconds}, stale-while-revalidate=86400'
             response.headers.pop('Pragma', None)
             response.headers.pop('Expires', None)
         elif method == 'GET' and path == '/api/chat/rooms':
@@ -4253,6 +4790,14 @@ def create_app():
         response.headers['Expires'] = '0'
         response.headers['Service-Worker-Allowed'] = '/'
         return response
+
+    @app.route('/manifest.webmanifest')
+    def webmanifest():
+        return send_from_directory(
+            app.static_folder,
+            'manifest.webmanifest',
+            mimetype='application/manifest+json',
+        )
 
     # Hacer disponible csrf_token() en todas las plantillas (fallback explícito)
     @app.context_processor
@@ -5058,40 +5603,25 @@ def create_app():
                 flash('No se pudo procesar la imagen HEIC. Intenta con JPG/PNG.', 'danger')
                 return redirect(url_for('index'))
 
-        if ext in {'.jpg', '.jpeg', '.png', '.webp', '.bmp'}:
-            strip_image_metadata_in_place(save_path)
+        image_processing_queued = should_process_upload_image_async(ext)
+        if not image_processing_queued:
+            if not process_public_upload_image(unique_name, local_path=save_path, mime_type=file.mimetype):
+                try:
+                    os.remove(save_path)
+                except Exception as exc:
+                    _debug_log_suppressed('suppressed exception', exc)
+                flash('No se pudo procesar la imagen para publicarla.', 'danger')
+                return redirect(url_for('index'))
 
-        # Protección de privacidad: difuminar únicamente rostros detectados.
-        faces_blurred = 0
-        if ext in {'.jpg', '.jpeg', '.png', '.webp', '.bmp'}:
-            try:
-                blur_t0 = datetime.now()
-                faces_blurred = blur_faces_in_image(save_path)
-                if app.debug:
-                    blur_ms = int((datetime.now() - blur_t0).total_seconds() * 1000)
-                    print(f'DEBUG: Faces blurred in post upload: {faces_blurred}')
-                    print(f'DEBUG: Face blur elapsed: {blur_ms}ms')
-            except Exception as e:
-                if app.debug:
-                    print('DEBUG: Face blur failed on upload:', e)
-
-        if not sync_public_upload_to_storage(unique_name, local_path=save_path):
-            try:
-                os.remove(save_path)
-            except Exception as exc:
-                _debug_log_suppressed('suppressed exception', exc)
-            flash('No se pudo publicar la imagen en el almacenamiento externo.', 'danger')
-            return redirect(url_for('index'))
-
-        if app.config.get('ASYNC_UPLOAD_OPTIMIZATION', True):
-            submit_background_job(
-                'upload_optimized_variants',
-                prewarm_optimized_upload_variants,
-                unique_name,
-                source_path=save_path,
-            )
-        else:
-            prewarm_optimized_upload_variants(unique_name, source_path=save_path)
+            if app.config.get('ASYNC_UPLOAD_OPTIMIZATION', True):
+                submit_background_job(
+                    'upload_optimized_variants',
+                    prewarm_optimized_upload_variants,
+                    unique_name,
+                    source_path=save_path,
+                )
+            else:
+                prewarm_optimized_upload_variants(unique_name, source_path=save_path)
 
         # Campos del formulario (con fallback a request.form)
         caption = safe_field(form, 'caption') or ''
@@ -5165,6 +5695,32 @@ def create_app():
                 city = city or geo_payload.get('city')
                 country = country or geo_payload.get('country')
 
+        alt_text = safe_field(form, 'alt_text') or (request.form.get('alt_text') if request.form else None)
+        show_public_raw = safe_field(form, 'show_public') or (request.form.get('show_public') if request.form else None)
+        location_visibility_raw = request.form.get('location_visibility') if request.form else None
+        allow_likes_raw = request.form.get('allow_likes') if request.form else None
+        allow_comments_raw = request.form.get('allow_comments') if request.form else None
+
+        show_public = True
+        if isinstance(show_public_raw, str):
+            show_public = show_public_raw.lower() not in ('false', '0', 'no')
+        elif isinstance(show_public_raw, bool):
+            show_public = show_public_raw
+
+        allow_likes = True
+        if isinstance(allow_likes_raw, str):
+            allow_likes = allow_likes_raw.lower() not in ('false', '0', 'no')
+
+        allow_comments = True
+        if isinstance(allow_comments_raw, str):
+            allow_comments = allow_comments_raw.lower() not in ('false', '0', 'no')
+
+        location_visibility = normalize_location_visibility(
+            location_visibility_raw,
+            user_can_override_content_controls(current_user)
+        )
+        initial_show_public = False if image_processing_queued and show_public else show_public
+
         try:
             post = Post()
             post.caption = caption
@@ -5181,37 +5737,13 @@ def create_app():
             db.session.commit()
 
             # Guardar meta de interacción/visibilidad
-            alt_text = safe_field(form, 'alt_text') or (request.form.get('alt_text') if request.form else None)
-            show_public_raw = safe_field(form, 'show_public') or (request.form.get('show_public') if request.form else None)
-            location_visibility_raw = request.form.get('location_visibility') if request.form else None
-            allow_likes_raw = request.form.get('allow_likes') if request.form else None
-            allow_comments_raw = request.form.get('allow_comments') if request.form else None
             try:
-                show_public = True
-                if isinstance(show_public_raw, str):
-                    show_public = show_public_raw.lower() not in ('false', '0', 'no')
-                elif isinstance(show_public_raw, bool):
-                    show_public = show_public_raw
-
-                allow_likes = True
-                if isinstance(allow_likes_raw, str):
-                    allow_likes = allow_likes_raw.lower() not in ('false', '0', 'no')
-
-                allow_comments = True
-                if isinstance(allow_comments_raw, str):
-                    allow_comments = allow_comments_raw.lower() not in ('false', '0', 'no')
-
-                location_visibility = normalize_location_visibility(
-                    location_visibility_raw,
-                    user_can_override_content_controls(current_user)
-                )
-
                 meta = PostMeta.query.filter_by(post_id=post.id).first()
                 if not meta:
                     meta = PostMeta()  # type: ignore
                     meta.post_id = post.id
                 meta.alt_text = alt_text or None
-                meta.show_public = show_public
+                meta.show_public = initial_show_public
                 meta.allow_likes = allow_likes
                 meta.allow_comments = allow_comments
                 meta.location_visibility = location_visibility
@@ -5254,6 +5786,27 @@ def create_app():
             flash('No se pudo crear la publicación.', 'danger')
             return redirect(url_for('index'))
 
+        if image_processing_queued:
+            try:
+                submit_background_job(
+                    'upload_image_processing',
+                    finalize_uploaded_post_image,
+                    post.id,
+                    unique_name,
+                    local_path=save_path,
+                    mime_type=file.mimetype,
+                    desired_show_public=show_public,
+                )
+            except Exception as exc:
+                _debug_log_suppressed('upload image processing enqueue failed', exc)
+                finalize_uploaded_post_image(
+                    post.id,
+                    unique_name,
+                    local_path=save_path,
+                    mime_type=file.mimetype,
+                    desired_show_public=show_public,
+                )
+
         if needs_reverse_geocode and app.config.get('ASYNC_REVERSE_GEOCODING', True):
             submit_background_job(
                 'reverse_geocode_post',
@@ -5282,6 +5835,8 @@ def create_app():
                 f"{policy['distance_meters']} m del punto del reporte, o en máximo {policy['fallback_minutes']} min.",
                 'info'
             )
+        elif image_processing_queued:
+            flash('Publicación recibida. Estamos procesando la imagen y se hará visible automáticamente en unos segundos.', 'info')
         else:
             mode = (request.form.get('publish_mode') or 'now').lower()
             if mode == 'delay':
@@ -5346,8 +5901,15 @@ def create_app():
             not os.path.exists(variant_path)
             or os.path.getmtime(source_path) > os.path.getmtime(variant_path)
         )
-        if should_generate and not generate_optimized_upload(source_path, variant_path, width):
-            return uploaded_file(normalized)
+        if should_generate:
+            if enqueue_optimized_upload_variant(source_path, variant_path, width):
+                response = uploaded_file(normalized)
+                response.headers['X-Violeta-Optimized-Fallback'] = '1'
+                return response
+            if not generate_optimized_upload(source_path, variant_path, width):
+                response = uploaded_file(normalized)
+                response.headers['X-Violeta-Optimized-Fallback'] = '1'
+                return response
 
         return send_from_directory(variant_dir, variant_name, mimetype='image/webp')
 
@@ -7380,7 +7942,7 @@ def create_app():
         'Contenido íntimo o sexual sin consentimiento',
         'Suplantación de identidad',
         'Fraude o phishing',
-        'Información falso',
+        'Información falsa',
         'La imagen no corresponde al evento',
         'La imagen fue hecha con IA',
         'Descripción con lenguaje verbal insultante',
@@ -7398,6 +7960,9 @@ def create_app():
     ]
 
     COMMENT_REPORT_REASONS = CHAT_MESSAGE_REPORT_REASONS[:]
+    REPORT_REASON_ALIASES = {
+        'Información falso': 'Información falsa',
+    }
 
     POST_HIGH_RISK_REPORT_REASONS = {
         'Doxxing o datos personales',
@@ -7594,7 +8159,8 @@ def create_app():
         if is_user_temp_muted(current_user):
             return jsonify(temp_mute_error_payload('Tienes una restricción temporal de interacción.')), 403
         data = request.get_json(silent=True) or request.form or {}
-        reason = (data.get('reason') or '').strip()
+        raw_reason = (data.get('reason') or '').strip()
+        reason = REPORT_REASON_ALIASES.get(raw_reason, raw_reason)
         details = (data.get('details') or '').strip()
 
         if reason not in REPORT_REASONS:
@@ -7644,6 +8210,7 @@ def create_app():
                 content_hidden = True
 
             db.session.commit()
+            invalidate_admin_panel_page_cache()
             if high_risk:
                 invalidate_post_discovery_caches()
 
@@ -7828,6 +8395,23 @@ def create_app():
             'has_admin_reports_attention': False,
             'has_admin_chats_attention': False,
             'has_admin_verifications_attention': False,
+            'admin_user_filters': {
+                'q': '',
+                'status': 'all',
+                'strikes': 'all',
+                'reports': 'all',
+            },
+            'admin_report_filters': {
+                'q': '',
+                'status': 'active',
+                'reason': 'all',
+                'since': 'all',
+            },
+            'admin_report_filter_options': {
+                'statuses': [],
+                'reasons': [],
+                'since': [],
+            },
         }
         context['_'.join(('pending', 'password', 'recovery', 'count'))] = 0
         context['_'.join(('has', 'pending', 'password', 'recoveries'))] = False
@@ -7838,6 +8422,15 @@ def create_app():
         cached = get_runtime_cached_payload(cache_key, 20)
         if cached is not None:
             return dict(cached)
+        post_reports_count = int(
+            db.session.query(func.count(Report.id))
+            .filter(
+                Report.post_id.isnot(None),
+                Report.status.in_(ACTIVE_REVIEW_REPORT_STATUSES),
+            )
+            .scalar()
+            or 0
+        )
         reported_posts_count = int(
             db.session.query(func.count(func.distinct(Report.post_id)))
             .filter(
@@ -7877,6 +8470,20 @@ def create_app():
             .scalar()
             or 0
         )
+        latest_candidates = [
+            db.session.query(func.max(Report.created_at))
+            .filter(Report.status.in_(ACTIVE_REVIEW_REPORT_STATUSES))
+            .scalar(),
+            db.session.query(func.max(ChatMessageReport.created_at))
+            .filter(ChatMessageReport.status.in_(ACTIVE_REVIEW_REPORT_STATUSES))
+            .scalar(),
+            db.session.query(func.max(CommentReport.created_at))
+            .filter(CommentReport.status.in_(ACTIVE_REVIEW_REPORT_STATUSES))
+            .scalar(),
+        ]
+        latest_candidates = [item for item in latest_candidates if item]
+        latest_admin_report_created_at = max(latest_candidates) if latest_candidates else None
+        admin_reports_total_count = post_reports_count + chat_message_reports_count + comment_reports_count
         has_reported_posts = reported_posts_count > 0
         has_chat_message_reports = chat_message_reports_count > 0
         has_comment_reports = comment_reports_count > 0
@@ -7884,9 +8491,12 @@ def create_app():
         has_pending_verifications = pending_verifications_count > 0
         has_pending_password_recoveries = pending_password_recovery_count > 0
         payload = {
+            'post_reports_count': post_reports_count,
             'reported_posts_count': reported_posts_count,
             'chat_message_reports_count': chat_message_reports_count,
             'comment_reports_count': comment_reports_count,
+            'admin_reports_total_count': admin_reports_total_count,
+            'latest_admin_report_created_at': latest_admin_report_created_at.isoformat() if hasattr(latest_admin_report_created_at, 'isoformat') else latest_admin_report_created_at,
             'pending_chat_rooms_count': pending_chat_rooms_count,
             'pending_verifications_count': pending_verifications_count,
             'pending_password_recovery_count': pending_password_recovery_count,
@@ -7908,15 +8518,855 @@ def create_app():
         cache_key = ('admin_overview_counts',)
         cached = get_runtime_cached_payload(cache_key, 20)
         if cached is not None:
-            return dict(cached)
+            payload = dict(cached)
+            payload.update(_build_background_job_health_context())
+            return payload
         payload = {
             'total_users_count': db.session.query(func.count(User.id)).scalar() or 0,
             'total_posts_count': db.session.query(func.count(Post.id)).scalar() or 0,
             'total_likes': db.session.query(func.count(Like.id)).scalar() or 0,
             'total_comments': db.session.query(func.count(Comment.id)).scalar() or 0,
         }
-        set_runtime_cached_payload(cache_key, payload, ttl_seconds=20, max_entries=32)
+        payload.update(_build_admin_attention_state())
+        payload.update(_build_admin_metrics_context())
+        cache_payload = dict(payload)
+        cache_payload.pop('background_job_health', None)
+        set_runtime_cached_payload(cache_key, cache_payload, ttl_seconds=20, max_entries=32)
         return payload
+
+    def _format_admin_duration_label(minutes: float | None) -> str:
+        if minutes is None:
+            return 'Sin datos'
+        if minutes < 1:
+            return 'Menos de 1 min'
+        if minutes < 60:
+            return f'{int(round(minutes))} min'
+        hours = minutes / 60
+        if hours < 24:
+            return f'{hours:.1f} h' if hours < 10 else f'{int(round(hours))} h'
+        days = hours / 24
+        return f'{days:.1f} días' if days < 10 else f'{int(round(days))} días'
+
+    def _background_job_label(job_name: str | None) -> str:
+        labels = {
+            'email_delivery': 'Correos',
+            'reverse_geocode_post': 'Geocoding',
+            'upload_image_processing': 'Procesamiento de imagen',
+            'upload_optimized_variant_on_demand': 'Thumbnail WebP',
+            'upload_optimized_variants': 'Thumbnails WebP',
+        }
+        normalized = (job_name or '').strip()
+        return labels.get(normalized, normalized.replace('_', ' ').strip().title() or 'Tarea')
+
+    def _background_job_status_label(status: str | None) -> str:
+        labels = {
+            'queued': 'En cola',
+            'retry': 'Reintento',
+            'completed': 'Completada',
+            'failed': 'Falló',
+        }
+        return labels.get((status or '').strip(), (status or 'Evento').strip().title())
+
+    def _background_job_since_label(value: str | None) -> str:
+        labels = {
+            'all': 'Todo el historial',
+            'today': 'Hoy',
+            '7d': 'Últimos 7 días',
+            '30d': 'Últimos 30 días',
+        }
+        return labels.get((value or 'all').strip(), 'Todo el historial')
+
+    def _build_background_job_filters_from_request() -> dict:
+        status = (request.args.get('bg_status') or 'all').strip().lower()
+        if status not in BACKGROUND_JOB_STATUS_FILTER_OPTIONS:
+            status = 'all'
+
+        since = (request.args.get('bg_since') or 'all').strip().lower()
+        if since not in BACKGROUND_JOB_SINCE_FILTER_OPTIONS:
+            since = 'all'
+
+        job_name = (request.args.get('bg_job') or 'all').strip()
+        if not job_name:
+            job_name = 'all'
+
+        return {
+            'job_name': job_name,
+            'status': status,
+            'since': since,
+        }
+
+    def _background_job_filters_are_active(filters: dict | None) -> bool:
+        filters = filters or {}
+        return any((
+            (filters.get('job_name') or 'all') != 'all',
+            (filters.get('status') or 'all') != 'all',
+            (filters.get('since') or 'all') != 'all',
+        ))
+
+    def _apply_background_job_event_filters(query, filters: dict | None):
+        filters = filters or {}
+        job_name = (filters.get('job_name') or 'all').strip()
+        if job_name and job_name != 'all':
+            query = query.filter(BackgroundJobEvent.job_name == job_name)
+
+        status = (filters.get('status') or 'all').strip().lower()
+        if status in BACKGROUND_JOB_STATUS_FILTER_OPTIONS and status != 'all':
+            query = query.filter(BackgroundJobEvent.status == status)
+
+        since = (filters.get('since') or 'all').strip().lower()
+        if since == 'today':
+            start_today, start_tomorrow = current_app_day_bounds_utc()
+            query = query.filter(
+                BackgroundJobEvent.created_at >= start_today,
+                BackgroundJobEvent.created_at < start_tomorrow,
+            )
+        elif since == '7d':
+            query = query.filter(BackgroundJobEvent.created_at >= utc_now_naive() - timedelta(days=7))
+        elif since == '30d':
+            query = query.filter(BackgroundJobEvent.created_at >= utc_now_naive() - timedelta(days=30))
+        return query
+
+    def _build_background_job_filter_context(filters: dict) -> dict:
+        try:
+            job_names = [
+                row[0]
+                for row in (
+                    db.session.query(BackgroundJobEvent.job_name)
+                    .filter(BackgroundJobEvent.job_name.isnot(None))
+                    .distinct()
+                    .order_by(BackgroundJobEvent.job_name.asc())
+                    .all()
+                )
+                if row[0]
+            ]
+        except Exception as exc:
+            db.session.rollback()
+            _debug_log_suppressed('suppressed background job filter options exception', exc)
+            job_names = []
+
+        selected_job = filters.get('job_name') or 'all'
+        if selected_job != 'all' and selected_job not in job_names:
+            job_names.insert(0, selected_job)
+
+        job_options = [{'value': 'all', 'label': 'Todas las tareas'}]
+        job_options.extend({
+            'value': job_name,
+            'label': _background_job_label(job_name),
+        } for job_name in job_names)
+
+        status_options = [
+            {
+                'value': status,
+                'label': 'Todos los estados' if status == 'all' else _background_job_status_label(status),
+            }
+            for status in BACKGROUND_JOB_STATUS_FILTER_OPTIONS
+        ]
+        since_options = [
+            {
+                'value': value,
+                'label': _background_job_since_label(value),
+            }
+            for value in BACKGROUND_JOB_SINCE_FILTER_OPTIONS
+        ]
+
+        return {
+            **filters,
+            'job_options': job_options,
+            'status_options': status_options,
+            'since_options': since_options,
+            'active_count': sum(1 for key in ('job_name', 'status', 'since') if (filters.get(key) or 'all') != 'all'),
+            'job_label': 'Todas las tareas' if selected_job == 'all' else _background_job_label(selected_job),
+            'status_label': 'Todos los estados' if (filters.get('status') or 'all') == 'all' else _background_job_status_label(filters.get('status')),
+            'since_label': _background_job_since_label(filters.get('since')),
+        }
+
+    def _background_job_memory_snapshot(limit: int = 6) -> tuple[dict, list[dict]]:
+        stats = app.extensions.get('violeta_background_job_stats') or {}
+        events = app.extensions.get('violeta_background_job_events') or []
+        lock = app.extensions.get('violeta_background_job_stats_lock')
+
+        def snapshot():
+            return dict(stats), list(events)[:limit]
+
+        if lock is not None:
+            with lock:
+                return snapshot()
+        return snapshot()
+
+    def _background_job_persisted_snapshot(limit: int = 6, filters: dict | None = None) -> tuple[dict, list[dict]]:
+        try:
+            base_query = _apply_background_job_event_filters(BackgroundJobEvent.query, filters)
+            status_rows = (
+                base_query
+                .with_entities(BackgroundJobEvent.status, func.count(BackgroundJobEvent.id))
+                .group_by(BackgroundJobEvent.status)
+                .all()
+            )
+            job_status_rows = (
+                base_query
+                .with_entities(
+                    BackgroundJobEvent.job_name,
+                    BackgroundJobEvent.status,
+                    func.count(BackgroundJobEvent.id),
+                )
+                .group_by(BackgroundJobEvent.job_name, BackgroundJobEvent.status)
+                .all()
+            )
+            stats_snapshot = {
+                (status or 'unknown'): int(count or 0)
+                for status, count in status_rows
+            }
+            for job_name, status, count in job_status_rows:
+                stats_snapshot[f'{job_name}.{status or "unknown"}'] = int(count or 0)
+
+            recent_rows = (
+                base_query
+                .order_by(BackgroundJobEvent.created_at.desc(), BackgroundJobEvent.id.desc())
+                .limit(limit)
+                .all()
+            )
+            events_snapshot = [
+                {
+                    'job_name': row.job_name,
+                    'status': row.status,
+                    'attempt': row.attempt,
+                    'error': row.error,
+                    'duration_ms': round(float(row.duration_ms), 1) if row.duration_ms is not None else None,
+                    'created_at': row.created_at.isoformat() if row.created_at else None,
+                }
+                for row in recent_rows
+            ]
+            return stats_snapshot, events_snapshot
+        except Exception as exc:
+            db.session.rollback()
+            _debug_log_suppressed('suppressed background job persisted snapshot exception', exc)
+            return {}, []
+
+    def _background_job_snapshot(limit: int = 6, filters: dict | None = None) -> tuple[dict, list[dict]]:
+        persisted_stats, persisted_events = _background_job_persisted_snapshot(limit=limit, filters=filters)
+        if persisted_stats or persisted_events:
+            return persisted_stats, persisted_events
+        if _background_job_filters_are_active(filters):
+            return {}, []
+        return _background_job_memory_snapshot(limit=limit)
+
+    def _build_background_job_health_context(filters: dict | None = None) -> dict:
+        stats_snapshot, events_snapshot = _background_job_snapshot(limit=6, filters=filters)
+
+        queued_count = int(stats_snapshot.get('queued') or 0)
+        completed_count = int(stats_snapshot.get('completed') or 0)
+        retry_count = int(stats_snapshot.get('retry') or 0)
+        failed_count = int(stats_snapshot.get('failed') or 0)
+        recent_retry_count = sum(1 for event in events_snapshot if event.get('status') == 'retry')
+        recent_failed_count = sum(1 for event in events_snapshot if event.get('status') == 'failed')
+
+        if recent_failed_count:
+            status = 'danger'
+            status_label = 'Revisar fallas'
+        elif recent_retry_count:
+            status = 'warning'
+            status_label = 'Con reintentos'
+        elif queued_count > completed_count + failed_count:
+            status = 'active'
+            status_label = 'Trabajando'
+        else:
+            status = 'healthy'
+            status_label = 'Estable'
+
+        recent_events = []
+        for event in events_snapshot:
+            event_status = event.get('status')
+            recent_events.append({
+                'job_name': event.get('job_name') or '',
+                'job_label': _background_job_label(event.get('job_name')),
+                'status': event_status,
+                'status_label': _background_job_status_label(event_status),
+                'attempt': event.get('attempt'),
+                'duration_ms': event.get('duration_ms'),
+                'error': event.get('error'),
+                'created_at': event.get('created_at'),
+            })
+
+        return {
+            'background_job_health': {
+                'status': status,
+                'status_label': status_label,
+                'queued_count': queued_count,
+                'completed_count': completed_count,
+                'retry_count': retry_count,
+                'failed_count': failed_count,
+                'recent_retry_count': recent_retry_count,
+                'recent_failed_count': recent_failed_count,
+                'recent_events': recent_events,
+                'updated_at': utc_now_naive().isoformat(),
+            }
+        }
+
+    def _build_background_job_retention_context() -> dict:
+        retention_days = background_job_event_retention_days()
+        try:
+            total_events = int(BackgroundJobEvent.query.count() or 0)
+            expired_events = count_expired_background_job_events(retention_days)
+        except Exception as exc:
+            db.session.rollback()
+            _debug_log_suppressed('suppressed background job retention context exception', exc)
+            total_events = 0
+            expired_events = 0
+        return {
+            'retention_days': retention_days,
+            'total_events': total_events,
+            'expired_events': expired_events,
+            'enabled': retention_days > 0,
+        }
+
+    def _build_background_job_diagnostics_context(filters: dict | None = None) -> dict:
+        filters = filters or _build_background_job_filters_from_request()
+        health = (_build_background_job_health_context(filters).get('background_job_health') or {})
+        maintenance = _build_background_job_maintenance_context()
+        retention = _build_background_job_retention_context()
+        filter_context = _build_background_job_filter_context(filters)
+        stats_snapshot, _ = _background_job_snapshot(limit=100, filters=filters)
+
+        job_names = sorted({
+            key.rsplit('.', 1)[0]
+            for key in stats_snapshot
+            if '.' in key
+        })
+        job_rows = []
+        for job_name in job_names:
+            queued = int(stats_snapshot.get(f'{job_name}.queued') or 0)
+            completed = int(stats_snapshot.get(f'{job_name}.completed') or 0)
+            retries = int(stats_snapshot.get(f'{job_name}.retry') or 0)
+            failed = int(stats_snapshot.get(f'{job_name}.failed') or 0)
+            if failed:
+                row_status = 'danger'
+                row_status_label = 'Revisar'
+            elif retries:
+                row_status = 'warning'
+                row_status_label = 'Inestable'
+            elif queued > completed + failed:
+                row_status = 'active'
+                row_status_label = 'Activo'
+            else:
+                row_status = 'healthy'
+                row_status_label = 'OK'
+            job_rows.append({
+                'job_name': job_name,
+                'job_label': _background_job_label(job_name),
+                'queued_count': queued,
+                'completed_count': completed,
+                'retry_count': retries,
+                'failed_count': failed,
+                'status': row_status,
+                'status_label': row_status_label,
+            })
+
+        recommendations = []
+        failed_jobs = {
+            row['job_name']
+            for row in job_rows
+            if int(row.get('failed_count') or 0) > 0
+        }
+        retry_jobs = {
+            row['job_name']
+            for row in job_rows
+            if int(row.get('retry_count') or 0) > 0
+        }
+        if failed_jobs:
+            recommendations.append({
+                'level': 'danger',
+                'title': 'Atender fallas recientes',
+                'body': 'Revisa los eventos marcados como Falló y corrige la causa antes de subir más carga al sistema.',
+            })
+        if {'upload_image_processing', 'upload_optimized_variant_on_demand', 'upload_optimized_variants'} & failed_jobs:
+            recommendations.append({
+                'level': 'warning',
+                'title': 'Validar procesamiento de imágenes',
+                'body': 'Confirma permisos de uploads, disponibilidad de Pillow/WebP y credenciales de almacenamiento externo.',
+            })
+        if 'reverse_geocode_post' in (failed_jobs | retry_jobs):
+            recommendations.append({
+                'level': 'warning',
+                'title': 'Revisar geocoding',
+                'body': 'Si hay timeouts, valida red saliente y considera reducir llamadas o usar caché/geocoding propio.',
+            })
+        if 'email_delivery' in (failed_jobs | retry_jobs):
+            recommendations.append({
+                'level': 'warning',
+                'title': 'Revisar correos',
+                'body': 'Valida SMTP/Resend, remitente y credenciales antes de reenviar códigos o recuperaciones.',
+            })
+        if health.get('status') == 'active':
+            recommendations.append({
+                'level': 'info',
+                'title': 'Hay trabajo en proceso',
+                'body': 'El sistema tiene más tareas encoladas que finalizadas. Monitorea si la cola baja después de unos minutos.',
+            })
+        if not recommendations:
+            recommendations.append({
+                'level': 'success',
+                'title': 'Sin acciones críticas',
+                'body': 'No hay fallas recientes registradas. Mantén monitoreo si sube la carga de imágenes o correos.',
+            })
+
+        return {
+            'background_job_health': health,
+            'background_job_rows': job_rows,
+            'background_job_recommendations': recommendations,
+            'background_job_maintenance': maintenance,
+            'background_job_retention': retention,
+            'background_job_filters': filter_context,
+            'background_job_config': {
+                'enabled': bool(app.config.get('BACKGROUND_JOBS_ENABLED')),
+                'inline': bool(app.config.get('BACKGROUND_JOBS_INLINE')),
+                'workers': max(1, int(app.config.get('BACKGROUND_JOB_WORKERS') or 1)),
+                'max_retries': max(0, int(app.config.get('BACKGROUND_JOB_MAX_RETRIES') or 0)),
+                'retry_delay_seconds': max(0.0, float(app.config.get('BACKGROUND_JOB_RETRY_DELAY_SECONDS') or 0.0)),
+                'event_retention_days': retention.get('retention_days'),
+                'async_image_processing': bool(app.config.get('ASYNC_IMAGE_PROCESSING', True)),
+                'async_upload_optimization': bool(app.config.get('ASYNC_UPLOAD_OPTIMIZATION', True)),
+                'async_reverse_geocoding': bool(app.config.get('ASYNC_REVERSE_GEOCODING', True)),
+                'async_email_delivery': bool(app.config.get('ASYNC_EMAIL_DELIVERY', True)),
+            },
+            'updated_at': utc_now_naive().isoformat(),
+        }
+
+    def _post_label_for_background_maintenance(post: Post) -> str:
+        title = (getattr(post, 'caption', None) or '').strip()
+        location = (getattr(post, 'location_name', None) or getattr(post, 'city', None) or '').strip()
+        if title and location:
+            return f'{title[:48]} · {location[:32]}'
+        return (title or location or f'Post #{post.id}')[:82]
+
+    def _image_processing_retry_posts(limit: int = 25):
+        return (
+            Post.query
+            .join(PostMeta, PostMeta.post_id == Post.id)
+            .filter(
+                PostMeta.show_public.is_(False),
+                Post.image_filename.isnot(None),
+                ~Post.reports.any(Report.status.in_(ACTIVE_REVIEW_REPORT_STATUSES)),
+            )
+            .order_by(Post.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+    def _geocode_retry_posts(limit: int = 25):
+        return (
+            Post.query
+            .filter(
+                or_(Post.location_name.is_(None), Post.location_name == ''),
+                Post.latitude.isnot(None),
+                Post.longitude.isnot(None),
+            )
+            .order_by(Post.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+    def _build_background_job_maintenance_context() -> dict:
+        image_posts = _image_processing_retry_posts(limit=8)
+        geocode_posts = _geocode_retry_posts(limit=8)
+        return {
+            'image_retry_count': len(image_posts),
+            'geocode_retry_count': len(geocode_posts),
+            'image_retry_candidates': [
+                {
+                    'id': int(post.id),
+                    'label': _post_label_for_background_maintenance(post),
+                }
+                for post in image_posts[:4]
+            ],
+            'geocode_retry_candidates': [
+                {
+                    'id': int(post.id),
+                    'label': _post_label_for_background_maintenance(post),
+                }
+                for post in geocode_posts[:4]
+            ],
+        }
+
+    def _queue_background_maintenance_retry(action: str, *, limit: int = 25) -> dict:
+        normalized_action = (action or '').strip().lower()
+        if normalized_action not in {'image_processing', 'geocoding', 'all'}:
+            raise ValueError('Acción no válida.')
+
+        queued: list[dict] = []
+        skipped: list[dict] = []
+
+        if normalized_action in {'image_processing', 'all'}:
+            for post in _image_processing_retry_posts(limit=limit):
+                filename = (getattr(post, 'image_filename', None) or '').strip()
+                if not filename:
+                    skipped.append({'type': 'image_processing', 'post_id': int(post.id), 'reason': 'sin imagen'})
+                    continue
+                submit_background_job(
+                    'admin_retry_upload_image_processing',
+                    finalize_uploaded_post_image,
+                    int(post.id),
+                    filename,
+                    desired_show_public=True,
+                )
+                queued.append({'type': 'image_processing', 'post_id': int(post.id)})
+
+        if normalized_action in {'geocoding', 'all'}:
+            for post in _geocode_retry_posts(limit=limit):
+                if not valid_coords(post.latitude, post.longitude):
+                    skipped.append({'type': 'geocoding', 'post_id': int(post.id), 'reason': 'coordenadas inválidas'})
+                    continue
+                submit_background_job(
+                    'admin_retry_reverse_geocode',
+                    fill_post_location_from_reverse_geocode,
+                    int(post.id),
+                    post.latitude,
+                    post.longitude,
+                )
+                queued.append({'type': 'geocoding', 'post_id': int(post.id)})
+
+        return {
+            'action': normalized_action,
+            'queued_count': len(queued),
+            'skipped_count': len(skipped),
+            'queued': queued,
+            'skipped': skipped,
+        }
+
+    def _background_job_cache_fragment() -> tuple:
+        health = (_build_background_job_health_context().get('background_job_health') or {})
+        latest_event = (health.get('recent_events') or [{}])[0] or {}
+        return (
+            health.get('status'),
+            health.get('queued_count'),
+            health.get('completed_count'),
+            health.get('retry_count'),
+            health.get('failed_count'),
+            latest_event.get('job_name'),
+            latest_event.get('status'),
+            latest_event.get('attempt'),
+            latest_event.get('error'),
+        )
+
+    def _build_admin_metrics_context() -> dict:
+        cache_key = ('admin_metrics',)
+        cached = get_runtime_cached_payload(cache_key, 30)
+        if cached is not None:
+            payload = dict(cached)
+            payload.update(_build_background_job_health_context())
+            return payload
+
+        window_days = 30
+        start_dt = utc_now_naive() - timedelta(days=window_days)
+        total_users = int(db.session.query(func.count(User.id)).scalar() or 0)
+        verified_users = int(
+            db.session.query(func.count(User.id))
+            .filter(User.is_verified.is_(True))
+            .scalar()
+            or 0
+        )
+        total_posts = int(db.session.query(func.count(Post.id)).scalar() or 0)
+        hidden_posts = int(
+            db.session.query(func.count(PostMeta.id))
+            .filter(PostMeta.show_public.is_(False))
+            .scalar()
+            or 0
+        )
+        visible_posts = max(total_posts - hidden_posts, 0)
+        verification_rate = round((verified_users / total_users) * 100) if total_users else 0
+        hidden_posts_rate = round((hidden_posts / total_posts) * 100) if total_posts else 0
+
+        zone_expr = func.coalesce(func.nullif(Post.city, ''), 'Sin zona')
+        post_report_count = func.count(Report.id)
+        zone_rows = (
+            db.session.query(zone_expr.label('zone'), post_report_count.label('count'))
+            .join(Post, Report.post_id == Post.id)
+            .filter(Report.created_at >= start_dt)
+            .group_by(zone_expr)
+            .order_by(post_report_count.desc())
+            .limit(5)
+            .all()
+        )
+        reports_by_zone_total = sum(int(count or 0) for _, count in zone_rows)
+        reports_by_zone = [
+            {
+                'zone': zone or 'Sin zona',
+                'count': int(count or 0),
+                'share_percent': round((int(count or 0) / reports_by_zone_total) * 100) if reports_by_zone_total else 0,
+            }
+            for zone, count in zone_rows
+        ]
+
+        hidden_count = func.count(PostMeta.id)
+        hidden_zone_rows = (
+            db.session.query(zone_expr.label('zone'), hidden_count.label('count'))
+            .join(Post, Post.id == PostMeta.post_id)
+            .filter(PostMeta.show_public.is_(False))
+            .group_by(zone_expr)
+            .order_by(hidden_count.desc())
+            .limit(5)
+            .all()
+        )
+        hidden_by_zone_total = sum(int(count or 0) for _, count in hidden_zone_rows)
+        hidden_posts_by_zone = [
+            {
+                'zone': zone or 'Sin zona',
+                'count': int(count or 0),
+                'share_percent': round((int(count or 0) / hidden_by_zone_total) * 100) if hidden_by_zone_total else 0,
+            }
+            for zone, count in hidden_zone_rows
+        ]
+
+        resolved_durations = []
+        for report_model in (Report, ChatMessageReport, CommentReport):
+            rows = (
+                db.session.query(report_model.created_at, report_model.resolved_at)
+                .filter(
+                    report_model.resolved_at.isnot(None),
+                    report_model.created_at.isnot(None),
+                    report_model.resolved_at >= start_dt,
+                )
+                .limit(500)
+                .all()
+            )
+            for created_at, resolved_at in rows:
+                if not created_at or not resolved_at:
+                    continue
+                resolved_durations.append(max((resolved_at - created_at).total_seconds() / 60, 0))
+
+        avg_resolution_minutes = round(sum(resolved_durations) / len(resolved_durations), 1) if resolved_durations else None
+        attention_state = _build_admin_attention_state()
+        payload = {
+            'admin_metrics': {
+                'window_days': window_days,
+                'reports_by_zone': reports_by_zone,
+                'reports_by_zone_total': reports_by_zone_total,
+                'hidden_posts_by_zone': hidden_posts_by_zone,
+                'hidden_posts_by_zone_total': hidden_by_zone_total,
+                'verified_users_count': verified_users,
+                'unverified_users_count': max(total_users - verified_users, 0),
+                'total_users_count': total_users,
+                'verification_rate': verification_rate,
+                'hidden_posts_count': hidden_posts,
+                'visible_posts_count': visible_posts,
+                'total_posts_count': total_posts,
+                'hidden_posts_rate': hidden_posts_rate,
+                'avg_resolution_minutes': avg_resolution_minutes,
+                'avg_resolution_label': _format_admin_duration_label(avg_resolution_minutes),
+                'resolved_reports_count': len(resolved_durations),
+                'open_reports_count': int(attention_state.get('admin_reports_total_count') or 0),
+                'updated_at': utc_now_naive().isoformat(),
+            }
+        }
+        set_runtime_cached_payload(cache_key, dict(payload), ttl_seconds=30, max_entries=32)
+        payload.update(_build_background_job_health_context())
+        return payload
+
+    def _admin_user_filters_from_request() -> dict:
+        status_options = {'all', 'verified', 'unverified', 'recovery', 'with_posts', 'no_posts'}
+        strike_options = {'all', 'none', 'one', 'two_plus'}
+        report_options = {'all', 'with_reports', 'no_reports'}
+        status = (request.args.get('user_status') or 'all').strip().lower()
+        strikes = (request.args.get('user_strikes') or 'all').strip().lower()
+        reports = (request.args.get('user_reports') or 'all').strip().lower()
+        return {
+            'q': (request.args.get('user_q') or '').strip()[:80],
+            'status': status if status in status_options else 'all',
+            'strikes': strikes if strikes in strike_options else 'all',
+            'reports': reports if reports in report_options else 'all',
+        }
+
+    def _admin_user_filter_cache_fragment(filters: dict | None = None) -> tuple:
+        filters = filters or _admin_user_filters_from_request()
+        return (
+            filters.get('q') or '',
+            filters.get('status') or 'all',
+            filters.get('strikes') or 'all',
+            filters.get('reports') or 'all',
+        )
+
+    def _apply_admin_user_filters(query, filters: dict):
+        q = (filters.get('q') or '').strip()
+        if q:
+            like = f'%{q}%'
+            query = query.filter(or_(User.username.ilike(like), User.email.ilike(like)))
+
+        user_ids_with_posts = db.session.query(Post.user_id).filter(Post.user_id.isnot(None)).distinct()
+        user_ids_with_active_reports = (
+            db.session.query(Post.user_id)
+            .join(Report, Report.post_id == Post.id)
+            .filter(
+                Post.user_id.isnot(None),
+                Report.status.in_(ACTIVE_REVIEW_REPORT_STATUSES),
+            )
+            .distinct()
+        )
+
+        status = filters.get('status') or 'all'
+        if status == 'verified':
+            query = query.filter(User.is_verified.is_(True))
+        elif status == 'unverified':
+            query = query.filter(User.is_verified.is_(False))
+        elif status == 'recovery':
+            query = query.filter(User.password_recovery_requested_at.isnot(None))
+        elif status == 'with_posts':
+            query = query.filter(User.id.in_(user_ids_with_posts))
+        elif status == 'no_posts':
+            query = query.filter(~User.id.in_(user_ids_with_posts))
+
+        strikes = filters.get('strikes') or 'all'
+        strike_count = func.coalesce(User.abuse_strikes, 0)
+        if strikes == 'none':
+            query = query.filter(strike_count == 0)
+        elif strikes == 'one':
+            query = query.filter(strike_count == 1)
+        elif strikes == 'two_plus':
+            query = query.filter(strike_count >= 2)
+
+        reports = filters.get('reports') or 'all'
+        if reports == 'with_reports':
+            query = query.filter(User.id.in_(user_ids_with_active_reports))
+        elif reports == 'no_reports':
+            query = query.filter(~User.id.in_(user_ids_with_active_reports))
+
+        return query
+
+    ADMIN_REPORT_STATUS_OPTIONS = [
+        ('active', 'Activos'),
+        ('pending', 'Pendientes'),
+        ('reviewing', 'En revisión'),
+        ('restored', 'Restaurados'),
+        ('struck', 'Con strike'),
+        ('dismissed', 'Descartados'),
+        ('resolved', 'Resueltos'),
+        ('all', 'Todos'),
+    ]
+    ADMIN_REPORT_REASON_OPTIONS = [
+        'Acoso o insultos',
+        'Amenaza o violencia',
+        'Archivo o enlace sospechoso',
+        'Contenido íntimo o sexual sin consentimiento',
+        'Contenido sexual no solicitado',
+        'Doxxing o datos personales',
+        'Fraude o phishing',
+        'Información falsa',
+        'La imagen fue hecha con IA',
+        'La imagen no corresponde al evento',
+        'Spam o fraude',
+        'Suplantación de identidad',
+        'Ubicación exacta, rastreo o rutina',
+    ]
+    ADMIN_REPORT_SINCE_OPTIONS = [
+        ('all', 'Cualquier fecha'),
+        ('today', 'Hoy'),
+        ('7d', 'Últimos 7 días'),
+        ('30d', 'Últimos 30 días'),
+    ]
+
+    def _admin_report_filter_options() -> dict:
+        return {
+            'statuses': [{'value': value, 'label': label} for value, label in ADMIN_REPORT_STATUS_OPTIONS],
+            'reasons': list(ADMIN_REPORT_REASON_OPTIONS),
+            'since': [{'value': value, 'label': label} for value, label in ADMIN_REPORT_SINCE_OPTIONS],
+        }
+
+    def _admin_report_filters_from_request() -> dict:
+        status_options = {value for value, _ in ADMIN_REPORT_STATUS_OPTIONS}
+        since_options = {value for value, _ in ADMIN_REPORT_SINCE_OPTIONS}
+        status = (request.args.get('report_status') or 'active').strip().lower()
+        since = (request.args.get('report_since') or 'all').strip().lower()
+        reason = (request.args.get('report_reason') or 'all').strip()
+        if status not in status_options:
+            status = 'active'
+        if since not in since_options:
+            since = 'all'
+        if reason != 'all' and reason not in ADMIN_REPORT_REASON_OPTIONS:
+            reason = 'all'
+        return {
+            'q': (request.args.get('report_q') or '').strip()[:120],
+            'status': status,
+            'reason': reason,
+            'since': since,
+        }
+
+    def _admin_report_filter_cache_fragment(filters: dict | None = None) -> tuple:
+        filters = filters or _admin_report_filters_from_request()
+        return (
+            filters.get('q') or '',
+            filters.get('status') or 'active',
+            filters.get('reason') or 'all',
+            filters.get('since') or 'all',
+        )
+
+    def _admin_report_since_datetime(value: str | None):
+        if value == 'today':
+            today = utc_now_naive().date()
+            return datetime.combine(today, datetime.min.time())
+        if value == '7d':
+            return utc_now_naive() - timedelta(days=7)
+        if value == '30d':
+            return utc_now_naive() - timedelta(days=30)
+        return None
+
+    def _apply_admin_report_filters(query, report_model, filters: dict, text_condition_factory=None):
+        status = filters.get('status') or 'active'
+        if status == 'active':
+            query = query.filter(report_model.status.in_(ACTIVE_REVIEW_REPORT_STATUSES))
+        elif status != 'all':
+            query = query.filter(report_model.status == status)
+
+        reason = filters.get('reason') or 'all'
+        if reason != 'all':
+            query = query.filter(report_model.reason == reason)
+
+        since_dt = _admin_report_since_datetime(filters.get('since'))
+        if since_dt is not None:
+            query = query.filter(report_model.created_at >= since_dt)
+
+        q = (filters.get('q') or '').strip()
+        if q and callable(text_condition_factory):
+            query = query.filter(text_condition_factory(q))
+        return query
+
+    def _post_report_text_condition(q: str):
+        like = f'%{q}%'
+        return or_(
+            Report.reason.ilike(like),
+            Report.details.ilike(like),
+            Report.post.has(or_(
+                Post.caption.ilike(like),
+                Post.location_name.ilike(like),
+                Post.city.ilike(like),
+                Post.country.ilike(like),
+                Post.author.has(or_(User.username.ilike(like), User.email.ilike(like))),
+            )),
+            Report.reporter.has(or_(User.username.ilike(like), User.email.ilike(like))),
+        )
+
+    def _chat_report_text_condition(q: str):
+        like = f'%{q}%'
+        return or_(
+            ChatMessageReport.reason.ilike(like),
+            ChatMessageReport.details.ilike(like),
+            ChatMessageReport.message.has(or_(
+                ChatMessage.content.ilike(like),
+                ChatMessage.user.has(or_(User.username.ilike(like), User.email.ilike(like))),
+                ChatMessage.room.has(or_(ChatRoom.name.ilike(like), ChatRoom.description.ilike(like))),
+            )),
+            ChatMessageReport.reporter.has(or_(User.username.ilike(like), User.email.ilike(like))),
+        )
+
+    def _comment_report_text_condition(q: str):
+        like = f'%{q}%'
+        return or_(
+            CommentReport.reason.ilike(like),
+            CommentReport.details.ilike(like),
+            CommentReport.comment.has(or_(
+                Comment.content.ilike(like),
+                Comment.author.has(or_(User.username.ilike(like), User.email.ilike(like))),
+                Comment.post.has(or_(Post.caption.ilike(like), Post.location_name.ilike(like), Post.city.ilike(like))),
+            )),
+            CommentReport.reporter.has(or_(User.username.ilike(like), User.email.ilike(like))),
+        )
 
     def _build_super_admin_ops_context(active_tab: str = 'users', reports_subtab: str = 'reportados', *, include_overview: bool = True, page_number: int = 1) -> dict:
         context = _base_ops_panel_context()
@@ -7953,12 +9403,14 @@ def create_app():
             context.update(_build_super_admin_overview_context())
 
         if active_tab == 'users':
-            total_users_count = db.session.query(func.count(User.id)).scalar() or 0
+            admin_user_filters = _admin_user_filters_from_request()
+            users_query = _apply_admin_user_filters(User.query, admin_user_filters)
+            total_users_unfiltered_count = db.session.query(func.count(User.id)).scalar() or 0
+            total_users_count = users_query.order_by(None).count() or 0
             total_pages = max(1, (total_users_count + users_limit - 1) // users_limit) if total_users_count else 1
             page_number = min(page_number, total_pages)
             users = (
-                User.query
-                .order_by(
+                users_query.order_by(
                     case((User.password_recovery_requested_at.isnot(None), 0), else_=1),
                     User.password_recovery_requested_at.desc(),
                     User.created_at.desc(),
@@ -7970,6 +9422,7 @@ def create_app():
             user_ids = [user.id for user in users]
             user_post_counts = {}
             user_like_counts = {}
+            user_report_counts = {}
             if user_ids:
                 user_post_counts = dict(
                     db.session.query(Post.user_id, func.count(Post.id))
@@ -7984,12 +9437,25 @@ def create_app():
                     .group_by(Post.user_id)
                     .all()
                 )
+                user_report_counts = dict(
+                    db.session.query(Post.user_id, func.count(Report.id))
+                    .join(Report, Report.post_id == Post.id)
+                    .filter(
+                        Post.user_id.in_(user_ids),
+                        Report.status.in_(ACTIVE_REVIEW_REPORT_STATUSES),
+                    )
+                    .group_by(Post.user_id)
+                    .all()
+                )
             for user in users:
                 user.post_count = int(user_post_counts.get(user.id, 0))
                 user.like_count = int(user_like_counts.get(user.id, 0))
+                user.active_report_count = int(user_report_counts.get(user.id, 0))
             context.update({
                 'users': users,
                 'total_users_count': total_users_count,
+                'total_users_unfiltered_count': total_users_unfiltered_count,
+                'admin_user_filters': admin_user_filters,
                 'tab_total_count': total_users_count,
                 'tab_page': page_number,
                 'tab_total_pages': total_pages,
@@ -8040,50 +9506,81 @@ def create_app():
             return context
 
         if active_tab == 'reportes':
+            admin_report_filters = _admin_report_filters_from_request()
             reported_posts = []
             chat_message_reports = []
             comment_reports = []
+            reports_total_count = 0
 
             if reports_subtab == 'reportados':
-                reported_posts = (
-                    Post.query.options(
-                        selectinload(Post.author),
-                        selectinload(Post.meta),
-                        selectinload(Post.reports).selectinload(Report.reporter),
-                        selectinload(Post.reports).selectinload(Report.resolver),
-                    )
-                    .filter(
-                        Post.reports.any(Report.status.in_(ACTIVE_REVIEW_REPORT_STATUSES))
-                    )
-                    .order_by(Post.created_at.desc())
-                    .limit(reported_posts_limit)
+                report_query = _apply_admin_report_filters(
+                    Report.query.options(
+                        selectinload(Report.post),
+                        selectinload(Report.reporter),
+                        selectinload(Report.resolver),
+                    ).filter(Report.post_id.isnot(None)),
+                    Report,
+                    admin_report_filters,
+                    _post_report_text_condition,
+                )
+                report_rows = (
+                    report_query.order_by(Report.created_at.desc(), Report.id.desc())
+                    .limit(max(reported_posts_limit * 5, reported_posts_limit))
                     .all()
                 )
-                enrich_posts_for_cards(reported_posts, current_user)
-                _attach_active_post_reports(reported_posts)
+                reports_by_post = defaultdict(list)
+                post_ids = []
+                for report in report_rows:
+                    if report.post_id not in reports_by_post:
+                        post_ids.append(report.post_id)
+                    reports_by_post[report.post_id].append(report)
+                post_ids = post_ids[:reported_posts_limit]
+                reports_total_count = len(post_ids)
+                if post_ids:
+                    post_map = {
+                        post.id: post
+                        for post in Post.query.options(
+                            selectinload(Post.author),
+                            selectinload(Post.meta),
+                        ).filter(Post.id.in_(post_ids)).all()
+                    }
+                    reported_posts = [post_map[post_id] for post_id in post_ids if post_id in post_map]
+                    for post in reported_posts:
+                        post.filtered_reports_admin = reports_by_post.get(post.id, [])
+                    enrich_posts_for_cards(reported_posts, current_user)
             elif reports_subtab == 'reportes-chat':
-                chat_message_reports = (
+                chat_query = _apply_admin_report_filters(
                     ChatMessageReport.query.options(
                         selectinload(ChatMessageReport.message).selectinload(ChatMessage.user),
                         selectinload(ChatMessageReport.message).selectinload(ChatMessage.room),
                         selectinload(ChatMessageReport.reporter),
                         selectinload(ChatMessageReport.resolver),
-                    )
-                    .filter(ChatMessageReport.status.in_(ACTIVE_REVIEW_REPORT_STATUSES))
-                    .order_by(ChatMessageReport.created_at.desc())
+                    ),
+                    ChatMessageReport,
+                    admin_report_filters,
+                    _chat_report_text_condition,
+                )
+                reports_total_count = chat_query.order_by(None).count() or 0
+                chat_message_reports = (
+                    chat_query.order_by(ChatMessageReport.created_at.desc(), ChatMessageReport.id.desc())
                     .limit(reports_limit)
                     .all()
                 )
             else:
-                comment_reports = (
+                comment_query = _apply_admin_report_filters(
                     CommentReport.query.options(
                         selectinload(CommentReport.comment).selectinload(Comment.author),
                         selectinload(CommentReport.comment).selectinload(Comment.post),
                         selectinload(CommentReport.reporter),
                         selectinload(CommentReport.resolver),
-                    )
-                    .filter(CommentReport.status.in_(ACTIVE_REVIEW_REPORT_STATUSES))
-                    .order_by(CommentReport.created_at.desc())
+                    ),
+                    CommentReport,
+                    admin_report_filters,
+                    _comment_report_text_condition,
+                )
+                reports_total_count = comment_query.order_by(None).count() or 0
+                comment_reports = (
+                    comment_query.order_by(CommentReport.created_at.desc(), CommentReport.id.desc())
                     .limit(reports_limit)
                     .all()
                 )
@@ -8091,6 +9588,9 @@ def create_app():
                 'reported_posts': reported_posts,
                 'chat_message_reports': chat_message_reports,
                 'comment_reports': comment_reports,
+                'admin_report_filters': admin_report_filters,
+                'admin_report_filter_options': _admin_report_filter_options(),
+                'admin_report_filtered_count': reports_total_count,
             })
             return context
 
@@ -8285,7 +9785,9 @@ def create_app():
         active_tab = (request.args.get('tab') or 'users').strip().lower()
         reports_subtab = (request.args.get('reports_subtab') or 'reportados').strip().lower()
         page_number = max(1, request.args.get('page', default=1, type=int) or 1)
-        page_cache_key = ('page_admin_shell', ADMIN_PANEL_CACHE_VERSION, current_user.id, active_tab, reports_subtab, page_number)
+        user_filter_fragment = _admin_user_filter_cache_fragment()
+        report_filter_fragment = _admin_report_filter_cache_fragment()
+        page_cache_key = ('page_admin_shell', ADMIN_PANEL_CACHE_VERSION, current_user.id, active_tab, reports_subtab, page_number, user_filter_fragment, report_filter_fragment)
         cached_response = get_cached_html_page(page_cache_key, 90)
         if cached_response is not None:
             return cached_response
@@ -8310,7 +9812,9 @@ def create_app():
                 _ensure_default_chat_room()
             except Exception as exc:
                 _debug_log_suppressed('suppressed exception', exc)
-        page_cache_key = ('page_admin_content', ADMIN_PANEL_CACHE_VERSION, current_user.id, active_tab, reports_subtab, page_number)
+        user_filter_fragment = _admin_user_filter_cache_fragment()
+        report_filter_fragment = _admin_report_filter_cache_fragment()
+        page_cache_key = ('page_admin_content', ADMIN_PANEL_CACHE_VERSION, current_user.id, active_tab, reports_subtab, page_number, user_filter_fragment, report_filter_fragment)
         cached_response = get_cached_html_page(page_cache_key, 45)
         if cached_response is not None:
             return cached_response
@@ -8335,12 +9839,184 @@ def create_app():
     @login_required
     @permission_required(PERM_ADMIN_PANEL_VIEW, flash_message='Acceso denegado. Solo para personal autorizado.')
     def admin_panel_overview():
-        page_cache_key = ('page_admin_overview', ADMIN_PANEL_CACHE_VERSION, current_user.id)
+        page_cache_key = (
+            'page_admin_overview',
+            ADMIN_PANEL_CACHE_VERSION,
+            current_user.id,
+            _background_job_cache_fragment(),
+        )
         cached_response = get_cached_html_page(page_cache_key, 45)
         if cached_response is not None:
             return cached_response
         html = render_template('admin_overview.html', **_build_super_admin_overview_context())
         return set_cached_html_page(page_cache_key, html, ttl_seconds=45, max_entries=96)
+
+    @app.route('/admin/attention-state')
+    @login_required
+    @permission_required(PERM_ADMIN_PANEL_VIEW, json_only=True)
+    def admin_attention_state():
+        payload = _build_admin_attention_state()
+        return jsonify({
+            'success': True,
+            **payload,
+        })
+
+    @app.route('/admin/metrics')
+    @login_required
+    @permission_required(PERM_ADMIN_PANEL_VIEW, json_only=True)
+    def admin_metrics():
+        payload = _build_admin_metrics_context()
+        return jsonify({
+            'success': True,
+            **payload,
+        })
+
+    @app.route('/admin/background-jobs')
+    @login_required
+    @permission_required(PERM_ADMIN_PANEL_VIEW, flash_message='Acceso denegado. Solo para personal autorizado.')
+    def admin_background_jobs():
+        payload = _build_background_job_diagnostics_context()
+        wants_json = (
+            (request.args.get('format') or '').strip().lower() == 'json'
+            or request.accept_mimetypes.best == 'application/json'
+        )
+        if wants_json:
+            return jsonify({
+                'success': True,
+                **payload,
+            })
+        record_audit_event(
+            'workspace.view',
+            workspace='admin',
+            resource_type='background_jobs',
+            summary='Abrió el diagnóstico de tareas en segundo plano.',
+            details={'status': (payload.get('background_job_health') or {}).get('status')},
+        )
+        return render_template('admin_background_jobs.html', **payload)
+
+    @app.route('/admin/background-jobs/export')
+    @login_required
+    @permission_required(PERM_ADMIN_PANEL_VIEW, flash_message='Acceso denegado. Solo para personal autorizado.')
+    def admin_background_jobs_export():
+        filters = _build_background_job_filters_from_request()
+        rows = (
+            _apply_background_job_event_filters(BackgroundJobEvent.query, filters)
+            .order_by(BackgroundJobEvent.created_at.desc(), BackgroundJobEvent.id.desc())
+            .limit(5000)
+            .all()
+        )
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow([
+            'job_name',
+            'job_label',
+            'status',
+            'status_label',
+            'attempt',
+            'duration_ms',
+            'error',
+            'created_at',
+        ])
+        for row in rows:
+            writer.writerow([
+                row.job_name or '',
+                _background_job_label(row.job_name),
+                row.status or '',
+                _background_job_status_label(row.status),
+                row.attempt if row.attempt is not None else '',
+                round(float(row.duration_ms), 1) if row.duration_ms is not None else '',
+                row.error or '',
+                row.created_at.isoformat() if row.created_at else '',
+            ])
+
+        record_audit_event(
+            'background_jobs.export',
+            workspace='admin',
+            resource_type='background_jobs',
+            summary='Exportó historial de tareas background.',
+            details={
+                'filters': filters,
+                'row_count': len(rows),
+            },
+        )
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+        response.headers['Content-Disposition'] = f'attachment; filename=background-jobs-{utc_now_naive().strftime("%Y%m%d-%H%M%S")}.csv'
+        return response
+
+    @app.route('/admin/background-jobs/retry', methods=['POST'])
+    @login_required
+    @permission_required(PERM_ADMIN_PANEL_VIEW, json_only=True)
+    def admin_background_jobs_retry():
+        payload = request.get_json(silent=True) or request.form or {}
+        action = (payload.get('action') or '').strip().lower()
+        try:
+            limit = max(1, min(50, int(payload.get('limit') or 25)))
+        except (TypeError, ValueError):
+            limit = 25
+
+        try:
+            result = _queue_background_maintenance_retry(action, limit=limit)
+        except ValueError as exc:
+            return jsonify({'success': False, 'error': str(exc)}), 400
+
+        invalidate_post_discovery_caches()
+        invalidate_admin_panel_page_cache()
+        record_audit_event(
+            'background_jobs.retry',
+            workspace='admin',
+            resource_type='background_jobs',
+            summary='Encoló reintento manual de tareas background.',
+            details={
+                'action': result.get('action'),
+                'queued_count': result.get('queued_count'),
+                'skipped_count': result.get('skipped_count'),
+            },
+        )
+
+        wants_json = (
+            request.is_json
+            or (request.accept_mimetypes.best == 'application/json')
+            or (request.headers.get('X-Requested-With') == 'XMLHttpRequest')
+        )
+        if wants_json:
+            return jsonify({'success': True, **result})
+
+        flash(f"Se encolaron {result.get('queued_count', 0)} tarea(s) de mantenimiento.", 'success')
+        return redirect(url_for('admin_background_jobs'))
+
+    @app.route('/admin/background-jobs/purge', methods=['POST'])
+    @login_required
+    @permission_required(PERM_ADMIN_PANEL_VIEW, json_only=True)
+    def admin_background_jobs_purge():
+        deleted_count = purge_expired_background_job_events()
+        retention_days = background_job_event_retention_days()
+        record_audit_event(
+            'background_jobs.purge',
+            workspace='admin',
+            resource_type='background_jobs',
+            summary='Limpió historial antiguo de tareas background.',
+            details={
+                'deleted_count': deleted_count,
+                'retention_days': retention_days,
+            },
+        )
+
+        wants_json = (
+            request.is_json
+            or (request.accept_mimetypes.best == 'application/json')
+            or (request.headers.get('X-Requested-With') == 'XMLHttpRequest')
+        )
+        if wants_json:
+            return jsonify({
+                'success': True,
+                'deleted_count': deleted_count,
+                'retention_days': retention_days,
+            })
+
+        flash(f'Se limpiaron {deleted_count} evento(s) antiguos de background.', 'success')
+        return redirect(url_for('admin_background_jobs'))
 
     @app.route('/admin/tab-content')
     @login_required
@@ -8965,6 +10641,194 @@ def create_app():
             error_details = traceback.format_exc()
             return jsonify({'error': f'No se pudo generar la contraseña temporal. Detalles: {str(exc)} \n {error_details}'}), 500
 
+    @app.route('/admin/user/<int:user_id>/audit_summary')
+    @login_required
+    @permission_required(PERM_ADMIN_PANEL_VIEW, json_only=True)
+    def admin_user_audit_summary(user_id):
+        user = User.query.get_or_404(user_id)
+        post_count = int(db.session.query(func.count(Post.id)).filter(Post.user_id == user.id).scalar() or 0)
+        comment_count = int(db.session.query(func.count(Comment.id)).filter(Comment.user_id == user.id).scalar() or 0)
+        likes_count = int(db.session.query(func.count(Like.id)).filter(Like.user_id == user.id).scalar() or 0)
+        active_post_reports = int(
+            db.session.query(func.count(Report.id))
+            .join(Post, Report.post_id == Post.id)
+            .filter(
+                Post.user_id == user.id,
+                Report.status.in_(ACTIVE_REVIEW_REPORT_STATUSES),
+            )
+            .scalar()
+            or 0
+        )
+        active_comment_reports = int(
+            db.session.query(func.count(CommentReport.id))
+            .join(Comment, CommentReport.comment_id == Comment.id)
+            .filter(
+                Comment.user_id == user.id,
+                CommentReport.status.in_(ACTIVE_REVIEW_REPORT_STATUSES),
+            )
+            .scalar()
+            or 0
+        )
+        active_chat_reports = int(
+            db.session.query(func.count(ChatMessageReport.id))
+            .join(ChatMessage, ChatMessageReport.message_id == ChatMessage.id)
+            .filter(
+                ChatMessage.user_id == user.id,
+                ChatMessageReport.status.in_(ACTIVE_REVIEW_REPORT_STATUSES),
+            )
+            .scalar()
+            or 0
+        )
+        reports_made = int(
+            (db.session.query(func.count(Report.id)).filter(Report.reporter_id == user.id).scalar() or 0)
+            + (db.session.query(func.count(CommentReport.id)).filter(CommentReport.reporter_id == user.id).scalar() or 0)
+            + (db.session.query(func.count(ChatMessageReport.id)).filter(ChatMessageReport.reporter_id == user.id).scalar() or 0)
+        )
+
+        strikes = (
+            ModerationStrike.query.options(selectinload(ModerationStrike.issuer))
+            .filter(ModerationStrike.user_id == user.id)
+            .order_by(ModerationStrike.created_at.desc(), ModerationStrike.id.desc())
+            .limit(8)
+            .all()
+        )
+
+        post_reports = (
+            Report.query.options(selectinload(Report.post), selectinload(Report.reporter), selectinload(Report.resolver))
+            .join(Post, Report.post_id == Post.id)
+            .filter(Post.user_id == user.id)
+            .order_by(Report.created_at.desc(), Report.id.desc())
+            .limit(8)
+            .all()
+        )
+        comment_reports = (
+            CommentReport.query.options(
+                selectinload(CommentReport.comment),
+                selectinload(CommentReport.reporter),
+                selectinload(CommentReport.resolver),
+            )
+            .join(Comment, CommentReport.comment_id == Comment.id)
+            .filter(Comment.user_id == user.id)
+            .order_by(CommentReport.created_at.desc(), CommentReport.id.desc())
+            .limit(8)
+            .all()
+        )
+        chat_reports = (
+            ChatMessageReport.query.options(
+                selectinload(ChatMessageReport.message),
+                selectinload(ChatMessageReport.reporter),
+                selectinload(ChatMessageReport.resolver),
+            )
+            .join(ChatMessage, ChatMessageReport.message_id == ChatMessage.id)
+            .filter(ChatMessage.user_id == user.id)
+            .order_by(ChatMessageReport.created_at.desc(), ChatMessageReport.id.desc())
+            .limit(8)
+            .all()
+        )
+
+        def report_payload(report, source_type: str) -> dict:
+            content = ''
+            source_id = None
+            if source_type == 'post':
+                source_id = getattr(report, 'post_id', None)
+                content = getattr(getattr(report, 'post', None), 'caption', '') or ''
+            elif source_type == 'comment':
+                source_id = getattr(report, 'comment_id', None)
+                content = getattr(getattr(report, 'comment', None), 'content', '') or ''
+            else:
+                source_id = getattr(report, 'message_id', None)
+                content = getattr(getattr(report, 'message', None), 'content', '') or ''
+            return {
+                'id': report.id,
+                'source_type': source_type,
+                'source_id': source_id,
+                'reason': report.reason,
+                'status': report.status or 'pending',
+                'details': clamp_text(report.details, 140),
+                'content_excerpt': clamp_text(content, 120),
+                'reporter': report.reporter.username if getattr(report, 'reporter', None) else 'Usuaria eliminada',
+                'resolver': report.resolver.username if getattr(report, 'resolver', None) else None,
+                'created_at': report.created_at.isoformat() if report.created_at else None,
+                'resolved_at': report.resolved_at.isoformat() if report.resolved_at else None,
+            }
+
+        reports = [report_payload(report, 'post') for report in post_reports]
+        reports.extend(report_payload(report, 'comment') for report in comment_reports)
+        reports.extend(report_payload(report, 'chat') for report in chat_reports)
+        reports.sort(key=lambda item: item.get('created_at') or '', reverse=True)
+        reports = reports[:12]
+
+        logs = (
+            AuditLog.query.options(selectinload(AuditLog.actor), selectinload(AuditLog.target_user))
+            .filter(or_(AuditLog.target_user_id == user.id, AuditLog.actor_id == user.id))
+            .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+            .limit(10)
+            .all()
+        )
+
+        record_audit_event(
+            'user_audit.view',
+            workspace='admin',
+            target_user=user,
+            resource_type='user',
+            resource_id=user.id,
+            summary='Abrió el historial de auditoría de una usuaria.',
+            details={'user_id': user.id},
+        )
+
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'is_verified': bool(user.is_verified),
+                'roles': sorted(user_role_names(user)),
+                'created_at': user.created_at.isoformat() if user.created_at else None,
+                'abuse_strikes': int(user.abuse_strikes or 0),
+                'password_recovery_pending': bool(user.password_recovery_requested_at),
+            },
+            'summary': {
+                'posts': post_count,
+                'comments': comment_count,
+                'likes': likes_count,
+                'active_reports': active_post_reports + active_comment_reports + active_chat_reports,
+                'reports_made': reports_made,
+                'strikes': len(strikes),
+            },
+            'strikes': [
+                {
+                    'id': strike.id,
+                    'strike_number': strike.strike_number,
+                    'reason': normalize_strike_reason_label(strike.reason),
+                    'source_type': strike.source_type,
+                    'source_label': strike.source_label,
+                    'consequence': strike.consequence,
+                    'details': clamp_text(strike.details, 160),
+                    'content_excerpt': clamp_text(strike.content_excerpt, 140),
+                    'issued_by': strike.issuer.username if getattr(strike, 'issuer', None) else 'Sistema',
+                    'created_at': strike.created_at.isoformat() if strike.created_at else None,
+                    'dismissed_at': strike.dismissed_at.isoformat() if strike.dismissed_at else None,
+                }
+                for strike in strikes
+            ],
+            'reports': reports,
+            'audit_logs': [
+                {
+                    'id': log.id,
+                    'event_type': log.event_type,
+                    'workspace': log.workspace,
+                    'summary': log.summary,
+                    'actor': log.actor.username if getattr(log, 'actor', None) else 'Sistema',
+                    'target': log.target_user.username if getattr(log, 'target_user', None) else None,
+                    'resource_type': log.resource_type,
+                    'resource_id': log.resource_id,
+                    'created_at': log.created_at.isoformat() if log.created_at else None,
+                }
+                for log in logs
+            ],
+        })
+
     @app.route('/admin/user/<int:user_id>/roles', methods=['POST'])
     @login_required
     @permission_required(PERM_USERS_MANAGE, json_only=True)
@@ -9139,6 +11003,7 @@ def create_app():
                 db.session.add(message)
 
             db.session.commit()
+            invalidate_admin_panel_page_cache()
 
             content_hidden = bool(getattr(message, 'is_deleted', False))
             if content_hidden:
@@ -9237,6 +11102,7 @@ def create_app():
                 comment.hidden_reason = 'reported'
                 db.session.add(comment)
             db.session.commit()
+            invalidate_admin_panel_page_cache()
             content_hidden = bool(getattr(comment, 'is_hidden', False))
             if high_risk:
                 message_text = 'Reporte de alto riesgo enviado. El comentario se ocultó preventivamente mientras lo revisamos.'
@@ -11002,6 +12868,35 @@ def create_app():
     def purge_audit_logs_cli():
         deleted = purge_expired_audit_logs()
         print(f'Audit logs purgados: {deleted} (retención {audit_log_retention_days()} días)')
+
+    @app.cli.command('purge-background-job-events')
+    def purge_background_job_events_cli():
+        deleted = purge_expired_background_job_events()
+        print(f'Eventos background purgados: {deleted} (retención {background_job_event_retention_days()} días)')
+
+    @app.route('/healthz')
+    @app.route('/health')
+    def health_check():
+        payload, status_code = build_health_payload()
+        response = jsonify(payload)
+        response.status_code = status_code
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+
+    @app.cli.command('health-check')
+    def health_check_cli():
+        payload, status_code = build_health_payload()
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        if status_code >= 400:
+            raise SystemExit(1)
+
+    @app.cli.command('preflight-check')
+    @click.option('--strict', is_flag=True, help='Falla ante configuración insegura para producción.')
+    def preflight_check_cli(strict: bool):
+        payload, exit_code = build_preflight_payload(strict=strict)
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        if exit_code:
+            raise SystemExit(exit_code)
 
     @app.cli.command('geocode-missing')
     def geocode_missing():

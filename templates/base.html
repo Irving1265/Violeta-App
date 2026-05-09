@@ -1,11 +1,24 @@
 <!DOCTYPE html>
 <html lang="es">
+{% set verification_gate_excluded_endpoints = ['verify_identity', 'emergency_call', 'register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted'] %}
+{% set show_verify_gate_overlay = current_user.is_authenticated and not user_is_verified and request.endpoint not in verification_gate_excluded_endpoints %}
+{% set show_warning_strike_overlay = active_warning_strike and request.endpoint not in ['account_restricted', 'emergency_call'] %}
+{% set load_security_overlay_styles = show_verify_gate_overlay or show_warning_strike_overlay or request.endpoint == 'account_restricted' %}
+{% set post_interaction_endpoints = ['index', 'post_detail'] %}
+{% set load_post_interaction_scripts = request.endpoint in post_interaction_endpoints %}
+{% set load_realtime_scripts = current_user.is_authenticated and not load_post_interaction_scripts and request.endpoint not in verification_gate_excluded_endpoints %}
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="theme-color" content="#7c3aed">
+    <meta name="color-scheme" content="dark">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Violeta">
     <title>Violeta</title>
+    <link rel="manifest" href="{{ url_for('webmanifest') }}">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}?v=1">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/favicon.png') }}?v=1">
     <link href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" rel="stylesheet">
@@ -17,6 +30,18 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260506-mobile-admin-header-v1">
+    {% if request.endpoint in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset'] %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth_page.css') }}?v=20260507-auth-split-v1">
+    {% endif %}
+    {% if request.endpoint in ['user_profile', 'profile'] %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/profile_page.css') }}?v=20260507-profile-split-v1">
+    {% endif %}
+    {% if request.endpoint in ['index', 'post_detail'] %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/post_card.css') }}?v=20260507-post-card-split-v1">
+    {% endif %}
+    {% if load_security_overlay_styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/security_overlays.css') }}?v=20260507-security-overlays-v1">
+    {% endif %}
     {% if request.endpoint == 'index' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/post_create.css') }}?v=20260403-post-modal-motion-v17">
     {% endif %}
@@ -30,8 +55,7 @@
     {% block styles %}{% endblock %}
 </head>
 
-{% set show_warning_strike_overlay = active_warning_strike and request.endpoint not in ['account_restricted', 'emergency_call'] %}
-<body class="violeta-theme {% if current_user.is_authenticated and not user_is_verified and request.endpoint not in ['verify_identity', 'emergency_call', 'register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted'] %}user-unverified{% endif %} {% if request.endpoint == 'chat' %}chat-page{% endif %}">
+<body class="violeta-theme {% if show_verify_gate_overlay %}user-unverified{% endif %} {% if request.endpoint == 'chat' %}chat-page{% endif %}">
 
     <div class="app-layout">
         <!-- Sidebar (Desktop) -->
@@ -48,7 +72,7 @@
                 </a>
                 {% if current_user.is_authenticated and current_user_can_access_admin_panel %}
                 <a href="{{ url_for('admin_panel') }}"
-                    class="sidebar-link {{ 'active' if request.endpoint == 'admin_panel' else '' }}">
+                    class="sidebar-link {{ 'active' if request.endpoint in ['admin_panel', 'admin_background_jobs'] else '' }}">
                     <i class="fa-solid fa-user-shield"></i> Panel de admin
                 </a>
                 {% else %}
@@ -125,7 +149,7 @@
                 {% endwith %}
             </div>
 
-            {% if current_user.is_authenticated and not user_is_verified and request.endpoint not in ['verify_identity', 'emergency_call', 'register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted'] %}
+            {% if show_verify_gate_overlay %}
             <div class="verify-gate-overlay" id="verifyGateOverlay">
                 <div class="verification-overlay-card" data-purpose="verification-overlay" role="dialog" aria-modal="true" aria-labelledby="verifyGateTitle">
                     <div class="glass-card verify-gate-card">
@@ -724,7 +748,14 @@
         window.VERIFY_REQUIRED_MSG = 'Para poder ver el contenido tenemos que verificar tu identidad';
         window.VIOLETA_SAFETY_PUBLISH_POLICY = {{ safety_publish_policy|tojson }};
     </script>
+    {% if load_post_interaction_scripts %}
     <script src="{{ url_for('static', filename='js/app.js') }}?v=20260425-post-card-redesign-v2"></script>
+    {% else %}
+    <script src="{{ url_for('static', filename='js/app_core.js') }}?v=20260508-js-split-v1"></script>
+    {% endif %}
+    {% if load_realtime_scripts %}
+    <script src="{{ url_for('static', filename='js/app_realtime.js') }}?v=20260508-js-split-v1"></script>
+    {% endif %}
     {% if show_warning_strike_overlay or request.endpoint == 'account_restricted' %}
     <script src="{{ url_for('static', filename='js/strike_overlay.js') }}?v=20260420-strike-file-preview-v1"></script>
     {% endif %}
@@ -734,7 +765,7 @@
     {% if request.endpoint == 'index' %}
     <script src="{{ url_for('static', filename='js/post_create.js') }}?v=20260413-post-location-precision-v16"></script>
     {% endif %}
-    {% if request.endpoint in ['index', 'user_profile', 'profile', 'post_detail'] %}
+    {% if request.endpoint in ['index', 'post_detail'] %}
     <script src="{{ url_for('static', filename='js/post_map.js') }}?v=20260425-post-card-redesign-v2"></script>
     {% endif %}
     <script>

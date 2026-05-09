@@ -497,6 +497,23 @@ class AuditLog(db.Model):
         return f'<AuditLog {self.event_type}:{self.actor_id}:{self.created_at}>'
 
 
+class BackgroundJobEvent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    job_name = db.Column(db.String(96), nullable=False, index=True)
+    status = db.Column(db.String(24), nullable=False, index=True)
+    attempt = db.Column(db.Integer)
+    duration_ms = db.Column(db.Float)
+    error = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    __table_args__ = (
+        db.Index('ix_background_job_event_job_status_created', 'job_name', 'status', 'created_at'),
+    )
+
+    def __repr__(self):
+        return f'<BackgroundJobEvent {self.job_name}:{self.status}:{self.created_at}>'
+
+
 # --- Verification ----------------------------------------------------
 
 class VerificationRequest(db.Model):

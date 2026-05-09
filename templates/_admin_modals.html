@@ -176,6 +176,54 @@
     </div>
 </div>
 
+<!-- User Audit Modal -->
+<div class="modal fade" id="userAuditModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl admin-user-audit-dialog">
+        <div class="modal-content bg-surface border border-secondary text-white admin-user-audit-modal">
+            <div class="modal-header border-secondary">
+                <div>
+                    <h5 class="modal-title" id="userAuditTitle">Historial de usuaria</h5>
+                    <div class="small text-secondary" id="userAuditSubtitle">Cargando información...</div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="userAuditLoading" class="admin-user-audit-loading">
+                    <i class="fas fa-circle-notch fa-spin"></i>
+                    <span>Cargando historial...</span>
+                </div>
+                <div id="userAuditError" class="alert alert-danger d-none mb-0"></div>
+                <div id="userAuditContent" class="admin-user-audit-content d-none">
+                    <section class="admin-user-audit-summary" id="userAuditSummary"></section>
+                    <section class="admin-user-audit-grid">
+                        <article class="admin-user-audit-panel">
+                            <div class="admin-user-audit-panel__head">
+                                <h6>Strikes</h6>
+                                <span id="userAuditStrikesCount">0</span>
+                            </div>
+                            <div class="admin-user-audit-list" id="userAuditStrikes"></div>
+                        </article>
+                        <article class="admin-user-audit-panel">
+                            <div class="admin-user-audit-panel__head">
+                                <h6>Reportes recibidos</h6>
+                                <span id="userAuditReportsCount">0</span>
+                            </div>
+                            <div class="admin-user-audit-list" id="userAuditReports"></div>
+                        </article>
+                    </section>
+                    <section class="admin-user-audit-panel admin-user-audit-panel--wide">
+                        <div class="admin-user-audit-panel__head">
+                            <h6>Acciones recientes</h6>
+                            <span id="userAuditLogsCount">0</span>
+                        </div>
+                        <div class="admin-user-audit-timeline" id="userAuditLogs"></div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Assisted Password Reset Modal -->
 <div class="modal fade" id="assistedPasswordResetModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">

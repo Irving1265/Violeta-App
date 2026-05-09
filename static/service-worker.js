@@ -1,10 +1,22 @@
-const NAV_CACHE = 'violeta-nav-v3';
+const NAV_CACHE = 'violeta-nav-v4';
+const APP_SHELL_CACHE = 'violeta-app-shell-v1';
 const NAV_CACHE_TTL_MS = 300000;
 const PREFETCH_LIMIT = 12;
+const OFFLINE_URL = '/static/offline.html';
+const APP_SHELL_ASSETS = [
+  OFFLINE_URL,
+  '/static/images/favicon.png',
+  '/static/images/pwa/icon-192.png',
+  '/static/images/pwa/icon-512.png',
+];
 const EXCLUDED_PATHS = new Set(['/logout', '/service-worker.js']);
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(self.skipWaiting());
+  event.waitUntil((async () => {
+    const cache = await caches.open(APP_SHELL_CACHE);
+    await cache.addAll(APP_SHELL_ASSETS);
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {
@@ -12,7 +24,10 @@ self.addEventListener('activate', (event) => {
     const cacheNames = await caches.keys();
     await Promise.all(
       cacheNames
-        .filter((name) => name.startsWith('violeta-nav-') && name !== NAV_CACHE)
+        .filter((name) => (
+          (name.startsWith('violeta-nav-') && name !== NAV_CACHE)
+          || (name.startsWith('violeta-app-shell-') && name !== APP_SHELL_CACHE)
+        ))
         .map((name) => caches.delete(name)),
     );
     await self.clients.claim();
@@ -80,6 +95,17 @@ async function clearNavigationCache() {
   await caches.delete(NAV_CACHE);
 }
 
+async function getOfflineShell() {
+  const cache = await caches.open(APP_SHELL_CACHE);
+  const offlineResponse = await cache.match(OFFLINE_URL);
+  if (offlineResponse) return offlineResponse;
+  return new Response('Sin conexion', {
+    status: 503,
+    statusText: 'Offline',
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+  });
+}
+
 self.addEventListener('message', (event) => {
   const data = event.data || {};
   if (data.type === 'VIOLETA_CLEAR_NAV_CACHE') {
@@ -126,7 +152,7 @@ self.addEventListener('fetch', (event) => {
     } catch (error) {
       const stale = await caches.open(NAV_CACHE).then((cache) => cache.match(normalizedUrl));
       if (stale) return stale;
-      throw error;
+      return getOfflineShell();
     }
   })());
 });

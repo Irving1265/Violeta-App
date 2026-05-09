@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#7c3aed">
+  <title>Violeta sin conexion</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #110c18;
+      --surface: #1a1325;
+      --surface-2: #241733;
+      --primary: #8b5cf6;
+      --primary-2: #ec4899;
+      --text: #ffffff;
+      --muted: #c4b5fd;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at 16% 10%, rgba(139, 92, 246, 0.32), transparent 28%),
+        radial-gradient(circle at 92% 86%, rgba(236, 72, 153, 0.18), transparent 32%),
+        var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .offline-card {
+      width: min(100%, 440px);
+      padding: 28px;
+      border-radius: 28px;
+      border: 1px solid rgba(196, 181, 253, 0.22);
+      background: linear-gradient(145deg, rgba(36, 23, 51, 0.96), rgba(17, 12, 24, 0.94));
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+      text-align: center;
+    }
+    .offline-icon {
+      width: 74px;
+      height: 74px;
+      margin: 0 auto 18px;
+      display: grid;
+      place-items: center;
+      border-radius: 24px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-2));
+      box-shadow: 0 18px 34px rgba(139, 92, 246, 0.35);
+      font-size: 34px;
+      font-weight: 900;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(1.6rem, 7vw, 2.15rem);
+      line-height: 1.05;
+    }
+    p {
+      margin: 14px 0 0;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 1rem;
+    }
+    .offline-actions {
+      display: grid;
+      gap: 10px;
+      margin-top: 24px;
+    }
+    button,
+    a {
+      width: 100%;
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      font-weight: 800;
+      text-decoration: none;
+      border: 0;
+      cursor: pointer;
+      font-size: 0.98rem;
+    }
+    button {
+      color: #fff;
+      background: linear-gradient(135deg, var(--primary), #a855f7);
+    }
+    a {
+      color: #ddd6fe;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(196, 181, 253, 0.18);
+    }
+    .hint {
+      display: block;
+      margin-top: 16px;
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <main class="offline-card" aria-labelledby="offlineTitle">
+    <div class="offline-icon" aria-hidden="true">V</div>
+    <h1 id="offlineTitle">Sin conexion</h1>
+    <p>No pudimos cargar esta pantalla. Si ya habias abierto Violeta antes, algunas secciones pueden estar guardadas para consulta rapida.</p>
+    <div class="offline-actions">
+      <button type="button" onclick="window.location.reload()">Reintentar</button>
+      <a href="/">Volver al inicio</a>
+    </div>
+    <span class="hint">Tip: revisa tu senal o vuelve a intentar en unos segundos.</span>
+  </main>
+</body>
+</html>
