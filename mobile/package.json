@@ -5,6 +5,7 @@
   "description": "Contenedor movil de Violeta para iOS y Android usando Capacitor.",
   "scripts": {
     "doctor": "node scripts/doctor.mjs",
+    "doctor:strict": "node scripts/doctor.mjs --strict",
     "build:web": "node scripts/build-fallback.mjs",
     "cap:add:ios": "npm run build:web && npx cap add ios",
     "cap:add:android": "npm run build:web && npx cap add android",
