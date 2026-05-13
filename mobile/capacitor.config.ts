@@ -21,6 +21,7 @@ const config: CapacitorConfig = {
   appName: 'Violeta',
   webDir: 'www',
   bundledWebRuntime: false,
+  backgroundColor: '#13111C',
   server: serverUrl
     ? {
         url: serverUrl,
@@ -30,7 +31,8 @@ const config: CapacitorConfig = {
       }
     : undefined,
   ios: {
-    contentInset: 'automatic',
+    backgroundColor: '#13111C',
+    contentInset: 'never',
   },
   android: {
     allowMixedContent: false,
