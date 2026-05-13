@@ -10,3 +10,5 @@ dist/
 .npm-cache/
 android/local.properties
 www/runtime-config.json
+ios/App/CapApp-SPM/build/
+ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/

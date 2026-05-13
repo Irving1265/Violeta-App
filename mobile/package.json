@@ -11,7 +11,9 @@
     "cap:add:android": "npm run build:web && npx cap add android",
     "cap:sync": "npm run build:web && npx cap sync",
     "cap:open:ios": "npx cap open ios",
-    "cap:open:android": "npx cap open android"
+    "cap:open:android": "npx cap open android",
+    "build:android:debug": "cd android && ./gradlew assembleDebug",
+    "build:ios:simulator": "xcodebuild -project ios/App/App.xcodeproj -target App -configuration Debug -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO BUILD_DIR=\"$PWD/ios/App/build/Unified/Build/Products\" OBJROOT=\"$PWD/ios/App/build/Unified/Build/Intermediates.noindex\" SYMROOT=\"$PWD/ios/App/build/Unified/Build/Products\" build"
   },
   "dependencies": {
     "@capacitor/app": "^8.0.0",

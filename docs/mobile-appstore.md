@@ -38,6 +38,26 @@ cd mobile
 npm run doctor:strict
 ```
 
+## Validacion nativa
+
+Android:
+
+```bash
+cd mobile
+npm run build:android:debug
+```
+
+El APK debug queda en `mobile/android/app/build/outputs/apk/debug/app-debug.apk`.
+
+iOS:
+
+```bash
+cd mobile
+npm run build:ios:simulator
+```
+
+Si Xcode responde `iOS 26.4 Platform Not Installed` o `No simulator runtime version available`, instala la plataforma/runtime faltante desde Xcode > Settings > Components y vuelve a ejecutar el comando. Ese error es del entorno local de Xcode, no del codigo de Violeta.
+
 ## Ruta de salida a App Store y Google Play
 
 1. Backend en HTTPS con `/healthz` sano.

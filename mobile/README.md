@@ -13,6 +13,7 @@ Scaffold base para publicar Violeta en iOS y Android usando Capacitor sobre el b
 - Node.js 22+
 - npm 10+
 - Xcode instalado y con licencia aceptada (`sudo xcodebuild -license`)
+- Plataforma iOS instalada en Xcode > Settings > Components
 - CocoaPods para iOS
 - Android Studio para Android
 - JDK 11 o superior para que Gradle sincronice Android
@@ -43,6 +44,8 @@ npm run cap:add:android
 npm run cap:sync
 npm run cap:open:ios
 npm run cap:open:android
+npm run build:android:debug
+npm run build:ios:simulator
 ```
 
 Capacitor lee `mobile/.env` automaticamente porque `capacitor.config.ts` carga `dotenv/config`.
@@ -57,6 +60,22 @@ Capacitor lee `mobile/.env` automaticamente porque `capacitor.config.ts` carga `
 6. Abre Android Studio con `npm run cap:open:android`.
 7. Configura iconos, permisos, Push Notifications y App Groups si aplica.
 8. Sube el build a TestFlight y crea una prueba interna en Google Play.
+
+## Validacion de builds nativos
+
+Android genera un APK debug con:
+
+```bash
+npm run build:android:debug
+```
+
+iOS compila el target nativo de simulador con:
+
+```bash
+npm run build:ios:simulator
+```
+
+Si el build iOS llega a `iOS 26.4 Platform Not Installed` o `No simulator runtime version available`, instala esa plataforma/runtime desde Xcode > Settings > Components. El proyecto ya tiene scheme compartido y paquetes SwiftPM resueltos; ese mensaje viene de la instalacion local de Xcode.
 
 ## App Store
 
