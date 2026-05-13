@@ -44,11 +44,19 @@ npm run cap:add:android
 npm run cap:sync
 npm run cap:open:ios
 npm run cap:open:android
+npm run run:ios
+npm run run:android
 npm run build:android:debug
 npm run build:ios:simulator
 ```
 
 Capacitor lee `mobile/.env` automaticamente porque `capacitor.config.ts` carga `dotenv/config`.
+
+`doctor:strict` valida `/healthz` con retries porque Render puede tardar en responder cuando el servicio despierta. Si necesitas ajustar esa espera:
+
+```bash
+MOBILE_HEALTH_TIMEOUT_MS=30000 MOBILE_HEALTH_RETRIES=4 npm run doctor:strict
+```
 
 ## Flujo recomendado
 
@@ -58,8 +66,9 @@ Capacitor lee `mobile/.env` automaticamente porque `capacitor.config.ts` carga `
 4. Ejecuta `npm run cap:sync`.
 5. Abre Xcode con `npm run cap:open:ios`.
 6. Abre Android Studio con `npm run cap:open:android`.
-7. Configura iconos, permisos, Push Notifications y App Groups si aplica.
-8. Sube el build a TestFlight y crea una prueba interna en Google Play.
+7. Corre la checklist de QA movil en `docs/mobile-qa-checklist.md`.
+8. Configura iconos, permisos, Push Notifications y App Groups si aplica.
+9. Sube el build a TestFlight y crea una prueba interna en Google Play.
 
 ## Validacion de builds nativos
 
@@ -76,6 +85,10 @@ npm run build:ios:simulator
 ```
 
 Si el build iOS llega a `iOS 26.4 Platform Not Installed` o `No simulator runtime version available`, instala esa plataforma/runtime desde Xcode > Settings > Components. El proyecto ya tiene scheme compartido y paquetes SwiftPM resueltos; ese mensaje viene de la instalacion local de Xcode.
+
+## QA movil
+
+Despues de compilar, usa `docs/mobile-qa-checklist.md` para probar iPhone, Android, permisos nativos, feed, reportes, admin movil y borrado de cuenta antes de preparar TestFlight o Google Play internal testing.
 
 ## App Store
 

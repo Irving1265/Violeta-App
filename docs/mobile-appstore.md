@@ -21,7 +21,7 @@ npm run cap:open:ios
 npm run cap:open:android
 ```
 
-5. Probar login, feed, crear publicacion, ubicacion, camara, chat, reportes y logout en telefono real o simulador.
+5. Probar login, feed, crear publicacion, ubicacion, camara, chat, reportes y logout en telefono real o simulador usando `docs/mobile-qa-checklist.md`.
 
 ## Variables para release movil
 
@@ -65,12 +65,13 @@ Si Xcode responde `iOS 26.4 Platform Not Installed` o `No simulator runtime vers
 3. `MOBILE_WEB_URL` configurado y sincronizado con `npm run cap:sync`.
 4. Flujo de borrado de cuenta disponible dentro de la app y desde una URL publica.
 5. Politica de privacidad publica y alineada con los datos reales que usa Violeta.
-6. Iconos, splash, nombre, descripcion y screenshots reales para iPhone y Android.
-7. App Privacy Details en App Store Connect.
-8. Data Safety en Google Play Console.
-9. TestFlight para iOS.
-10. Internal testing en Google Play.
-11. Correccion de rechazos de revision antes de lanzar produccion.
+6. QA movil completa en iPhone y Android con `docs/mobile-qa-checklist.md`.
+7. Iconos, splash, nombre, descripcion y screenshots reales para iPhone y Android.
+8. App Privacy Details en App Store Connect.
+9. Data Safety en Google Play Console.
+10. TestFlight para iOS.
+11. Internal testing en Google Play.
+12. Correccion de rechazos de revision antes de lanzar produccion.
 
 ## Riesgos de revision
 

@@ -51,40 +51,61 @@ function parseUrl(name, value, { required = false } = {}) {
   }
 }
 
+function parsePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function sleep(ms) {
+  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
+}
+
 async function checkHealth(serverUrl) {
   if (!serverUrl) {
     return;
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 6000);
+  const healthUrl = new URL('/healthz', serverUrl).toString();
+  const timeoutMs = parsePositiveInt(process.env.MOBILE_HEALTH_TIMEOUT_MS, 15000);
+  const maxAttempts = parsePositiveInt(process.env.MOBILE_HEALTH_RETRIES, 3);
+  let lastError = null;
 
-  try {
-    const healthUrl = new URL('/healthz', serverUrl).toString();
-    const response = await fetch(healthUrl, {
-      cache: 'no-store',
-      headers: { Accept: 'application/json' },
-      signal: controller.signal,
-    });
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (!response.ok) {
-      addIssue('error', 'backend_health_http_error', `/healthz respondio HTTP ${response.status}.`);
+    try {
+      const response = await fetch(healthUrl, {
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        addIssue('error', 'backend_health_http_error', `/healthz respondio HTTP ${response.status}.`);
+        return;
+      }
+
+      const payload = await response.json().catch(() => null);
+      if (!payload || payload.status !== 'ok') {
+        addIssue(strict ? 'error' : 'warning', 'backend_health_degraded', '/healthz no esta en status ok.');
+      }
       return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        await sleep(1000 * attempt);
+      }
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const payload = await response.json().catch(() => null);
-    if (!payload || payload.status !== 'ok') {
-      addIssue(strict ? 'error' : 'warning', 'backend_health_degraded', '/healthz no esta en status ok.');
-    }
-  } catch (error) {
-    addIssue(
-      strict ? 'error' : 'warning',
-      'backend_health_unreachable',
-      `No se pudo validar /healthz (${error?.name === 'AbortError' ? 'timeout' : 'error de red'}).`
-    );
-  } finally {
-    clearTimeout(timeout);
   }
+
+  addIssue(
+    strict ? 'error' : 'warning',
+    'backend_health_unreachable',
+    `No se pudo validar /healthz despues de ${maxAttempts} intento(s) (${lastError?.name === 'AbortError' ? 'timeout' : 'error de red'}).`
+  );
 }
 
 function checkSyncedNativeConfig(serverUrl) {
