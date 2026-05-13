@@ -13149,7 +13149,7 @@ if __name__ == '__main__':
     # allow_unsafe_werkzeug=True evita el warning en modo desarrollo
     socketio.run(
         app,
-        host=os.environ.get('HOST', '127.0.0.1'),
+        host=os.environ.get('HOST', '0.0.0.0'),
         port=port,
         debug=app.config.get('DEBUG', False),
         allow_unsafe_werkzeug=bool(app.config.get('DEBUG', False)),

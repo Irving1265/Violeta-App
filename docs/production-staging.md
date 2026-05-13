@@ -35,6 +35,46 @@ En produccion cambia:
 APP_ENV=production
 ```
 
+## Render Con Servicio Y Base Ya Creados
+
+Si ya tienes un Web Service y una base PostgreSQL en Render, no necesitas agregar `render.yaml` para este paso. Configuralo desde el panel de Render con estos valores:
+
+```text
+Build Command: pip install -r requirements.txt
+Start Command: python app.py
+Health Check Path: /healthz
+```
+
+Variables clave en Render:
+
+```bash
+APP_ENV=production
+HOST=0.0.0.0
+PREFERRED_URL_SCHEME=https
+SESSION_COOKIE_SECURE=true
+REMEMBER_COOKIE_SECURE=true
+DATABASE_URL=<internal-database-url-de-render>
+DATABASE_REQUIRE_SSL=true
+DATABASE_SSLMODE=require
+RUN_STARTUP_SCHEMA_SYNC=true
+UPLOAD_BACKEND=supabase
+BACKGROUND_JOBS_ENABLED=true
+BACKGROUND_JOBS_INLINE=false
+ASYNC_IMAGE_PROCESSING=true
+ASYNC_UPLOAD_OPTIMIZATION=true
+ASYNC_REVERSE_GEOCODING=true
+ASYNC_EMAIL_DELIVERY=true
+```
+
+Notas especificas para Render:
+
+- Render define `PORT` automaticamente; no lo fijes manualmente salvo que tengas una razon concreta.
+- Usa `HOST=0.0.0.0`; si el proceso escucha solo en `127.0.0.1`, Render no puede exponer la app correctamente.
+- Usa la URL interna de PostgreSQL si el Web Service y la base estan en Render; evita la URL externa cuando no sea necesaria.
+- No uses `UPLOAD_BACKEND=local` en produccion a menos que hayas contratado y montado un disco persistente para uploads. Para esta app es mas seguro usar Supabase Storage.
+- No cambies el comando a `gunicorn app:app` sin configurar WebSockets; este repo usa Flask-SocketIO y actualmente esta preparado para arrancar con `python app.py`.
+- Redis puede ser Render Key Value, Upstash u otro proveedor. Si no tienes Redis, la app puede correr, pero la cache no sera compartida entre instancias.
+
 ## Variables Minimas Requeridas
 
 ### Seguridad
@@ -238,4 +278,3 @@ No despliegues si:
 - cookies seguras estan apagadas en HTTPS;
 - admin movil tiene overflow horizontal;
 - emails criticos no se entregan.
-
