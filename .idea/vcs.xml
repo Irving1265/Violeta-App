@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mobile/ios/App/build/AppSchemeDerivedData/SourcePackages/checkouts/capacitor-swift-pm" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mobile/ios/App/build/AppSchemeDerivedData/SourcePackages/checkouts/ion-ios-geolocation" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mobile/ios/App/build/DerivedData/SourcePackages/checkouts/capacitor-swift-pm" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mobile/ios/App/build/DerivedData/SourcePackages/checkouts/ion-ios-geolocation" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mobile/ios/App/build/GeoDerivedData/SourcePackages/checkouts/capacitor-swift-pm" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mobile/ios/App/build/GeoDerivedData/SourcePackages/checkouts/ion-ios-geolocation" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mobile/ios/DerivedData/B862E13A-D385-487E-96C2-18801D465895/SourcePackages/checkouts/capacitor-swift-pm" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mobile/ios/DerivedData/B862E13A-D385-487E-96C2-18801D465895/SourcePackages/checkouts/ion-ios-geolocation" vcs="Git" />
+  </component>
+</project>
