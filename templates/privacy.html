@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+
+{% block styles %}
+<style>
+  .legal-page {
+    min-height: calc(100svh - 5rem);
+    padding: clamp(1rem, 3vw, 2.5rem) 1rem 4rem;
+  }
+
+  .legal-shell {
+    max-width: 920px;
+    margin: 0 auto;
+  }
+
+  .legal-hero,
+  .legal-card {
+    border: 1px solid rgba(167, 139, 250, 0.16);
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(31, 22, 46, 0.94), rgba(21, 16, 32, 0.96));
+    box-shadow: 0 22px 62px rgba(0, 0, 0, 0.24);
+  }
+
+  .legal-hero {
+    position: relative;
+    overflow: hidden;
+    padding: clamp(1.35rem, 4vw, 2.4rem);
+    margin-bottom: 1rem;
+  }
+
+  .legal-hero::before {
+    content: "";
+    position: absolute;
+    inset: -50% auto auto 60%;
+    width: 260px;
+    height: 260px;
+    border-radius: 999px;
+    background: rgba(124, 58, 237, 0.26);
+    filter: blur(70px);
+    pointer-events: none;
+  }
+
+  .legal-kicker {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 0.8rem;
+    color: #c4b5fd;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .legal-title {
+    position: relative;
+    margin: 0;
+    color: #fff;
+    font-size: clamp(1.75rem, 5vw, 3rem);
+    line-height: 1.02;
+  }
+
+  .legal-copy {
+    position: relative;
+    max-width: 68ch;
+    margin: 0.85rem 0 0;
+    color: rgba(233, 227, 239, 0.74);
+    line-height: 1.7;
+  }
+
+  .legal-grid {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .legal-card {
+    padding: clamp(1rem, 3vw, 1.45rem);
+  }
+
+  .legal-card h2 {
+    margin: 0 0 0.7rem;
+    color: #fff;
+    font-size: 1.08rem;
+  }
+
+  .legal-card p,
+  .legal-card li {
+    color: rgba(233, 227, 239, 0.72);
+    line-height: 1.68;
+  }
+
+  .legal-card ul {
+    display: grid;
+    gap: 0.55rem;
+    margin: 0;
+    padding-left: 1.1rem;
+    list-style: disc;
+  }
+
+  .legal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+
+  .legal-actions .btn {
+    border-radius: 999px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="legal-page">
+  <div class="legal-shell">
+    <section class="legal-hero">
+      <p class="legal-kicker"><i class="fa-solid fa-user-lock"></i> Privacidad</p>
+      <h1 class="legal-title">Política de privacidad de Violeta</h1>
+      <p class="legal-copy">
+        Esta página resume qué datos usa Violeta, para qué se usan y cómo puedes pedir que se elimine tu cuenta.
+      </p>
+    </section>
+
+    <div class="legal-grid">
+      <section class="legal-card">
+        <h2>Datos que usamos</h2>
+        <ul>
+          <li>Datos de cuenta como nombre de usuaria, correo, foto de perfil y biografía.</li>
+          <li>Contenido que publicas, como reportes, imágenes, categorías, comentarios y mensajes.</li>
+          <li>Ubicación cuando usas funciones de reportes, zonas cercanas, trayectos o emergencia.</li>
+          <li>Datos técnicos como fecha, dispositivo, IP y eventos de seguridad para auditoría y protección.</li>
+        </ul>
+      </section>
+
+      <section class="legal-card">
+        <h2>Para qué se usan</h2>
+        <ul>
+          <li>Mostrar reportes comunitarios, comentarios, chat y perfiles.</li>
+          <li>Proteger a las usuarias con moderación, reportes, strikes, verificación y controles de seguridad.</li>
+          <li>Enviar avisos relacionados con seguridad, recuperación de cuenta o seguimiento de reportes.</li>
+          <li>Mejorar rendimiento, prevenir abuso y mantener evidencia operativa cuando sea necesario.</li>
+        </ul>
+      </section>
+
+      <section class="legal-card">
+        <h2>Cámara, fotos, ubicación y notificaciones</h2>
+        <p>
+          Violeta solicita permisos solo cuando una función los necesita: cámara o fotos para adjuntar evidencia,
+          ubicación para reportes cercanos y seguridad, y notificaciones para alertas relevantes.
+        </p>
+      </section>
+
+      <section class="legal-card">
+        <h2>Eliminación de cuenta</h2>
+        <p>
+          Puedes solicitar la eliminación de tu cuenta desde Violeta. Al hacerlo se eliminan tu perfil,
+          publicaciones, comentarios, likes, mensajes, reportes enviados, contactos de seguridad y archivos asociados
+          que dependan de tu cuenta.
+        </p>
+        <div class="legal-actions">
+          <a href="{{ url_for('account_delete') }}" class="btn btn-danger" data-no-prefetch="1">
+            <i class="fa-solid fa-user-xmark"></i>
+            Eliminar mi cuenta
+          </a>
+          {% if current_user.is_authenticated %}
+          <a href="{{ url_for('edit_profile') }}#security" class="btn btn-outline-light">
+            <i class="fa-solid fa-shield-heart"></i>
+            Configuración de seguridad
+          </a>
+          {% else %}
+          <a href="{{ url_for('login') }}" class="btn btn-outline-light">
+            <i class="fa-solid fa-right-to-bracket"></i>
+            Iniciar sesión
+          </a>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}

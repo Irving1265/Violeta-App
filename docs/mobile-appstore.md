@@ -27,8 +27,8 @@ npm run cap:open:android
 
 ```bash
 MOBILE_WEB_URL=https://tu-app-en-render.onrender.com
-STORE_PRIVACY_POLICY_URL=https://tu-dominio.com/privacy
-STORE_ACCOUNT_DELETION_URL=https://tu-dominio.com/account/delete
+STORE_PRIVACY_POLICY_URL=https://tu-app-en-render.onrender.com/privacy
+STORE_ACCOUNT_DELETION_URL=https://tu-app-en-render.onrender.com/account/delete
 ```
 
 Antes de enviar a tiendas:

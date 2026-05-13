@@ -1925,6 +1925,71 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertFalse((UPLOAD_DIR / target_profile_pic).exists())
         self.assertFalse((UPLOAD_DIR / target_post_filename).exists())
 
+    def test_privacy_pages_and_self_account_deletion_for_store_compliance(self):
+        user_id = self.create_user('self_delete', password='Password123')
+        other_id = self.create_user('self_delete_other')
+        profile_pic = self.save_seed_image('self-delete-profile.jpg')
+        other_post_id = self.create_public_post(other_id, caption='Post que recibe comentario')
+
+        with app.app_context():
+            user = db.session.get(User, user_id)
+            assert user is not None
+            user.profile_pic = profile_pic
+            db.session.add(user)
+            db.session.commit()
+
+        own_post_id = self.create_public_post(user_id, caption='Post propio a eliminar')
+        own_comment_id = self.create_comment(user_id, other_post_id, 'Comentario propio a eliminar')
+        with app.app_context():
+            own_post = db.session.get(Post, own_post_id)
+            assert own_post is not None
+            own_post_filename = own_post.image_filename
+            db.session.add(Like(user_id=user_id, post_id=other_post_id))
+            db.session.add(Report(post_id=other_post_id, reporter_id=user_id, reason='Información falsa'))
+            db.session.add(SafetyContact(user_id=user_id, name='Contacto', phone='+528112345678', is_primary=True))
+            db.session.commit()
+
+        public_client = app.test_client()
+        privacy_response = public_client.get('/privacy')
+        self.assertEqual(privacy_response.status_code, 200)
+        self.assertIn(b'Pol', privacy_response.data)
+        self.assert_timing_headers(privacy_response)
+
+        public_delete_response = public_client.get('/account/delete')
+        self.assertEqual(public_delete_response.status_code, 200)
+        self.assertIn(b'Iniciar sesi', public_delete_response.data)
+
+        client = self.client_for(user_id)
+        wrong_password_response = client.post(
+            '/account/delete',
+            data={'password': 'wrong-password', 'confirm_delete': 'ELIMINAR'},
+        )
+        self.assertEqual(wrong_password_response.status_code, 400)
+        self.assertIn(b'contrase', wrong_password_response.data)
+
+        delete_response = client.post(
+            '/account/delete',
+            data={'password': 'Password123', 'confirm_delete': 'ELIMINAR'},
+            follow_redirects=False,
+        )
+        self.assertEqual(delete_response.status_code, 302)
+        self.assertIn('/login', delete_response.headers.get('Location', ''))
+        self.assert_timing_headers(delete_response)
+
+        with app.app_context():
+            self.assertIsNone(db.session.get(User, user_id))
+            self.assertIsNone(db.session.get(Post, own_post_id))
+            self.assertIsNone(db.session.get(Comment, own_comment_id))
+            self.assertEqual(Like.query.filter_by(user_id=user_id).count(), 0)
+            self.assertEqual(Report.query.filter_by(reporter_id=user_id).count(), 0)
+            self.assertEqual(SafetyContact.query.filter_by(user_id=user_id).count(), 0)
+            self.assertEqual(AuditLog.query.filter_by(event_type='account.self_delete').count(), 1)
+
+        self.assertFalse((UPLOAD_DIR / profile_pic).exists())
+        self.assertFalse((UPLOAD_DIR / own_post_filename).exists())
+        protected_response = client.get('/profile/edit', follow_redirects=False)
+        self.assertEqual(protected_response.status_code, 302)
+
     def test_upload_camera_policy_and_safe_release(self):
         author_id = self.create_user('autora_feed')
         client = self.client_for(author_id)

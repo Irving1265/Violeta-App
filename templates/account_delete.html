@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+
+{% block styles %}
+<style>
+  .account-delete-page {
+    min-height: calc(100svh - 5rem);
+    padding: clamp(1rem, 3vw, 2.5rem) 1rem 4rem;
+  }
+
+  .account-delete-shell {
+    max-width: 780px;
+    margin: 0 auto;
+  }
+
+  .account-delete-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(248, 113, 113, 0.2);
+    border-radius: 26px;
+    background:
+      radial-gradient(circle at top right, rgba(239, 68, 68, 0.15), transparent 34%),
+      linear-gradient(180deg, rgba(31, 22, 46, 0.96), rgba(18, 13, 27, 0.98));
+    box-shadow: 0 24px 68px rgba(0, 0, 0, 0.28);
+    padding: clamp(1.25rem, 4vw, 2.2rem);
+  }
+
+  .account-delete-icon {
+    width: 58px;
+    height: 58px;
+    border-radius: 20px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 1rem;
+    color: #fecaca;
+    background: rgba(239, 68, 68, 0.14);
+    border: 1px solid rgba(248, 113, 113, 0.22);
+    font-size: 1.35rem;
+  }
+
+  .account-delete-kicker {
+    margin: 0 0 0.6rem;
+    color: #fca5a5;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .account-delete-title {
+    margin: 0;
+    color: #fff;
+    font-size: clamp(1.7rem, 5vw, 2.6rem);
+    line-height: 1.05;
+  }
+
+  .account-delete-copy {
+    max-width: 66ch;
+    margin: 0.85rem 0 0;
+    color: rgba(233, 227, 239, 0.74);
+    line-height: 1.7;
+  }
+
+  .account-delete-list {
+    display: grid;
+    gap: 0.65rem;
+    margin: 1.25rem 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .account-delete-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    color: rgba(233, 227, 239, 0.78);
+    line-height: 1.6;
+  }
+
+  .account-delete-list i {
+    margin-top: 0.25rem;
+    color: #fca5a5;
+  }
+
+  .account-delete-alert {
+    border: 1px solid rgba(248, 113, 113, 0.28);
+    border-radius: 18px;
+    padding: 0.9rem 1rem;
+    margin: 1rem 0;
+    background: rgba(127, 29, 29, 0.24);
+    color: #fecaca;
+  }
+
+  .account-delete-form {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1.2rem;
+  }
+
+  .account-delete-field label {
+    display: block;
+    margin-bottom: 0.45rem;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 800;
+  }
+
+  .account-delete-field input {
+    width: 100%;
+    min-height: 48px;
+    border: 1px solid rgba(248, 113, 113, 0.22);
+    border-radius: 16px;
+    background: rgba(9, 7, 18, 0.46);
+    color: #fff;
+    padding: 0.85rem 1rem;
+  }
+
+  .account-delete-field input:focus {
+    outline: none;
+    border-color: rgba(248, 113, 113, 0.58);
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12);
+  }
+
+  .account-delete-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.4rem;
+  }
+
+  .account-delete-actions .btn {
+    min-height: 46px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  @media (max-width: 640px) {
+    .account-delete-actions .btn {
+      width: 100%;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="account-delete-page">
+  <div class="account-delete-shell">
+    <section class="account-delete-card">
+      <div class="account-delete-icon" aria-hidden="true">
+        <i class="fa-solid fa-user-xmark"></i>
+      </div>
+      <p class="account-delete-kicker">Cuenta y datos</p>
+      <h1 class="account-delete-title">Eliminar cuenta de Violeta</h1>
+      <p class="account-delete-copy">
+        Esta acción elimina tu cuenta y los datos asociados que dependen de ella. No se puede deshacer.
+      </p>
+
+      <ul class="account-delete-list">
+        <li><i class="fa-solid fa-check"></i><span>Se eliminarán tu perfil, foto, biografía, publicaciones, comentarios, likes y mensajes.</span></li>
+        <li><i class="fa-solid fa-check"></i><span>También se eliminarán reportes enviados, contactos de seguridad, trayectos y archivos asociados.</span></li>
+        <li><i class="fa-solid fa-triangle-exclamation"></i><span>Algunos registros mínimos de auditoría pueden conservarse sin apuntar a tu cuenta para proteger la seguridad de la plataforma.</span></li>
+      </ul>
+
+      {% if errors %}
+      <div class="account-delete-alert" role="alert">
+        {% for error in errors %}
+        <div>{{ error }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if current_user.is_authenticated %}
+      {% set delete_blocked = user_is_protected_staff(current_user) %}
+      {% if delete_blocked %}
+      <div class="account-delete-alert" role="alert">
+        Las cuentas protegidas de operación no pueden eliminarse desde este flujo. Solicita el cambio a otra persona administradora.
+      </div>
+      {% else %}
+      <form class="account-delete-form" action="{{ url_for('account_delete') }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="account-delete-field">
+          <label for="deletePassword">Contraseña actual</label>
+          <input id="deletePassword" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <div class="account-delete-field">
+          <label for="confirmDelete">Escribe ELIMINAR para confirmar</label>
+          <input id="confirmDelete" name="confirm_delete" type="text" autocomplete="off" autocapitalize="characters" required>
+        </div>
+        <div class="account-delete-actions">
+          <a href="{{ url_for('edit_profile') }}#security" class="btn btn-outline-light">
+            <i class="fa-solid fa-arrow-left"></i>
+            Volver a seguridad
+          </a>
+          <button type="submit" class="btn btn-danger">
+            <i class="fa-solid fa-trash"></i>
+            Eliminar definitivamente
+          </button>
+        </div>
+      </form>
+      {% endif %}
+      {% else %}
+      <div class="account-delete-alert" role="alert">
+        Para eliminar tu cuenta debes iniciar sesión. Esta página también sirve como URL pública de eliminación para tiendas.
+      </div>
+      <div class="account-delete-actions">
+        <a href="{{ url_for('login') }}" class="btn btn-primary">
+          <i class="fa-solid fa-right-to-bracket"></i>
+          Iniciar sesión
+        </a>
+        <a href="{{ url_for('privacy_policy') }}" class="btn btn-outline-light">
+          <i class="fa-solid fa-user-lock"></i>
+          Ver privacidad
+        </a>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

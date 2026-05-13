@@ -357,6 +357,26 @@
     text-decoration: none;
   }
 
+  .profile-edit-v2__danger-zone {
+    margin-top: 1.1rem;
+    border: 1px solid rgba(248, 113, 113, 0.22);
+    border-radius: 18px;
+    padding: 1rem;
+    background: rgba(127, 29, 29, 0.14);
+  }
+
+  .profile-edit-v2__danger-zone h3 {
+    margin: 0 0 0.4rem;
+    color: #fecaca;
+    font-size: 1rem;
+  }
+
+  .profile-edit-v2__danger-zone p {
+    margin: 0 0 0.85rem;
+    color: rgba(254, 202, 202, 0.78);
+    font-size: 0.9rem;
+  }
+
   @keyframes profileCardIn {
     from {
       opacity: 0;
@@ -563,6 +583,15 @@
             </button>
           </div>
         </form>
+
+        <div class="profile-edit-v2__danger-zone">
+          <h3>Zona de riesgo</h3>
+          <p>Elimina tu cuenta y datos asociados si ya no quieres usar Violeta.</p>
+          <a href="{{ url_for('account_delete') }}" class="btn btn-outline-danger profile-edit-v2__security-link" data-no-prefetch="1">
+            <i class="fa-solid fa-user-xmark"></i>
+            <span>Eliminar mi cuenta</span>
+          </a>
+        </div>
       </section>
     </div>
   </div>

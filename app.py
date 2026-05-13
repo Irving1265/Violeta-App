@@ -2111,6 +2111,8 @@ def create_app():
         allowed = {
             'logout',
             'force_password_reset',
+            'privacy_policy',
+            'account_delete',
             'static',
         }
         if endpoint in allowed or endpoint.startswith('static'):
@@ -2140,6 +2142,8 @@ def create_app():
         allowed = {
             'logout',
             'account_restricted',
+            'privacy_policy',
+            'account_delete',
             'dismiss_safety_warning_strike',
             'emergency_call',
             'uploaded_file',
@@ -10448,6 +10452,7 @@ def create_app():
         ModerationStrike.query.filter_by(issued_by=target_user.id).update({'issued_by': None}, synchronize_session=False)
         AuditLog.query.filter_by(actor_id=target_user.id).update({'actor_id': None}, synchronize_session=False)
         AuditLog.query.filter_by(target_user_id=target_user.id).update({'target_user_id': None}, synchronize_session=False)
+        PanicEvent.query.filter_by(resolved_by=target_user.id).update({'resolved_by': None}, synchronize_session=False)
         # User blocks created by or targeting user
         UserBlock.query.filter(
             (UserBlock.blocker_id == target_user.id) | (UserBlock.blocked_id == target_user.id)
@@ -10519,6 +10524,74 @@ def create_app():
             if app.debug:
                 print('DEBUG admin_delete_user error:', e)
             return jsonify({'error': 'No se pudo eliminar la usuaria'}), 500
+
+    @app.route('/privacy')
+    def privacy_policy():
+        return render_template('privacy.html')
+
+    @app.route('/account/delete', methods=['GET', 'POST'])
+    def account_delete():
+        errors = []
+        if request.method == 'POST':
+            if not current_user.is_authenticated:
+                flash('Inicia sesión para solicitar la eliminación de tu cuenta.', 'warning')
+                return redirect(url_for('login', next=url_for('account_delete')))
+
+            target_user = db.session.get(User, current_user.id)
+            if not target_user:
+                logout_user()
+                session.clear()
+                flash('Tu sesión ya no está disponible.', 'warning')
+                return redirect(url_for('login'))
+
+            if user_is_protected_staff(target_user):
+                errors.append('Las cuentas protegidas de operación deben solicitar cambios a otra persona administradora.')
+                return render_template('account_delete.html', errors=errors)
+
+            if is_rate_limited(f'account_delete:{target_user.id}:{get_request_ip()}', limit=5, window_seconds=600):
+                errors.append('Demasiados intentos. Intenta nuevamente en unos minutos.')
+                return render_template('account_delete.html', errors=errors)
+
+            password = request.form.get('password') or ''
+            confirm_text = (request.form.get('confirm_delete') or '').strip()
+            if not password:
+                errors.append('Ingresa tu contraseña actual.')
+            elif not target_user.check_password(password):
+                errors.append('La contraseña no es correcta.')
+            if confirm_text.upper() != 'ELIMINAR':
+                errors.append('Escribe ELIMINAR para confirmar esta acción.')
+
+            if errors:
+                return render_template('account_delete.html', errors=errors), 400
+
+            deleted_username = target_user.username
+            deleted_user_id = int(target_user.id)
+            try:
+                record_audit_event(
+                    'account.self_delete',
+                    workspace='account',
+                    target_user=target_user,
+                    resource_type='user',
+                    resource_id=deleted_user_id,
+                    summary='La usuaria eliminó su cuenta.',
+                    details={'username': deleted_username},
+                )
+                delete_user_and_related(target_user)
+                db.session.commit()
+                invalidate_admin_panel_page_cache()
+                invalidate_post_discovery_caches()
+                logout_user()
+                session.clear()
+                flash('Tu cuenta y sus datos asociados fueron eliminados.', 'success')
+                return redirect(url_for('login'))
+            except Exception as e:
+                db.session.rollback()
+                if app.debug:
+                    print('DEBUG account_delete error:', e)
+                errors.append('No se pudo eliminar la cuenta. Intenta nuevamente.')
+                return render_template('account_delete.html', errors=errors), 500
+
+        return render_template('account_delete.html', errors=errors)
 
     @app.route('/admin/delete_post/<int:post_id>', methods=['POST'])
     @login_required

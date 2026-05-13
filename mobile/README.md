@@ -28,8 +28,8 @@ export MOBILE_WEB_URL=https://tu-backend-publico.example.com
 Para preparar envio a tiendas, tambien define:
 
 ```bash
-export STORE_PRIVACY_POLICY_URL=https://tu-dominio.com/privacy
-export STORE_ACCOUNT_DELETION_URL=https://tu-dominio.com/account/delete
+export STORE_PRIVACY_POLICY_URL=https://tu-backend-publico.example.com/privacy
+export STORE_ACCOUNT_DELETION_URL=https://tu-backend-publico.example.com/account/delete
 ```
 
 ## Comandos utiles
