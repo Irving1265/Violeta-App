@@ -3560,8 +3560,18 @@ p {
     display: grid;
     grid-template-columns: 1fr;
     gap: 2rem;
-    max-width: 1000px;
+    width: 100%;
+    max-width: min(100%, 1000px);
     margin: 0 auto;
+    min-width: 0;
+}
+
+.feed-column,
+.posts-feed,
+.sidebar-right {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
 }
 
 /* Page Transitions */
@@ -4594,7 +4604,10 @@ body.modal-open .main-content {
 
 @media (max-width: 520px) {
     .violeta-header {
+        width: calc(100% + 2rem);
+        max-width: 100vw;
         padding: 1rem;
+        overflow: hidden;
     }
 
     .violeta-filter-header {
@@ -4605,6 +4618,17 @@ body.modal-open .main-content {
     .violeta-advanced-btn {
         width: 100%;
         justify-content: center;
+    }
+
+    .violeta-city-filters-section {
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .violeta-chip-container {
+        max-width: 100%;
+        min-width: 0;
     }
 
     .v-options-grid {

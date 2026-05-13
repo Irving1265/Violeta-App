@@ -29,7 +29,7 @@
     {% if request.endpoint in ['index', 'hotspots_page', 'safety_center', 'login'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260506-mobile-admin-header-v1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260513-mobile-feed-width-v1">
     {% if request.endpoint in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/auth_page.css') }}?v=20260507-auth-split-v1">
     {% endif %}
@@ -37,7 +37,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/profile_page.css') }}?v=20260507-profile-split-v1">
     {% endif %}
     {% if request.endpoint in ['index', 'post_detail'] %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/post_card.css') }}?v=20260507-post-card-split-v1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/post_card.css') }}?v=20260513-mobile-card-width-v1">
     {% endif %}
     {% if load_security_overlay_styles %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/security_overlays.css') }}?v=20260507-security-overlays-v1">

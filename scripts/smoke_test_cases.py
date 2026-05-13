@@ -1256,7 +1256,7 @@ class VioletaSmokeTests(unittest.TestCase):
 
     def test_background_job_diagnostics_filters_status_job_and_date(self):
         admin_id = self.create_user('background_filter_admin', roles=[ROLE_SUPER_ADMIN])
-        now = datetime.now()
+        now = app_module.utc_now_naive()
         with app.app_context():
             db.session.add(BackgroundJobEvent(
                 job_name='email_delivery',

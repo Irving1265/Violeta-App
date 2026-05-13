@@ -36,6 +36,9 @@
 /* Post Card redesign */
 .violet-post-card {
     overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     border: 1px solid rgba(167, 139, 250, 0.18);
     border-radius: 28px;
     background:
@@ -61,13 +64,16 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
+    min-width: 0;
 }
 
 .post-author-wrap {
     display: flex;
     align-items: center;
     gap: 1rem;
+    flex: 1 1 auto;
     min-width: 0;
+    max-width: 100%;
 }
 
 .post-avatar-link {
@@ -103,7 +109,10 @@
 }
 
 .post-author-meta {
+    flex: 1 1 auto;
     min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
 }
 
 .post-author-title-row {
@@ -112,6 +121,7 @@
     flex-wrap: wrap;
     gap: 0.55rem;
     min-width: 0;
+    max-width: 100%;
 }
 
 .post-author-name {
@@ -140,6 +150,7 @@
 .post-location {
     display: inline-flex;
     align-items: center;
+    width: 100%;
     max-width: 100%;
     gap: 0.42rem;
     margin-top: 0.22rem;
@@ -149,6 +160,7 @@
 }
 
 .post-location span {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -205,6 +217,8 @@
     flex-wrap: wrap;
     gap: 0.7rem;
     padding: 0 1.35rem 1.1rem;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .violet-badge {
@@ -220,10 +234,13 @@
     font-size: 0.82rem;
     font-weight: 800;
     line-height: 1;
+    min-width: 0;
+    max-width: 100%;
     transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .violet-badge i {
+    flex: 0 0 auto;
     font-size: 0.82rem;
     opacity: 0.78;
 }
@@ -267,6 +284,7 @@
 .post-content-container {
     position: relative;
     width: 100%;
+    max-width: 100%;
     aspect-ratio: 1 / 1;
     background: rgba(255, 255, 255, 0.035);
     transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
@@ -574,6 +592,7 @@
     display: flex;
     align-items: center;
     gap: 1.2rem;
+    min-width: 0;
 }
 
 .violet-post-card .post-actions .action-btn {
@@ -886,4 +905,116 @@
     padding: 0.85rem 1rem 1rem;
     color: rgba(233, 227, 239, 0.54);
     font-size: 0.84rem;
+}
+
+@media (max-width: 575.98px) {
+    .violet-post-card {
+        border-radius: 22px;
+        max-width: 100%;
+    }
+
+    .post-card-header {
+        padding: 1rem 0.95rem 0.78rem;
+    }
+
+    .post-header-main {
+        gap: 0.65rem;
+    }
+
+    .post-author-wrap {
+        gap: 0.72rem;
+        max-width: calc(100% - 76px);
+    }
+
+    .post-author-avatar.avatar {
+        width: 48px;
+        height: 48px;
+    }
+
+    .post-avatar-badge {
+        width: 20px;
+        height: 20px;
+        right: -3px;
+        bottom: -3px;
+    }
+
+    .post-avatar-badge img {
+        width: 13px;
+        height: 13px;
+    }
+
+    .post-author-title-row {
+        flex-wrap: nowrap;
+        gap: 0.38rem;
+    }
+
+    .post-author-name {
+        flex: 0 1 auto;
+        max-width: 40vw;
+        font-size: 0.98rem;
+    }
+
+    .post-meta-dot {
+        flex: 0 0 auto;
+    }
+
+    .post-date-inline {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        font-size: 0.86rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .post-location {
+        max-width: 100%;
+        font-size: 0.86rem;
+    }
+
+    .post-header-actions {
+        gap: 0.22rem;
+    }
+
+    .post-top-action {
+        width: 34px;
+        height: 34px;
+    }
+
+    .post-category-strip {
+        gap: 0.5rem;
+        padding: 0 0.95rem 0.9rem;
+    }
+
+    .violet-badge {
+        max-width: 100%;
+        padding: 0.46rem 0.62rem;
+        font-size: 0.78rem;
+        line-height: 1.15;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .post-content-container {
+        max-height: min(100vw, 430px);
+    }
+
+    .violet-post-card .post-actions {
+        padding: 0.74rem 0.95rem;
+    }
+
+    .post-action-cluster {
+        gap: 0.95rem;
+    }
+
+    .post-action-icon {
+        width: 36px;
+        height: 36px;
+    }
+
+    .post-comments-panel .comments-list,
+    .comments-section form.post-comment-form {
+        padding-right: 0.95rem;
+        padding-left: 0.95rem;
+    }
 }
