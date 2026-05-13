@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
