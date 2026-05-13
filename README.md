@@ -155,6 +155,7 @@ Si vas a mover la app a una base administrada, revisa:
 - [Migración a PostgreSQL](./docs/postgresql.md)
 - [Gobernanza de datos y privacidad](./docs/data-governance.md)
 - [Runbook operativo](./docs/operational-runbook.md)
+- [Preparación de staging y producción](./docs/production-staging.md)
 
 ---
 

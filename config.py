@@ -49,6 +49,7 @@ class Config:
     # Never use a hardcoded fallback secret in source control.
     SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_urlsafe(64)
     DEBUG = _env_bool('FLASK_DEBUG', False)
+    APP_ENV = (os.environ.get('APP_ENV') or ('development' if DEBUG else 'production')).strip().lower()
     PREFERRED_URL_SCHEME = os.environ.get('PREFERRED_URL_SCHEME') or ('https' if not DEBUG else 'http')
 
     # Zona horaria "de negocio" para cálculos de "hoy" (p. ej. reportes del día).

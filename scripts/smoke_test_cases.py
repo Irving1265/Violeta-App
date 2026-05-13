@@ -426,6 +426,8 @@ class VioletaSmokeTests(unittest.TestCase):
 
     def test_preflight_check_reports_warnings_and_strict_failures_without_secrets(self):
         original_config = {
+            'APP_ENV': app.config.get('APP_ENV'),
+            'PREFERRED_URL_SCHEME': app.config.get('PREFERRED_URL_SCHEME'),
             'SQLALCHEMY_DATABASE_URI': app.config.get('SQLALCHEMY_DATABASE_URI'),
             'UPLOAD_BACKEND': app.config.get('UPLOAD_BACKEND'),
             'MAIL_DELIVERY_METHOD': app.config.get('MAIL_DELIVERY_METHOD'),
@@ -434,8 +436,14 @@ class VioletaSmokeTests(unittest.TestCase):
             'MAIL_PASSWORD': app.config.get('MAIL_PASSWORD'),
             'MAIL_DEFAULT_SENDER': app.config.get('MAIL_DEFAULT_SENDER'),
             'SESSION_COOKIE_SECURE': app.config.get('SESSION_COOKIE_SECURE'),
+            'REMEMBER_COOKIE_SECURE': app.config.get('REMEMBER_COOKIE_SECURE'),
             'REDIS_URL': app.config.get('REDIS_URL'),
             'BACKGROUND_JOBS_ENABLED': app.config.get('BACKGROUND_JOBS_ENABLED'),
+            'BACKGROUND_JOBS_INLINE': app.config.get('BACKGROUND_JOBS_INLINE'),
+            'ASYNC_IMAGE_PROCESSING': app.config.get('ASYNC_IMAGE_PROCESSING'),
+            'ASYNC_UPLOAD_OPTIMIZATION': app.config.get('ASYNC_UPLOAD_OPTIMIZATION'),
+            'ASYNC_REVERSE_GEOCODING': app.config.get('ASYNC_REVERSE_GEOCODING'),
+            'ASYNC_EMAIL_DELIVERY': app.config.get('ASYNC_EMAIL_DELIVERY'),
         }
 
         def restore_config():
@@ -443,6 +451,8 @@ class VioletaSmokeTests(unittest.TestCase):
 
         self.addCleanup(restore_config)
         app.config.update(
+            APP_ENV='development',
+            PREFERRED_URL_SCHEME='http',
             SQLALCHEMY_DATABASE_URI=f"sqlite:///{DB_PATH}",
             UPLOAD_BACKEND='local',
             MAIL_DELIVERY_METHOD='smtp',
@@ -451,8 +461,14 @@ class VioletaSmokeTests(unittest.TestCase):
             MAIL_PASSWORD='',
             MAIL_DEFAULT_SENDER='sender@example.com',
             SESSION_COOKIE_SECURE=False,
+            REMEMBER_COOKIE_SECURE=False,
             REDIS_URL='',
             BACKGROUND_JOBS_ENABLED=True,
+            BACKGROUND_JOBS_INLINE=True,
+            ASYNC_IMAGE_PROCESSING=False,
+            ASYNC_UPLOAD_OPTIMIZATION=False,
+            ASYNC_REVERSE_GEOCODING=False,
+            ASYNC_EMAIL_DELIVERY=False,
         )
 
         runner = app.test_cli_runner()
@@ -468,9 +484,19 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertIn('"status": "fail"', strict.output)
         self.assertIn('sqlite_in_strict_mode', strict.output)
         self.assertIn('local_uploads_in_strict_mode', strict.output)
+        self.assertIn('preferred_scheme_not_https', strict.output)
         self.assertIn('session_cookie_not_secure', strict.output)
+        self.assertIn('remember_cookie_not_secure', strict.output)
+        self.assertIn('background_jobs_inline_in_strict_mode', strict.output)
+        self.assertIn('async_jobs_disabled', strict.output)
         self.assertNotIn(os.environ['SECRET_KEY'], strict.output)
         self.assertNotIn(str(DB_PATH), strict.output)
+
+        app.config.update(UPLOAD_BACKEND='invalid', REDIS_URL='redis+sentinel://cache')
+        invalid = runner.invoke(args=['preflight-check', '--strict'])
+        self.assertEqual(invalid.exit_code, 1)
+        self.assertIn('invalid_upload_backend', invalid.output)
+        self.assertIn('invalid_redis_url', invalid.output)
 
     def test_security_overlay_styles_load_only_when_needed(self):
         verified_id = self.create_user('overlay_verificada', verified=True)

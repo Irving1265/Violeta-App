@@ -4375,6 +4375,14 @@ def create_app():
     def build_preflight_payload(*, strict: bool = False) -> tuple[dict, int]:
         issues: list[dict] = []
 
+        app_env = (app.config.get('APP_ENV') or '').strip().lower()
+        if strict and app_env not in {'production', 'staging'}:
+            issues.append(_preflight_issue(
+                'warning',
+                'app_env_not_production_like',
+                'Define APP_ENV=production o APP_ENV=staging al validar un deploy real.',
+            ))
+
         if not (os.environ.get('SECRET_KEY') or '').strip():
             issues.append(_preflight_issue(
                 'error',
@@ -4400,7 +4408,13 @@ def create_app():
             ))
 
         upload_backend = (app.config.get('UPLOAD_BACKEND') or 'local').strip().lower()
-        if upload_backend == 'supabase':
+        if upload_backend not in {'local', 'supabase'}:
+            issues.append(_preflight_issue(
+                'error',
+                'invalid_upload_backend',
+                'UPLOAD_BACKEND debe ser local o supabase.',
+            ))
+        elif upload_backend == 'supabase':
             required_storage = {
                 'SUPABASE_URL': app.config.get('SUPABASE_URL'),
                 'SUPABASE_SERVICE_ROLE_KEY': app.config.get('SUPABASE_SERVICE_ROLE_KEY'),
@@ -4412,6 +4426,12 @@ def create_app():
                     'error',
                     'missing_supabase_storage',
                     f'Faltan variables de storage: {", ".join(missing_storage)}.',
+                ))
+            elif strict and not str(required_storage['SUPABASE_URL']).startswith('https://'):
+                issues.append(_preflight_issue(
+                    'error',
+                    'supabase_url_not_https',
+                    'SUPABASE_URL debe usar https:// en producción.',
                 ))
         elif strict:
             issues.append(_preflight_issue(
@@ -4461,6 +4481,22 @@ def create_app():
                 'REDIS_URL es recomendado para cache compartido entre procesos.',
             ))
 
+        if strict and (app.config.get('REDIS_URL') or '').strip():
+            redis_url = (app.config.get('REDIS_URL') or '').strip().lower()
+            if not redis_url.startswith(('redis://', 'rediss://')):
+                issues.append(_preflight_issue(
+                    'error',
+                    'invalid_redis_url',
+                    'REDIS_URL debe iniciar con redis:// o rediss://.',
+                ))
+
+        if strict and (app.config.get('PREFERRED_URL_SCHEME') or '').strip().lower() != 'https':
+            issues.append(_preflight_issue(
+                'error',
+                'preferred_scheme_not_https',
+                'Define PREFERRED_URL_SCHEME=https en producción.',
+            ))
+
         if strict and not bool(app.config.get('SESSION_COOKIE_SECURE')):
             issues.append(_preflight_issue(
                 'error',
@@ -4468,11 +4504,38 @@ def create_app():
                 'Activa SESSION_COOKIE_SECURE=true en producción HTTPS.',
             ))
 
+        if strict and not bool(app.config.get('REMEMBER_COOKIE_SECURE')):
+            issues.append(_preflight_issue(
+                'error',
+                'remember_cookie_not_secure',
+                'Activa REMEMBER_COOKIE_SECURE=true en producción HTTPS.',
+            ))
+
         if not bool(app.config.get('BACKGROUND_JOBS_ENABLED')):
             issues.append(_preflight_issue(
                 'warning',
                 'background_jobs_disabled',
                 'BACKGROUND_JOBS_ENABLED=false deja trabajo pesado dentro del request.',
+            ))
+        elif strict and bool(app.config.get('BACKGROUND_JOBS_INLINE')):
+            issues.append(_preflight_issue(
+                'warning',
+                'background_jobs_inline_in_strict_mode',
+                'BACKGROUND_JOBS_INLINE=true reduce resiliencia; en producción usa workers background.',
+            ))
+
+        async_flags = {
+            'ASYNC_IMAGE_PROCESSING': bool(app.config.get('ASYNC_IMAGE_PROCESSING')),
+            'ASYNC_UPLOAD_OPTIMIZATION': bool(app.config.get('ASYNC_UPLOAD_OPTIMIZATION')),
+            'ASYNC_REVERSE_GEOCODING': bool(app.config.get('ASYNC_REVERSE_GEOCODING')),
+            'ASYNC_EMAIL_DELIVERY': bool(app.config.get('ASYNC_EMAIL_DELIVERY')),
+        }
+        disabled_async = [name for name, enabled in async_flags.items() if not enabled]
+        if strict and disabled_async:
+            issues.append(_preflight_issue(
+                'warning',
+                'async_jobs_disabled',
+                f'Tareas async desactivadas: {", ".join(disabled_async)}.',
             ))
 
         health_payload, health_status = build_health_payload()
