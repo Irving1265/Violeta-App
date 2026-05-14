@@ -204,6 +204,26 @@ def get_request_user_agent() -> str:
     return raw
 
 
+def is_mobile_or_native_request() -> bool:
+    """Detecta vistas de teléfono/WebView donde no debemos renderizar UI pesada."""
+    ua = get_request_user_agent().lower()
+    if not ua:
+        return False
+    native_markers = (
+        'capacitor',
+        'cordova',
+        'wv',
+        'violeta-mobile',
+    )
+    mobile_markers = (
+        'iphone',
+        'ipod',
+        'android',
+        'mobile',
+    )
+    return any(marker in ua for marker in native_markers + mobile_markers)
+
+
 def serialize_audit_details(details) -> str | None:
     if details is None:
         return None
@@ -5276,6 +5296,7 @@ def create_app():
         if current_user.is_authenticated:
             return redirect(url_for('index'))
         form = LoginForm()
+        render_login_map = not is_mobile_or_native_request()
         # Handle login with either username or email
         login_input = request.form.get('login', '').strip()
         password = request.form.get('password', '')
@@ -5284,7 +5305,7 @@ def create_app():
             ip = get_request_ip()
             if is_rate_limited(f'login:{ip}', limit=12, window_seconds=300):
                 flash('Demasiados intentos de inicio de sesión. Intenta de nuevo en unos minutos.', 'error')
-                return render_template('login.html', form=form), 429
+                return render_template('login.html', form=form, render_login_map=render_login_map), 429
 
             # Try to find user by username first, then by email
             user = User.query.filter_by(username=login_input).first()
@@ -5334,7 +5355,7 @@ def create_app():
 
             # Generic message to avoid account enumeration.
             flash('Credenciales inválidas', 'error')
-        return render_template('login.html', form=form)
+        return render_template('login.html', form=form, render_login_map=render_login_map)
 
     @app.route('/logout')
     @login_required

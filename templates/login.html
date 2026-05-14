@@ -80,11 +80,20 @@
     }
 
     .login-map-section {
+        display: none;
         flex: 1;
         position: relative;
         overflow: hidden;
         background: #1a1a2e;
         isolation: isolate;
+    }
+
+    .login-map-section.is-enabled {
+        display: block;
+    }
+
+    .login-map-section[hidden] {
+        display: none !important;
     }
 
     .login-map-section::before {
@@ -228,12 +237,40 @@
             font-size: 0.9rem;
         }
     }
+
+    @media (max-width: 992px), (hover: none) and (pointer: coarse) {
+        .login-page {
+            min-height: 100dvh;
+            height: auto;
+            overflow: hidden auto;
+        }
+
+        .login-split {
+            min-height: 100dvh;
+            height: auto;
+        }
+
+        .login-auth {
+            width: 100%;
+            min-height: 100dvh;
+            padding: max(1.25rem, env(safe-area-inset-top)) 1rem max(1.25rem, env(safe-area-inset-bottom));
+        }
+
+        .login-map-section {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+            visibility: hidden;
+        }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="login-page">
-    <div class="login-split">
+    <div class="login-split" data-login-split>
         <div class="login-auth">
             <div class="auth-container">
                 <div class="brand-logo">
@@ -282,29 +319,33 @@
             </div>
         </div>
 
-        <div class="login-map-section">
-            <div id="loginMap"></div>
-            <div class="map-overlay-gradient"></div>
-            <div class="map-controls-overlay">
-                <div class="violet-btn-grid">
-                    <button class="violet-big-btn active" data-cat="">
-                        <i class="fa-solid fa-layer-group"></i><span>Todos</span>
-                    </button>
-                    <button class="violet-big-btn" data-cat="Poca iluminación">
-                        <i class="fa-regular fa-lightbulb"></i><span>Poca iluminación</span>
-                    </button>
-                    <button class="violet-big-btn" data-cat="Banquetas en mal estado">
-                        <i class="fa-solid fa-shoe-prints"></i><span>Banquetas en mal estado</span>
-                    </button>
-                    <button class="violet-big-btn" data-cat="Zona insegura">
-                        <i class="fa-solid fa-shield-halved"></i><span>Zona insegura</span>
-                    </button>
-                    <button class="violet-big-btn" data-cat="Terrenos baldíos">
-                        <i class="fa-solid fa-tree"></i><span>Terrenos baldíos</span>
-                    </button>
+        {% if render_login_map %}
+        <template id="loginMapTemplate">
+            <div class="login-map-section" data-login-map-section aria-hidden="true">
+                <div id="loginMap"></div>
+                <div class="map-overlay-gradient"></div>
+                <div class="map-controls-overlay">
+                    <div class="violet-btn-grid">
+                        <button class="violet-big-btn active" data-cat="">
+                            <i class="fa-solid fa-layer-group"></i><span>Todos</span>
+                        </button>
+                        <button class="violet-big-btn" data-cat="Poca iluminación">
+                            <i class="fa-regular fa-lightbulb"></i><span>Poca iluminación</span>
+                        </button>
+                        <button class="violet-big-btn" data-cat="Banquetas en mal estado">
+                            <i class="fa-solid fa-shoe-prints"></i><span>Banquetas en mal estado</span>
+                        </button>
+                        <button class="violet-big-btn" data-cat="Zona insegura">
+                            <i class="fa-solid fa-shield-halved"></i><span>Zona insegura</span>
+                        </button>
+                        <button class="violet-big-btn" data-cat="Terrenos baldíos">
+                            <i class="fa-solid fa-tree"></i><span>Terrenos baldíos</span>
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </template>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
@@ -326,6 +367,61 @@
                 toggleBtn.setAttribute('aria-pressed', isHidden ? 'true' : 'false');
             });
         });
+
+        {% if render_login_map %}
+        const loginSplit = document.querySelector('[data-login-split]');
+        const mapTemplate = document.getElementById('loginMapTemplate');
+        const isTouchViewport = window.matchMedia('(max-width: 992px), (hover: none) and (pointer: coarse)').matches;
+        if (isTouchViewport || !loginSplit || !mapTemplate) {
+            mapTemplate?.remove();
+            return;
+        }
+
+        const mapSection = mapTemplate.content.firstElementChild.cloneNode(true);
+        loginSplit.appendChild(mapSection);
+        mapTemplate.remove();
+        mapSection.removeAttribute('aria-hidden');
+        mapSection.classList.add('is-enabled');
+
+        const leafletCssUrl = "{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}";
+        const leafletJsUrl = "{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}";
+
+        function loadStylesheet(href) {
+            if (document.querySelector(`link[href="${href}"]`)) return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = href;
+                link.onload = resolve;
+                link.onerror = reject;
+                document.head.appendChild(link);
+            });
+        }
+
+        function loadScript(src) {
+            if (window.L) return Promise.resolve();
+            const existing = document.querySelector(`script[src="${src}"]`);
+            if (existing) {
+                return new Promise((resolve, reject) => {
+                    existing.addEventListener('load', resolve, { once: true });
+                    existing.addEventListener('error', reject, { once: true });
+                });
+            }
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.body.appendChild(script);
+            });
+        }
+
+        Promise.all([loadStylesheet(leafletCssUrl), loadScript(leafletJsUrl)])
+            .then(initLoginMap)
+            .catch((error) => console.log('Info: no se pudo cargar el mapa de login.', error.message));
+
+        function initLoginMap() {
+        if (!window.L) return;
 
         const center = [25.6866, -100.3161];
         const map = L.map('loginMap', { attributionControl: false, zoomControl: false }).setView(center, 13);
@@ -557,6 +653,8 @@
                 loadHotspots(this.dataset.cat || '');
             });
         });
+        }
+        {% endif %}
     })();
 </script>
 {% endblock %}

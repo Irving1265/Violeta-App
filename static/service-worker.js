@@ -1,4 +1,4 @@
-const NAV_CACHE = 'violeta-nav-v4';
+const NAV_CACHE = 'violeta-nav-v5';
 const APP_SHELL_CACHE = 'violeta-app-shell-v1';
 const NAV_CACHE_TTL_MS = 300000;
 const PREFETCH_LIMIT = 12;
@@ -9,7 +9,15 @@ const APP_SHELL_ASSETS = [
   '/static/images/pwa/icon-192.png',
   '/static/images/pwa/icon-512.png',
 ];
-const EXCLUDED_PATHS = new Set(['/logout', '/service-worker.js']);
+const EXCLUDED_PATHS = new Set([
+  '/logout',
+  '/service-worker.js',
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/force-password-reset',
+]);
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {

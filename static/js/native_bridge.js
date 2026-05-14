@@ -30,6 +30,25 @@
         return getCapacitor()?.Plugins?.[name] || null;
     }
 
+    function isMobileViewport() {
+        return window.matchMedia?.('(max-width: 992px), (hover: none) and (pointer: coarse)')?.matches || false;
+    }
+
+    function removeLoginMapOnMobile() {
+        if (!isNativePlatform() && !isMobileViewport()) {
+            return;
+        }
+        document.querySelectorAll('.login-map-section, #loginMapTemplate').forEach((node) => node.remove());
+        document.querySelectorAll('#loginMap').forEach((node) => node.remove());
+    }
+
+    removeLoginMapOnMobile();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', removeLoginMapOnMobile, { once: true });
+    } else {
+        removeLoginMapOnMobile();
+    }
+
     function dataUrlToFile(dataUrl, filename) {
         const parts = String(dataUrl || '').split(',');
         if (parts.length < 2) {
@@ -253,5 +272,6 @@
         getCurrentPosition,
         watchPosition,
         clearPositionWatch,
+        removeLoginMapOnMobile,
     };
 })();

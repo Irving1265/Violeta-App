@@ -26,10 +26,10 @@
     {% if request.endpoint in ['chat', 'admin_panel'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/cropper/cropper.min.css') }}" />
     {% endif %}
-    {% if request.endpoint in ['index', 'hotspots_page', 'safety_center', 'login'] %}
+    {% if request.endpoint in ['index', 'hotspots_page', 'safety_center'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260513-ios-safe-area-v1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260514-mobile-modal-login-v3">
     {% if request.endpoint in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/auth_page.css') }}?v=20260507-auth-split-v1">
     {% endif %}
@@ -712,13 +712,13 @@
     </div>
 
     <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
-    {% if request.endpoint in ['index', 'hotspots_page', 'safety_center', 'login'] %}
+    {% if request.endpoint in ['index', 'hotspots_page', 'safety_center'] %}
     <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
     {% endif %}
     {% if request.endpoint in ['chat', 'admin_panel'] %}
     <script src="{{ url_for('static', filename='vendor/cropper/cropper.min.js') }}"></script>
     {% endif %}
-    <script src="{{ url_for('static', filename='js/native_bridge.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/native_bridge.js') }}?v=20260514-login-map-prune-v1"></script>
     <script>
         (function () {
             if (!window.L || !L.Map) return;

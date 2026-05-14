@@ -4463,8 +4463,11 @@ body.modal-open .main-content {
 }
 
 .v-modal-content {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
     width: min(90vw, 450px);
-    max-height: min(90vh, 720px);
+    max-height: min(calc(100dvh - 2rem), 720px);
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 24px;
@@ -4516,9 +4519,13 @@ body.modal-open .main-content {
 }
 
 .v-modal-body {
-    max-height: 70vh;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
     overflow-y: auto;
     padding: 20px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
 }
 
 .v-filter-group {
@@ -4540,11 +4547,12 @@ body.modal-open .main-content {
 
 .v-options-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
 }
 
 .v-option-card {
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -4561,6 +4569,7 @@ body.modal-open .main-content {
     padding: 12px;
     text-align: center;
     transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    overflow-wrap: anywhere;
 }
 
 .v-option-card i {
@@ -4586,10 +4595,16 @@ body.modal-open .main-content {
 }
 
 .v-modal-footer {
+    position: relative;
     display: flex;
+    flex: 0 0 auto;
+    min-height: 0;
     gap: 12px;
     padding: 20px;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
+    background: #1a1525;
+    box-shadow: 0 -14px 28px rgba(10, 6, 18, 0.42);
+    z-index: 2;
 }
 
 .btn-v-secondary,
@@ -4641,8 +4656,82 @@ body.modal-open .main-content {
         min-width: 0;
     }
 
+    .v-modal-overlay {
+        align-items: center;
+        box-sizing: border-box;
+        height: 100dvh;
+        max-height: 100dvh;
+        overflow: hidden;
+        padding: max(0.75rem, env(safe-area-inset-top, 0px)) 0.75rem max(0.9rem, env(safe-area-inset-bottom, 0px));
+    }
+
+    .v-modal-content {
+        width: min(100%, 450px);
+        max-height: calc(100dvh - max(1.5rem, env(safe-area-inset-top, 0px)) - max(1.8rem, env(safe-area-inset-bottom, 0px)));
+        border-radius: 24px;
+        animation: modalSlideUpMobile 0.24s ease-out;
+    }
+
+    .v-modal-header {
+        padding: 16px 18px 14px;
+    }
+
+    .v-modal-header h3 {
+        font-size: clamp(1.05rem, 5vw, 1.3rem);
+    }
+
+    .v-modal-body {
+        padding: 14px 16px;
+    }
+
+    .v-filter-group {
+        margin-bottom: 18px;
+    }
+
+    .v-filter-group-title {
+        margin-bottom: 10px;
+        font-size: 0.78rem;
+    }
+
     .v-options-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px;
+    }
+
+    .v-option-card {
+        min-height: clamp(68px, 18dvh, 86px);
+        padding: 9px 7px;
+        font-size: clamp(0.68rem, 3vw, 0.82rem);
+        line-height: 1.12;
+    }
+
+    .v-option-card i {
+        font-size: clamp(0.95rem, 4vw, 1.08rem);
+    }
+
+    .v-modal-footer {
+        gap: 10px;
+        padding: 12px 16px max(12px, env(safe-area-inset-bottom, 0px));
+    }
+
+    .btn-v-secondary,
+    .btn-v-primary {
+        min-height: 44px;
+        padding: 10px 8px;
+        font-size: clamp(0.82rem, 3.4vw, 0.95rem);
+        line-height: 1.1;
+        white-space: nowrap;
+    }
+}
+
+@keyframes modalSlideUpMobile {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 
