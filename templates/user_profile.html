@@ -16,14 +16,16 @@
         <div class="profile-identity-row">
           <div class="profile-details">
             <h2 class="profile-username">
-              <span class="profile-username-text">@{{ user.username }}</span>
+              <span class="profile-username-main">
+                <span class="profile-username-text">@{{ user.username }}</span>
+                {% if user_has_staff_badge(user) %}<span class="admin-badge admin-badge--profile" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+              </span>
               {% if profile_level > 0 %}
               <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if profile_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if profile_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if profile_level >= 2 else 'Usuaria con un strike' }}">
                 <i class="fas fa-triangle-exclamation"></i>
                 <span class="moderation-strike-badge__text">{{ profile_level }} {{ 'strikes' if profile_level >= 2 else 'strike' }}</span>
               </span>
               {% endif %}
-              {% if user_has_staff_badge(user) %}<span class="admin-badge admin-badge--profile" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
             </h2>
             <p class="profile-member-since">
               {% if user.created_at %}Miembro desde {{ user.created_at.strftime('%d/%m/%Y') }}{% else %}Miembro de Violeta{% endif %}

@@ -135,6 +135,19 @@
     justify-content: center;
 }
 
+.profile-page-shell .profile-username-main {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 100%;
+    gap: 0.42rem;
+    white-space: nowrap;
+}
+
+.profile-page-shell .profile-username-main .admin-badge--profile {
+    flex: 0 0 auto;
+}
+
 .profile-member-since {
     margin: 0.35rem 0 0;
     color: rgba(148, 139, 156, 0.9);
@@ -899,13 +912,14 @@ body.profile-delete-modal-open {
     .profile-page-shell .profile-info {
         display: grid;
         grid-template-areas:
-            "avatar details actions"
-            "bio bio bio"
-            "stats stats stats";
-        grid-template-columns: auto minmax(0, 1fr) max-content;
+            "avatar actions"
+            "details details"
+            "bio bio"
+            "stats stats";
+        grid-template-columns: auto minmax(0, 1fr);
         align-items: end;
         column-gap: var(--profile-mobile-gap);
-        row-gap: 0;
+        row-gap: 0.85rem;
         margin: calc(var(--profile-avatar-size) / -2) 0 0;
         text-align: left;
     }
@@ -941,29 +955,36 @@ body.profile-delete-modal-open {
     .profile-page-shell .profile-details {
         grid-area: details;
         align-self: end;
-        padding-bottom: 0.35rem;
+        width: 100%;
+        min-width: 0;
+        padding-bottom: 0;
         text-align: left;
     }
 
     .profile-page-shell .profile-username {
-        flex-direction: column;
+        flex-direction: row;
+        flex-wrap: wrap;
         align-items: flex-start;
         justify-content: flex-start;
-        gap: clamp(0.22rem, 1vw, 0.35rem);
+        gap: clamp(0.25rem, 1.1vw, 0.4rem) 0.45rem;
         font-size: clamp(1.05rem, 6vw, 1.55rem);
         line-height: 1;
         letter-spacing: -0.035em;
     }
 
+    .profile-page-shell .profile-username-main {
+        max-width: 100%;
+    }
+
     .profile-page-shell .profile-username-text {
-        max-width: min(36vw, 12rem);
+        max-width: min(72vw, 18rem);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
 
     .profile-page-shell .profile-username .admin-badge--profile {
-        margin-top: -0.15rem;
+        margin-top: 0;
     }
 
     .profile-page-shell .profile-username .admin-badge--profile img {
@@ -1045,6 +1066,8 @@ body.profile-delete-modal-open {
         display: flex;
         align-items: flex-end;
         gap: 0.42rem;
+        align-self: end;
+        justify-self: end;
     }
 
     .profile-page-shell .profile-actions--self {
