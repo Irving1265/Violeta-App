@@ -4807,7 +4807,7 @@ def create_app():
             response.headers['Pragma'] = 'no-cache'
             response.headers['Expires'] = '0'
             response.headers['Service-Worker-Allowed'] = '/'
-        elif path == '/manifest.webmanifest':
+        elif path in ('/manifest.webmanifest', '/manifest.json'):
             static_cache_seconds = int(app.config.get('STATIC_ASSET_CACHE_SECONDS') or 0)
             response.headers['Cache-Control'] = f'public, max-age={static_cache_seconds}'
             response.headers.pop('Pragma', None)
@@ -4878,13 +4878,20 @@ def create_app():
         response.headers['Service-Worker-Allowed'] = '/'
         return response
 
-    @app.route('/manifest.webmanifest')
-    def webmanifest():
+    def _send_webmanifest():
         return send_from_directory(
             app.static_folder,
             'manifest.webmanifest',
             mimetype='application/manifest+json',
         )
+
+    @app.route('/manifest.webmanifest')
+    def webmanifest():
+        return _send_webmanifest()
+
+    @app.route('/manifest.json')
+    def manifest_json():
+        return _send_webmanifest()
 
     # Hacer disponible csrf_token() en todas las plantillas (fallback explícito)
     @app.context_processor

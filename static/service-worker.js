@@ -1,13 +1,16 @@
 const NAV_CACHE = 'violeta-nav-v5';
-const APP_SHELL_CACHE = 'violeta-app-shell-v1';
+const APP_SHELL_CACHE = 'violeta-app-shell-v2';
 const NAV_CACHE_TTL_MS = 300000;
 const PREFETCH_LIMIT = 12;
 const OFFLINE_URL = '/static/offline.html';
 const APP_SHELL_ASSETS = [
   OFFLINE_URL,
+  '/manifest.json',
+  '/manifest.webmanifest',
   '/static/images/favicon.png',
   '/static/images/pwa/icon-192.png',
   '/static/images/pwa/icon-512.png',
+  '/static/images/pwa/maskable-512.png',
 ];
 const EXCLUDED_PATHS = new Set([
   '/logout',

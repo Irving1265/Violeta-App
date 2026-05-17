@@ -28,6 +28,17 @@
     function isMobileChatView() {
         return window.matchMedia('(max-width: 767.98px)').matches;
     }
+
+    function syncChatViewportHeight() {
+        if (!document.body.classList.contains('chat-page')) return;
+        const height = window.visualViewport?.height || window.innerHeight;
+        if (!height) return;
+        document.documentElement.style.setProperty('--chat-viewport-height', `${Math.round(height)}px`);
+    }
+
+    syncChatViewportHeight();
+    window.addEventListener('resize', syncChatViewportHeight, { passive: true });
+    window.visualViewport?.addEventListener('resize', syncChatViewportHeight, { passive: true });
     try {
         const raw = new URLSearchParams(window.location.search).get('room');
         const parsed = raw ? Number(raw) : NaN;
@@ -1042,8 +1053,12 @@
             input.value = '';
         }
         updateSendState();
-        if (input && !input.disabled) {
-            input.focus();
+        if (input && !input.disabled && !isMobileChatView()) {
+            try {
+                input.focus({ preventScroll: true });
+            } catch (error) {
+                input.focus();
+            }
         }
     }
 

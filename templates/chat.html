@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/chat_page.css') }}?v=20260507-chat-split-v1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/chat_page.css') }}?v=20260517-ios-chat-bounds-v1">
 {% endblock %}
 
 {% block content %}
@@ -361,5 +361,5 @@ window.CHAT_PAGE_CONFIG = {
 };
 </script>
 <script defer src="{{ url_for('static', filename='vendor/socketio/socket.io.min.js') }}"></script>
-<script defer src="{{ url_for('static', filename='js/chat_page.js') }}?v=20260424-report-chat-modal-v1"></script>
+<script defer src="{{ url_for('static', filename='js/chat_page.js') }}?v=20260517-ios-chat-bounds-v1"></script>
 {% endblock %}

@@ -550,6 +550,25 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertNotIn('/static/js/app.js?', profile_html)
         self.assertNotIn('/static/js/post_map.js?', profile_html)
 
+    def test_mobile_chat_viewport_guards_prevent_ios_zoom_and_overflow(self):
+        user_id = self.create_user('mobile_chat_guard', verified=True)
+        chat_html = self.client_for(user_id).get('/chat').get_data(as_text=True)
+        self.assertIn('chat_page.css', chat_html)
+        self.assertIn('20260517-ios-chat-bounds-v1', chat_html)
+        self.assertIn('chat_page.js', chat_html)
+
+        chat_css = (PROJECT_ROOT / 'static/css/chat_page.css').read_text(encoding='utf-8')
+        self.assertIn('--chat-viewport-height', chat_css)
+        self.assertIn('max-width: 100vw', chat_css)
+        self.assertIn('font-size: 16px', chat_css)
+        self.assertIn('overflow-x: hidden', chat_css)
+
+        chat_js = (PROJECT_ROOT / 'static/js/chat_page.js').read_text(encoding='utf-8')
+        self.assertIn('syncChatViewportHeight', chat_js)
+        self.assertIn('window.visualViewport', chat_js)
+        self.assertIn('!isMobileChatView()', chat_js)
+        self.assertIn('preventScroll: true', chat_js)
+
     def test_admin_attention_state_reports_new_moderation_work(self):
         admin_id = self.create_user('admin')
         reporter_id = self.create_user('reportera_attention')
@@ -1581,21 +1600,24 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertEqual(html_response.status_code, 200)
         html = html_response.get_data(as_text=True)
         self.assertIn('rel="manifest"', html)
-        self.assertIn('/manifest.webmanifest', html)
+        self.assertIn('/manifest.json', html)
         self.assertIn('name="theme-color"', html)
         self.assertIn('viewport-fit=cover', html)
         self.assertNotIn('user-scalable=no', html)
 
-        manifest_response = app.test_client().get('/manifest.webmanifest')
-        self.assertEqual(manifest_response.status_code, 200)
-        self.assertIn('application/manifest+json', manifest_response.headers.get('Content-Type', ''))
-        self.assertIn('public, max-age=604800', manifest_response.headers.get('Cache-Control', ''))
+        manifest_response = app.test_client().get('/manifest.json')
+        legacy_manifest_response = app.test_client().get('/manifest.webmanifest')
+        for response in (manifest_response, legacy_manifest_response):
+            self.assertEqual(response.status_code, 200)
+            self.assertIn('application/manifest+json', response.headers.get('Content-Type', ''))
+            self.assertIn('public, max-age=604800', response.headers.get('Cache-Control', ''))
         manifest = json.loads(manifest_response.get_data(as_text=True))
         self.assertEqual(manifest.get('name'), 'Violeta')
         self.assertEqual(manifest.get('display'), 'standalone')
         self.assertEqual(manifest.get('start_url'), '/?source=pwa')
         self.assertTrue(any(icon.get('sizes') == '192x192' for icon in manifest.get('icons') or []))
         self.assertTrue(any(icon.get('purpose') == 'maskable' for icon in manifest.get('icons') or []))
+        self.assertTrue(any(icon.get('src') == '/static/images/pwa/maskable-512.png' for icon in manifest.get('icons') or []))
         self.assertTrue(any(shortcut.get('url', '').startswith('/safety') for shortcut in manifest.get('shortcuts') or []))
 
         service_worker_response = app.test_client().get('/service-worker.js')
@@ -1605,6 +1627,8 @@ class VioletaSmokeTests(unittest.TestCase):
         service_worker = service_worker_response.get_data(as_text=True)
         self.assertIn('APP_SHELL_CACHE', service_worker)
         self.assertIn('/static/offline.html', service_worker)
+        self.assertIn('/manifest.json', service_worker)
+        self.assertIn('/static/images/pwa/maskable-512.png', service_worker)
         self.assertIn('getOfflineShell', service_worker)
 
         offline_response = app.test_client().get('/static/offline.html')
