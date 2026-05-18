@@ -1,0 +1,1 @@
+Primera version beta de Violeta para Android: feed de reportes, filtros por zona, chat, perfil, reportes de seguridad y herramientas de cuenta.

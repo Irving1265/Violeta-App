@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const args = new Set(process.argv.slice(2));
@@ -26,6 +26,42 @@ function readText(file) {
   }
 }
 
+function fileExists(file) {
+  return existsSync(resolve(process.cwd(), file));
+}
+
+function readPngSize(file) {
+  try {
+    const buffer = readFileSync(resolve(process.cwd(), file));
+    const isPng = buffer.length >= 24
+      && buffer[0] === 0x89
+      && buffer[1] === 0x50
+      && buffer[2] === 0x4e
+      && buffer[3] === 0x47;
+    if (!isPng) {
+      return null;
+    }
+    return {
+      width: buffer.readUInt32BE(16),
+      height: buffer.readUInt32BE(20),
+      bytes: statSync(resolve(process.cwd(), file)).size,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function requirePngSize(file, width, height, label) {
+  const size = readPngSize(file);
+  if (!size) {
+    addIssue('error', `missing_${label}`, `Falta o no es PNG valido: ${file}.`);
+    return;
+  }
+  if (size.width !== width || size.height !== height) {
+    addIssue('error', `invalid_${label}`, `${file} debe medir ${width}x${height}px; mide ${size.width}x${size.height}px.`);
+  }
+}
+
 function parseUrl(name, value, { required = false } = {}) {
   const raw = value?.trim();
   if (!raw) {
@@ -48,6 +84,29 @@ function parseUrl(name, value, { required = false } = {}) {
   } catch {
     addIssue('error', `invalid_${name.toLowerCase()}`, `${name} no es una URL valida.`);
     return null;
+  }
+}
+
+async function checkPublicPage(label, url) {
+  if (!url) {
+    return;
+  }
+
+  try {
+    const response = await fetch(url, {
+      cache: 'no-store',
+      headers: { Accept: 'text/html,application/xhtml+xml' },
+    });
+    if (!response.ok) {
+      addIssue(strict ? 'error' : 'warning', `${label}_url_http_error`, `${url} respondio HTTP ${response.status}.`);
+      return;
+    }
+    const html = await response.text().catch(() => '');
+    if (!/Violeta/i.test(html)) {
+      addIssue('warning', `${label}_url_missing_app_name`, `${url} no parece mencionar Violeta en el contenido.`);
+    }
+  } catch {
+    addIssue(strict ? 'error' : 'warning', `${label}_url_unreachable`, `No se pudo abrir ${url}.`);
   }
 }
 
@@ -106,6 +165,63 @@ async function checkHealth(serverUrl) {
     'backend_health_unreachable',
     `No se pudo validar /healthz despues de ${maxAttempts} intento(s) (${lastError?.name === 'AbortError' ? 'timeout' : 'error de red'}).`
   );
+}
+
+function checkStoreMetadata() {
+  const capacitorConfig = readText('capacitor.config.ts');
+  if (!capacitorConfig.includes("appId: 'com.violeta.app'")) {
+    addIssue('error', 'invalid_capacitor_app_id', 'capacitor.config.ts debe usar appId com.violeta.app.');
+  }
+  if (!capacitorConfig.includes("appName: 'Violeta'")) {
+    addIssue('error', 'invalid_capacitor_app_name', 'capacitor.config.ts debe usar appName Violeta.');
+  }
+
+  const androidStrings = readText('android/app/src/main/res/values/strings.xml');
+  if (!androidStrings.includes('<string name="app_name">Violeta</string>')) {
+    addIssue('error', 'invalid_android_app_name', 'Android debe mostrar Violeta como nombre de app.');
+  }
+
+  const infoPlist = readText('ios/App/App/Info.plist');
+  if (!infoPlist.includes('<key>CFBundleDisplayName</key>') || !infoPlist.includes('<string>Violeta</string>')) {
+    addIssue('error', 'invalid_ios_display_name', 'iOS debe mostrar Violeta como CFBundleDisplayName.');
+  }
+}
+
+function checkNativeAssets() {
+  requirePngSize(
+    'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png',
+    1024,
+    1024,
+    'ios_app_icon',
+  );
+
+  [
+    'ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png',
+    'ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-1.png',
+    'ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-2.png',
+  ].forEach((file, index) => requirePngSize(file, 2732, 2732, `ios_splash_${index + 1}`));
+
+  const androidLauncherSizes = {
+    mdpi: 48,
+    hdpi: 72,
+    xhdpi: 96,
+    xxhdpi: 144,
+    xxxhdpi: 192,
+  };
+  for (const [density, size] of Object.entries(androidLauncherSizes)) {
+    requirePngSize(`android/app/src/main/res/mipmap-${density}/ic_launcher.png`, size, size, `android_icon_${density}`);
+    requirePngSize(`android/app/src/main/res/mipmap-${density}/ic_launcher_round.png`, size, size, `android_round_icon_${density}`);
+  }
+
+  [
+    'android/app/src/main/res/drawable/splash.png',
+    'android/app/src/main/res/drawable-port-xxxhdpi/splash.png',
+    'android/app/src/main/res/drawable-land-xxxhdpi/splash.png',
+  ].forEach((file, index) => {
+    if (!fileExists(file)) {
+      addIssue('error', `missing_android_splash_${index + 1}`, `Falta ${file}.`);
+    }
+  });
 }
 
 function checkSyncedNativeConfig(serverUrl) {
@@ -167,6 +283,37 @@ function checkNativePermissions() {
   }
 }
 
+function checkReleaseSigning() {
+  const androidKeystore = fileExists('android/keystore.properties');
+  const androidEnvSigning = [
+    'ANDROID_KEYSTORE_PATH',
+    'ANDROID_KEYSTORE_PASSWORD',
+    'ANDROID_KEY_ALIAS',
+    'ANDROID_KEY_PASSWORD',
+  ].every((name) => Boolean(process.env[name]?.trim()));
+  const androidStorePath = process.env.ANDROID_KEYSTORE_PATH?.trim();
+  if (androidStorePath && !existsSync(resolve(process.cwd(), androidStorePath))) {
+    addIssue(strict ? 'error' : 'warning', 'missing_android_keystore_file', `ANDROID_KEYSTORE_PATH apunta a ${androidStorePath}, pero el archivo no existe.`);
+  }
+  if (!androidKeystore && !androidEnvSigning) {
+    addIssue(
+      strict ? 'error' : 'warning',
+      'android_release_signing_missing',
+      'Falta signing de Android: crea android/keystore.properties o define ANDROID_KEYSTORE_* antes de generar bundleRelease.',
+    );
+  }
+
+  const xcodeProject = readText('ios/App/App.xcodeproj/project.pbxproj');
+  const hasDevelopmentTeam = /DEVELOPMENT_TEAM = [A-Z0-9]+;/.test(xcodeProject) || Boolean(process.env.IOS_DEVELOPMENT_TEAM?.trim());
+  if (!hasDevelopmentTeam) {
+    addIssue(
+      strict ? 'error' : 'warning',
+      'ios_development_team_missing',
+      'Falta Team ID de Apple Developer para archivar y subir a TestFlight.',
+    );
+  }
+}
+
 const required = ['package.json', 'capacitor.config.ts', 'www/index.html'];
 required.forEach((file) => requireFile(file, `Falta archivo base del scaffold: ${file}.`));
 
@@ -177,7 +324,12 @@ const deletionUrl = parseUrl('STORE_ACCOUNT_DELETION_URL', process.env.STORE_ACC
 
 checkSyncedNativeConfig(serverUrl);
 checkNativePermissions();
+checkStoreMetadata();
+checkNativeAssets();
+checkReleaseSigning();
 await checkHealth(serverUrl);
+await checkPublicPage('privacy_policy', privacyUrl);
+await checkPublicPage('account_deletion', deletionUrl);
 
 const hasIos = existsSync(resolve(process.cwd(), 'ios'));
 const hasAndroid = existsSync(resolve(process.cwd(), 'android'));
@@ -211,6 +363,8 @@ if (!serverUrl) {
   nextStep = 'definir MOBILE_WEB_URL con la URL HTTPS de Render y luego npm run cap:sync';
 } else if (!privacyUrl || !deletionUrl) {
   nextStep = 'definir URLs de privacidad y borrado de cuenta antes de enviar a tiendas';
+} else if (issues.some((issue) => ['android_release_signing_missing', 'ios_development_team_missing'].includes(issue.code))) {
+  nextStep = 'configurar signing de Android y Team ID de iOS antes de generar builds de tienda';
 }
 console.log('\nSiguiente paso recomendado:', nextStep);
 

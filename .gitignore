@@ -41,6 +41,9 @@ mobile/node_modules/
 mobile/.npm-cache/
 mobile/android/.gradle/
 mobile/android/local.properties
+mobile/android/keystore.properties
+mobile/android/*.jks
+mobile/android/*.keystore
 mobile/android/app/build/
 mobile/ios/App/Pods/
 mobile/ios/App/App/public/

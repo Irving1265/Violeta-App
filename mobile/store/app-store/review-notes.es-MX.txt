@@ -1,0 +1,18 @@
+Violeta es una app de seguridad comunitaria para mujeres. La app permite crear y consultar reportes de zonas inseguras, comentar, usar chat, editar perfil, acceder al centro de seguridad y borrar la cuenta desde la app.
+
+Permisos usados durante revision:
+
+- Camara: capturar evidencia de reportes y completar verificacion de identidad cuando aplique.
+- Fotos: adjuntar imagenes a reportes o perfil.
+- Ubicacion: mostrar reportes cercanos, filtrar por mi zona y usar funciones de seguridad.
+- Microfono: solo si la usuaria graba video de verificacion o evidencia.
+- Notificaciones: alertas relevantes de seguridad, mensajes y seguimiento.
+
+Privacidad:
+
+- Politica publica: https://violeta-app.onrender.com/privacy
+- Borrado de cuenta: https://violeta-app.onrender.com/account/delete
+
+Cuenta demo para App Review:
+
+Crear una cuenta verificada de prueba antes de subir el build y completar aqui usuario, password y cualquier instruccion necesaria para entrar al feed. No subas credenciales reales a GitHub.

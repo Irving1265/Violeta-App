@@ -23,14 +23,31 @@ Scaffold base para publicar Violeta en iOS y Android usando Capacitor sobre el b
 Crea `mobile/.env` con la URL publica del backend o exporta en terminal:
 
 ```bash
-export MOBILE_WEB_URL=https://tu-backend-publico.example.com
+export MOBILE_WEB_URL=https://violeta-app.onrender.com
 ```
 
 Para preparar envio a tiendas, tambien define:
 
 ```bash
-export STORE_PRIVACY_POLICY_URL=https://tu-backend-publico.example.com/privacy
-export STORE_ACCOUNT_DELETION_URL=https://tu-backend-publico.example.com/account/delete
+export STORE_PRIVACY_POLICY_URL=https://violeta-app.onrender.com/privacy
+export STORE_ACCOUNT_DELETION_URL=https://violeta-app.onrender.com/account/delete
+```
+
+Para Android release, nunca subas llaves al repo. Crea `android/keystore.properties` a partir de
+`android/keystore.properties.example` o usa variables de entorno:
+
+```bash
+export ANDROID_KEYSTORE_PATH=release-upload-key.jks
+export ANDROID_KEYSTORE_PASSWORD=...
+export ANDROID_KEY_ALIAS=violeta-upload
+export ANDROID_KEY_PASSWORD=...
+```
+
+Para iOS/TestFlight, necesitas una cuenta Apple Developer y un Team ID. Puedes configurarlo en Xcode
+o exportarlo para validaciones:
+
+```bash
+export IOS_DEVELOPMENT_TEAM=TEAMID1234
 ```
 
 ## Comandos utiles
@@ -39,6 +56,7 @@ export STORE_ACCOUNT_DELETION_URL=https://tu-backend-publico.example.com/account
 npm install
 npm run doctor
 npm run doctor:strict
+npm run store:check
 npm run cap:add:ios
 npm run cap:add:android
 npm run cap:sync
@@ -47,6 +65,7 @@ npm run cap:open:android
 npm run run:ios
 npm run run:android
 npm run build:android:debug
+npm run build:android:release
 npm run build:ios:simulator
 ```
 
@@ -67,8 +86,11 @@ MOBILE_HEALTH_TIMEOUT_MS=30000 MOBILE_HEALTH_RETRIES=4 npm run doctor:strict
 5. Abre Xcode con `npm run cap:open:ios`.
 6. Abre Android Studio con `npm run cap:open:android`.
 7. Corre la checklist de QA movil en `docs/mobile-qa-checklist.md`.
-8. Configura iconos, permisos, Push Notifications y App Groups si aplica.
-9. Sube el build a TestFlight y crea una prueba interna en Google Play.
+8. Corre `npm run store:check`.
+9. Corre la checklist de tiendas en `docs/mobile-store-release-checklist.md`.
+10. Prepara capturas con `docs/mobile-screenshot-plan.md`.
+11. Configura signing de Android, Team ID de iOS, Push Notifications y App Groups si aplica.
+12. Sube el build a TestFlight y crea una prueba interna en Google Play.
 
 ## Validacion de builds nativos
 
@@ -77,6 +99,15 @@ Android genera un APK debug con:
 ```bash
 npm run build:android:debug
 ```
+
+Android genera el bundle de tienda con:
+
+```bash
+npm run build:android:release
+```
+
+El AAB queda en `mobile/android/app/build/outputs/bundle/release/app-release.aab`. Para que Google
+Play lo acepte debes tener signing configurado con `android/keystore.properties` o `ANDROID_KEYSTORE_*`.
 
 iOS compila el target nativo de simulador con:
 
@@ -98,6 +129,7 @@ Antes de mandar a revision, revisa al menos estos puntos:
 - Si permites crear cuenta, Apple exige borrado de cuenta dentro de la app.
 - Google Play tambien exige mecanismos de borrado de cuenta para apps con cuenta.
 - Debes completar App Privacy Details, Data Safety y textos de permisos para camara, fotos, ubicacion y notificaciones.
+- Usa `docs/app-store-privacy-answers.md` y `docs/google-play-data-safety.md` como base para contestar tiendas.
 
 Referencias oficiales:
 

@@ -1,0 +1,77 @@
+name: Mobile Checks
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "mobile/**"
+      - "docs/app-store-privacy-answers.md"
+      - "docs/google-play-data-safety.md"
+      - "docs/mobile-*.md"
+      - ".github/workflows/mobile-checks.yml"
+  pull_request:
+    paths:
+      - "mobile/**"
+      - "docs/app-store-privacy-answers.md"
+      - "docs/google-play-data-safety.md"
+      - "docs/mobile-*.md"
+      - ".github/workflows/mobile-checks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-mobile-checks:
+    name: Android mobile readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      MOBILE_WEB_URL: "https://violeta-app.onrender.com"
+      STORE_PRIVACY_POLICY_URL: "https://violeta-app.onrender.com/privacy"
+      STORE_ACCOUNT_DELETION_URL: "https://violeta-app.onrender.com/account/delete"
+      MOBILE_HEALTH_TIMEOUT_MS: "30000"
+      MOBILE_HEALTH_RETRIES: "3"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Validate store metadata
+        working-directory: mobile
+        run: npm run store:check
+
+      - name: Run mobile doctor
+        working-directory: mobile
+        run: npm run doctor
+
+      - name: Sync Capacitor Android
+        working-directory: mobile
+        run: npm run build:web && npx cap sync android && npm run patch:android-generated
+
+      - name: Build Android debug
+        working-directory: mobile
+        run: npm run build:android:debug

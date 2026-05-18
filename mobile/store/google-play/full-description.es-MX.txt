@@ -1,0 +1,14 @@
+Violeta es una app de seguridad comunitaria pensada para mujeres que quieren compartir y consultar informacion sobre zonas inseguras, problemas urbanos y rutas con mayor contexto.
+
+Con Violeta puedes:
+
+- Reportar zonas con poca iluminacion, banquetas en mal estado, terrenos baldios o puntos que se sienten inseguros.
+- Consultar reportes cercanos y filtrar por ciudad, categoria, reportes de hoy o reportes cerca de tu zona.
+- Agregar evidencia con imagen y ubicacion para que otras usuarias tengan mejor contexto.
+- Comentar, apoyar reportes y participar en conversaciones comunitarias.
+- Usar funciones de seguridad como contactos, rutas y acceso rapido a emergencia.
+- Reportar publicaciones, comentarios o mensajes cuando algo incumpla las reglas.
+
+Violeta prioriza privacidad y seguridad. La app evita publicar informacion sensible de forma inmediata cuando detecta riesgo, permite borrar la cuenta desde la app y mantiene una politica de privacidad publica.
+
+La comunidad esta enfocada en construir informacion util para que las usuarias tomen mejores decisiones al moverse por la ciudad.
