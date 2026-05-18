@@ -221,8 +221,8 @@ class VioletaSmokeTests(unittest.TestCase):
                 city=city,
                 country=country,
                 categories=json.dumps(categories) if categories else None,
-                created_at=created_at or datetime.now() - timedelta(minutes=30),
-                publish_at=publish_at or datetime.now() - timedelta(minutes=1),
+                created_at=created_at or app_module.utc_now_naive() - timedelta(minutes=30),
+                publish_at=publish_at or app_module.utc_now_naive() - timedelta(minutes=1),
             )
             db.session.add(post)
             db.session.commit()
@@ -347,7 +347,7 @@ class VioletaSmokeTests(unittest.TestCase):
         with app.app_context():
             post = db.session.get(Post, post_id)
             assert post is not None
-            post.created_at = datetime.now() - timedelta(minutes=minutes_ago)
+            post.created_at = app_module.utc_now_naive() - timedelta(minutes=minutes_ago)
             db.session.add(post)
             db.session.commit()
 
@@ -2076,7 +2076,7 @@ class VioletaSmokeTests(unittest.TestCase):
             post = Post.query.order_by(Post.id.desc()).first()
             assert post is not None
             post_id = int(post.id)
-            self.assertGreater(post.publish_at, datetime.now())
+            self.assertGreater(post.publish_at, app_module.utc_now_naive())
 
         meta = self.get_post_meta(post_id)
         self.assertIsNotNone(meta)
@@ -2143,8 +2143,8 @@ class VioletaSmokeTests(unittest.TestCase):
         post_id = self.create_public_post(
             author_id,
             caption='Reporte pendiente por fallback',
-            created_at=datetime.now() - timedelta(minutes=61),
-            publish_at=datetime.now() + timedelta(minutes=20),
+            created_at=app_module.utc_now_naive() - timedelta(minutes=61),
+            publish_at=app_module.utc_now_naive() + timedelta(minutes=20),
         )
         client = self.client_for(author_id)
 

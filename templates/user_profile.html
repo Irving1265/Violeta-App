@@ -28,7 +28,7 @@
               {% endif %}
             </h2>
             <p class="profile-member-since">
-              {% if user.created_at %}Miembro desde {{ user.created_at.strftime('%d/%m/%Y') }}{% else %}Miembro de Violeta{% endif %}
+              {% if user.created_at %}Usuaria desde {{ user.created_at.strftime('%d/%m/%Y') }}{% else %}Usuaria de Violeta{% endif %}
             </p>
             {% if user.bio %}
             <p class="profile-bio">{{ user.bio }}</p>

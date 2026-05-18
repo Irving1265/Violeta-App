@@ -23,6 +23,7 @@ jobs:
     env:
       PYTHONUNBUFFERED: "1"
       BACKGROUND_JOBS_INLINE: "true"
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
     steps:
       - name: Check out repository

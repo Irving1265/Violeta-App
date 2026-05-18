@@ -59,7 +59,6 @@ from email.message import EmailMessage
 import secrets
 import threading
 import time
-from flask_mail import Mail, Message
 from math import radians, cos, sin, asin, sqrt, ceil
 from urllib.parse import urlencode, quote
 from urllib.request import Request, urlopen
@@ -337,7 +336,7 @@ def build_password_reset_token(user: User) -> str:
     user_id = getattr(user, 'id', None)
     email = (getattr(user, 'email', '') or '').strip().lower()
     if user_id is None or not email:
-        raise ValueError('No se puede generar token sin usuario y correo válidos.')
+        raise ValueError('No se puede generar token sin usuaria y correo válidos.')
     serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
     return serializer.dumps({'uid': int(user_id), 'email': email}, salt=PASSWORD_RESET_TOKEN_SALT)
 
@@ -1872,7 +1871,7 @@ def can_user_interact_post(post, user, interaction: str) -> bool:
     return getattr(post, 'user_id', None) == getattr(user, 'id', None)
 
 
-def normalize_location_visibility(value: str | None, is_admin_user: bool) -> str:
+def normalize_location_visibility(value: str | None) -> str:
     val = (value or '').strip().lower()
     allowed = {'exact', 'approx', 'hidden'}
     if val not in allowed:
@@ -3782,11 +3781,11 @@ def create_app():
         }
 
     def safety_publish_min_ready_at(post) -> datetime:
-        created_at = getattr(post, 'created_at', None) or datetime.now()
+        created_at = getattr(post, 'created_at', None) or utc_now_naive()
         return created_at + timedelta(minutes=safety_publish_min_delay_minutes())
 
     def safety_publish_fallback_at(post) -> datetime:
-        created_at = getattr(post, 'created_at', None) or datetime.now()
+        created_at = getattr(post, 'created_at', None) or utc_now_naive()
         return created_at + timedelta(minutes=safety_publish_fallback_minutes())
 
     def haversine_distance_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -3800,7 +3799,7 @@ def create_app():
             return []
         if user_can_override_content_controls(user):
             return []
-        now = datetime.now(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
+        now = utc_now_naive()
         return (
             Post.query
             .options(selectinload(Post.meta))
@@ -3812,7 +3811,7 @@ def create_app():
         )
 
     def summarize_pending_safety_posts_for_user(user):
-        now = datetime.now(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
+        now = utc_now_naive()
         posts = pending_safety_posts_for_user(user)
         next_due_at = None
         needs_location_check = False
@@ -3927,7 +3926,7 @@ def create_app():
         return True
 
     def try_release_pending_safety_posts_for_user(user, current_lat=None, current_lng=None):
-        now = datetime.now(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
+        now = utc_now_naive()
         posts = pending_safety_posts_for_user(user)
         released = []
         distance_threshold = float(safety_publish_distance_meters())
@@ -3974,7 +3973,7 @@ def create_app():
         }
 
     def annotate_user_post_visibility_state(posts):
-        now = datetime.now(APP_LOCAL_TIMEZONE).replace(tzinfo=None)
+        now = utc_now_naive()
         for post in posts:
             post.can_delete = True
             post.is_pending = bool(getattr(post, 'publish_at', None) and getattr(post, 'publish_at') > now)
@@ -4010,7 +4009,7 @@ def create_app():
         """Determina si un post debe ser visible al público."""
         try:
             publish_at = getattr(post, 'publish_at', None)
-            if publish_at and publish_at > datetime.now():
+            if publish_at and publish_at > utc_now_naive():
                 return False
             meta = getattr(post, 'meta', None)
             if meta is None:
@@ -4023,7 +4022,7 @@ def create_app():
 
     def public_posts_query(query):
         """Filtra posts visibles (sin reportes o con show_public=True)."""
-        now = datetime.now()
+        now = utc_now_naive()
         return query.outerjoin(PostMeta, PostMeta.post_id == Post.id).filter(
             or_(
                 PostMeta.id.is_(None),
@@ -5761,7 +5760,7 @@ def create_app():
             country = capture_country or country
 
         # Programación de publicación
-        now = datetime.now()
+        now = utc_now_naive()
         publish_at = now
         if not user_can_override_content_controls(current_user):
             publish_at = now + timedelta(minutes=safety_publish_fallback_minutes())
@@ -5811,8 +5810,7 @@ def create_app():
             allow_comments = allow_comments_raw.lower() not in ('false', '0', 'no')
 
         location_visibility = normalize_location_visibility(
-            location_visibility_raw,
-            user_can_override_content_controls(current_user)
+            location_visibility_raw
         )
         initial_show_public = False if image_processing_queued and show_public else show_public
 
@@ -5937,7 +5935,7 @@ def create_app():
             if mode == 'delay':
                 flash('Publicación programada para hacerse pública en 15 min.', 'info')
             elif mode == 'schedule':
-                if publish_at > datetime.now():
+                if publish_at > utc_now_naive():
                     flash(f'Publicación programada para {publish_at.strftime("%d/%m/%Y %H:%M")}.', 'info')
                 else:
                     flash('Publicación creada', 'success')
@@ -6100,7 +6098,7 @@ def create_app():
             return jsonify({'comments': [], 'hidden_comments': []})
 
         is_public = (
-            (getattr(post_row, 'publish_at', None) is None or post_row.publish_at <= datetime.now())
+            (getattr(post_row, 'publish_at', None) is None or post_row.publish_at <= utc_now_naive())
             and (getattr(post_row, 'show_public', None) is None or bool(post_row.show_public))
         )
         if not is_public and (not current_user.is_authenticated or not user_can_review_private_content(current_user)):
@@ -6295,7 +6293,7 @@ def create_app():
             return jsonify({'error': 'Cuenta ya verificada.'}), 400
         req = get_or_create_verification(current_user)
         if not req.phone_verified_at:
-            return jsonify({'error': 'Verifica tu correo primero.'}), 400
+            return jsonify({'error': 'Verifica primero tu correo.'}), 400
         if not req.video_filename:
             return jsonify({'error': 'Sube tu video de verificación.'}), 400
         req.status = 'pending'
@@ -7194,7 +7192,7 @@ def create_app():
                 return jsonify({'error': 'No puedes enviar mensajes en esta sala.'}), 403
             if not getattr(room, 'messages_open', True):
                 if not user_has_permission(current_user, PERM_CHAT_ROOMS_OVERRIDE) and room.created_by != current_user.id:
-                    return jsonify({'error': 'Solo personal autorizado y la creadora pueden enviar mensajes en esta sala.'}), 403
+                    return jsonify({'error': 'Solo personal con autorización y la creadora pueden enviar mensajes en esta sala.'}), 403
 
             # Ensure participant exists (public rooms)
             participant = ChatParticipant.query.filter_by(user_id=current_user.id, room_id=room_id).first()
@@ -7392,7 +7390,7 @@ def create_app():
                 return jsonify({
                     'success': True,
                     'pending': True,
-                    'message': 'El administrador tiene que autorizar el chat que acabas de crear, esto puede tardar hasta 24 horas hábiles.'
+                    'message': 'Una administradora tiene que autorizar el chat que acabas de crear, esto puede tardar hasta 24 horas hábiles.'
                 })
 
             return jsonify({

@@ -291,64 +291,6 @@
     return points;
   }
 
-  function buildRouteMetrics(points) {
-    if (!Array.isArray(points) || !points.length) {
-      return { points: [], cumulative: [0], total: 0 };
-    }
-    const cumulative = [0];
-    let total = 0;
-    for (let index = 1; index < points.length; index += 1) {
-      total += getDistanceBetweenCoords(points[index - 1], points[index]);
-      cumulative.push(total);
-    }
-    return { points, cumulative, total };
-  }
-
-  function getPointAlongRoute(routeMetrics, progress) {
-    if (!routeMetrics?.points?.length) {
-      return DEFAULT_SAFETY_CENTER.slice();
-    }
-    if (routeMetrics.points.length === 1 || routeMetrics.total <= 0) {
-      return routeMetrics.points[0];
-    }
-    const target = clamp(progress, 0, 1) * routeMetrics.total;
-    for (let index = 1; index < routeMetrics.cumulative.length; index += 1) {
-      const segmentEnd = routeMetrics.cumulative[index];
-      if (segmentEnd >= target) {
-        const segmentStart = routeMetrics.cumulative[index - 1];
-        const segmentProgress = segmentEnd === segmentStart
-          ? 0
-          : (target - segmentStart) / (segmentEnd - segmentStart);
-        const from = routeMetrics.points[index - 1];
-        const to = routeMetrics.points[index];
-        return [
-          from[0] + ((to[0] - from[0]) * segmentProgress),
-          from[1] + ((to[1] - from[1]) * segmentProgress),
-        ];
-      }
-    }
-    return routeMetrics.points[routeMetrics.points.length - 1];
-  }
-
-  function getRouteSlice(routeMetrics, progress) {
-    if (!routeMetrics?.points?.length) return [];
-    if (routeMetrics.points.length === 1 || routeMetrics.total <= 0) {
-      return routeMetrics.points.slice();
-    }
-    const target = clamp(progress, 0, 1) * routeMetrics.total;
-    const slice = [routeMetrics.points[0]];
-    for (let index = 1; index < routeMetrics.cumulative.length; index += 1) {
-      const segmentEnd = routeMetrics.cumulative[index];
-      if (segmentEnd < target) {
-        slice.push(routeMetrics.points[index]);
-        continue;
-      }
-      slice.push(getPointAlongRoute(routeMetrics, progress));
-      break;
-    }
-    return slice;
-  }
-
   function sendCheckinWithGeo(endpoint, payload) {
     const nativeBridge = window.VioletaNativeBridge || null;
     const send = (lat = null, lng = null) => fetch(endpoint, {
@@ -424,7 +366,6 @@
       editingAvatarTone: 'violet',
       pendingDeleteContactId: null,
       timerId: null,
-      routeAnimationFrame: null,
       summaryAnchorNode: null,
       routePoints: [],
       routePollTimer: null,
@@ -499,16 +440,8 @@
         summaryMetricContacts: root.querySelector('#summaryMetricContacts'),
         summaryMetricExtra: root.querySelector('#summaryMetricExtra'),
         summaryModalBody: root.querySelector('#summaryModalBody'),
-        summaryRouteMap: root.querySelector('.summary-route-map'),
         summaryRouteLiveMap: root.querySelector('#summaryRouteLiveMap'),
         summaryRouteStatus: root.querySelector('#summaryRouteStatus'),
-        summaryRouteBase: root.querySelector('#summaryRouteBase'),
-        summaryRoutePath: root.querySelector('#summaryRoutePath'),
-        summaryRouteStart: root.querySelector('#summaryRouteStart'),
-        summaryRouteEnd: root.querySelector('#summaryRouteEnd'),
-        summaryRouteDot: root.querySelector('#summaryRouteDot'),
-        summaryRouteStartLabel: root.querySelector('#summaryRouteStartLabel'),
-        summaryRouteEndLabel: root.querySelector('#summaryRouteEndLabel'),
         contactEditorModal: root.querySelector('#contactEditorModal'),
         contactEditorClose: root.querySelector('#contactEditorClose'),
         contactEditorForm: root.querySelector('#contactEditorForm'),
@@ -1130,7 +1063,6 @@
         }
       });
       mapState.routeKey = '';
-      mapState.routeMetrics = null;
       mapState.bounds = null;
       mapState.hasInitialFit = false;
     }
@@ -1165,7 +1097,6 @@
         userMarker: null,
         destinationMarker: null,
         routeKey: '',
-        routeMetrics: null,
         bounds: null,
         hasInitialFit: false,
       };
@@ -1462,9 +1393,6 @@
             lineCap: 'round',
             lineJoin: 'round',
           }).addTo(mapState.map);
-          mapState.routeMetrics = buildRouteMetrics(routeLatLngs);
-        } else {
-          mapState.routeMetrics = null;
         }
 
         mapState.userMarker = window.L.marker(currentPoint, {
@@ -1812,59 +1740,6 @@
       }, 250);
     }
 
-    function placeRouteNode(node, point) {
-      if (!node || !runtime.dom.summaryRouteMap) return;
-      const scaleX = runtime.dom.summaryRouteMap.clientWidth / 320;
-      const scaleY = runtime.dom.summaryRouteMap.clientHeight / 180;
-      node.style.left = `${point.x * scaleX}px`;
-      node.style.top = `${point.y * scaleY}px`;
-    }
-
-    function animateRoute(totalLength) {
-      if (runtime.routeAnimationFrame) {
-        cancelAnimationFrame(runtime.routeAnimationFrame);
-      }
-      runtime.dom.summaryRouteDot?.classList.add('is-visible');
-      const startTime = performance.now();
-      const duration = 2400;
-
-      function step(now) {
-        const progress = Math.min((now - startTime) / duration, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        const point = runtime.dom.summaryRoutePath.getPointAtLength(totalLength * eased);
-        placeRouteNode(runtime.dom.summaryRouteDot, point);
-        if (progress < 1) {
-          runtime.routeAnimationFrame = requestAnimationFrame(step);
-        }
-      }
-
-      runtime.routeAnimationFrame = requestAnimationFrame(step);
-    }
-
-    function setRouteForSummary(routeStyle) {
-      const route = ROUTE_CONFIGS[routeStyle] || ROUTE_CONFIGS.office;
-      if (!runtime.dom.summaryRoutePath) {
-        return;
-      }
-      runtime.dom.summaryRouteBase?.setAttribute('d', route.summaryPath);
-      runtime.dom.summaryRoutePath?.setAttribute('d', route.summaryPath);
-      if (runtime.dom.summaryRouteStartLabel) runtime.dom.summaryRouteStartLabel.textContent = route.startLabel;
-      if (runtime.dom.summaryRouteEndLabel) runtime.dom.summaryRouteEndLabel.textContent = route.endLabel;
-
-      const totalLength = runtime.dom.summaryRoutePath.getTotalLength();
-      runtime.dom.summaryRoutePath.style.setProperty('--route-length', totalLength);
-      runtime.dom.summaryRoutePath.classList.remove('is-animating');
-      void runtime.dom.summaryRoutePath.getBoundingClientRect();
-      runtime.dom.summaryRoutePath.classList.add('is-animating');
-
-      const startPoint = runtime.dom.summaryRoutePath.getPointAtLength(0);
-      const endPoint = runtime.dom.summaryRoutePath.getPointAtLength(totalLength);
-      placeRouteNode(runtime.dom.summaryRouteStart, startPoint);
-      placeRouteNode(runtime.dom.summaryRouteEnd, endPoint);
-      placeRouteNode(runtime.dom.summaryRouteDot, startPoint);
-      animateRoute(totalLength);
-    }
-
     function setSummaryRouteStatus(copy, tone) {
       if (!runtime.dom.summaryRouteStatus) return;
       runtime.dom.summaryRouteStatus.textContent = copy;
@@ -2047,11 +1922,6 @@
     }
 
     function closeSummary(callback) {
-      if (runtime.routeAnimationFrame) {
-        cancelAnimationFrame(runtime.routeAnimationFrame);
-        runtime.routeAnimationFrame = null;
-      }
-      runtime.dom.summaryRouteDot?.classList.remove('is-visible');
       hideBackdropModal(runtime.dom.summaryModal, () => {
         clearSummaryRouteLayers();
         setSummaryRouteStatus('Cargando recorrido real...', null);

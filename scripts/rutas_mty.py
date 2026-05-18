@@ -14,7 +14,6 @@ import os
 import warnings
 
 import osmnx as ox
-import geopandas as gpd
 from shapely.geometry import LineString
 from scipy.spatial import cKDTree
 

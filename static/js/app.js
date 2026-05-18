@@ -887,14 +887,6 @@ function initReportCommentModal() {
 
 initReportCommentModal();
 
-function notifyCommentAction(message, type = 'info') {
-    if (typeof showAlert === 'function') {
-        showAlert(message, type);
-    } else {
-        alert(message);
-    }
-}
-
 function prefetchPostDetailComments() {
     const targets = document.querySelectorAll('.comments-section[data-prefetch-comments="true"][data-comments-loaded="false"]');
     if (!targets.length) return;
@@ -919,7 +911,7 @@ document.addEventListener('DOMContentLoaded', prefetchPostDetailComments);
 function renderAdminBadge(isSuperAdmin, sizeClass = 'admin-badge--xs') {
     if (!isSuperAdmin) return '';
     const cls = sizeClass ? ` ${sizeClass}` : '';
-    return `<span class="admin-badge${cls}" title="Admin verificado" aria-label="Admin verificado"><img src="/static/images/admin_badge.svg" alt="Admin"></span>`;
+    return `<span class="admin-badge${cls}" title="Admin verificada" aria-label="Admin verificada"><img src="/static/images/admin_badge.svg" alt="Admin"></span>`;
 }
 
 function escapeHtml(text) {
@@ -947,71 +939,6 @@ function getRelativeTime(dateInput) {
 
     return 'Hace tiempo';
 }
-
-// Función para abrir modal de compartir
-function openShareModal(postId) {
-    const modal = document.getElementById('shareModal');
-    const postIdInput = document.getElementById('sharePostId');
-    const shareForm = document.getElementById('shareForm');
-
-    if (!modal || !postIdInput || !shareForm) {
-        return;
-    }
-
-    postIdInput.value = postId;
-    shareForm.reset();
-
-    const bootstrapModal = new bootstrap.Modal(modal);
-    bootstrapModal.show();
-}
-
-// Manejar envío del formulario de compartir
-document.addEventListener('DOMContentLoaded', function () {
-    const shareSubmitBtn = document.getElementById('shareSubmit');
-
-    if (shareSubmitBtn) {
-        shareSubmitBtn.addEventListener('click', async function () {
-            const form = document.getElementById('shareForm');
-            const postId = document.getElementById('sharePostId').value;
-            if (!form || !postId) {
-                return;
-            }
-
-            const formData = new FormData(form);
-            const csrfToken = getCsrfToken();
-            if (csrfToken) {
-                formData.set('csrf_token', csrfToken);
-            }
-
-            try {
-                const response = await fetch(`/share/${postId}`, {
-                    method: 'POST',
-                    headers: buildHeaders(),
-                    body: formData
-                });
-
-                if (handleAuthRedirect(response)) {
-                    return;
-                }
-
-                const data = await response.json();
-                if (!response.ok || !data.ok) {
-                    showAlert(data.error || 'No se pudo compartir la publicación.', 'danger');
-                    return;
-                }
-
-                const modal = bootstrap.Modal.getInstance(document.getElementById('shareModal'));
-                if (modal) {
-                    modal.hide();
-                }
-                showAlert('Publicación compartida exitosamente', 'success');
-            } catch (error) {
-                console.error('Error sharing post:', error);
-                showAlert('Ocurrió un error al compartir la publicación.', 'danger');
-            }
-        });
-    }
-});
 
 // Función para mostrar alertas temporales
 function showAlert(message, type = 'info') {
@@ -1109,7 +1036,7 @@ function showAlert(message, type = 'info') {
             row.appendChild(img); row.appendChild(col); a.appendChild(row); return a;
         }
 
-        if (hasUsers) { box.appendChild(sectionTitle('Usuarios')); data.users.forEach(u => box.appendChild(itemUser(u))); }
+        if (hasUsers) { box.appendChild(sectionTitle('Usuarias')); data.users.forEach(u => box.appendChild(itemUser(u))); }
         if (hasPosts) { box.appendChild(sectionTitle('Reportes')); data.posts.forEach(p => box.appendChild(itemPost(p))); }
         box.style.display = 'block';
     }

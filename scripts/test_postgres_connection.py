@@ -56,7 +56,7 @@ def main() -> int:
     print('Conexion OK')
     print(f'URL: {redact_url(url)}')
     print(f'Base: {db_name}')
-    print(f'Usuario: {user_name}')
+    print(f'Usuaria: {user_name}')
     print(f'Version: {version}')
     print(f'SSL: {"on" if ssl else "off"}')
     return 0

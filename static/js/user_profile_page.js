@@ -33,10 +33,6 @@ function toggleMuteUser(userId, mute) {
 window.toggleBlockUser = toggleBlockUser;
 window.toggleMuteUser = toggleMuteUser;
 
-function inviteBetaFormatMessage(code) {
-    return `Te invito a Violeta Beta, una comunidad privada para mujeres. Usa este código al registrarte: ${code}`;
-}
-
 function copyInviteText(text, statusEl) {
     const value = String(text || '').trim();
     if (!value) return Promise.resolve(false);

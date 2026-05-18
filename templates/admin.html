@@ -167,10 +167,10 @@
             <div class="bulk-toolbar admin-table-bulk-toolbar">
                 <label class="bulk-check">
                     <input type="checkbox" id="selectAllUsers">
-                    <span>Seleccionar todos</span>
+                    <span>Seleccionar todas</span>
                 </label>
-                <button class="btn btn-danger btn-sm" onclick="bulkDeleteUsers()">Eliminar seleccionados</button>
-                <span class="bulk-count" id="usersSelectedCount">0 seleccionados</span>
+                <button class="btn btn-danger btn-sm" onclick="bulkDeleteUsers()">Eliminar seleccionadas</button>
+                <span class="bulk-count" id="usersSelectedCount">0 seleccionadas</span>
             </div>
 
             <div class="table-responsive">
@@ -232,7 +232,7 @@
                                 {% if user.password_recovery_requested_at %}
                                 <span class="admin-status-pill is-recovery">Recuperación</span>
                                 {% elif user.username == 'admin' %}
-                                <span class="admin-status-pill is-active">Activo</span>
+                                <span class="admin-status-pill is-active">Activa</span>
                                 {% elif user.post_count|default(0) > 0 %}
                                 <span class="admin-status-pill is-mid">Con publicaciones</span>
                                 {% else %}
@@ -309,7 +309,7 @@
                     <i class="fas fa-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
                     <input type="text" id="postSearch"
                         class="form-control ps-5 rounded-pill bg-surface border-0 text-white"
-                        placeholder="Buscar por autor o descripción..." onkeyup="filterPosts()">
+                        placeholder="Buscar por autora o descripción..." onkeyup="filterPosts()">
                 </div>
                 <button class="btn btn-secondary rounded-circle circle-icon-btn" onclick="location.reload()"
                     title="Refrescar">
@@ -1107,7 +1107,7 @@
                             {% if not room.is_approved %}
                             <span class="badge bg-warning text-dark chat-room-status-badge">Pendiente</span>
                             {% else %}
-                            <span class="badge bg-success chat-room-status-badge">Activo</span>
+                            <span class="badge bg-success chat-room-status-badge">Activa</span>
                             {% endif %}
                             <button class="btn btn-danger btn-sm rounded-pill"
                                 onclick="deleteChatRoom('{{ room.id }}')">

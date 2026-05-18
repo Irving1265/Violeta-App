@@ -790,7 +790,7 @@
                     const badge = roomRow?.querySelector('.chat-room-status-badge');
                     if (badge) {
                         badge.className = 'badge bg-success chat-room-status-badge';
-                        badge.textContent = 'Activo';
+                        badge.textContent = 'Activa';
                     }
                     syncPendingChatRoomsState();
                     if (!pendingItem && !roomRow) {
@@ -1370,7 +1370,8 @@
         items.forEach((el) => updateBulkSelectionVisualState(el));
 
         if (countEl) {
-            countEl.textContent = `${checkedCount} seleccionados`;
+            const selectedWord = countEl.id === 'usersSelectedCount' ? 'seleccionadas' : 'seleccionados';
+            countEl.textContent = `${checkedCount} ${selectedWord}`;
         }
 
         if (!selectAll) {

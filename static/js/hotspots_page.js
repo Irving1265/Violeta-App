@@ -71,7 +71,6 @@
     let userLocationAccuracyCircle = null;
     let userCurrentPoint = null;
     const HOTSPOTS_SAFE_TRIP_ETA_MINUTES = 60;
-    const applyMexicoLimits = function () { /* límite de zoom desactivado temporalmente */ };
     function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
     function rememberBaseStyle(layer) {
       if (!layer || layer.__violetaBaseReady) return;
@@ -935,11 +934,6 @@
         } catch (_) { updateSpeedReadout(); }
       }, _ => { }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 });
     }
-    function stopSpeedWatch() {
-      if (speedWatchId) { navigator.geolocation.clearWatch(speedWatchId); speedWatchId = null; }
-      lastFix = null; speedWindow = []; liveSpeedMps = null; updateSpeedReadout();
-    }
-
     // Punto de inicio por geolocalización (si está disponible)
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(function (pos) {

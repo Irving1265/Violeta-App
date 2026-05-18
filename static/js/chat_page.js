@@ -83,7 +83,7 @@
 	            if (data.room_id == currentRoomId) {
 	                const container = document.querySelector('.chat-messages');
 	                if (container) {
-	                    container.innerHTML = '<div class="chat-placeholder"><p>El chat fue vaciado por el administrador.</p></div>';
+	                    container.innerHTML = '<div class="chat-placeholder"><p>El chat fue vaciado por una administradora.</p></div>';
 	                }
 	                if (currentRoomData) {
 	                    currentRoomData.last_message = null;
@@ -583,7 +583,7 @@
                             if (editModal) editModal.hide();
                             const container = document.querySelector('.chat-messages');
                             if (container) {
-                                container.innerHTML = '<div class="chat-placeholder"><p>El chat fue vaciado por el administrador.</p></div>';
+                                container.innerHTML = '<div class="chat-placeholder"><p>El chat fue vaciado por una administradora.</p></div>';
                             }
                             if (currentRoomData) {
                                 currentRoomData.last_message = null;
@@ -676,7 +676,7 @@
             if (!currentRoomId) {
                 input.placeholder = 'Selecciona una sala para escribir...';
             } else if (!canPost) {
-                input.placeholder = 'Solo admin y creador pueden enviar mensajes en esta sala';
+                input.placeholder = 'Solo admins y la creadora pueden enviar mensajes en esta sala';
             } else {
                 input.placeholder = 'Escribe un mensaje...';
             }
@@ -1103,7 +1103,7 @@
         editBtn.classList.toggle('d-none', !canEdit);
 
         if (currentRoomData.messages_open === false) {
-            descEl.textContent = `${currentRoomData.description || 'Sin descripción'} · Solo admin y creador pueden enviar mensajes`;
+            descEl.textContent = `${currentRoomData.description || 'Sin descripción'} · Solo admins y la creadora pueden enviar mensajes`;
         }
     }
 
@@ -1180,7 +1180,7 @@
         if (!container) return;
 
         if (messages.length === 0) {
-            container.innerHTML = '<div class="chat-placeholder"><p>Esta sala no tiene mensajes aún. ¡Sé el primero en escribir!</p></div>';
+            container.innerHTML = '<div class="chat-placeholder"><p>Esta sala no tiene mensajes aún. ¡Sé la primera en escribir!</p></div>';
             return;
         }
 
@@ -1218,7 +1218,7 @@
             return;
         }
         if (!currentRoomId) {
-            alert('Selecciona una sala primero');
+            alert('Selecciona primero una sala');
             return;
         }
 
@@ -1442,9 +1442,9 @@
                 bootstrap.Modal.getInstance(document.getElementById('createRoomModal')).hide();
                 if (data.pending) {
                     if (typeof showAlert === 'function') {
-                        showAlert(data.message || 'El administrador debe aprobar la sala.', 'info');
+                        showAlert(data.message || 'Una administradora debe aprobar la sala.', 'info');
                     } else {
-                        alert(data.message || 'El administrador debe aprobar la sala.');
+                        alert(data.message || 'Una administradora debe aprobar la sala.');
                     }
                 }
                 loadChatRooms({ force: true });
