@@ -1,18 +1,35 @@
 Violeta es una app de seguridad comunitaria para mujeres. La app permite crear y consultar reportes de zonas inseguras, comentar, usar chat, editar perfil, acceder al centro de seguridad y borrar la cuenta desde la app.
 
+Violeta es una plataforma comunitaria de reportes ciudadanos. No esta afiliada a ninguna institucion gubernamental, autoridad publica, policia, proteccion civil ni servicio de emergencia. La informacion publicada por las usuarias es de caracter comunitario y no reemplaza reportes oficiales. En caso de emergencia, las usuarias deben contactar a los servicios oficiales correspondientes de su localidad.
+
+Arquitectura y valor movil:
+
+Violeta esta construida con Capacitor y ofrece una experiencia movil disenada para reportes ciudadanos, incluyendo uso de ubicacion, camara/galeria, mapa interactivo, gestion de cuenta, moderacion de contenido y eliminacion de cuenta. La app se conecta a un backend en Render para sincronizar reportes comunitarios, comentarios, perfiles y herramientas de seguridad.
+
 Permisos usados durante revision:
 
 - Camara: capturar evidencia de reportes y completar verificacion de identidad cuando aplique.
 - Fotos: adjuntar imagenes a reportes o perfil.
 - Ubicacion: mostrar reportes cercanos, filtrar por mi zona y usar funciones de seguridad.
 - Microfono: solo si la usuaria graba video de verificacion o evidencia.
-- Notificaciones: alertas relevantes de seguridad, mensajes y seguimiento.
+- Notificaciones: mensajes y seguimiento de reportes cuando la funcionalidad este habilitada. No son necesarias para probar los flujos principales.
 
 Privacidad:
 
 - Politica publica: https://violeta-app.onrender.com/privacy
 - Borrado de cuenta: https://violeta-app.onrender.com/account/delete
 
-Cuenta demo para App Review:
+Cuenta de prueba para revision:
 
-Crear una cuenta verificada de prueba antes de subir el build y completar aqui usuario, password y cualquier instruccion necesaria para entrar al feed. No subas credenciales reales a GitHub.
+Las credenciales de la cuenta demo verificada se agregan directamente en App Store Connect o Play Console, no en GitHub. La cuenta debe permitir probar:
+
+- Inicio de sesion
+- Publicacion de reportes
+- Visualizacion de feed y mapa
+- Reporte de contenido
+- Comentarios y chat
+- Edicion de perfil
+- Solicitud de eliminacion de cuenta
+
+Ruta para eliminar cuenta dentro de la app:
+Perfil > Editar perfil > Eliminar cuenta

@@ -12,3 +12,5 @@ Con Violeta puedes:
 Violeta prioriza privacidad y seguridad. La app evita publicar informacion sensible de forma inmediata cuando detecta riesgo, permite borrar la cuenta desde la app y mantiene una politica de privacidad publica.
 
 La comunidad esta enfocada en construir informacion util para que las usuarias tomen mejores decisiones al moverse por la ciudad.
+
+Violeta es una plataforma comunitaria de reportes ciudadanos. No esta afiliada a ninguna institucion gubernamental, autoridad publica ni servicio de emergencia. La informacion publicada por las usuarias es de caracter comunitario y no reemplaza reportes oficiales. En caso de emergencia, llama a los servicios correspondientes de tu localidad.

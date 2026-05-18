@@ -28,7 +28,7 @@ Usa esta checklist cuando `npm run doctor` no tenga errores y antes de crear bui
 - Microfono: solo cuando se graba video de verificacion o evidencia.
 - Fotos: adjuntar imagenes a reportes y perfil.
 - Ubicacion: reportes cercanos, rutas seguras y emergencia.
-- Notificaciones: alertas relevantes de seguridad, mensajes y seguimiento.
+- Notificaciones: mensajes y seguimiento de reportes solo cuando la funcionalidad este habilitada.
 - Si una usuaria niega un permiso, la app debe explicar como continuar o reintentar.
 
 ## 4. Privacidad en tiendas
@@ -37,6 +37,7 @@ Usa esta checklist cuando `npm run doctor` no tenga errores y antes de crear bui
 - Play Console: completa Data Safety y responde las preguntas de borrado de cuenta.
 - Declara que no hay tracking si no se agregan ads, data brokers ni SDKs de tracking.
 - Mantén App Privacy y Data Safety actualizados si agregas analytics, ads, crash reporting o nuevos SDKs.
+- Incluye el disclaimer: Violeta no esta afiliada a autoridades ni servicios de emergencia y no reemplaza reportes oficiales.
 
 ## 5. Signing
 
@@ -64,7 +65,9 @@ Usa esta checklist cuando `npm run doctor` no tenga errores y antes de crear bui
 - Capturas iPhone: login, feed, crear reporte, permisos, seguridad, perfil y borrado de cuenta.
 - Capturas Android: mismas pantallas.
 - Cuenta demo verificada para Apple Review.
-- Notas de revision explicando que Violeta usa camara, ubicacion y notificaciones para seguridad comunitaria.
+- Notas de revision explicando que Violeta usa camara, ubicacion y reportes comunitarios para seguridad contextual.
+- Notas de revision explicando que la app usa Capacitor, capacidades moviles reales y backend en Render.
+- Credenciales demo agregadas solo en App Store Connect o Play Console, nunca en GitHub.
 - Release notes cortas y no promocionales.
 - Textos de tienda validados con `cd mobile && npm run store:check`.
 

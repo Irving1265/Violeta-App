@@ -119,6 +119,7 @@ npm run cap:open:ios
 - Categoria Android sugerida: Social o Lifestyle.
 - Edad: revisar con las respuestas de contenido sensible, ubicacion y comunidad generada por usuarias.
 - Demo account: prepara una cuenta verificada para revision de Apple si la app requiere login.
+- Disclaimer: Violeta no esta afiliada a autoridades, policia, proteccion civil ni servicios de emergencia; no reemplaza reportes oficiales.
 
 Los textos iniciales viven en:
 
@@ -179,9 +180,11 @@ Documentos base para llenar formularios:
 ## Riesgos de revision
 
 - Una app que solo carga una web puede ser rechazada si no aporta experiencia movil suficiente. Violeta debe apoyarse en capacidades nativas reales: camara, ubicacion, notificaciones, seguridad y flujo de emergencia.
+- Mientras se use `MOBILE_WEB_URL`, las notas de revision deben explicar que Violeta usa Capacitor, capacidades moviles reales y un backend en Render para sincronizar datos comunitarios.
 - Como hay cuentas de usuaria, las tiendas esperan borrado de cuenta y datos. Esto debe estar visible dentro de la app.
 - Camara, ubicacion, fotos y notificaciones deben tener textos de permiso claros y coincidir con la politica de privacidad.
 - La app debe funcionar bien en telefono con red lenta; no basta con que la web funcione en desktop.
+- No prometas alertas oficiales, seguridad garantizada ni emergencias en tiempo real si no existe integracion oficial real.
 
 ## Referencias oficiales
 

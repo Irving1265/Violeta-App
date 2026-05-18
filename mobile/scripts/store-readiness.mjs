@@ -50,7 +50,10 @@ readRequiredText('store/google-play/full-description.es-MX.txt', { minLength: 50
 readRequiredText('store/google-play/release-notes.es-MX.txt', { minLength: 20, maxLength: 500 });
 readRequiredText('store/app-store/subtitle.es-MX.txt', { minLength: 10, maxLength: 30 });
 readRequiredText('store/app-store/promotional-text.es-MX.txt', { minLength: 20, maxLength: 170 });
-readRequiredText('store/app-store/review-notes.es-MX.txt', { minLength: 120, maxLength: 4000 });
+const reviewNotes = readRequiredText('store/app-store/review-notes.es-MX.txt', {
+  minLength: 120,
+  maxLength: 4000,
+});
 
 const privacyAnswers = readRequiredDoc('docs/app-store-privacy-answers.md');
 const dataSafety = readRequiredDoc('docs/google-play-data-safety.md');
@@ -64,6 +67,12 @@ if (!/No tracking/i.test(privacyAnswers)) {
 }
 if (!/Account deletion/i.test(dataSafety) && !/borrado de cuenta/i.test(dataSafety)) {
   addIssue('warning', 'data_safety_deletion_not_explicit', 'Google Play Data Safety debe mencionar borrado de cuenta.');
+}
+if (reviewNotes && (!/Capacitor/i.test(reviewNotes) || !/Render/i.test(reviewNotes))) {
+  addIssue('warning', 'review_notes_mobile_architecture_missing', 'Las notas de revision deberian explicar Capacitor y backend en Render.');
+}
+if (reviewNotes && !/camara|galeria|ubicacion|mapa|moderacion|eliminacion/i.test(reviewNotes)) {
+  addIssue('warning', 'review_notes_mobile_value_missing', 'Las notas de revision deberian explicar capacidades moviles reales.');
 }
 
 console.log('Violeta Store Readiness');
@@ -79,4 +88,3 @@ if (issues.length) {
 if (issues.some((issue) => issue.level === 'error')) {
   process.exit(1);
 }
-
