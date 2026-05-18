@@ -106,6 +106,9 @@ Android genera un APK debug con:
 npm run build:android:debug
 ```
 
+Ese comando usa `scripts/run-gradle.mjs` para seleccionar Java 11+ automaticamente: en CI respeta
+`JAVA_HOME` y en macOS puede usar el JBR incluido en Android Studio si tu terminal apunta a Java 8.
+
 Android genera el bundle de tienda con:
 
 ```bash
