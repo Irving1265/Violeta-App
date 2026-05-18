@@ -7,6 +7,7 @@
     "doctor": "node scripts/doctor.mjs",
     "doctor:strict": "node scripts/doctor.mjs --strict",
     "store:check": "node scripts/store-readiness.mjs",
+    "store:package": "npm run store:check && node scripts/export-store-package.mjs",
     "build:web": "node scripts/build-fallback.mjs",
     "cap:add:ios": "npm run build:web && npx cap add ios",
     "cap:add:android": "npm run build:web && npx cap add android",

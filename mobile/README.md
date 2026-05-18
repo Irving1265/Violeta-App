@@ -57,6 +57,7 @@ npm install
 npm run doctor
 npm run doctor:strict
 npm run store:check
+npm run store:package
 npm run cap:add:ios
 npm run cap:add:android
 npm run cap:sync
@@ -87,10 +88,15 @@ MOBILE_HEALTH_TIMEOUT_MS=30000 MOBILE_HEALTH_RETRIES=4 npm run doctor:strict
 6. Abre Android Studio con `npm run cap:open:android`.
 7. Corre la checklist de QA movil en `docs/mobile-qa-checklist.md`.
 8. Corre `npm run store:check`.
-9. Corre la checklist de tiendas en `docs/mobile-store-release-checklist.md`.
-10. Prepara capturas con `docs/mobile-screenshot-plan.md`.
-11. Configura signing de Android, Team ID de iOS, Push Notifications y App Groups si aplica.
-12. Sube el build a TestFlight y crea una prueba interna en Google Play.
+9. Genera el paquete local de tienda con `npm run store:package`.
+10. Corre la checklist de tiendas en `docs/mobile-store-release-checklist.md`.
+11. Prepara capturas con `docs/mobile-screenshot-plan.md`.
+12. Configura signing de Android, Team ID de iOS, Push Notifications y App Groups si aplica.
+13. Sube el build a TestFlight y crea una prueba interna en Google Play.
+
+`store:package` crea `mobile/build/store-submission/` con metadata, documentos de privacidad y un
+resumen tecnico listo para revisar antes de entrar a App Store Connect o Play Console. Ese directorio
+es generado y no se sube a git.
 
 ## Validacion de builds nativos
 

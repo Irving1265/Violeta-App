@@ -64,6 +64,10 @@ jobs:
         working-directory: mobile
         run: npm run store:check
 
+      - name: Export store package
+        working-directory: mobile
+        run: npm run store:package
+
       - name: Run mobile doctor
         working-directory: mobile
         run: npm run doctor

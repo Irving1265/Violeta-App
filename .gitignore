@@ -45,6 +45,7 @@ mobile/android/keystore.properties
 mobile/android/*.jks
 mobile/android/*.keystore
 mobile/android/app/build/
+mobile/build/
 mobile/ios/App/Pods/
 mobile/ios/App/App/public/
 mobile/ios/App/DerivedData/

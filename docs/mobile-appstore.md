@@ -132,6 +132,16 @@ cd mobile
 npm run store:check
 ```
 
+Tambien puedes exportar un paquete local con metadata, documentos de privacidad y resumen tecnico:
+
+```bash
+cd mobile
+npm run store:package
+```
+
+El paquete queda en `mobile/build/store-submission/`. Es un artefacto generado para revision interna,
+por eso no se sube a git.
+
 ## Privacidad y datos para tiendas
 
 Declara datos segun el uso real de Violeta:
