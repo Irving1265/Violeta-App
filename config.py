@@ -66,7 +66,10 @@ class Config:
     )
 
     # Configuración de archivos
-    UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+    UPLOAD_FOLDER = (
+        os.environ.get('UPLOAD_FOLDER')
+        or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+    )
     MAX_CONTENT_LENGTH = 32 * 1024 * 1024  # 32MB máximo
     # Extensiones permitidas (añadimos formatos comunes de móviles)
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif'}

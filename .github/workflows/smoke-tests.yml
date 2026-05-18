@@ -22,8 +22,15 @@ jobs:
 
     env:
       PYTHONUNBUFFERED: "1"
+      PYTHON_DOTENV_DISABLED: "1"
       BACKGROUND_JOBS_INLINE: "true"
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      APP_ENV: "ci"
+      SECRET_KEY: "violeta-ci-critical-checks-secret"
+      DATABASE_URL: "sqlite:///${{ github.workspace }}/instance/critical_checks.sqlite3"
+      DATABASE_REQUIRE_SSL: "false"
+      UPLOAD_BACKEND: "local"
+      UPLOAD_FOLDER: "${{ github.workspace }}/static/uploads"
 
     steps:
       - name: Check out repository
@@ -42,6 +49,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
+
+      - name: Prepare CI runtime folders
+        run: mkdir -p instance static/uploads
 
       - name: Run critical checks
         run: python scripts/ci_checks.py
