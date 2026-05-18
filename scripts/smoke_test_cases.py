@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import importlib
+import importlib.util
 import hashlib
 import json
 import os
@@ -497,6 +498,53 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertEqual(invalid.exit_code, 1)
         self.assertIn('invalid_upload_backend', invalid.output)
         self.assertIn('invalid_redis_url', invalid.output)
+
+    def test_production_env_audit_guides_render_storage_and_mail_config(self):
+        spec = importlib.util.spec_from_file_location(
+            'production_env_audit',
+            PROJECT_ROOT / 'scripts' / 'production_env_audit.py',
+        )
+        self.assertIsNotNone(spec)
+        audit_module = importlib.util.module_from_spec(spec)
+        assert spec and spec.loader
+        spec.loader.exec_module(audit_module)
+
+        incomplete = audit_module.audit({
+            'APP_ENV': 'production',
+            'SECRET_KEY': 'violeta-secret-produccion-larga',
+            'DATABASE_URL': 'postgresql://violeta:secret@db.internal/violeta',
+            'PREFERRED_URL_SCHEME': 'https',
+            'SESSION_COOKIE_SECURE': 'true',
+            'REMEMBER_COOKIE_SECURE': 'true',
+            'UPLOAD_BACKEND': 'local',
+            'MAIL_DELIVERY_METHOD': '',
+        })
+        incomplete_codes = {issue.get('code') for issue in incomplete.get('issues') or []}
+        self.assertEqual(incomplete.get('status'), 'error')
+        self.assertIn('local_uploads', incomplete_codes)
+        self.assertIn('mail_not_configured', incomplete_codes)
+
+        complete = audit_module.audit({
+            'APP_ENV': 'production',
+            'SECRET_KEY': 'violeta-produccion-llave-larga-aleatoria',
+            'DATABASE_URL': 'postgresql://violeta:secret@db.internal/violeta',
+            'PREFERRED_URL_SCHEME': 'https',
+            'SESSION_COOKIE_SECURE': 'true',
+            'REMEMBER_COOKIE_SECURE': 'true',
+            'UPLOAD_BACKEND': 'supabase',
+            'SUPABASE_URL': 'https://abc.supabase.co',
+            'SUPABASE_SERVICE_ROLE_KEY': 'service-role-secret-value',
+            'SUPABASE_STORAGE_BUCKET': 'uploads',
+            'MAIL_DELIVERY_METHOD': 'resend',
+            'RESEND_API_KEY': 're_secret_value',
+            'RESEND_FROM': 'Violeta <no-reply@example.com>',
+            'REDIS_URL': 'rediss://cache.example.com:6379/0',
+        })
+        self.assertEqual(complete.get('status'), 'ok')
+        redacted = complete.get('redacted_config') or {}
+        self.assertNotIn('service-role-secret-value', json.dumps(redacted))
+        self.assertNotIn('re_secret_value', json.dumps(redacted))
+        self.assertNotIn('postgresql://violeta:secret@db.internal/violeta', json.dumps(redacted))
 
     def test_security_overlay_styles_load_only_when_needed(self):
         verified_id = self.create_user('overlay_verificada', verified=True)

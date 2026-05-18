@@ -75,6 +75,14 @@ Notas especificas para Render:
 - No cambies el comando a `gunicorn app:app` sin configurar WebSockets; este repo usa Flask-SocketIO y actualmente esta preparado para arrancar con `python app.py`.
 - Redis puede ser Render Key Value, Upstash u otro proveedor. Si no tienes Redis, la app puede correr, pero la cache no sera compartida entre instancias.
 
+Para cerrar especificamente los warnings `local_uploads` y `mail_not_configured`, sigue
+`docs/render-env-setup.md` y valida antes de desplegar:
+
+```bash
+python scripts/production_env_audit.py --env-file .env.production
+flask --app app:app preflight-check --strict
+```
+
 ## Variables Minimas Requeridas
 
 ### Seguridad
