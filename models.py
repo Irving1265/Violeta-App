@@ -25,11 +25,12 @@ class User(UserMixin, db.Model):
     profile_pic = db.Column(db.String(255), nullable=True)
     bio = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    is_verified = db.Column(db.Boolean, default=True)
+    is_verified = db.Column(db.Boolean, default=False)
+    verification_status = db.Column(db.String(32), default='unverified', nullable=False)
     verified_at = db.Column(db.DateTime)
-    verification_method = db.Column(db.String(32))
-    invited_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    invite_attested_at = db.Column(db.DateTime)
+    rejection_reason = db.Column(db.Text)
+    suspended_at = db.Column(db.DateTime)
+    trial_location_views_limit = db.Column(db.Integer, default=3)
     force_password_change = db.Column(db.Boolean, default=False)
     password_recovery_requested_at = db.Column(db.DateTime)
     abuse_strikes = db.Column(db.Integer, default=0)
@@ -89,25 +90,6 @@ class User(UserMixin, db.Model):
         return f'<User {self.username}>'
 
 
-class InviteCode(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String(32), unique=True, nullable=False, index=True)
-    created_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    used_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    status = db.Column(db.String(20), default='active')  # active, used, revoked, expired
-    max_uses = db.Column(db.Integer, default=1)
-    use_count = db.Column(db.Integer, default=0)
-    expires_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    used_at = db.Column(db.DateTime)
-
-    creator = db.relationship('User', foreign_keys=[created_by_user_id], backref=db.backref('created_invite_codes', lazy=True))
-    used_by = db.relationship('User', foreign_keys=[used_by_user_id], backref=db.backref('accepted_invite_codes', lazy=True))
-
-    def __repr__(self):
-        return f'<InviteCode {self.code}:{self.status}>'
-
-
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     caption = db.Column(db.Text)
@@ -145,6 +127,24 @@ class Post(db.Model):
 
     def __repr__(self):
         return f'<Post {self.id}>'
+
+
+class LocationViewAudit(db.Model):
+    __tablename__ = 'location_view_audit'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    viewed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    latitude_was_revealed = db.Column(db.Boolean, default=False, nullable=False)
+    longitude_was_revealed = db.Column(db.Boolean, default=False, nullable=False)
+
+    user = db.relationship('User', backref=db.backref('location_view_audits', lazy=True, cascade='all, delete-orphan'))
+    post = db.relationship('Post', backref=db.backref('location_view_audits', lazy=True, cascade='all, delete-orphan'))
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'post_id', name='uq_location_view_user_post'),
+    )
 
 
 class Tag(db.Model):
@@ -521,11 +521,7 @@ class VerificationRequest(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     phone = db.Column(db.String(20))
     phone_verified_at = db.Column(db.DateTime)
-    otp_code = db.Column(db.String(10))
-    otp_expires_at = db.Column(db.DateTime)
-    video_filename = db.Column(db.String(255))
     status = db.Column(db.String(20), default='draft')  # draft, pending, approved, rejected
-    liveness_phrase = db.Column(db.String(128))
     admin_notes = db.Column(db.Text)
     reviewed_at = db.Column(db.DateTime)
     reviewed_by = db.Column(db.Integer, db.ForeignKey('user.id'))

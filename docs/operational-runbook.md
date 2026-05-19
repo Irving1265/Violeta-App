@@ -37,7 +37,7 @@ El resultado esperado es `status: ok`. Si hay `errors`, no despliegues.
 Warnings aceptables temporalmente:
 
 - `local_uploads` solo en desarrollo local. En produccion usa storage persistente.
-- `mail_not_configured` solo si todavia no se usan OTP, recuperacion o emails reales.
+- `mail_not_configured` solo si todavia no se usan recuperacion de contraseña o emails reales.
 - `redis_not_configured` solo si el volumen es bajo y aceptas cache/local workers limitados.
 
 ## Variables Criticas
@@ -50,7 +50,7 @@ Confirma que produccion tenga configurado:
 - `UPLOAD_BACKEND` segun storage real, no disco efimero si la plataforma lo borra.
 - `REDIS_URL` si hay mas de una instancia, workers background o cache compartida.
 - `SESSION_COOKIE_SECURE=true` cuando se sirve por HTTPS.
-- Configuracion de correo si hay recuperacion, invitaciones u OTP.
+- Configuracion de correo si hay recuperacion de contraseña o mensajes transaccionales.
 
 Nunca pegues valores reales de secretos en issues, logs, screenshots ni commits.
 
@@ -176,4 +176,3 @@ Un cambio puede cerrarse cuando:
 - `git diff --check` no reporta whitespace.
 - La pantalla afectada fue revisada en telefono y web.
 - El cambio no introduce secretos, datos reales ni logs sensibles.
-

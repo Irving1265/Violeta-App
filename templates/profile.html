@@ -22,6 +22,7 @@
               <span class="profile-username-main">
                 <span class="profile-username-text">@{{ user.username }}</span>
                 {% if user_has_staff_badge(user) %}<span class="admin-badge admin-badge--profile" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+                {% if viewer_is_self and not user_is_verified %}<span class="unverified-account-badge" title="Acceso limitado" aria-label="Acceso limitado"><i class="fas fa-user-clock"></i> No verificada</span>{% endif %}
               </span>
               {% if profile_level > 0 %}
               <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if profile_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if profile_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if profile_level >= 2 else 'Usuaria con un strike' }}">
@@ -79,7 +80,18 @@
 
   <div class="profile-content-layout">
     <aside class="profile-side-stack" aria-label="Contexto del perfil">
-      {% include 'partials/invitations_beta_card.html' %}
+      {% if viewer_is_self and not user_is_verified %}
+      <section class="profile-trust-card profile-trust-card--limited">
+        <div class="profile-trust-card__icon">
+          <i class="fas fa-user-clock"></i>
+        </div>
+        <div>
+          <h3>Cuenta no verificada</h3>
+          <p>Tu acceso es limitado para proteger a la comunidad. Verifica tu cuenta para publicar, comentar y usar el chat.</p>
+          <a href="{{ url_for('verify_identity') }}" class="btn btn-primary btn-sm mt-2">Verificar mi cuenta</a>
+        </div>
+      </section>
+      {% endif %}
     </aside>
 
     <section class="profile-feed-panel" aria-label="Publicaciones">

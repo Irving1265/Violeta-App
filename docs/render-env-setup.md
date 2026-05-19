@@ -117,5 +117,5 @@ En producción debe quedar sin errores. Warnings aceptables dependen del caso, p
 1. Guarda variables en Render.
 2. Ejecuta `Manual Deploy > Deploy latest commit`.
 3. Revisa `/healthz`.
-4. Revisa logs de Render al crear publicación, subir avatar, pedir OTP y recuperar contraseña.
+4. Revisa logs de Render al crear publicación, subir avatar y recuperar contraseña.
 5. Corre el flujo real en teléfono: login, feed, crear publicación, comentar, reportar, chat y borrar cuenta.

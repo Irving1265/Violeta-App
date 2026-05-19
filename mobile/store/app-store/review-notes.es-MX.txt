@@ -11,7 +11,7 @@ Permisos usados durante revision:
 - Camara: capturar evidencia de reportes y completar verificacion de identidad cuando aplique.
 - Fotos: adjuntar imagenes a reportes o perfil.
 - Ubicacion: mostrar reportes cercanos, filtrar por mi zona y usar funciones de seguridad.
-- Microfono: solo si la usuaria graba video de verificacion o evidencia.
+- Microfono: no requerido para el flujo actual.
 - Notificaciones: mensajes y seguimiento de reportes cuando la funcionalidad este habilitada. No son necesarias para probar los flujos principales.
 
 Privacidad:

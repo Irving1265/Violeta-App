@@ -1911,6 +1911,35 @@
             .catch(() => alert('Error al rechazar'));
     }
 
+    function suspendVerification(reqId) {
+        if (!confirm('¿Suspender esta cuenta?')) return;
+        fetch(`/admin/verify/${reqId}/suspend`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': ADMIN_CSRF_TOKEN
+            }
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const item = document.querySelector(`.verification-item[data-verification-id="${reqId}"]`);
+                    item?.remove();
+                    syncVerificationState();
+                    if (!item) {
+                        location.reload();
+                    }
+                } else {
+                    alert(data.error || 'No se pudo suspender');
+                }
+            })
+            .catch(() => alert('Error al suspender'));
+    }
+
+    window.approveVerification = approveVerification;
+    window.rejectVerification = rejectVerification;
+    window.suspendVerification = suspendVerification;
+
     document.addEventListener('DOMContentLoaded', () => {
         const copyBtn = document.getElementById('assistedResetCopyBtn');
         const valueEl = document.getElementById('assistedResetPasswordValue');

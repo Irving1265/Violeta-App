@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="es">
 {% set verification_gate_excluded_endpoints = ['verify_identity', 'emergency_call', 'register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted', 'privacy_policy', 'account_delete'] %}
-{% set show_verify_gate_overlay = current_user.is_authenticated and not user_is_verified and request.endpoint not in verification_gate_excluded_endpoints %}
+{% set show_limited_access_banner = current_user.is_authenticated and not user_is_verified and request.endpoint not in verification_gate_excluded_endpoints %}
 {% set show_warning_strike_overlay = active_warning_strike and request.endpoint not in ['account_restricted', 'emergency_call'] %}
-{% set load_security_overlay_styles = show_verify_gate_overlay or show_warning_strike_overlay or request.endpoint == 'account_restricted' %}
+{% set load_security_overlay_styles = show_warning_strike_overlay or request.endpoint == 'account_restricted' %}
 {% set post_interaction_endpoints = ['index', 'post_detail'] %}
 {% set load_post_interaction_scripts = request.endpoint in post_interaction_endpoints %}
 {% set load_realtime_scripts = current_user.is_authenticated and not load_post_interaction_scripts and request.endpoint not in verification_gate_excluded_endpoints %}
@@ -55,7 +55,7 @@
     {% block styles %}{% endblock %}
 </head>
 
-<body class="violeta-theme {% if show_verify_gate_overlay %}user-unverified{% endif %} {% if request.endpoint == 'chat' %}chat-page{% endif %}">
+<body class="violeta-theme {% if show_limited_access_banner %}user-unverified{% endif %} {% if request.endpoint == 'chat' %}chat-page{% endif %}">
 
     <div class="app-layout">
         <!-- Sidebar (Desktop) -->
@@ -65,6 +65,11 @@
                 <span class="brand-logo__word">Violeta</span>
                 <span class="brand-logo__meta">v1.0 beta</span>
             </div>
+            {% if current_user.is_authenticated and not user_is_verified %}
+            <a href="{{ url_for('verify_identity') }}" class="sidebar-limited-pill">
+                <i class="fas fa-user-clock"></i> Acceso limitado
+            </a>
+            {% endif %}
             <nav class="sidebar-nav">
                 <a href="{{ url_for('index') }}"
                     class="sidebar-link {{ 'active' if request.endpoint == 'index' else '' }}">
@@ -149,39 +154,17 @@
                 {% endwith %}
             </div>
 
-            {% if show_verify_gate_overlay %}
-            <div class="verify-gate-overlay" id="verifyGateOverlay">
-                <div class="verification-overlay-card" data-purpose="verification-overlay" role="dialog" aria-modal="true" aria-labelledby="verifyGateTitle">
-                    <div class="glass-card verify-gate-card">
-                        <div class="verify-gate-glow" aria-hidden="true"></div>
-
-                        <div class="verify-gate-icon-wrap" data-purpose="security-icon" aria-hidden="true">
-                            <div class="verify-gate-icon-pulse"></div>
-                            <div class="verify-gate-icon-core">
-                                <svg class="verify-gate-shield" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
-                                </svg>
-                            </div>
-                        </div>
-
-                        <div class="verify-gate-content">
-                            <h2 class="verify-gate-title" id="verifyGateTitle">Verificación Requerida</h2>
-                            <p class="verify-gate-text">
-                                Para acceder a los reportes detallados y herramientas de seguridad, necesitamos confirmar tu identidad.
-                            </p>
-
-                            <a href="{{ url_for('verify_identity') }}" class="verify-gate-btn violet-glow" role="button">
-                                <span>Verificar mi identidad ahora</span>
-                                <svg class="verify-gate-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M14 5l7 7m0 0l-7 7m7-7H3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
-                                </svg>
-                            </a>
-
-                            <p class="verify-gate-note">Este proceso toma menos de 2 minutos.</p>
-                        </div>
-                    </div>
+            {% if show_limited_access_banner %}
+            <section class="limited-access-banner" aria-label="Acceso limitado">
+                <div class="limited-access-banner__icon" aria-hidden="true">
+                    <i class="fas fa-user-clock"></i>
                 </div>
-            </div>
+                <div class="limited-access-banner__copy">
+                    <strong>Cuenta no verificada</strong>
+                    <span>Tu acceso es limitado para proteger a la comunidad. Verifica tu cuenta para ver reportes completos, publicar, comentar y usar el chat.</span>
+                </div>
+                <a href="{{ url_for('verify_identity') }}" class="limited-access-banner__cta">Verificar mi cuenta</a>
+            </section>
             {% endif %}
 
             {% block content %}{% endblock %}
@@ -745,7 +728,7 @@
             can_review_private_content: {{ 'true' if current_user_can_review_private_content else 'false' }}
         };
         window.USER_IS_VERIFIED = {{ 'true' if user_is_verified else 'false' }};
-        window.VERIFY_REQUIRED_MSG = 'Para poder ver el contenido tenemos que verificar tu identidad';
+        window.VERIFY_REQUIRED_MSG = 'Por favor verifica tu cuenta para identificarte y realizar más acciones dentro de la aplicación.';
         window.VIOLETA_SAFETY_PUBLISH_POLICY = {{ safety_publish_policy|tojson }};
     </script>
     {% if load_post_interaction_scripts %}

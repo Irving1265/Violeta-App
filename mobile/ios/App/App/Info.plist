@@ -47,9 +47,7 @@
 	</array>
 
 	<key>NSCameraUsageDescription</key>
-	<string>Violeta usa la camara para capturar evidencia de reportes y completar la verificacion de identidad.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Violeta usa el microfono cuando grabas videos de verificacion o evidencia dentro de la app.</string>
+	<string>Violeta usa la camara para capturar evidencia de reportes ciudadanos.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Violeta usa tu fototeca para adjuntar imagenes a reportes y perfiles.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

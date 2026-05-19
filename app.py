@@ -32,7 +32,7 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from jinja2 import FileSystemBytecodeCache
 from werkzeug.utils import secure_filename
-from models import db, User, InviteCode, UserBlock, SafetyContact, PanicEvent, SafetyCheckin, CheckinRoutePoint, Post, Comment, Like, Share, Tag, PostMeta, ChatRoom, ChatParticipant, ChatMessage, ChatMessageReport, CommentReport, ModerationStrike, Report, VerificationRequest, AuditLog, BackgroundJobEvent, post_tag
+from models import db, User, UserBlock, SafetyContact, PanicEvent, SafetyCheckin, CheckinRoutePoint, Post, Comment, Like, Share, Tag, PostMeta, ChatRoom, ChatParticipant, ChatMessage, ChatMessageReport, CommentReport, ModerationStrike, Report, VerificationRequest, AuditLog, BackgroundJobEvent, LocationViewAudit, post_tag
 from sqlalchemy import or_, and_, text, func, inspect, insert, case
 from sqlalchemy.orm import selectinload, noload, load_only, make_transient_to_detached
 from config import Config
@@ -59,14 +59,30 @@ from email.message import EmailMessage
 import secrets
 import threading
 import time
-from math import radians, cos, sin, asin, sqrt, ceil
+from math import radians, cos, sin, asin, sqrt
 from urllib.parse import urlencode, quote
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-VERIFY_REQUIRED_MSG = 'Para poder ver el contenido tenemos que verificar tu identidad'
+VERIFY_REQUIRED_MSG = 'Por favor verifica tu cuenta para identificarte y realizar más acciones dentro de la aplicación.'
+PUBLISH_VERIFY_REQUIRED_MSG = 'Para publicar reportes ciudadanos, primero necesitamos verificar tu cuenta.'
+CHAT_VERIFY_REQUIRED_MSG = 'El chat está disponible solo para cuentas verificadas.'
+COMMENTS_VERIFY_REQUIRED_MSG = 'Los comentarios están protegidos. Verifica tu cuenta para participar.'
+LIKES_VERIFY_REQUIRED_MSG = 'Verifica tu cuenta para interactuar con publicaciones.'
+VERIFICATION_STATUS_UNVERIFIED = 'unverified'
+VERIFICATION_STATUS_PENDING = 'pending_review'
+VERIFICATION_STATUS_VERIFIED = 'verified'
+VERIFICATION_STATUS_REJECTED = 'rejected'
+VERIFICATION_STATUS_SUSPENDED = 'suspended'
+VERIFICATION_STATUSES = {
+    VERIFICATION_STATUS_UNVERIFIED,
+    VERIFICATION_STATUS_PENDING,
+    VERIFICATION_STATUS_VERIFIED,
+    VERIFICATION_STATUS_REJECTED,
+    VERIFICATION_STATUS_SUSPENDED,
+}
 PASSWORD_RESET_TOKEN_TTL_SECONDS = 15 * 60
 STRIKE_WARNING_DISMISS_SECONDS = 10
 TEMPORARY_STRIKE_SUSPENSION_DAYS = 7
@@ -104,10 +120,11 @@ _USER_SNAPSHOT_FIELDS = (
     'bio',
     'created_at',
     'is_verified',
+    'verification_status',
     'verified_at',
-    'verification_method',
-    'invited_by_id',
-    'invite_attested_at',
+    'rejection_reason',
+    'suspended_at',
+    'trial_location_views_limit',
     'force_password_change',
     'password_recovery_requested_at',
     'abuse_strikes',
@@ -513,15 +530,17 @@ def ensure_user_schema():
         with engine.begin() as conn:
             cols = {col['name'] for col in inspector.get_columns('user')}
             if 'is_verified' not in cols:
-                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN is_verified BOOLEAN DEFAULT {bool_true}"))
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN is_verified BOOLEAN DEFAULT {bool_false}"))
+            if 'verification_status' not in cols:
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN verification_status VARCHAR(32) DEFAULT 'unverified'"))
             if 'verified_at' not in cols:
                 conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN verified_at {datetime_type}"))
-            if 'verification_method' not in cols:
-                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN verification_method VARCHAR(32)"))
-            if 'invited_by_id' not in cols:
-                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN invited_by_id INTEGER"))
-            if 'invite_attested_at' not in cols:
-                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN invite_attested_at {datetime_type}"))
+            if 'rejection_reason' not in cols:
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN rejection_reason TEXT"))
+            if 'suspended_at' not in cols:
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN suspended_at {datetime_type}"))
+            if 'trial_location_views_limit' not in cols:
+                conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN trial_location_views_limit INTEGER DEFAULT 3"))
             if 'force_password_change' not in cols:
                 conn.execute(text(f"ALTER TABLE {user_table} ADD COLUMN force_password_change BOOLEAN DEFAULT {bool_false}"))
             if 'password_recovery_requested_at' not in cols:
@@ -538,7 +557,23 @@ def ensure_user_schema():
             conn.execute(
                 User.__table__.update()
                 .where(user_columns.is_verified.is_(None))
-                .values(is_verified=True)
+                .values(is_verified=False)
+            )
+            conn.execute(
+                User.__table__.update()
+                .where(or_(
+                    user_columns.verification_status.is_(None),
+                    func.trim(user_columns.verification_status) == '',
+                ))
+                .values(verification_status=case(
+                    (user_columns.is_verified.is_(True), VERIFICATION_STATUS_VERIFIED),
+                    else_=VERIFICATION_STATUS_UNVERIFIED,
+                ))
+            )
+            conn.execute(
+                User.__table__.update()
+                .where(user_columns.trial_location_views_limit.is_(None))
+                .values(trial_location_views_limit=3)
             )
             conn.execute(
                 User.__table__.update()
@@ -562,45 +597,6 @@ def ensure_user_schema():
         try:
             if 'app' in globals() and getattr(app, 'debug', False):
                 print('DEBUG ensure_user_schema error:', e)
-        except Exception as exc:
-            _debug_log_suppressed('suppressed exception', exc)
-
-
-def ensure_invitation_schema():
-    """Ensure beta invitation tables and indexes exist across local and Render."""
-    try:
-        db.create_all()
-        engine = db.engine
-        inspector = inspect(engine)
-        tables = set(inspector.get_table_names())
-        if 'invite_code' not in tables:
-            return
-        dialect = engine.dialect.name
-        datetime_type = 'TIMESTAMP' if dialect == 'postgresql' else 'DATETIME'
-        with engine.begin() as conn:
-            cols = {col['name'] for col in inspector.get_columns('invite_code')}
-            if 'status' not in cols:
-                conn.execute(text("ALTER TABLE invite_code ADD COLUMN status VARCHAR(20) DEFAULT 'active'"))
-            if 'max_uses' not in cols:
-                conn.execute(text("ALTER TABLE invite_code ADD COLUMN max_uses INTEGER DEFAULT 1"))
-            if 'use_count' not in cols:
-                conn.execute(text("ALTER TABLE invite_code ADD COLUMN use_count INTEGER DEFAULT 0"))
-            if 'expires_at' not in cols:
-                conn.execute(text(f"ALTER TABLE invite_code ADD COLUMN expires_at {datetime_type}"))
-            if 'used_at' not in cols:
-                conn.execute(text(f"ALTER TABLE invite_code ADD COLUMN used_at {datetime_type}"))
-            if 'used_by_user_id' not in cols:
-                conn.execute(text("ALTER TABLE invite_code ADD COLUMN used_by_user_id INTEGER"))
-            conn.execute(text("UPDATE invite_code SET status = 'active' WHERE status IS NULL OR status = ''"))
-            conn.execute(text("UPDATE invite_code SET max_uses = 1 WHERE max_uses IS NULL OR max_uses < 1"))
-            conn.execute(text("UPDATE invite_code SET use_count = 0 WHERE use_count IS NULL"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_invite_code_creator ON invite_code (created_by_user_id)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_invite_code_status ON invite_code (status)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_invite_code_expires_at ON invite_code (expires_at)"))
-    except Exception as e:
-        try:
-            if 'app' in globals() and getattr(app, 'debug', False):
-                print('DEBUG ensure_invitation_schema error:', e)
         except Exception as exc:
             _debug_log_suppressed('suppressed exception', exc)
 
@@ -879,7 +875,6 @@ def ensure_startup_schema():
     ensure_postmeta_schema()
     ensure_report_schema()
     ensure_user_schema()
-    ensure_invitation_schema()
     ensure_userblock_schema()
     ensure_safety_schema()
     ensure_moderation_schema()
@@ -905,6 +900,7 @@ AUDIT_EVENT_FILTER_HINTS = (
     'user_roles.update',
     'verification.approve',
     'verification.reject',
+    'verification.suspend',
     'report_details.view',
     'safety.route_points.view',
     'panic.resolve',
@@ -1284,7 +1280,118 @@ def is_user_verified(user) -> bool:
         return True
     if user_has_permission(user, PERM_ACCOUNT_BYPASS_RESTRICTIONS):
         return True
+    status = (getattr(user, 'verification_status', None) or '').strip().lower()
+    if status:
+        return status == VERIFICATION_STATUS_VERIFIED
     return bool(getattr(user, 'is_verified', False))
+
+
+def verification_status_for_user(user) -> str:
+    if not user or not getattr(user, 'is_authenticated', False):
+        return VERIFICATION_STATUS_VERIFIED
+    if user_has_permission(user, PERM_ACCOUNT_BYPASS_RESTRICTIONS):
+        return VERIFICATION_STATUS_VERIFIED
+    status = (getattr(user, 'verification_status', None) or '').strip().lower()
+    if status in VERIFICATION_STATUSES:
+        return status
+    return VERIFICATION_STATUS_VERIFIED if bool(getattr(user, 'is_verified', False)) else VERIFICATION_STATUS_UNVERIFIED
+
+
+def is_limited_access_user(user) -> bool:
+    return bool(user and getattr(user, 'is_authenticated', False) and not is_user_verified(user))
+
+
+def is_admin_post(post) -> bool:
+    return bool(post and user_has_staff_badge(getattr(post, 'author', None)))
+
+
+def can_view_full_post(user, post) -> bool:
+    if not post:
+        return False
+    if is_admin_post(post):
+        return True
+    if user and getattr(user, 'is_authenticated', False):
+        if getattr(user, 'id', None) == getattr(post, 'user_id', None):
+            return True
+        if is_user_verified(user):
+            return True
+        if user_can_review_private_content(user):
+            return True
+    return not is_limited_access_user(user)
+
+
+def can_view_sensitive_post_data(user, post) -> bool:
+    return can_view_full_post(user, post)
+
+
+def can_interact_with_post(user, post) -> bool:
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    if not is_user_verified(user):
+        return False
+    return True
+
+
+def location_trial_limit_for_user(user) -> int:
+    try:
+        return max(0, int(getattr(user, 'trial_location_views_limit', None) or 3))
+    except Exception:
+        return 3
+
+
+def location_trial_views_used(user) -> int:
+    if not user or not getattr(user, 'is_authenticated', False):
+        return 0
+    try:
+        return int(
+            LocationViewAudit.query
+            .filter(
+                LocationViewAudit.user_id == user.id,
+                LocationViewAudit.latitude_was_revealed.is_(True),
+                LocationViewAudit.longitude_was_revealed.is_(True),
+            )
+            .count()
+            or 0
+        )
+    except Exception:
+        return 0
+
+
+def location_view_already_revealed(user, post) -> bool:
+    if not user or not post or not getattr(user, 'is_authenticated', False):
+        return False
+    try:
+        return LocationViewAudit.query.filter_by(user_id=user.id, post_id=post.id).first() is not None
+    except Exception:
+        return False
+
+
+def can_view_real_location(user, post) -> bool:
+    if not post:
+        return False
+    if is_admin_post(post):
+        return True
+    if user and getattr(user, 'is_authenticated', False):
+        if getattr(user, 'id', None) == getattr(post, 'user_id', None):
+            return True
+        if is_user_verified(user) or user_can_review_private_content(user):
+            return True
+        if location_view_already_revealed(user, post):
+            return True
+        return False
+    return True
+
+
+def verification_badge_label(user) -> str:
+    status = verification_status_for_user(user)
+    labels = {
+        VERIFICATION_STATUS_UNVERIFIED: 'No verificada',
+        VERIFICATION_STATUS_PENDING: 'En revisión',
+        VERIFICATION_STATUS_REJECTED: 'Solicitud rechazada',
+        VERIFICATION_STATUS_SUSPENDED: 'Cuenta suspendida',
+        VERIFICATION_STATUS_VERIFIED: 'Verificada',
+    }
+    return labels.get(status, 'No verificada')
 
 
 ABUSIVE_WORDS = {
@@ -1323,152 +1430,6 @@ def is_user_permanently_banned(user) -> bool:
     if user_has_permission(user, PERM_ACCOUNT_BYPASS_RESTRICTIONS):
         return False
     return bool(getattr(user, 'permanently_banned_at', None))
-
-
-INVITE_UNLOCK_DAYS = 3
-INVITE_EXPIRY_DAYS = 7
-INVITE_DEFAULT_QUOTA = 2
-INVITE_SUPER_ADMIN_QUOTA = 25
-INVITE_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-
-
-def normalize_invite_code(value: str | None) -> str:
-    raw = (value or '').strip().upper()
-    return re.sub(r'[^A-Z0-9]', '', raw)
-
-
-def display_invite_code(value: str | None) -> str:
-    normalized = normalize_invite_code(value)
-    if normalized.startswith('VIOLETA'):
-        body = normalized[7:]
-    else:
-        body = normalized
-    chunks = [body[i:i + 4] for i in range(0, len(body), 4) if body[i:i + 4]]
-    return 'VIOLETA-' + '-'.join(chunks) if chunks else normalized
-
-
-def generate_invite_code_value() -> str:
-    while True:
-        suffix = ''.join(secrets.choice(INVITE_CODE_ALPHABET) for _ in range(8))
-        code = f'VIOLETA{suffix}'
-        if not InviteCode.query.filter_by(code=code).first():
-            return code
-
-
-def refresh_invite_status(invite: InviteCode | None) -> InviteCode | None:
-    if not invite:
-        return None
-    now = utc_now_naive()
-    status = (invite.status or 'active').strip().lower()
-    if status == 'active' and invite.expires_at and invite.expires_at <= now:
-        invite.status = 'expired'
-        db.session.add(invite)
-        try:
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-    return invite
-
-
-def invite_is_redeemable(invite: InviteCode | None) -> bool:
-    invite = refresh_invite_status(invite)
-    if not invite:
-        return False
-    creator = getattr(invite, 'creator', None)
-    if not creator or not is_user_verified(creator):
-        return False
-    if is_user_permanently_banned(creator):
-        return False
-    if int(getattr(creator, 'abuse_strikes', 0) or 0) > 0:
-        return False
-    if (invite.status or '').strip().lower() != 'active':
-        return False
-    if invite.expires_at and invite.expires_at <= utc_now_naive():
-        return False
-    if int(invite.use_count or 0) >= int(invite.max_uses or 1):
-        return False
-    return True
-
-
-def get_redeemable_invite(code: str | None) -> InviteCode | None:
-    normalized = normalize_invite_code(code)
-    if not normalized:
-        return None
-    invite = InviteCode.query.filter_by(code=normalized).first()
-    return invite if invite_is_redeemable(invite) else None
-
-
-def beta_invite_quota_for_user(user) -> int:
-    return INVITE_SUPER_ADMIN_QUOTA if user_is_super_admin(user) else INVITE_DEFAULT_QUOTA
-
-
-def beta_invite_status_for_user(user) -> dict:
-    now = utc_now_naive()
-    created_at = getattr(user, 'created_at', None) or now
-    unlock_at = created_at + timedelta(days=INVITE_UNLOCK_DAYS)
-    seconds_remaining = max(0, int((unlock_at - now).total_seconds()))
-    days_remaining = int(ceil(seconds_remaining / 86400)) if seconds_remaining > 0 else 0
-    strikes = int(getattr(user, 'abuse_strikes', 0) or 0)
-    quota = beta_invite_quota_for_user(user)
-    total_created = InviteCode.query.filter(
-        InviteCode.created_by_user_id == user.id,
-        InviteCode.status != 'revoked',
-    ).count()
-    active_invites = (
-        InviteCode.query
-        .filter(
-            InviteCode.created_by_user_id == user.id,
-            InviteCode.status == 'active',
-            InviteCode.used_at.is_(None),
-        )
-        .order_by(InviteCode.created_at.desc())
-        .all()
-    )
-    active_invites = [invite for invite in active_invites if invite_is_redeemable(invite)]
-    invites_remaining = max(0, quota - int(total_created or 0))
-    is_staff_seed = user_is_super_admin(user)
-    reasons = []
-    if not is_user_verified(user):
-        reasons.append('Tu cuenta debe estar verificada.')
-    if not is_staff_seed and seconds_remaining > 0:
-        reasons.append(f'Podrás invitar en {days_remaining} día{"s" if days_remaining != 1 else ""}.')
-    if strikes > 0:
-        reasons.append('No debes tener strikes activos.')
-    if is_user_permanently_banned(user):
-        reasons.append('La cuenta está restringida.')
-    if invites_remaining <= 0:
-        reasons.append('Ya usaste tus invitaciones beta.')
-    can_invite = (
-        is_user_verified(user)
-        and (is_staff_seed or seconds_remaining <= 0)
-        and strikes <= 0
-        and not is_user_permanently_banned(user)
-        and invites_remaining > 0
-    )
-    return {
-        'can_invite': can_invite,
-        'reasons': reasons,
-        'quota': quota,
-        'created_count': int(total_created or 0),
-        'remaining': invites_remaining,
-        'active_invites': active_invites,
-        'unlock_at': unlock_at,
-        'days_remaining': days_remaining,
-        'strikes': strikes,
-        'is_verified': is_user_verified(user),
-    }
-
-
-def invite_payload(invite: InviteCode) -> dict:
-    creator = invite.creator
-    return {
-        'id': invite.id,
-        'code': display_invite_code(invite.code),
-        'raw_code': invite.code,
-        'expires_at': invite.expires_at.isoformat() if invite.expires_at else None,
-        'created_by': getattr(creator, 'username', None),
-        'status': invite.status or 'active',
-    }
 
 
 def _clear_expired_moderation_restriction(user):
@@ -1999,6 +1960,17 @@ def public_location_for_post(post, viewer=None):
             'visibility': mode,
         }
 
+    if viewer and is_limited_access_user(viewer) and not is_admin_post(post):
+        if not location_view_already_revealed(viewer, post):
+            return {
+                'lat': None,
+                'lng': None,
+                'name': approximate_location_label(city, country),
+                'city': city,
+                'country': country,
+                'visibility': 'trial_locked',
+            }
+
     if mode == 'hidden':
         return {
             'lat': None,
@@ -2071,7 +2043,19 @@ def create_app():
 
     @app.context_processor
     def inject_user_verification():
-        return {'user_is_verified': is_user_verified(current_user)}
+        return {
+            'user_is_verified': is_user_verified(current_user),
+            'verification_status_for_user': verification_status_for_user,
+            'verification_badge_label': verification_badge_label,
+            'is_limited_access_user': is_limited_access_user,
+            'can_view_full_post': can_view_full_post,
+            'can_view_sensitive_post_data': can_view_sensitive_post_data,
+            'can_interact_with_post': can_interact_with_post,
+            'can_view_real_location': can_view_real_location,
+            'is_admin_post': is_admin_post,
+            'location_trial_views_used': location_trial_views_used,
+            'location_trial_limit_for_user': location_trial_limit_for_user,
+        }
 
     @app.context_processor
     def inject_user_safety_state():
@@ -2112,7 +2096,6 @@ def create_app():
             'current_user_can_access_admin_panel': user_can_access_admin_panel(current_user),
             'current_user_can_override_content_controls': user_can_override_content_controls(current_user),
             'current_user_can_review_private_content': user_can_review_private_content(current_user),
-            'display_invite_code': display_invite_code,
         }
 
     @app.before_request
@@ -3246,24 +3229,6 @@ def create_app():
 
     app.extensions['violeta_deliver_email_message'] = deliver_email_message
 
-    def send_verification_email(to_email: str, code: str) -> bool:
-        subject = 'Tu código de verificación - Violeta'
-        text_body = (
-            f"Tu código de verificación es: {code}\n\n"
-            "Este código expira en 10 minutos.\n\n"
-            "Violeta"
-        )
-        html_body = (
-            "<html><body style=\"font-family:Inter,Arial,sans-serif;background:#0f1020;color:#f3f4f6;padding:20px;\">"
-            "<div style=\"max-width:560px;margin:0 auto;background:#1b1d35;border:1px solid rgba(167,139,250,.35);"
-            "border-radius:16px;padding:24px;\">"
-            "<h2 style=\"margin:0 0 10px 0;color:#a78bfa;\">Tu código de verificación</h2>"
-            f"<p style=\"margin:0 0 18px 0;\">Tu código de verificación es <strong style=\"font-size:22px;letter-spacing:2px;\">{code}</strong>.</p>"
-            "<p style=\"margin:0;color:#c4b5fd;\">Este código expira en 10 minutos.</p>"
-            "</div></body></html>"
-        )
-        return deliver_email_message(subject, [to_email], text_body, html_body)
-
     def _password_reset_email_bodies(user: User, reset_link: str) -> tuple[str, str, str]:
         display_name = (getattr(user, 'username', '') or 'usuaria').strip()
         subject = 'Restablece tu contraseña - Violeta'
@@ -3408,32 +3373,17 @@ def create_app():
             return f"+52{digits}"
         return ''
 
-    def generate_liveness_phrase() -> str:
-        verbs = ['confirmo', 'protejo', 'valido', 'respaldo', 'cuido', 'reconozco']
-        adjectives = ['real', 'segura', 'valiente', 'clara', 'autentica']
-        nouns = ['comunidad', 'ciudad', 'espacio', 'camino', 'luz', 'historia', 'voz', 'dia', 'noche', 'puente']
-        chooser = secrets.SystemRandom()
-        number = secrets.randbelow(90) + 10
-        phrase = (
-            f"Hoy {chooser.choice(verbs)} mi identidad en Violeta, "
-            f"soy {chooser.choice(adjectives)} y mi {chooser.choice(nouns)} "
-            f"es {chooser.choice(nouns)} {number}"
-        )
-        return phrase
-
     def get_or_create_verification(user):
         req = VerificationRequest.query.filter_by(user_id=user.id).order_by(VerificationRequest.created_at.desc()).first()
         if req and req.status in ('pending', 'approved'):
             return req
         if req and req.status == 'draft':
-            req.liveness_phrase = generate_liveness_phrase()
             db.session.commit()
             return req
         # If rejected or none, create new draft
         req = VerificationRequest()
         req.user_id = user.id
         req.status = 'draft'
-        req.liveness_phrase = generate_liveness_phrase()
         db.session.add(req)
         db.session.commit()
         return req
@@ -4494,7 +4444,7 @@ def create_app():
             issues.append(_preflight_issue(
                 'warning',
                 'mail_not_configured',
-                'MAIL_DELIVERY_METHOD no está configurado; OTP y recuperación pueden fallar.',
+                'MAIL_DELIVERY_METHOD no está configurado; recuperación de contraseña y mensajes transaccionales pueden fallar.',
             ))
 
         if strict and not (app.config.get('REDIS_URL') or '').strip():
@@ -4951,7 +4901,17 @@ def create_app():
         page = max(1, request.args.get('page', 1, type=int) or 1)
         per_page = app.config.get('FEED_PAGE_SIZE', 3)
         blocked_ids = blocked_user_ids_for(current_user) if current_user.is_authenticated else set()
-        page_cache_key = ('page_home', current_user.id, selected_city, feed_filters_cache_key(feed_filters), page, per_page, tuple(sorted(blocked_ids)))
+        page_cache_key = (
+            'page_home',
+            current_user.id,
+            verification_status_for_user(current_user),
+            location_trial_views_used(current_user),
+            selected_city,
+            feed_filters_cache_key(feed_filters),
+            page,
+            per_page,
+            tuple(sorted(blocked_ids)),
+        )
         cached_response = get_cached_html_page(page_cache_key, 20)
         if cached_response is not None:
             return cached_response
@@ -4992,8 +4952,6 @@ def create_app():
     @app.route('/api/feed/sidebar-summary')
     @login_required
     def api_feed_sidebar_summary():
-        if current_user.is_authenticated and not is_user_verified(current_user):
-            return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
         selected_city = (request.args.get('city') or 'all').strip().lower()
         report_counts, report_counts_today = get_feed_sidebar_counts(selected_city, current_user)
         return jsonify({
@@ -5009,7 +4967,17 @@ def create_app():
         per_page = app.config.get('FEED_PAGE_SIZE', 3)
         viewer_id = getattr(current_user, 'id', None) if current_user.is_authenticated else None
         query, blocked_ids = build_feed_posts_query(selected_city, current_user, eager=True, filters=feed_filters)
-        cache_key = ('feed_page', viewer_id, selected_city, feed_filters_cache_key(feed_filters), page, per_page, tuple(sorted(blocked_ids)))
+        cache_key = (
+            'feed_page',
+            viewer_id,
+            verification_status_for_user(current_user) if current_user.is_authenticated else 'anon',
+            location_trial_views_used(current_user) if current_user.is_authenticated else 0,
+            selected_city,
+            feed_filters_cache_key(feed_filters),
+            page,
+            per_page,
+            tuple(sorted(blocked_ids)),
+        )
         cached_payload = get_runtime_cached_payload(cache_key, 20)
         if cached_payload is not None:
             return jsonify(cached_payload)
@@ -5020,40 +4988,16 @@ def create_app():
         data = []
         for p in posts.items:
             try:
-                image_url = optimized_media_url(getattr(p, 'image_filename', None), 720)
-                liked_by_me = bool(getattr(p, 'liked_by_me', False))
-                allow_likes = _meta_allows_interaction(p, 'like')
-                allow_comments = _meta_allows_interaction(p, 'comment')
-                loc = public_location_for_post(p, current_user)
-                # Parse categories from JSON
-                categories = []
-                if getattr(p, 'categories', None):
-                    try:
-                        import json
-                        categories = json.loads(p.categories)
-                    except Exception:
-                        categories = []
-
-                data.append({
-                    'id': p.id,
-                    'username': getattr(p.author, 'username', 'unknown'),
-                    'caption': p.caption,
-                    'image_url': image_url,
-                    'likes_count': int(getattr(p, 'likes_count', 0)),
-                    'comments_count': int(getattr(p, 'comments_count', 0)),
-                    'created_at': p.created_at.isoformat() if getattr(p, 'created_at', None) else None,
-                    'liked_by_me': liked_by_me,
-                    'allow_likes': allow_likes,
-                    'allow_comments': allow_comments,
-                    'latitude': loc.get('lat'),
-                    'longitude': loc.get('lng'),
-                    'location_name': loc.get('name'),
-                    'city': loc.get('city'),
-                    'country': loc.get('country'),
-                    'location_visibility': loc.get('visibility'),
-                    'tags': [t.name for t in getattr(p, 'tags', [])] if hasattr(p, 'tags') else [],
-                    'categories': categories,
-                })
+                item = protected_post_payload(p, current_user)
+                if not item.get('protected'):
+                    item['image_url'] = optimized_media_url(getattr(p, 'image_filename', None), 720)
+                    item['liked_by_me'] = bool(getattr(p, 'liked_by_me', False))
+                    item['allow_likes'] = _meta_allows_interaction(p, 'like')
+                    item['allow_comments'] = _meta_allows_interaction(p, 'comment')
+                item['city'] = public_location_for_post(p, current_user).get('city')
+                item['country'] = public_location_for_post(p, current_user).get('country')
+                item['tags'] = [t.name for t in getattr(p, 'tags', [])] if hasattr(p, 'tags') else []
+                data.append(item)
             except Exception as e:
                 if app.debug:
                     print('DEBUG: error building feed item:', e)
@@ -5074,10 +5018,6 @@ def create_app():
         form = RegisterForm()
         if form.validate_on_submit():
             normalized_email = (form.email.data or '').strip().lower()
-            invite = get_redeemable_invite(form.invite_code.data)
-            if not invite:
-                flash('Necesitas un código de invitación válido para entrar a la beta.', 'danger')
-                return redirect(url_for('register'))
 
             # Evitar duplicados por usuario o email
             exists = User.query.filter(
@@ -5089,36 +5029,24 @@ def create_app():
             try:
                 user = User(username=form.username.data, email=normalized_email)  # type: ignore
                 user.set_password(form.password.data)
-                now = utc_now_naive()
-                user.is_verified = True
-                user.verified_at = now
-                user.verification_method = 'invite'
-                user.invited_by_id = invite.created_by_user_id
-                user.invite_attested_at = now
+                user.is_verified = False
+                user.verification_status = VERIFICATION_STATUS_UNVERIFIED
+                user.verified_at = None
+                user.trial_location_views_limit = 3
                 db.session.add(user)
-                db.session.flush()
-                invite.used_by_user_id = user.id
-                invite.used_at = now
-                invite.use_count = int(invite.use_count or 0) + 1
-                invite.status = 'used'
-                db.session.add(invite)
                 db.session.commit()
                 record_audit_event(
-                    'invite.redeem',
+                    'account.register_limited',
                     workspace='verification',
                     target_user=user,
-                    resource_type='invite_code',
-                    resource_id=invite.id,
-                    summary='Una cuenta se verificó por invitación beta.',
-                    details={
-                        'created_by_user_id': invite.created_by_user_id,
-                        'invite_code_id': invite.id,
-                    },
+                    resource_type='user',
+                    resource_id=user.id,
+                    summary='Una cuenta nueva quedó con acceso limitado.',
+                    details={'verification_status': user.verification_status},
                 )
-                invalidate_runtime_response_cache('invite_status')
                 invalidate_runtime_response_cache('page_profile_shell')
                 invalidate_runtime_response_cache('page_profile_content')
-                flash('Registro exitoso. Tu cuenta quedó verificada por invitación beta.', 'success')
+                flash('Registro exitoso. Tu cuenta tiene acceso limitado hasta que solicites verificación.', 'success')
                 return redirect(url_for('login'))
             except Exception as e:
                 db.session.rollback()
@@ -5126,27 +5054,6 @@ def create_app():
                 if app.debug:
                     print('DEBUG register error:', e)
         return render_template('register.html', form=form)
-
-    @app.route('/api/check-invite', methods=['POST'])
-    @csrf.exempt
-    def check_invite():
-        if not is_same_origin_request():
-            return jsonify({'error': 'Solicitud no permitida'}), 403
-        if is_rate_limited(f'check_invite:{get_request_ip()}', limit=80, window_seconds=60):
-            return jsonify({'error': 'Demasiados intentos. Intenta de nuevo en un momento.'}), 429
-
-        data = request.get_json(silent=True) or {}
-        invite = get_redeemable_invite(data.get('invite_code'))
-        if not invite:
-            return jsonify({'valid': False, 'message': 'Código inválido, vencido o ya usado.'})
-
-        creator = invite.creator
-        return jsonify({
-            'valid': True,
-            'message': 'Código válido.',
-            'invited_by': getattr(creator, 'username', None),
-            'expires_at': invite.expires_at.isoformat() if invite.expires_at else None,
-        })
 
     @app.route('/api/check-email', methods=['POST'])
     @csrf.exempt
@@ -5503,103 +5410,13 @@ def create_app():
             errors=errors,
         )
 
-    # --- OTP Verification Routes ---
-    @app.route('/send-otp', methods=['POST'])
-    @csrf.exempt
-    def send_otp():
-        try:
-            if not is_same_origin_request():
-                return jsonify({'error': 'Origen inválido'}), 403
-
-            ip = get_request_ip()
-            if is_rate_limited(f'send_otp:{ip}', limit=5, window_seconds=600):
-                return jsonify({'error': 'Demasiadas solicitudes OTP. Intenta de nuevo más tarde.'}), 429
-
-            data = request.get_json(silent=True) or {}
-            email = (data.get('email') or '').strip()
-
-            if not email:
-                return jsonify({'error': 'Email es requerido'}), 400
-
-            # Generate 6-digit OTP
-            otp_code = f"{secrets.randbelow(900000) + 100000}"
-
-            # Store OTP in session (in production use Redis or DB with expiry)
-            session['current_otp'] = otp_code
-            session['current_email'] = email
-            # Simple expiry mechanism: store timestamp
-            session['otp_timestamp'] = datetime.now().timestamp()
-            session['otp_failures'] = 0
-
-            # Send email
-            sent = send_verification_email(email, otp_code)
-            if not sent:
-                return jsonify({'error': 'No se pudo enviar el correo. Revisa la configuración de correo.'}), 500
-
-            return jsonify({'message': 'Código enviado exitosamente'}), 200
-        except Exception as e:
-            if app.debug:
-                print(f"Error enviando OTP: {e}")
-            return jsonify({'error': 'No se pudo enviar el correo'}), 500
-
-    @app.route('/verify-otp', methods=['POST'])
-    @csrf.exempt
-    def verify_otp():
-        try:
-            if not is_same_origin_request():
-                return jsonify({'error': 'Origen inválido'}), 403
-
-            ip = get_request_ip()
-            if is_rate_limited(f'verify_otp:{ip}', limit=15, window_seconds=600):
-                return jsonify({'error': 'Demasiados intentos. Intenta de nuevo más tarde.'}), 429
-
-            data = request.get_json(silent=True) or {}
-            user_otp = (data.get('otp') or '').strip()
-            email = (data.get('email') or '').strip()  # Optional validation
-
-            saved_otp = session.get('current_otp')
-            saved_email = session.get('current_email')
-            timestamp = session.get('otp_timestamp')
-            failures = int(session.get('otp_failures', 0) or 0)
-
-            if not user_otp:
-                return jsonify({'error': 'Falta el código OTP'}), 400
-
-            if failures >= 8:
-                return jsonify({'error': 'Demasiados intentos fallidos. Solicita un código nuevo.'}), 429
-
-            # Check expiry (10 minutes)
-            if not timestamp or datetime.now().timestamp() - timestamp > 600:
-                session.pop('current_otp', None)
-                session.pop('otp_timestamp', None)
-                session.pop('otp_failures', None)
-                return jsonify({'error': 'El código ha expirado'}), 400
-
-            if user_otp == saved_otp:
-                if email and email != saved_email:
-                    return jsonify({'error': 'Email no coincide con el código solicitado'}), 400
-
-                # Success
-                # Clear OTP from session
-                session.pop('current_otp', None)
-                session.pop('otp_timestamp', None)
-                session.pop('otp_failures', None)
-
-                return jsonify({'message': 'Verificación exitosa', 'verified': True}), 200
-
-            session['otp_failures'] = failures + 1
-            return jsonify({'error': 'Código incorrecto'}), 400
-        except Exception as e:
-            if app.debug:
-                print(f"Error verificando OTP: {e}")
-            return jsonify({'error': 'Error en el servidor'}), 500
-
-
     @app.route('/upload', methods=['POST'])
     @login_required
     def upload():
         if current_user.is_authenticated and not is_user_verified(current_user):
-            flash(VERIFY_REQUIRED_MSG, 'info')
+            if request.path.startswith('/api/') or 'application/json' in (request.headers.get('Accept') or ''):
+                return jsonify({'error': PUBLISH_VERIFY_REQUIRED_MSG}), 403
+            flash(PUBLISH_VERIFY_REQUIRED_MSG, 'info')
             return redirect(url_for('index'))
         if is_user_temp_muted(current_user):
             secs = remaining_mute_seconds(current_user)
@@ -5958,17 +5775,40 @@ def create_app():
         result = try_release_pending_safety_posts_for_user(current_user, lat, lng)
         return jsonify({'ok': True, **result})
 
+    def upload_allowed_for_limited_viewer(normalized: str | None) -> bool:
+        normalized = normalize_upload_filename(normalized)
+        if not normalized:
+            return False
+        if normalized.startswith('verify/') or normalized.startswith('_optimized/'):
+            return False
+        if not current_user.is_authenticated or is_user_verified(current_user):
+            return True
+        try:
+            staff_post = (
+                Post.query
+                .options(selectinload(Post.author))
+                .filter(Post.image_filename == normalized)
+                .first()
+            )
+            if staff_post and is_admin_post(staff_post):
+                return True
+            staff_user = User.query.filter(User.profile_pic == normalized).first()
+            if staff_user and user_has_staff_badge(staff_user):
+                return True
+        except Exception as exc:
+            _debug_log_suppressed('suppressed upload visibility lookup', exc)
+        return False
+
     @app.route('/uploads/optimized/<int:width>/<path:filename>')
     def uploaded_optimized_file(width, filename):
         if width not in OPTIMIZED_UPLOAD_WIDTHS:
             abort(404)
 
-        if current_user.is_authenticated and not is_user_verified(current_user):
-            return send_from_directory(os.path.join(os.path.dirname(__file__), 'static', 'images'), 'default_avatar.jpg')
-
         normalized = normalize_upload_filename(filename)
         if not normalized or normalized.startswith('verify/') or normalized.startswith('_optimized/'):
             abort(404)
+        if not upload_allowed_for_limited_viewer(normalized):
+            abort(403)
         if not is_optimizable_upload(normalized):
             return uploaded_file(normalized)
 
@@ -6008,18 +5848,12 @@ def create_app():
 
     @app.route('/uploads/<path:filename>')
     def uploaded_file(filename):
-        if current_user.is_authenticated and not is_user_verified(current_user):
-            return send_from_directory(os.path.join(os.path.dirname(__file__), 'static', 'images'), 'default_avatar.jpg')
-
         normalized = normalize_upload_filename(filename)
+        if not upload_allowed_for_limited_viewer(normalized):
+            abort(403)
         # Protect sensitive verification artifacts.
         if normalized.startswith('verify/'):
-            if not current_user.is_authenticated:
-                abort(403)
-            if not user_can_override_content_controls(current_user):
-                own_req = VerificationRequest.query.filter_by(user_id=current_user.id).first()
-                if not own_req or (own_req.video_filename or '').strip() != normalized:
-                    abort(403)
+            abort(403)
 
         external_url = public_upload_storage_url(normalized)
         if external_url:
@@ -6078,6 +5912,58 @@ def create_app():
     def _avatar_url(user):
         return avatar_url_for_user(user)
 
+    def protected_post_payload(post, viewer=None, *, include_profile_pic: bool = False) -> dict:
+        protected = bool(viewer and getattr(viewer, 'is_authenticated', False) and not can_view_sensitive_post_data(viewer, post))
+        categories = []
+        if getattr(post, 'categories', None):
+            try:
+                categories = json.loads(post.categories)
+            except Exception:
+                categories = []
+
+        loc = public_location_for_post(post, viewer)
+        if protected:
+            payload = {
+                'id': post.id,
+                'username': '********************',
+                'caption': 'Reporte protegido. Verifica tu cuenta para ver los detalles completos.',
+                'image_url': url_for('static', filename='images/protected_post_placeholder.svg'),
+                'created_at': None,
+                'created_label': 'Reporte comunitario',
+                'likes_count': None,
+                'comments_count': None,
+                'latitude': loc.get('lat'),
+                'longitude': loc.get('lng'),
+                'location_name': loc.get('name') or approximate_location_label(loc.get('city'), loc.get('country')),
+                'location_visibility': loc.get('visibility'),
+                'protected': True,
+                'location_locked': not can_view_real_location(viewer, post),
+                'categories': categories,
+            }
+            if include_profile_pic:
+                payload['profile_pic'] = url_for('static', filename='images/default_avatar.jpg')
+            return payload
+
+        author = getattr(post, 'author', None)
+        payload = {
+            'id': post.id,
+            'username': getattr(author, 'username', 'unknown'),
+            'caption': post.caption,
+            'image_url': media_url(post.image_filename),
+            'created_at': post.created_at.isoformat() if getattr(post, 'created_at', None) else None,
+            'likes_count': int(getattr(post, 'likes_count', 0)),
+            'comments_count': int(getattr(post, 'comments_count', 0)),
+            'latitude': loc.get('lat'),
+            'longitude': loc.get('lng'),
+            'location_name': loc.get('name'),
+            'location_visibility': loc.get('visibility'),
+            'protected': False,
+            'categories': categories,
+        }
+        if include_profile_pic:
+            payload['profile_pic'] = avatar_url_for_user(author)
+        return payload
+
     @app.route('/comments/<int:post_id>')
     def comments(post_id):
         post_row = (
@@ -6103,6 +5989,15 @@ def create_app():
         )
         if not is_public and (not current_user.is_authenticated or not user_can_review_private_content(current_user)):
             return jsonify({'comments': [], 'hidden_comments': []})
+
+        post_obj = Post.query.options(selectinload(Post.author)).get(post_id)
+        if current_user.is_authenticated and not can_view_sensitive_post_data(current_user, post_obj):
+            return jsonify({
+                'comments': [],
+                'hidden_comments': [],
+                'locked': True,
+                'message': 'Los comentarios están protegidos. Verifica tu cuenta para participar.',
+            }), 403
 
         visible_comments = []
         hidden_comments = []
@@ -6156,6 +6051,62 @@ def create_app():
         return jsonify({'comments': visible_comments, 'hidden_comments': hidden_comments})
 
 
+    @app.route('/api/posts/<int:post_id>/reveal-location', methods=['POST'])
+    @login_required
+    def reveal_post_location(post_id):
+        post = Post.query.options(selectinload(Post.author), selectinload(Post.meta)).get_or_404(post_id)
+        if current_user.is_authenticated and is_user_blocked_between(current_user.id, post.user_id):
+            return jsonify({'ok': False, 'error': 'Publicación no disponible'}), 404
+        if not is_public_post(post) and not user_can_review_private_content(current_user):
+            return jsonify({'ok': False, 'error': 'Publicación no disponible'}), 404
+
+        privileged = (
+            is_admin_post(post)
+            or is_user_verified(current_user)
+            or user_can_review_private_content(current_user)
+            or getattr(current_user, 'id', None) == getattr(post, 'user_id', None)
+        )
+        if not privileged:
+            existing = LocationViewAudit.query.filter_by(user_id=current_user.id, post_id=post.id).first()
+            if existing is None:
+                used = location_trial_views_used(current_user)
+                limit = location_trial_limit_for_user(current_user)
+                if used >= limit:
+                    loc = public_location_for_post(post, current_user)
+                    return jsonify({
+                        'ok': False,
+                        'error': 'Has usado tus 3 vistas de ubicación de prueba. Verifica tu cuenta para consultar más ubicaciones, publicar reportes y participar en la comunidad.',
+                        'used': used,
+                        'limit': limit,
+                        'location_name': loc.get('name') or approximate_location_label(loc.get('city'), loc.get('country')),
+                        'location_visibility': loc.get('visibility'),
+                    }), 403
+                db.session.add(LocationViewAudit(
+                    user_id=current_user.id,
+                    post_id=post.id,
+                    latitude_was_revealed=True,
+                    longitude_was_revealed=True,
+                ))
+                db.session.commit()
+                invalidate_runtime_response_cache('feed_page')
+                invalidate_runtime_response_cache('posts_in_radius')
+                invalidate_runtime_response_cache('posts_by_city')
+
+        loc = public_location_for_post(post, current_user)
+        if loc.get('lat') is None or loc.get('lng') is None:
+            return jsonify({'ok': False, 'error': 'La ubicación exacta no está disponible para este reporte.'}), 404
+        return jsonify({
+            'ok': True,
+            'post_id': post.id,
+            'latitude': loc.get('lat'),
+            'longitude': loc.get('lng'),
+            'location_name': loc.get('name'),
+            'location_visibility': loc.get('visibility'),
+            'used': location_trial_views_used(current_user),
+            'limit': location_trial_limit_for_user(current_user),
+        })
+
+
     @app.route('/hotspots')
     def hotspots_page():
         viewer_id = current_user.id if current_user.is_authenticated else 0
@@ -6169,6 +6120,9 @@ def create_app():
     @app.route('/chat')
     @login_required
     def chat():
+        if not is_user_verified(current_user):
+            flash(CHAT_VERIFY_REQUIRED_MSG, 'warning')
+            return redirect(url_for('verify_identity'))
         page_cache_key = ('page_chat_shell', current_user.id, tuple(sorted(user_role_names(current_user))))
         cached_response = get_cached_html_page(page_cache_key, 120)
         if cached_response is not None:
@@ -6182,109 +6136,12 @@ def create_app():
         if is_user_verified(current_user):
             return render_template('verify.html', status='verified', verification=None)
         req = get_or_create_verification(current_user)
-        return render_template('verify.html', status=req.status, verification=req)
-
-    @app.route('/api/verify/send-otp', methods=['POST'])
-    @login_required
-    def verify_send_otp():
-        if is_user_verified(current_user):
-            return jsonify({'error': 'Cuenta ya verificada.'}), 400
-
-        if is_rate_limited(f'verify_send_otp:user:{current_user.id}', limit=4, window_seconds=600):
-            return jsonify({'error': 'Demasiados intentos. Intenta de nuevo en unos minutos.'}), 429
-
-        req = get_or_create_verification(current_user)
-        if req.status == 'pending':
-            return jsonify({'error': 'Tu verificación está en revisión.'}), 400
-
-        code = f"{secrets.randbelow(900000) + 100000}"
-        email = getattr(current_user, 'email', None)
-        if not email:
-            return jsonify({'error': 'No hay email asociado a tu cuenta.'}), 400
-
-        req.otp_code = code
-        req.otp_expires_at = datetime.now() + timedelta(minutes=10)
-        req.phone_verified_at = None
-        db.session.add(req)
-        db.session.commit()
-
-        sent = send_verification_email(email, code)
-        if not sent:
-            return jsonify({'error': 'No se pudo enviar el correo. Revisa la configuración de correo (MAIL_* o RESEND_*).'}), 500
-
-        session['verify_otp_failures'] = 0
-        return jsonify({'ok': True, 'message': 'Código enviado a tu correo.'})
-
-    @app.route('/api/verify/confirm-otp', methods=['POST'])
-    @login_required
-    def verify_confirm_otp():
-        if is_user_verified(current_user):
-            return jsonify({'error': 'Cuenta ya verificada.'}), 400
-
-        if is_rate_limited(f'verify_confirm_otp:user:{current_user.id}', limit=15, window_seconds=600):
-            return jsonify({'error': 'Demasiados intentos. Intenta de nuevo más tarde.'}), 429
-
-        payload = request.get_json(silent=True) or request.form
-        code = (payload.get('code') or '').strip()
-        if not code:
-            return jsonify({'error': 'Ingresa el código.'}), 400
-
-        failures = int(session.get('verify_otp_failures', 0) or 0)
-        if failures >= 8:
-            return jsonify({'error': 'Demasiados intentos fallidos. Solicita un código nuevo.'}), 429
-
-        req = get_or_create_verification(current_user)
-        if not req.otp_code:
-            return jsonify({'error': 'Primero solicita un código.'}), 400
-        if req.otp_expires_at and req.otp_expires_at < datetime.now():
-            return jsonify({'error': 'El código expiró. Solicita uno nuevo.'}), 400
-        if code != req.otp_code:
-            session['verify_otp_failures'] = failures + 1
-            return jsonify({'error': 'Código incorrecto.'}), 400
-
-        req.phone_verified_at = datetime.now()
-        req.otp_code = None
-        db.session.add(req)
-        db.session.commit()
-        session.pop('verify_otp_failures', None)
-        return jsonify({'ok': True, 'message': 'Correo verificado'})
-
-    @app.route('/api/verify/upload-video', methods=['POST'])
-    @login_required
-    def verify_upload_video():
-        if is_user_verified(current_user):
-            return jsonify({'error': 'Cuenta ya verificada.'}), 400
-
-        if is_rate_limited(f'verify_upload_video:user:{current_user.id}', limit=8, window_seconds=600):
-            return jsonify({'error': 'Demasiados intentos. Intenta de nuevo más tarde.'}), 429
-
-        req = get_or_create_verification(current_user)
-        if req.status == 'pending':
-            return jsonify({'error': 'Tu verificación está en revisión.'}), 400
-        file = request.files.get('video')
-        if not file or not getattr(file, 'filename', ''):
-            return jsonify({'error': 'Selecciona un video válido.'}), 400
-        # Defense-in-depth for this endpoint specifically (global limit is 32MB)
-        if request.content_length and int(request.content_length) > 32 * 1024 * 1024:
-            return jsonify({'error': 'El video excede el tamaño permitido.'}), 413
-        filename = secure_filename(file.filename)
-        ext = os.path.splitext(filename)[1].lower()
-        if ext not in {'.mp4', '.mov', '.webm', '.m4v'}:
-            return jsonify({'error': 'Formato no soportado. Usa MP4/MOV/WEBM.'}), 400
-        folder = ensure_verification_folder()
-        unique_name = f"{uuid4().hex}{ext}"
-        save_path = os.path.join(folder, unique_name)
-        previous_video = (req.video_filename or '').strip()
-        try:
-            file.save(save_path)
-        except Exception:
-            return jsonify({'error': 'No se pudo guardar el video.'}), 500
-        req.video_filename = f"verify/{unique_name}"
-        db.session.add(req)
-        db.session.commit()
-        if previous_video and previous_video != req.video_filename:
-            safe_remove_upload(previous_video)
-        return jsonify({'ok': True, 'message': 'Video cargado.'})
+        return render_template(
+            'verify.html',
+            status=req.status,
+            verification=req,
+            user_status=verification_status_for_user(current_user),
+        )
 
     @app.route('/api/verify/submit', methods=['POST'])
     @login_required
@@ -6292,20 +6149,26 @@ def create_app():
         if is_user_verified(current_user):
             return jsonify({'error': 'Cuenta ya verificada.'}), 400
         req = get_or_create_verification(current_user)
-        if not req.phone_verified_at:
-            return jsonify({'error': 'Verifica primero tu correo.'}), 400
-        if not req.video_filename:
-            return jsonify({'error': 'Sube tu video de verificación.'}), 400
         req.status = 'pending'
         req.submitted_at = datetime.now()
+        current_user.verification_status = VERIFICATION_STATUS_PENDING
+        current_user.is_verified = False
+        current_user.rejection_reason = None
         db.session.add(req)
+        db.session.add(current_user)
         db.session.commit()
-        return jsonify({'ok': True, 'message': 'Solicitud enviada. Te avisaremos cuando sea revisada.'})
+        invalidate_user_snapshot_cache(current_user.id)
+        invalidate_runtime_response_cache('page_profile_shell')
+        invalidate_runtime_response_cache('page_profile_content')
+        return jsonify({
+            'ok': True,
+            'success': True,
+            'status': req.status,
+            'message': 'Solicitud enviada. Te avisaremos cuando sea revisada.',
+        })
 
     @app.route('/api/search')
     def api_search():
-        if current_user.is_authenticated and not is_user_verified(current_user):
-            return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
         q = (request.args.get('q') or '').strip()
         kind = (request.args.get('type') or 'both').lower()
         results = {'users': [], 'posts': []}
@@ -6316,6 +6179,8 @@ def create_app():
         blocked_ids = blocked_user_ids_for(current_user) if current_user.is_authenticated else set()
 
         if kind in ('both', 'users'):
+            if current_user.is_authenticated and not is_user_verified(current_user):
+                return jsonify(results)
             users_q = User.query.filter(User.username.ilike(f'%{q}%'))
             if blocked_ids:
                 users_q = users_q.filter(~User.id.in_(blocked_ids))
@@ -6359,38 +6224,14 @@ def create_app():
             enrich_posts_for_cards(posts, current_user)
 
             for p in posts:
-                # Parse categories from JSON
-                categories = []
-                if getattr(p, 'categories', None):
-                    try:
-                        import json
-                        categories = json.loads(p.categories)
-                    except Exception:
-                        categories = []
-
-                loc = public_location_for_post(p, current_user)
-                results['posts'].append({
-                    'id': p.id,
-                    'username': getattr(p.author, 'username', 'unknown'),
-                    'caption': p.caption,
-                    'image_url': media_url(p.image_filename),
-                    'created_at': p.created_at.isoformat() if getattr(p, 'created_at', None) else None,
-                    'likes_count': int(getattr(p, 'likes_count', 0)),
-                    'comments_count': int(getattr(p, 'comments_count', 0)),
-                    'latitude': loc.get('lat'),
-                    'longitude': loc.get('lng'),
-                    'location_name': loc.get('name'),
-                    'location_visibility': loc.get('visibility'),
-                    'tags': [t.name for t in getattr(p, 'tags', [])] if hasattr(p, 'tags') else [],
-                    'categories': categories,
-                })
+                item = protected_post_payload(p, current_user)
+                item['tags'] = [t.name for t in getattr(p, 'tags', [])] if hasattr(p, 'tags') else []
+                results['posts'].append(item)
 
         return jsonify(results)
 
     @app.route('/api/hotspots')
     def api_hotspots():
-        if current_user.is_authenticated and not is_user_verified(current_user):
-            return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
         """Devuelve agregaciones por zona para visualizar hotspots de peligro.
 
         Parámetros opcionales:
@@ -6457,6 +6298,8 @@ def create_app():
         c_lng = request.args.get('lng', type=float)
         radius = request.args.get('radius_km', 2.0, type=float)
         precision = request.args.get('precision', 3, type=int)
+        if current_user.is_authenticated and not is_user_verified(current_user):
+            precision = min(int(precision or 2), 2)
         category = request.args.get('category')
         limit = request.args.get('limit', type=int)
         viewer_id = getattr(current_user, 'id', None) if current_user.is_authenticated else None
@@ -6524,7 +6367,8 @@ def create_app():
                 buckets[key] = info
             info['count'] += 1
             try:
-                info['likes'] += int(like_counts.get(p.id, 0))
+                if not (current_user.is_authenticated and not is_user_verified(current_user)):
+                    info['likes'] += int(like_counts.get(p.id, 0))
             except Exception as exc:
                 _debug_log_suppressed('suppressed exception', exc)
             # Contar etiquetas
@@ -6551,8 +6395,6 @@ def create_app():
 
     @app.route('/api/posts-in-radius')
     def api_posts_in_radius():
-        if current_user.is_authenticated and not is_user_verified(current_user):
-            return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
         """Devuelve posts dentro de un radio aproximado (km) desde un centro lat/lng.
 
         Parámetros:
@@ -6670,21 +6512,9 @@ def create_app():
                     categories = []
 
             try:
-                loc = public_location_for_post(p, current_user)
-                data.append({
-                    'id': p.id,
-                    'username': getattr(p.author, 'username', 'unknown'),
-                    'caption': p.caption,
-                    'image_url': media_url(p.image_filename),
-                    'created_at': p.created_at.isoformat() if getattr(p, 'created_at', None) else None,
-                    'likes_count': int(getattr(p, 'likes_count', 0)),
-                    'comments_count': int(getattr(p, 'comments_count', 0)),
-                    'latitude': loc.get('lat'),
-                    'longitude': loc.get('lng'),
-                    'location_name': loc.get('name'),
-                    'location_visibility': loc.get('visibility'),
-                    'categories': categories,
-                })
+                item = protected_post_payload(p, current_user)
+                item['categories'] = categories
+                data.append(item)
             except Exception as exc:
                 _debug_log_suppressed('suppressed exception', exc)
         payload = {'posts': data}
@@ -6693,8 +6523,6 @@ def create_app():
 
     @app.route('/api/posts-by-city')
     def api_posts_by_city():
-        if current_user.is_authenticated and not is_user_verified(current_user):
-            return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
         """Filtra posts por ciudad usando coordenadas."""
         city = (request.args.get('city') or '').strip().lower()
         viewer_id = getattr(current_user, 'id', None) if current_user.is_authenticated else None
@@ -6702,6 +6530,8 @@ def create_app():
         cache_key = (
             'posts_by_city',
             viewer_id,
+            verification_status_for_user(current_user) if current_user.is_authenticated else 'anon',
+            location_trial_views_used(current_user) if current_user.is_authenticated else 0,
             tuple(sorted(blocked_ids)),
             city or 'all',
         )
@@ -6716,23 +6546,10 @@ def create_app():
         data = []
         for p in filtered:
             try:
-                author = p.author
-                pic = avatar_url_for_user(author)
-                loc = public_location_for_post(p, current_user)
-                data.append({
-                    'id': p.id,
-                    'username': author.username if author else 'unknown',
-                    'profile_pic': pic,
-                    'caption': p.caption,
-                    'image_url': media_url(p.image_filename),
-                    'likes_count': int(getattr(p, 'likes_count', 0)),
-                    'comments_count': int(getattr(p, 'comments_count', 0)),
-                    'location_name': loc.get('name'),
-                    'latitude': loc.get('lat'),
-                    'longitude': loc.get('lng'),
-                    'location_visibility': loc.get('visibility'),
-                    'liked_by_me': bool(getattr(p, 'liked_by_me', False)),
-                })
+                item = protected_post_payload(p, current_user, include_profile_pic=True)
+                if not item.get('protected'):
+                    item['liked_by_me'] = bool(getattr(p, 'liked_by_me', False))
+                data.append(item)
             except Exception as exc:
                 _debug_log_suppressed('suppressed bare exception', exc)
         payload = {'posts': data}
@@ -6752,9 +6569,6 @@ def create_app():
         - Excluye posts del propio usuario y de usuarios bloqueados.
         - "Recientemente" se define por publish_at (cuando el post se hace público).
         """
-        if current_user.is_authenticated and not is_user_verified(current_user):
-            return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
-
         c_lat = request.args.get('lat', type=float)
         c_lng = request.args.get('lng', type=float)
         radius = request.args.get('radius_km', 1.0, type=float)
@@ -6833,18 +6647,11 @@ def create_app():
                 if not categories:
                     continue
 
-                published_at = getattr(p, 'publish_at', None) or getattr(p, 'created_at', None)
-                out.append({
-                    'id': p.id,
-                    'username': getattr(getattr(p, 'author', None), 'username', 'unknown'),
-                    'caption': p.caption or '',
-                    'image_url': url_for('uploaded_file', filename=p.image_filename),
-                    'published_at': published_at.isoformat() if published_at else None,
-                    'distance_km': dist,
-                    'categories': categories,
-                    'location_name': loc.get('name'),
-                    'location_visibility': loc.get('visibility'),
-                })
+                item = protected_post_payload(p, current_user)
+                item['published_at'] = item.get('created_at')
+                item['distance_km'] = dist
+                item['categories'] = categories
+                out.append(item)
             except Exception as exc:
                 _debug_log_suppressed('suppressed exception in report aggregation', exc)
 
@@ -7474,6 +7281,8 @@ def create_app():
                 return
             if not current_user.is_authenticated:
                 return
+            if not is_user_verified(current_user):
+                return
 
             room = ChatRoom.query.get(room_id)
             if not room or not room.is_approved:
@@ -7891,11 +7700,11 @@ def create_app():
     @app.route('/like/<int:post_id>', methods=['POST'])
     @login_required
     def like(post_id):
-        if current_user.is_authenticated and not is_user_verified(current_user):
-            return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
         if is_user_temp_muted(current_user):
             return jsonify({'ok': False, **temp_mute_error_payload('Tienes una restricción temporal de interacción.')}), 403
         post = Post.query.get_or_404(post_id)
+        if not can_interact_with_post(current_user, post):
+            return jsonify({'ok': False, 'error': LIKES_VERIFY_REQUIRED_MSG}), 403
         if is_user_blocked_between(current_user.id, post.user_id):
             return jsonify({'ok': False, 'error': 'No puedes interactuar con esta cuenta.'}), 403
         if not is_public_post(post):
@@ -7928,14 +7737,15 @@ def create_app():
     @app.route('/comment/<int:post_id>', methods=['POST'])
     @login_required
     def comment(post_id):
-        if current_user.is_authenticated and not is_user_verified(current_user):
-            return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
         if is_user_temp_muted(current_user):
             return jsonify({'ok': False, **temp_mute_error_payload('Tienes una restricción temporal de interacción.')}), 403
         form = CommentForm()
         content = safe_field(form, 'content')
         if not content:
             return jsonify({'ok': False, 'error': 'Contenido vacío o formulario inválido'}), 400
+        post = Post.query.get_or_404(post_id)
+        if not can_interact_with_post(current_user, post):
+            return jsonify({'ok': False, 'error': COMMENTS_VERIFY_REQUIRED_MSG}), 403
         if contains_abusive_language(content):
             result = apply_abuse_strike(
                 current_user,
@@ -7951,7 +7761,6 @@ def create_app():
                 except Exception as exc:
                     _debug_log_suppressed('suppressed exception', exc)
             return jsonify({'ok': False, 'error': 'Tu comentario contiene lenguaje no permitido.'}), 400
-        post = Post.query.get_or_404(post_id)
         if is_user_blocked_between(current_user.id, post.user_id):
             return jsonify({'ok': False, 'error': 'No puedes interactuar con esta cuenta.'}), 403
         if not is_public_post(post):
@@ -7992,6 +7801,8 @@ def create_app():
     @app.route('/share/<int:post_id>', methods=['POST'])
     @login_required
     def share(post_id):
+        if not is_user_verified(current_user):
+            return jsonify({'ok': False, 'error': VERIFY_REQUIRED_MSG}), 403
         if is_user_temp_muted(current_user):
             return jsonify({'ok': False, **temp_mute_error_payload('Tienes una restricción temporal de interacción.')}), 403
         form = ShareForm()
@@ -8389,63 +8200,6 @@ def create_app():
     @login_required
     def profile():
         return redirect(url_for('user_profile', username=current_user.username))
-
-    @app.route('/api/invitations/create', methods=['POST'])
-    @login_required
-    def create_beta_invitation():
-        if not is_user_verified(current_user):
-            return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
-        if is_rate_limited(f'create_invite:user:{current_user.id}', limit=8, window_seconds=600):
-            return jsonify({'error': 'Demasiados intentos. Intenta de nuevo en unos minutos.'}), 429
-
-        status = beta_invite_status_for_user(current_user)
-        if not status.get('can_invite'):
-            return jsonify({
-                'error': 'Todavía no puedes generar invitaciones.',
-                'reasons': status.get('reasons') or [],
-                'invite_status': {
-                    'can_invite': False,
-                    'remaining': status.get('remaining', 0),
-                    'days_remaining': status.get('days_remaining', 0),
-                    'strikes': status.get('strikes', 0),
-                },
-            }), 403
-
-        invite = InviteCode(
-            code=generate_invite_code_value(),
-            created_by_user_id=current_user.id,
-            status='active',
-            max_uses=1,
-            use_count=0,
-            expires_at=utc_now_naive() + timedelta(days=INVITE_EXPIRY_DAYS),
-        )
-        db.session.add(invite)
-        try:
-            db.session.commit()
-        except Exception as exc:
-            db.session.rollback()
-            _debug_log_suppressed('suppressed invite create error', exc)
-            return jsonify({'error': 'No se pudo generar la invitación.'}), 500
-
-        record_audit_event(
-            'invite.create',
-            workspace='verification',
-            target_user=current_user,
-            resource_type='invite_code',
-            resource_id=invite.id,
-            summary='Generó una invitación beta.',
-            details={'expires_at': invite.expires_at.isoformat() if invite.expires_at else None},
-        )
-        invalidate_runtime_response_cache('invite_status')
-        invalidate_runtime_response_cache('page_profile_shell')
-        invalidate_runtime_response_cache('page_profile_content')
-        refreshed = beta_invite_status_for_user(current_user)
-        return jsonify({
-            'success': True,
-            'message': 'Invitación creada.',
-            'invite': invite_payload(invite),
-            'remaining': refreshed.get('remaining', 0),
-        })
 
     def _base_ops_panel_context() -> dict:
         context = {
@@ -10355,20 +10109,20 @@ def create_app():
     @permission_required(PERM_VERIFICATION_REVIEW, json_only=True)
     def admin_approve_verification(req_id):
         req = VerificationRequest.query.get_or_404(req_id)
-        video_to_delete = (req.video_filename or '').strip()
         previous_status = (req.status or '').strip() or 'pending'
         req.status = 'approved'
         req.reviewed_at = datetime.now()
         req.reviewed_by = current_user.id
-        req.video_filename = None
         user = User.query.get(req.user_id)
         if user:
             user.is_verified = True
+            user.verification_status = VERIFICATION_STATUS_VERIFIED
+            user.verified_at = utc_now_naive()
+            user.rejection_reason = None
+            db.session.add(user)
         db.session.add(req)
         db.session.commit()
         invalidate_user_snapshot_cache(req.user_id)
-        if video_to_delete:
-            safe_remove_upload(video_to_delete)
         record_audit_event(
             'verification.approve',
             workspace='verification',
@@ -10389,20 +10143,19 @@ def create_app():
     @permission_required(PERM_VERIFICATION_REVIEW, json_only=True)
     def admin_reject_verification(req_id):
         req = VerificationRequest.query.get_or_404(req_id)
-        video_to_delete = (req.video_filename or '').strip()
         previous_status = (req.status or '').strip() or 'pending'
         req.status = 'rejected'
         req.reviewed_at = datetime.now()
         req.reviewed_by = current_user.id
-        req.video_filename = None
         user = User.query.get(req.user_id)
         if user:
             user.is_verified = False
+            user.verification_status = VERIFICATION_STATUS_REJECTED
+            user.rejection_reason = (request.get_json(silent=True) or request.form or {}).get('reason') or None
+            db.session.add(user)
         db.session.add(req)
         db.session.commit()
         invalidate_user_snapshot_cache(req.user_id)
-        if video_to_delete:
-            safe_remove_upload(video_to_delete)
         record_audit_event(
             'verification.reject',
             workspace='verification',
@@ -10414,6 +10167,42 @@ def create_app():
                 'previous_status': previous_status,
                 'new_status': req.status,
                 'user_id': req.user_id,
+            },
+        )
+        return jsonify({'success': True})
+
+    @app.route('/admin/verify/<int:req_id>/suspend', methods=['POST'])
+    @login_required
+    @permission_required(PERM_VERIFICATION_REVIEW, json_only=True)
+    def admin_suspend_verification(req_id):
+        req = VerificationRequest.query.get_or_404(req_id)
+        previous_status = (req.status or '').strip() or 'pending'
+        req.status = 'suspended'
+        req.reviewed_at = datetime.now()
+        req.reviewed_by = current_user.id
+        user = User.query.get(req.user_id)
+        reason = (request.get_json(silent=True) or request.form or {}).get('reason') or None
+        if user:
+            user.is_verified = False
+            user.verification_status = VERIFICATION_STATUS_SUSPENDED
+            user.rejection_reason = reason
+            user.suspended_at = utc_now_naive()
+            db.session.add(user)
+        db.session.add(req)
+        db.session.commit()
+        invalidate_user_snapshot_cache(req.user_id)
+        record_audit_event(
+            'verification.suspend',
+            workspace='verification',
+            target_user=user,
+            resource_type='verification_request',
+            resource_id=req.id,
+            summary='Suspendió una cuenta desde verificación.',
+            details={
+                'previous_status': previous_status,
+                'new_status': req.status,
+                'user_id': req.user_id,
+                'reason': reason,
             },
         )
         return jsonify({'success': True})
@@ -10440,10 +10229,9 @@ def create_app():
         delete_public_upload_from_storage(name)
 
     def delete_user_and_related(target_user: User):
-        # Verification requests + videos
+        # Verification requests
         reqs = VerificationRequest.query.filter_by(user_id=target_user.id).all()
         for req in reqs:
-            safe_remove_upload(req.video_filename)
             db.session.delete(req)
 
         # Nullify reviewer references
@@ -10456,15 +10244,7 @@ def create_app():
             (Share.sender_id == target_user.id) | (Share.receiver_id == target_user.id)
         ).delete(synchronize_session=False)
 
-        # Invite relationships. created_by_user_id is required, so creator-owned
-        # codes must be removed before deleting the account.
-        User.query.filter_by(invited_by_id=target_user.id).update(
-            {'invited_by_id': None}, synchronize_session=False
-        )
-        InviteCode.query.filter_by(used_by_user_id=target_user.id).update(
-            {'used_by_user_id': None}, synchronize_session=False
-        )
-        InviteCode.query.filter_by(created_by_user_id=target_user.id).delete(synchronize_session=False)
+        LocationViewAudit.query.filter_by(user_id=target_user.id).delete(synchronize_session=False)
 
         # Reports created by user
         Report.query.filter_by(reporter_id=target_user.id).delete(synchronize_session=False)
@@ -12020,13 +11800,6 @@ def create_app():
                 ttl_seconds=30,
                 max_entries=128,
             )
-        invite_status = None
-        if is_self:
-            invite_cache_key = ('invite_status', user.id, int(getattr(user, 'abuse_strikes', 0) or 0))
-            invite_status = get_runtime_cached_payload(invite_cache_key, 30)
-            if invite_status is None:
-                invite_status = beta_invite_status_for_user(user)
-                set_runtime_cached_payload(invite_cache_key, invite_status, ttl_seconds=30, max_entries=128)
         html = render_template(
             'user_profile.html',
             user=user,
@@ -12036,7 +11809,6 @@ def create_app():
             total_likes=int(total_likes or 0),
             total_comments=int(total_comments or 0),
             is_self=is_self,
-            invite_status=invite_status,
         )
         return html
 
@@ -12274,7 +12046,13 @@ def create_app():
         )
         page = request.args.get('page', 1, type=int)
         viewer_id = current_user.id if current_user.is_authenticated else 0
-        page_cache_key = ('page_profile_shell', viewer_id, normalized_username.casefold(), page)
+        page_cache_key = (
+            'page_profile_shell',
+            viewer_id,
+            verification_status_for_user(current_user) if current_user.is_authenticated else 'anon',
+            normalized_username.casefold(),
+            page,
+        )
         cached_response = get_cached_html_page(page_cache_key, 90)
         if cached_response is not None:
             return cached_response
@@ -12282,6 +12060,9 @@ def create_app():
         if current_user.is_authenticated and current_user.id != user.id and is_user_blocked_between(current_user.id, user.id):
             abort(404)
         is_self = (current_user.is_authenticated and current_user.id == user.id)
+        if current_user.is_authenticated and not is_self and not is_user_verified(current_user) and not user_has_staff_badge(user):
+            flash(VERIFY_REQUIRED_MSG, 'warning')
+            return redirect(url_for('verify_identity'))
         html = render_template(
             'user_profile_shell.html',
             user=user,
@@ -12301,7 +12082,15 @@ def create_app():
         per_page = app.config.get('PROFILE_POSTS_PAGE_SIZE', 12)
         viewer_can_review_private = bool(is_self_guess or (current_user.is_authenticated and user_can_review_private_content(current_user)))
         viewer_id = current_user.id if current_user.is_authenticated else 0
-        page_cache_key = ('page_profile_content', viewer_id, normalized_username.casefold(), page, per_page, viewer_can_review_private)
+        page_cache_key = (
+            'page_profile_content',
+            viewer_id,
+            verification_status_for_user(current_user) if current_user.is_authenticated else 'anon',
+            normalized_username.casefold(),
+            page,
+            per_page,
+            viewer_can_review_private,
+        )
         cached_response = get_cached_html_page(page_cache_key, 45)
         if cached_response is not None:
             return cached_response
@@ -12309,6 +12098,8 @@ def create_app():
         if current_user.is_authenticated and current_user.id != user.id and is_user_blocked_between(current_user.id, user.id):
             abort(404)
         is_self = (current_user.is_authenticated and current_user.id == user.id)
+        if current_user.is_authenticated and not is_self and not is_user_verified(current_user) and not user_has_staff_badge(user):
+            return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
         html = _build_user_profile_view_context(
             user,
             is_self=is_self,

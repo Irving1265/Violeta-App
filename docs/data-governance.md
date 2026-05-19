@@ -63,11 +63,7 @@ Reglas:
 Incluye:
 
 - `VerificationRequest.phone`
-- `VerificationRequest.otp_code`
-- `VerificationRequest.otp_expires_at`
-- `VerificationRequest.video_filename`
 - `VerificationRequest.status`
-- `VerificationRequest.liveness_phrase`
 - `VerificationRequest.admin_notes`
 - `VerificationRequest.reviewed_at`
 - `VerificationRequest.reviewed_by`
@@ -269,9 +265,7 @@ Las ventanas siguientes son metas operativas recomendadas para Violeta. Si exist
 
 | Tipo de dato | Retención recomendada | Regla de borrado |
 | :--- | :--- | :--- |
-| OTP de verificación | 10 minutos o hasta validación | borrar al validar o expirar |
-| Video de verificación pendiente | máximo 7 días | borrar automático al vencer o al resolverse |
-| Video de verificación aprobado/rechazado | inmediata | borrar en aprobación/rechazo |
+| Solicitud manual de verificación | mientras la cuenta siga activa | anonimizar o borrar al cerrar cuenta |
 | Estado de verificación y revisión mínima | mientras la cuenta siga activa | anonimizar o borrar al cerrar cuenta |
 | Foto y texto de post público | mientras el post exista | borrar media y registro al eliminar post |
 | Metadata privada temporal de captura | no persistir, o menos de 24 h | purga automática |
@@ -293,9 +287,7 @@ Las ventanas siguientes son metas operativas recomendadas para Violeta. Si exist
 
 ### Verificación
 
-- usar OTP con expiración corta
-- usar video temporal solo para revisión humana
-- borrar el video al aprobar o rechazar
+- usar revisión manual sin códigos temporales ni dependencias externas de acceso
 - las notas administrativas deben evitar describir rasgos físicos innecesarios
 - la decisión final debe registrar solo el mínimo necesario para operar la cuenta
 
@@ -329,7 +321,7 @@ Las ventanas siguientes son metas operativas recomendadas para Violeta. Si exist
 
 1. RBAC formal en backend, no solo `username == 'admin'`.
 2. Auditoría de acceso para:
-   - videos de verificación
+   - solicitudes de verificación
    - panic events
    - contactos de confianza
    - route points
@@ -349,8 +341,6 @@ Las ventanas siguientes son metas operativas recomendadas para Violeta. Si exist
 ### Ya implementado
 
 - limpieza de metadata de imágenes al guardar archivos
-- eliminación del video de verificación al aprobar o rechazar
-- eliminación del video previo al reemplazar una verificación
 - exportación automática de usuarias deshabilitada por defecto y sin `password_hash`
 - moderación de alto riesgo con ocultamiento inmediato
 - flujo de publicación con reglas de seguridad temporal y de distancia

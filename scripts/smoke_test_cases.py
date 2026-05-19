@@ -79,6 +79,7 @@ ModerationStrike = app_module.ModerationStrike
 VerificationRequest = app_module.VerificationRequest
 AuditLog = app_module.AuditLog
 BackgroundJobEvent = app_module.BackgroundJobEvent
+LocationViewAudit = app_module.LocationViewAudit
 ROLE_SUPER_ADMIN = getattr(app_module, 'ROLE_SUPER_ADMIN', 'super_admin')
 
 app.config.update(
@@ -139,6 +140,8 @@ class VioletaSmokeTests(unittest.TestCase):
             user = User(username=username, email=f'{username}@example.com')
             user.set_password(password)
             user.is_verified = verified
+            user.verification_status = 'verified' if verified else 'unverified'
+            user.trial_location_views_limit = 3
             assigned_roles = list(roles or [])
             if not assigned_roles and username.strip().lower() == 'admin':
                 assigned_roles = [ROLE_SUPER_ADMIN]
@@ -390,6 +393,64 @@ class VioletaSmokeTests(unittest.TestCase):
         with client.session_transaction() as sess:
             self.assertTrue(sess.get('_user_id'))
 
+    def test_registration_creates_limited_account_without_access_code(self):
+        client = app.test_client()
+        register_page = client.get('/register')
+        self.assertEqual(register_page.status_code, 200)
+        html = register_page.get_data(as_text=True).lower()
+        forbidden_terms = (
+            'inv' + 'ite',
+            'invit' + 'ación',
+            'código de ' + 'invit' + 'ación',
+            'ref' + 'erral',
+        )
+        for term in forbidden_terms:
+            self.assertNotIn(term, html)
+
+        response = client.post(
+            '/register',
+            data={
+                'email': 'nueva_sin_codigo@example.com',
+                'username': 'nueva_sin_codigo',
+                'password': 'Password123',
+                'password2': 'Password123',
+                'eligibility_attestation': 'y',
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/login', response.headers.get('Location', ''))
+        with app.app_context():
+            user = User.query.filter_by(username='nueva_sin_codigo').first()
+            self.assertIsNotNone(user)
+            self.assertFalse(user.is_verified)
+            self.assertEqual(user.verification_status, 'unverified')
+            self.assertEqual(int(user.trial_location_views_limit or 0), 3)
+
+    def test_manual_verification_request_sets_pending_review_without_codes(self):
+        user_id = self.create_user('solicita_revision', verified=False)
+        client = self.client_for(user_id)
+
+        page = client.get('/verify')
+        self.assertEqual(page.status_code, 200)
+        html = page.get_data(as_text=True).lower()
+        self.assertIn('solicitud de revisión', html)
+        self.assertNotIn('otp', html)
+        self.assertNotIn('código', html)
+        self.assertNotIn('video', html)
+
+        response = client.post('/api/verify/submit', json={})
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json() or {}
+        self.assertTrue(payload.get('success'))
+        self.assertEqual(payload.get('status'), 'pending')
+        with app.app_context():
+            user = db.session.get(User, user_id)
+            self.assertEqual(user.verification_status, 'pending_review')
+            request_row = VerificationRequest.query.filter_by(user_id=user_id).first()
+            self.assertIsNotNone(request_row)
+            self.assertEqual(request_row.status, 'pending')
+
     def test_health_check_public_safe_and_degrades_on_cache_failure(self):
         client = app.test_client()
         response = client.get('/healthz')
@@ -546,7 +607,7 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertNotIn('re_secret_value', json.dumps(redacted))
         self.assertNotIn('postgresql://violeta:secret@db.internal/violeta', json.dumps(redacted))
 
-    def test_security_overlay_styles_load_only_when_needed(self):
+    def test_limited_access_banner_loads_without_blocking_overlay(self):
         verified_id = self.create_user('overlay_verificada', verified=True)
         unverified_id = self.create_user('overlay_no_verificada', verified=False)
 
@@ -555,13 +616,16 @@ class VioletaSmokeTests(unittest.TestCase):
         verified_html = verified_response.get_data(as_text=True)
         self.assertNotIn('security_overlays.css', verified_html)
         self.assertNotIn('verify-gate-overlay', verified_html)
+        self.assertNotIn('limited-access-banner', verified_html)
         self.assertNotIn('user-unverified', verified_html)
 
         unverified_response = self.client_for(unverified_id).get('/')
         self.assertEqual(unverified_response.status_code, 200)
         unverified_html = unverified_response.get_data(as_text=True)
-        self.assertIn('security_overlays.css', unverified_html)
-        self.assertIn('verify-gate-overlay', unverified_html)
+        self.assertNotIn('security_overlays.css', unverified_html)
+        self.assertNotIn('verify-gate-overlay', unverified_html)
+        self.assertIn('limited-access-banner', unverified_html)
+        self.assertIn('Cuenta no verificada', unverified_html)
         self.assertIn('user-unverified', unverified_html)
 
     def test_page_script_bundles_are_loaded_by_need(self):
@@ -2439,9 +2503,6 @@ class VioletaSmokeTests(unittest.TestCase):
                 user_id=target_user_id,
                 phone='+528111111111',
                 status='pending',
-                otp_code=None,
-                otp_expires_at=None,
-                video_filename=None,
             )
             db.session.add(req)
             db.session.commit()
@@ -2512,9 +2573,6 @@ class VioletaSmokeTests(unittest.TestCase):
                 user_id=target_user_id,
                 phone='+528111111111',
                 status='pending',
-                otp_code=None,
-                otp_expires_at=None,
-                video_filename=None,
             )
             panic = PanicEvent(
                 user_id=target_user_id,
@@ -2716,15 +2774,137 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertEqual(len(strikes), 3)
         self.assertEqual(strikes[-1].consequence, 'permanent_ban')
 
-    def test_unverified_user_cannot_interact(self):
-        author_id = self.create_user('autora_verificada')
+    def test_unverified_user_gets_protected_feed_and_blocked_actions(self):
+        admin_id = self.create_user('admin')
+        author_id = self.create_user('autora_protegida')
         unverified_id = self.create_user('no_verificada', verified=False)
-        post_id = self.create_public_post(author_id, caption='Post para gate de verificación')
+        normal_post_id = self.create_public_post(
+            author_id,
+            caption='Detalle sensible protegido smoke',
+            location_name='Ubicación sensible protegida',
+        )
+        admin_post_id = self.create_public_post(
+            admin_id,
+            caption='Anuncio oficial visible smoke',
+            location_name='Ubicación oficial visible',
+        )
+        self.create_comment(author_id, normal_post_id, 'Comentario sensible protegido')
+        with app.app_context():
+            db.session.add(Like(user_id=author_id, post_id=normal_post_id))
+            db.session.commit()
+            original_filename = db.session.get(Post, normal_post_id).image_filename
 
         client = self.client_for(unverified_id)
-        response = client.post(f'/like/{post_id}', json={}, headers={'Accept': 'application/json'})
-        self.assertEqual(response.status_code, 403)
-        self.assertIn('verificar', (response.get_json() or {}).get('error', '').lower())
+        page = client.get('/')
+        self.assertEqual(page.status_code, 200)
+        html = page.get_data(as_text=True)
+        self.assertIn('Cuenta no verificada', html)
+        self.assertIn('********************', html)
+        self.assertIn('Reporte protegido. Verifica tu cuenta para ver los detalles completos.', html)
+        self.assertIn('/static/images/protected_post_placeholder.svg', html)
+        self.assertIn('Anuncio oficial visible smoke', html)
+        self.assertNotIn('Detalle sensible protegido smoke', html)
+        self.assertNotIn('Comentario sensible protegido', html)
+        self.assertNotIn('autora_protegida', html)
+        self.assertNotIn(original_filename, html)
+
+        protected_payload = self.fetch_feed_post(client, normal_post_id)
+        self.assertIsNotNone(protected_payload)
+        self.assertTrue(protected_payload.get('protected'))
+        self.assertEqual(protected_payload.get('username'), '********************')
+        self.assertEqual(protected_payload.get('caption'), 'Reporte protegido. Verifica tu cuenta para ver los detalles completos.')
+        self.assertEqual(protected_payload.get('image_url'), '/static/images/protected_post_placeholder.svg')
+        self.assertIsNone(protected_payload.get('likes_count'))
+        self.assertIsNone(protected_payload.get('comments_count'))
+        self.assertFalse(protected_payload.get('can_like'))
+        self.assertFalse(protected_payload.get('can_comment'))
+
+        admin_payload = self.fetch_feed_post(client, admin_post_id)
+        self.assertIsNotNone(admin_payload)
+        self.assertFalse(admin_payload.get('protected'))
+        self.assertEqual(admin_payload.get('username'), 'admin')
+        self.assertEqual(admin_payload.get('caption'), 'Anuncio oficial visible smoke')
+
+        like_response = client.post(f'/like/{normal_post_id}', json={}, headers={'Accept': 'application/json'})
+        self.assertEqual(like_response.status_code, 403)
+        self.assertIn('verifica', (like_response.get_json() or {}).get('error', '').lower())
+
+        comment_response = client.post(f'/comment/{normal_post_id}', data={'content': 'No debería pasar'})
+        self.assertEqual(comment_response.status_code, 403)
+        self.assertIn('comentarios', (comment_response.get_json() or {}).get('error', '').lower())
+
+        comments_response = client.get(f'/comments/{normal_post_id}')
+        self.assertEqual(comments_response.status_code, 403)
+        self.assertEqual((comments_response.get_json() or {}).get('comments'), [])
+
+        upload_response = client.post('/upload', data={}, headers={'Accept': 'application/json'})
+        self.assertEqual(upload_response.status_code, 403)
+        self.assertIn('publicar', (upload_response.get_json() or {}).get('error', '').lower())
+
+        chat_response = client.get('/chat', follow_redirects=False)
+        self.assertEqual(chat_response.status_code, 302)
+        self.assertIn('/verify', chat_response.headers.get('Location', ''))
+
+        profile_response = client.get('/user/autora_protegida', follow_redirects=False)
+        self.assertEqual(profile_response.status_code, 302)
+        self.assertIn('/verify', profile_response.headers.get('Location', ''))
+
+        search_response = client.get('/api/search?q=autora_protegida')
+        self.assertEqual(search_response.status_code, 200)
+        search_payload = search_response.get_json() or {}
+        self.assertEqual(search_payload.get('users'), [])
+
+    def test_unverified_location_trial_reveals_three_unique_non_admin_posts(self):
+        admin_id = self.create_user('admin')
+        author_id = self.create_user('autora_ubicaciones')
+        viewer_id = self.create_user('no_verificada_ubicaciones', verified=False)
+        post_ids = [
+            self.create_public_post(
+                author_id,
+                caption=f'Reporte ubicación {index}',
+                latitude=25.60 + index / 100,
+                longitude=-100.30 - index / 100,
+                location_name=f'Punto sensible {index}',
+            )
+            for index in range(4)
+        ]
+        admin_post_id = self.create_public_post(
+            admin_id,
+            caption='Ubicación admin libre',
+            latitude=25.75,
+            longitude=-100.20,
+            location_name='Punto oficial',
+        )
+
+        client = self.client_for(viewer_id)
+        first = client.post(f'/api/posts/{post_ids[0]}/reveal-location')
+        self.assertEqual(first.status_code, 200)
+        self.assertTrue((first.get_json() or {}).get('ok'))
+        self.assertEqual((first.get_json() or {}).get('used'), 1)
+
+        repeat = client.post(f'/api/posts/{post_ids[0]}/reveal-location')
+        self.assertEqual(repeat.status_code, 200)
+        self.assertEqual((repeat.get_json() or {}).get('used'), 1)
+
+        second = client.post(f'/api/posts/{post_ids[1]}/reveal-location')
+        third = client.post(f'/api/posts/{post_ids[2]}/reveal-location')
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(third.status_code, 200)
+        self.assertEqual((third.get_json() or {}).get('used'), 3)
+
+        blocked = client.post(f'/api/posts/{post_ids[3]}/reveal-location')
+        self.assertEqual(blocked.status_code, 403)
+        blocked_payload = blocked.get_json() or {}
+        self.assertFalse(blocked_payload.get('ok'))
+        self.assertIn('3 vistas de ubicación de prueba', blocked_payload.get('error', ''))
+
+        admin_reveal = client.post(f'/api/posts/{admin_post_id}/reveal-location')
+        self.assertEqual(admin_reveal.status_code, 200)
+        self.assertEqual((admin_reveal.get_json() or {}).get('used'), 3)
+
+        with app.app_context():
+            audit_count = LocationViewAudit.query.filter_by(user_id=viewer_id).count()
+            self.assertEqual(audit_count, 3)
 
     def test_emergency_trigger_prefers_whatsapp_and_falls_back_to_sms(self):
         user_id = self.create_user('usuaria_emergencia')

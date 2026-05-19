@@ -19,7 +19,6 @@ class LoginForm(FlaskForm):
     submit = SubmitField('Iniciar Sesión')
 
 class RegisterForm(FlaskForm):
-    invite_code = StringField('Código de invitación', validators=[DataRequired(), Length(min=6, max=32)])
     username = StringField('Usuario', validators=[DataRequired(), Length(min=3, max=20)])
     email = StringField('Email', validators=[DataRequired(), EmailValidator()])
     password = PasswordField('Contraseña', validators=[DataRequired(), Length(min=6)])

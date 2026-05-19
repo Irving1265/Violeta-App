@@ -24,8 +24,8 @@ Usa esta checklist cuando `npm run doctor` no tenga errores y antes de crear bui
 
 ## 3. Permisos
 
-- Camara: evidencia de reportes y verificacion de identidad.
-- Microfono: solo cuando se graba video de verificacion o evidencia.
+- Camara: evidencia de reportes.
+- Microfono: no requerido para el flujo actual.
 - Fotos: adjuntar imagenes a reportes y perfil.
 - Ubicacion: reportes cercanos, rutas seguras y emergencia.
 - Notificaciones: mensajes y seguimiento de reportes solo cuando la funcionalidad este habilitada.

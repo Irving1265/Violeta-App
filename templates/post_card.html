@@ -1,10 +1,15 @@
 <div class="card post-card violet-post-card" data-post-id="{{ post.id }}" data-post-date="{{ post.created_at.strftime('%Y-%m-%d') if post.created_at else '' }}">
     {% set categories_list = post.categories | from_json if post.categories else [] %}
+    {% set protected_post = not can_view_sensitive_post_data(current_user, post) %}
+    {% set protected_location = not can_view_real_location(current_user, post) %}
+    {% set display_author_name = post.author.username if not protected_post else '********************' %}
+    {% set display_author_href = url_for('user_profile', username=post.author.username) if not protected_post else url_for('verify_identity') %}
+    {% set display_author_avatar = avatar_url_for_user(post.author) if not protected_post else url_for('static', filename='images/default_avatar.jpg') %}
     {% set safe_loc = public_location_for_post(post, current_user) %}
-    {% set post_author_level = moderation_badge_level(post.author) %}
-    {% set post_author_is_staff = user_has_staff_badge(post.author) %}
+    {% set post_author_level = moderation_badge_level(post.author) if not protected_post else 0 %}
+    {% set post_author_is_staff = user_has_staff_badge(post.author) and not protected_post %}
     {% set month_names = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'] %}
-    {% set post_date_label = post.created_at.strftime('%d') ~ ' ' ~ month_names[post.created_at.month - 1] ~ ' ' ~ post.created_at.strftime('%Y') if post.created_at else '' %}
+    {% set post_date_label = 'Reporte comunitario' if protected_post else (post.created_at.strftime('%d') ~ ' ' ~ month_names[post.created_at.month - 1] ~ ' ' ~ post.created_at.strftime('%Y') if post.created_at else '') %}
     {% set country_label = safe_loc.country %}
     {% if country_label|lower == 'mexico' %}
     {% set country_label = 'México' %}
@@ -32,10 +37,10 @@
     <div class="card-header post-card-header">
         <div class="post-header-main">
             <div class="post-author-wrap">
-                <a href="{{ url_for('user_profile', username=post.author.username) }}" class="post-avatar-link">
+                <a href="{{ display_author_href }}" class="post-avatar-link">
                     <img class="avatar post-author-avatar" loading="lazy" decoding="async"
-                        src="{{ avatar_url_for_user(post.author) }}"
-                        alt="{{ post.author.username }}"
+                        src="{{ display_author_avatar }}"
+                        alt="{{ display_author_name }}"
                         onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
                     {% if post_author_is_staff %}
                     <span class="post-avatar-badge" title="Admin verificada" aria-label="Admin verificada">
@@ -45,7 +50,7 @@
                 </a>
                 <div class="post-author-meta">
                     <div class="post-author-title-row">
-                        <a href="{{ url_for('user_profile', username=post.author.username) }}" class="post-author-name">{{ post.author.username }}</a>
+                        <a href="{{ display_author_href }}" class="post-author-name">{{ display_author_name }}</a>
                         {% if post_author_level > 0 %}
                         <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if post_author_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if post_author_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if post_author_level >= 2 else 'Usuaria con un strike' }}">
                             <i class="fas fa-triangle-exclamation"></i>
@@ -58,15 +63,25 @@
                     </div>
                     <div class="post-location">
                         <i class="fas fa-map-marker-alt"></i>
-                        <span>{{ location_label }}</span>
+                        <span data-post-location-label="{{ post.id }}">{{ location_label }}</span>
                     </div>
                 </div>
             </div>
             <div class="post-header-actions">
-                <button class="post-top-action post-map-toggle" type="button" title="Ver mapa" aria-label="Ver mapa"
+                {% if protected_location and current_user.is_authenticated %}
+                <button class="post-top-action post-map-toggle post-map-reveal" type="button"
+                    title="Revelar ubicación de prueba" aria-label="Revelar ubicación de prueba"
+                    data-location-reveal-btn="{{ post.id }}"
+                    onclick="revealProtectedLocation({{ post.id }}, this)">
+                    <i class="fas fa-location-dot"></i>
+                </button>
+                {% else %}
+                <button class="post-top-action post-map-toggle" type="button" title="{{ 'Verifica tu cuenta para consultar ubicaciones reales' if protected_location else 'Ver mapa' }}" aria-label="Ver mapa"
+                    {% if protected_location %}disabled data-require-verified="1"{% endif %}
                     onclick="toggleMap({{ post.id }}, {{ '%.6f'|format(safe_loc.lat) if safe_loc.lat is not none else 'null' }}, {{ '%.6f'|format(safe_loc.lng) if safe_loc.lng is not none else 'null' }}, this)">
                     <i class="fas fa-map-marked-alt"></i>
                 </button>
+                {% endif %}
                 {% if current_user.is_authenticated %}
                 <button class="post-top-action report-btn" type="button" title="Reportar publicación"
                     aria-label="Reportar publicación" onclick="openReportModal({{ post.id }})">
@@ -109,10 +124,19 @@
     <!-- Flip Container for Map/Image -->
     <div class="post-content-container" id="flip-{{ post.id }}">
         <div class="post-image-wrapper face-front" id="img-wrapper-{{ post.id }}">
+            {% if protected_post %}
+            <img src="{{ url_for('static', filename='images/protected_post_placeholder.svg') }}"
+                class="post-image violet-post-image post-image--protected" alt="Imagen protegida" loading="lazy" decoding="async">
+            <div class="post-protected-overlay">
+                <strong>Imagen protegida</strong>
+                <span>Verifica tu cuenta para ver reportes completos.</span>
+            </div>
+            {% else %}
             <img src="{{ optimized_media_url(post.image_filename, 720) }}"
                 srcset="{{ optimized_media_url(post.image_filename, 360) }} 360w, {{ optimized_media_url(post.image_filename, 720) }} 720w, {{ optimized_media_url(post.image_filename, 1080) }} 1080w"
                 sizes="(max-width: 768px) 100vw, 680px"
                 class="post-image violet-post-image" alt="Post image" loading="lazy" decoding="async">
+            {% endif %}
         </div>
         <div class="post-map-wrapper face-back" id="map-wrapper-{{ post.id }}">
             <div id="map-{{ post.id }}" style="height: 100%; width: 100%;"></div>
@@ -121,6 +145,7 @@
 
 {% set can_like = can_user_interact_post(post, current_user, 'like') %}
 {% set can_comment = can_user_interact_post(post, current_user, 'comment') %}
+{% set can_sensitive_interact = can_interact_with_post(current_user, post) and not protected_post %}
 {% set likes_open = meta_allows_interaction(post, 'like') %}
 {% set comments_open = meta_allows_interaction(post, 'comment') %}
 {% set liked_by_me = post.liked_by_me if post.liked_by_me is defined else post.is_liked_by(current_user) %}
@@ -132,15 +157,17 @@
 <div class="post-actions">
     <div class="post-action-cluster">
         {% if current_user.is_authenticated %}
-            {% if can_like %}
+            {% if can_like and can_sensitive_interact %}
             <button class="action-btn like-btn {{ 'active' if liked_by_me }}" onclick="toggleLike({{ post.id }})" aria-label="Me gusta">
                 <span class="post-action-icon"><i class="{{ 'fas' if liked_by_me else 'far' }} fa-heart"></i></span>
                 <span class="likes-count fw-bold">{{ likes_count }}</span>
             </button>
             {% else %}
-            <button class="action-btn like-btn" type="button" disabled title="Likes desactivados por la autora">
+            <button class="action-btn like-btn post-action-locked" type="button"
+                {% if protected_post %}data-require-verified="1"{% else %}disabled{% endif %}
+                title="{{ 'Verifica tu cuenta para interactuar con publicaciones.' if protected_post else 'Likes desactivados por la autora' }}">
                 <span class="post-action-icon"><i class="far fa-heart"></i></span>
-                <span class="likes-count fw-bold">{{ likes_count }}</span>
+                {% if not protected_post %}<span class="likes-count fw-bold">{{ likes_count }}</span>{% endif %}
             </button>
             {% endif %}
         {% else %}
@@ -158,15 +185,17 @@
         {% endif %}
 
         {% if current_user.is_authenticated %}
-            {% if can_comment %}
+            {% if can_comment and can_sensitive_interact %}
             <button class="action-btn comment-btn" onclick="toggleComments({{ post.id }})" aria-label="Ver comentarios">
                 <span class="post-action-icon"><i class="far fa-comment"></i></span>
                 <span class="comments-count fw-bold">{{ comments_count }}</span>
             </button>
             {% else %}
-            <button class="action-btn comment-btn" type="button" disabled title="Comentarios desactivados por la autora">
+            <button class="action-btn comment-btn post-action-locked" type="button"
+                {% if protected_post %}data-require-verified="1"{% else %}disabled{% endif %}
+                title="{{ 'Los comentarios están disponibles solo para cuentas verificadas.' if protected_post else 'Comentarios desactivados por la autora' }}">
                 <span class="post-action-icon"><i class="far fa-comment"></i></span>
-                <span class="comments-count fw-bold">{{ comments_count }}</span>
+                {% if not protected_post %}<span class="comments-count fw-bold">{{ comments_count }}</span>{% endif %}
             </button>
             {% endif %}
         {% else %}
@@ -194,9 +223,13 @@
 </div>
 {% endif %}
 
-{% if post.caption %}
+{% if protected_post %}
+<div class="post-caption-block post-caption-block--protected">
+    <span>Reporte protegido. Verifica tu cuenta para ver los detalles completos.</span>
+</div>
+{% elif post.caption %}
 <div class="post-caption-block">
-    <span class="post-caption-author">{{ post.author.username }}</span>
+    <span class="post-caption-author">{{ display_author_name }}</span>
     {% if post_author_level > 0 %}
     <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if post_author_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if post_author_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if post_author_level >= 2 else 'Usuaria con un strike' }}">
         <i class="fas fa-triangle-exclamation"></i>
@@ -208,6 +241,11 @@
 {% endif %}
 
     <!-- Comments Section -->
+    {% if protected_post %}
+    <div class="post-comments-locked post-comments-locked--protected">
+        <i class="fas fa-lock me-1"></i> Los comentarios están protegidos. Verifica tu cuenta para participar.
+    </div>
+    {% else %}
     <div class="comments-section post-comments-panel d-none" id="comments-{{ post.id }}" data-comments-loaded="{{ 'true' if preload_comments else 'false' }}" data-prefetch-comments="{{ 'true' if prefetch_comments else 'false' }}">
         <div class="comments-list violet-comments-list">
             <div class="violet-comments-visible">
@@ -296,4 +334,5 @@
         </div>
         {% endif %}
     </div>
+    {% endif %}
 </div>

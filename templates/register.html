@@ -47,20 +47,7 @@
         box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.24);
     }
 
-    .invite-beta-note {
-        border: 1px solid rgba(167, 139, 250, 0.18);
-        border-radius: 18px;
-        padding: 0.95rem;
-        background: rgba(124, 58, 237, 0.08);
-        color: rgba(233, 227, 239, 0.82);
-        font-size: 0.88rem;
-    }
-
-    .invite-beta-note strong {
-        color: #fff;
-    }
-
-    .invite-attestation {
+    .eligibility-attestation {
         display: flex;
         align-items: flex-start;
         gap: 0.65rem;
@@ -70,7 +57,7 @@
         line-height: 1.35;
     }
 
-    .invite-attestation input {
+    .eligibility-attestation input {
         margin-top: 0.18rem;
         accent-color: var(--primary);
         width: 1rem;
@@ -119,24 +106,7 @@
 
             <!-- Step 1: Email -->
             <div class="register-step active" id="step1">
-                <h3 class="step-heading">Invitación Beta</h3>
-                <div class="invite-beta-note mb-3">
-                    <strong>Violeta está en beta privada.</strong><br>
-                    Necesitas un código de una usuaria verificada para crear tu cuenta.
-                </div>
-
-                <div class="mb-3" id="inviteContainer">
-                    {{ form.invite_code(class="violet-input", placeholder="VIOLETA-8K42-MA", id="inviteCode", autocomplete="off") }}
-                    {% if form.invite_code.errors %}
-                    <div class="text-danger mt-2 small">
-                        {% for error in form.invite_code.errors %}
-                        {{ error }}
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                    <div class="violet-error" id="inviteError" style="display: none;"></div>
-                    <div class="small text-secondary mt-2" id="inviteStatus"></div>
-                </div>
+                <h3 class="step-heading">Crear cuenta</h3>
 
                 <div class="mb-3" id="emailContainer">
                     {{ form.email(class="violet-input", placeholder="nombre@ejemplo.com", id="email") }}
@@ -150,7 +120,7 @@
                     <div class="violet-error" id="emailError" style="display: none;"></div>
                 </div>
 
-                <label class="invite-attestation mb-4" for="eligibilityAttestation">
+                <label class="eligibility-attestation mb-4" for="eligibilityAttestation">
                     {{ form.eligibility_attestation(id="eligibilityAttestation") }}
                     <span>Declaro que soy mujer y que no estoy suplantando identidad.</span>
                 </label>
@@ -301,54 +271,14 @@
         if (currentStep === 1) {
             const emailInput = document.getElementById('email');
             const emailError = document.getElementById('emailError');
-            const inviteInput = document.getElementById('inviteCode');
-            const inviteError = document.getElementById('inviteError');
-            const inviteStatus = document.getElementById('inviteStatus');
             const attestationInput = document.getElementById('eligibilityAttestation');
             const attestationError = document.getElementById('attestationError');
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             const normalizedEmail = emailInput.value.trim().toLowerCase();
-            const normalizedInvite = inviteInput.value.trim().toUpperCase();
 
             emailInput.value = normalizedEmail;
-            inviteInput.value = normalizedInvite;
             emailError.style.display = 'none';
-            inviteError.style.display = 'none';
             attestationError.style.display = 'none';
-            inviteStatus.textContent = '';
-
-            if (!normalizedInvite) {
-                valid = false;
-                inviteInput.classList.add('error');
-                inviteError.textContent = 'Ingresa tu código de invitación';
-                inviteError.style.display = 'block';
-            } else {
-                try {
-                    const response = await fetch('/api/check-invite', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ invite_code: normalizedInvite })
-                    });
-                    const data = await response.json().catch(() => ({}));
-                    if (!response.ok || !data.valid) {
-                        valid = false;
-                        inviteInput.classList.add('error');
-                        inviteError.textContent = data.message || data.error || 'Código inválido, vencido o ya usado';
-                        inviteError.style.display = 'block';
-                    } else {
-                        inviteInput.classList.remove('error');
-                        inviteStatus.textContent = data.invited_by ? `Invitación válida de @${data.invited_by}.` : 'Invitación válida.';
-                    }
-                } catch (error) {
-                    valid = false;
-                    inviteInput.classList.add('error');
-                    inviteError.textContent = 'No pudimos validar este código. Intenta de nuevo.';
-                    inviteError.style.display = 'block';
-                    console.error('Error checking invite:', error);
-                }
-            }
 
             if (!attestationInput.checked) {
                 valid = false;
