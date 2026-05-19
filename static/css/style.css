@@ -1018,56 +1018,131 @@ body.chat-delete-open .modal-backdrop {
     gap: 0.6rem;
 }
 
-.limited-access-banner {
-    display: flex;
-    align-items: center;
-    gap: 0.9rem;
-    margin: 0 0 1rem;
-    border: 1px solid rgba(167, 139, 250, 0.2);
-    border-radius: 20px;
-    padding: 0.9rem 1rem;
-    background:
-        linear-gradient(135deg, rgba(139, 92, 246, 0.16), rgba(36, 26, 52, 0.86)),
-        rgba(20, 16, 31, 0.9);
-    color: #fff;
-    box-shadow: 0 18px 40px rgba(8, 5, 18, 0.24);
+.limited-access-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2800;
+    display: grid;
+    place-items: center;
+    padding: max(1rem, env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px)) max(1rem, env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px));
 }
 
-.limited-access-banner__icon,
+body.has-limited-access-popup {
+    overflow: hidden;
+}
+
+.limited-access-modal.is-hidden {
+    pointer-events: none;
+}
+
+.limited-access-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 50% 18%, rgba(139, 92, 246, 0.28), transparent 34%),
+        rgba(4, 2, 10, 0.78);
+    backdrop-filter: blur(10px);
+    transition: opacity 0.22s ease;
+}
+
+.limited-access-modal.is-hidden .limited-access-modal__backdrop {
+    opacity: 0;
+}
+
+.limited-access-modal__panel {
+    position: relative;
+    width: min(92vw, 440px);
+    border: 1px solid rgba(167, 139, 250, 0.28);
+    border-radius: 30px;
+    padding: 1.3rem;
+    background:
+        linear-gradient(145deg, rgba(42, 30, 68, 0.96), rgba(19, 14, 30, 0.98)),
+        rgba(20, 16, 31, 0.96);
+    color: #fff;
+    box-shadow: 0 28px 90px rgba(8, 5, 18, 0.48);
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.limited-access-modal.is-hidden .limited-access-modal__panel {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+}
+
+.limited-access-modal__close {
+    position: absolute;
+    top: 0.95rem;
+    right: 0.95rem;
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(245, 243, 255, 0.74);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.limited-access-modal__close:hover,
+.limited-access-modal__close:focus-visible {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    outline: none;
+}
+
+.limited-access-modal__icon,
 .profile-trust-card--limited .profile-trust-card__icon {
     color: #c4b5fd;
     background: rgba(139, 92, 246, 0.16);
 }
 
-.limited-access-banner__icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 14px;
+.limited-access-modal__icon {
+    width: 58px;
+    height: 58px;
+    border-radius: 20px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex: 0 0 auto;
+    font-size: 1.35rem;
+    margin-bottom: 1.1rem;
 }
 
-.limited-access-banner__copy {
-    display: grid;
-    gap: 0.15rem;
-    min-width: 0;
-    flex: 1 1 auto;
+.limited-access-modal__copy {
+    padding-right: 2.35rem;
 }
 
-.limited-access-banner__copy strong {
-    font-size: 0.95rem;
+.limited-access-modal__eyebrow {
+    margin: 0 0 0.2rem;
+    color: #c4b5fd;
+    font-size: 0.78rem;
     font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
-.limited-access-banner__copy span {
+.limited-access-modal__copy h2 {
+    margin: 0 0 0.65rem;
+    font-size: clamp(1.75rem, 7vw, 2.45rem);
+    font-weight: 950;
+    letter-spacing: -0.05em;
+}
+
+.limited-access-modal__copy p:not(.limited-access-modal__eyebrow) {
+    margin: 0;
     color: rgba(237, 233, 254, 0.72);
-    font-size: 0.86rem;
-    line-height: 1.35;
+    font-size: 0.98rem;
+    line-height: 1.52;
 }
 
-.limited-access-banner__cta,
+.limited-access-modal__actions {
+    display: grid;
+    grid-template-columns: 0.92fr 1.08fr;
+    gap: 0.75rem;
+    margin-top: 1.35rem;
+}
+
 .sidebar-limited-pill {
     display: inline-flex;
     align-items: center;
@@ -1081,10 +1156,29 @@ body.chat-delete-open .modal-backdrop {
     text-decoration: none;
 }
 
-.limited-access-banner__cta {
-    min-height: 38px;
-    padding: 0.45rem 0.85rem;
-    white-space: nowrap;
+.limited-access-modal__dismiss,
+.limited-access-modal__cta {
+    min-height: 48px;
+    border-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1rem;
+    font-weight: 900;
+    text-decoration: none;
+}
+
+.limited-access-modal__dismiss {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(245, 243, 255, 0.88);
+}
+
+.limited-access-modal__cta {
+    border: 1px solid rgba(196, 181, 253, 0.34);
+    background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+    color: #fff;
+    box-shadow: 0 18px 40px rgba(109, 40, 217, 0.32);
 }
 
 .sidebar-limited-pill {
@@ -1108,15 +1202,23 @@ body.chat-delete-open .modal-backdrop {
 }
 
 @media (max-width: 767px) {
-    .limited-access-banner {
-        align-items: flex-start;
-        flex-wrap: wrap;
-        margin: 0 0 0.9rem;
-        border-radius: 18px;
+    .limited-access-modal {
+        align-items: end;
+        padding: max(0.75rem, env(safe-area-inset-top, 0px)) 0.75rem max(0.75rem, env(safe-area-inset-bottom, 0px));
     }
 
-    .limited-access-banner__cta {
+    .limited-access-modal__panel {
         width: 100%;
+        border-radius: 28px;
+        padding: 1.15rem;
+    }
+
+    .limited-access-modal__copy {
+        padding-right: 1.85rem;
+    }
+
+    .limited-access-modal__actions {
+        grid-template-columns: 1fr;
     }
 }
 

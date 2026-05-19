@@ -607,7 +607,7 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertNotIn('re_secret_value', json.dumps(redacted))
         self.assertNotIn('postgresql://violeta:secret@db.internal/violeta', json.dumps(redacted))
 
-    def test_limited_access_banner_loads_without_blocking_overlay(self):
+    def test_limited_access_popup_loads_without_blocking_overlay(self):
         verified_id = self.create_user('overlay_verificada', verified=True)
         unverified_id = self.create_user('overlay_no_verificada', verified=False)
 
@@ -616,7 +616,7 @@ class VioletaSmokeTests(unittest.TestCase):
         verified_html = verified_response.get_data(as_text=True)
         self.assertNotIn('security_overlays.css', verified_html)
         self.assertNotIn('verify-gate-overlay', verified_html)
-        self.assertNotIn('limited-access-banner', verified_html)
+        self.assertNotIn('limited-access-modal', verified_html)
         self.assertNotIn('user-unverified', verified_html)
 
         unverified_response = self.client_for(unverified_id).get('/')
@@ -624,7 +624,8 @@ class VioletaSmokeTests(unittest.TestCase):
         unverified_html = unverified_response.get_data(as_text=True)
         self.assertNotIn('security_overlays.css', unverified_html)
         self.assertNotIn('verify-gate-overlay', unverified_html)
-        self.assertIn('limited-access-banner', unverified_html)
+        self.assertIn('limited-access-modal', unverified_html)
+        self.assertIn('data-limited-access-close', unverified_html)
         self.assertIn('Cuenta no verificada', unverified_html)
         self.assertIn('user-unverified', unverified_html)
 

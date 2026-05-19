@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 {% set verification_gate_excluded_endpoints = ['verify_identity', 'emergency_call', 'register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted', 'privacy_policy', 'account_delete'] %}
-{% set show_limited_access_banner = current_user.is_authenticated and not user_is_verified and request.endpoint not in verification_gate_excluded_endpoints %}
+{% set show_limited_access_popup = current_user.is_authenticated and not user_is_verified and request.endpoint not in verification_gate_excluded_endpoints %}
 {% set show_warning_strike_overlay = active_warning_strike and request.endpoint not in ['account_restricted', 'emergency_call'] %}
 {% set load_security_overlay_styles = show_warning_strike_overlay or request.endpoint == 'account_restricted' %}
 {% set post_interaction_endpoints = ['index', 'post_detail'] %}
@@ -55,7 +55,7 @@
     {% block styles %}{% endblock %}
 </head>
 
-<body class="violeta-theme {% if show_limited_access_banner %}user-unverified{% endif %} {% if request.endpoint == 'chat' %}chat-page{% endif %}">
+<body class="violeta-theme {% if show_limited_access_popup %}user-unverified has-limited-access-popup{% endif %} {% if request.endpoint == 'chat' %}chat-page{% endif %}">
 
     <div class="app-layout">
         <!-- Sidebar (Desktop) -->
@@ -154,23 +154,33 @@
                 {% endwith %}
             </div>
 
-            {% if show_limited_access_banner %}
-            <section class="limited-access-banner" aria-label="Acceso limitado">
-                <div class="limited-access-banner__icon" aria-hidden="true">
-                    <i class="fas fa-user-clock"></i>
-                </div>
-                <div class="limited-access-banner__copy">
-                    <strong>Cuenta no verificada</strong>
-                    <span>Tu acceso es limitado para proteger a la comunidad. Verifica tu cuenta para ver reportes completos, publicar, comentar y usar el chat.</span>
-                </div>
-                <a href="{{ url_for('verify_identity') }}" class="limited-access-banner__cta">Verificar mi cuenta</a>
-            </section>
-            {% endif %}
-
             {% block content %}{% endblock %}
         </main>
 
         {% block modals %}{% endblock %}
+
+        {% if show_limited_access_popup %}
+        <div class="limited-access-modal" id="limitedAccessModal" role="dialog" aria-modal="true" aria-labelledby="limitedAccessTitle">
+            <div class="limited-access-modal__backdrop" aria-hidden="true"></div>
+            <section class="limited-access-modal__panel" aria-describedby="limitedAccessText">
+                <button class="limited-access-modal__close" type="button" aria-label="Cerrar aviso" data-limited-access-close>
+                    <i class="fas fa-times"></i>
+                </button>
+                <div class="limited-access-modal__icon" aria-hidden="true">
+                    <i class="fas fa-user-clock"></i>
+                </div>
+                <div class="limited-access-modal__copy">
+                    <p class="limited-access-modal__eyebrow">Acceso limitado</p>
+                    <h2 id="limitedAccessTitle">Cuenta no verificada</h2>
+                    <p id="limitedAccessText">Tu acceso es limitado para proteger a la comunidad. Verifica tu cuenta para ver reportes completos, publicar, comentar y usar el chat.</p>
+                </div>
+                <div class="limited-access-modal__actions">
+                    <button class="limited-access-modal__dismiss" type="button" data-limited-access-close>Entendido</button>
+                    <a href="{{ url_for('verify_identity') }}" class="limited-access-modal__cta">Verificar mi cuenta</a>
+                </div>
+            </section>
+        </div>
+        {% endif %}
 
         <!-- Bottom Nav (Mobile) -->
         {% if request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset'] %}
@@ -762,6 +772,30 @@
             });
         });
     </script>
+    {% if show_limited_access_popup %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const modal = document.getElementById('limitedAccessModal');
+            if (!modal) return;
+            const closeButtons = modal.querySelectorAll('[data-limited-access-close]');
+            const closeModal = function () {
+                modal.classList.add('is-hidden');
+                document.body.classList.remove('has-limited-access-popup');
+                setTimeout(function () {
+                    modal.hidden = true;
+                }, 220);
+            };
+            closeButtons.forEach(function (button) {
+                button.addEventListener('click', closeModal);
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && !modal.hidden) {
+                    closeModal();
+                }
+            });
+        });
+    </script>
+    {% endif %}
     {% block scripts %}{% endblock %}
 </body>
 
