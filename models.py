@@ -528,6 +528,22 @@ class VerificationRequest(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     submitted_at = db.Column(db.DateTime)
 
+    # Evidencia visual obligatoria
+    evidence_file_path = db.Column(db.String(255), nullable=True)
+    evidence_type = db.Column(db.String(20), nullable=True)      # 'image' o 'video'
+    mime_type = db.Column(db.String(100), nullable=True)
+    file_size = db.Column(db.Integer, nullable=True)
+    note = db.Column(db.Text, nullable=True)                      # Nota o comentario de la usuaria
+
+    # Consentimiento
+    consent_accepted = db.Column(db.Boolean, default=False, nullable=False)
+    consent_accepted_at = db.Column(db.DateTime, nullable=True)
+
+    # Decisiones y retención
+    decision_reason = db.Column(db.Text, nullable=True)
+    evidence_expires_at = db.Column(db.DateTime, nullable=True)
+    evidence_deleted_at = db.Column(db.DateTime, nullable=True)
+
     user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('verification_requests', lazy=True))
     reviewer = db.relationship('User', foreign_keys=[reviewed_by])
 
