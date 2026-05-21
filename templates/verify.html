@@ -1,50 +1,119 @@
 {% extends 'base.html' %}
 
+{% set effective_user_status = user_status|default(status)|default('unverified') %}
+
 {% block content %}
-<div class="container" style="max-width: 860px; padding-bottom: 80px;">
-  <section class="manual-verify-card">
+<div class="container verify-page-wrap">
+  <section class="manual-verify-card" aria-labelledby="verifyTitle">
     <div class="manual-verify-card__icon" aria-hidden="true">
       <i class="fas fa-shield-heart"></i>
     </div>
     <div class="manual-verify-card__body">
       <p class="profile-kicker">Verificación manual</p>
-      <h1>Verifica tu cuenta</h1>
-      <p>
-        Para proteger a la comunidad, revisaremos tu solicitud antes de activar todas las funciones.
-        Mientras tanto puedes explorar Violeta con acceso limitado.
+      <h1 id="verifyTitle">Verifica tu cuenta</h1>
+      <p class="manual-verify-lead">
+        Para proteger a la comunidad, necesitamos confirmar tu identidad antes de activar todas las funciones de Violeta.
+      </p>
+      <p class="manual-verify-privacy">
+        Tu evidencia solo será revisada por el equipo autorizado de Violeta. No será visible para otras usuarias.
       </p>
 
-      {% if status == 'verified' or user_status == 'verified' %}
+      {% if status == 'verified' or effective_user_status == 'verified' %}
       <div class="manual-verify-status manual-verify-status--ok">
         <i class="fas fa-circle-check"></i>
         Tu cuenta ya está verificada.
       </div>
       <a href="{{ url_for('index') }}" class="btn btn-primary">Volver al inicio</a>
-      {% elif status == 'pending' or user_status == 'pending_review' %}
+
+      {% elif status == 'pending' or effective_user_status == 'pending_review' %}
       <div class="manual-verify-status manual-verify-status--pending">
         <i class="fas fa-user-clock"></i>
-        Tu solicitud está en revisión. Te avisaremos cuando el equipo la revise.
+        <span>
+          <strong>Tu solicitud está en revisión.</strong>
+          Te avisaremos cuando el equipo de Violeta la revise. Mientras tanto, tu cuenta seguirá con acceso limitado.
+        </span>
       </div>
       <a href="{{ url_for('index') }}" class="btn btn-outline-light">Explorar con acceso limitado</a>
-      {% elif user_status == 'rejected' %}
-      <div class="manual-verify-status manual-verify-status--blocked">
-        <i class="fas fa-circle-exclamation"></i>
-        Tu solicitud anterior fue rechazada. Puedes enviar una nueva solicitud para revisión.
-      </div>
-      <button class="btn btn-primary" type="button" id="submitVerificationBtn">Enviar nueva solicitud</button>
-      <div class="manual-verify-feedback" id="verifySubmitStatus" aria-live="polite"></div>
-      {% elif user_status == 'suspended' %}
+
+      {% elif effective_user_status == 'suspended' %}
       <div class="manual-verify-status manual-verify-status--blocked">
         <i class="fas fa-ban"></i>
         Tu cuenta está suspendida. Contacta al equipo de Violeta si crees que es un error.
+      </div>
+
+      {% else %}
+      {% if effective_user_status == 'rejected' %}
+      <div class="manual-verify-status manual-verify-status--blocked">
+        <i class="fas fa-circle-exclamation"></i>
+        <span>
+          <strong>Tu solicitud anterior no pudo aprobarse.</strong>
+          {% if current_user.rejection_reason %}Motivo: {{ current_user.rejection_reason }}{% else %}Puedes enviar una nueva solicitud para revisión.{% endif %}
+        </span>
       </div>
       {% else %}
       <div class="manual-verify-status">
         <i class="fas fa-user-clock"></i>
         Estado actual: {{ verification_badge_label(current_user) }}.
       </div>
-      <button class="btn btn-primary" type="button" id="submitVerificationBtn">Enviar solicitud de revisión</button>
-      <div class="manual-verify-feedback" id="verifySubmitStatus" aria-live="polite"></div>
+      {% endif %}
+
+      <div class="manual-verify-benefits" aria-label="Funciones desbloqueadas al verificar">
+        <strong>Al verificarte podrás:</strong>
+        <ul>
+          <li><i class="fas fa-eye"></i> Ver reportes completos</li>
+          <li><i class="fas fa-location-dot"></i> Consultar más ubicaciones</li>
+          <li><i class="fas fa-camera"></i> Publicar reportes</li>
+          <li><i class="fas fa-comment"></i> Comentar</li>
+          <li><i class="fas fa-comments"></i> Usar chat</li>
+          <li><i class="fas fa-people-group"></i> Participar en la comunidad</li>
+        </ul>
+      </div>
+
+      <form class="manual-verify-form" id="verificationForm" enctype="multipart/form-data" novalidate>
+        <label class="manual-verify-field">
+          <span>Evidencia visual <strong>*</strong></span>
+          <input
+            type="file"
+            name="evidence"
+            id="verificationEvidence"
+            accept="image/jpeg,image/png,image/heic,video/mp4,video/quicktime,video/webm,.jpg,.jpeg,.png,.heic,.mp4,.mov,.webm"
+            required
+          >
+          <small>
+            Graba un video corto de 5 a 10 segundos mostrando tu rostro. Mueve ligeramente la cabeza o parpadea para confirmar que eres una persona real.
+            Si no puedes grabar video, sube una foto/selfie como respaldo.
+          </small>
+          <small>Máximo: 8 MB para imágenes y 40 MB para videos.</small>
+        </label>
+
+        <label class="manual-verify-field">
+          <span>Comentario opcional</span>
+          <textarea
+            name="note"
+            id="verificationNote"
+            rows="4"
+            maxlength="1200"
+            placeholder="Cuéntanos brevemente por qué quieres unirte a Violeta."
+          ></textarea>
+        </label>
+
+        <label class="manual-verify-consent">
+          <input type="checkbox" name="consent_accepted" id="verificationConsent" required>
+          <span>
+            Entiendo que mi foto o video será usado únicamente para revisar mi solicitud de verificación.
+            Esta evidencia no será visible para otras usuarias y solo podrá ser revisada por el equipo autorizado de Violeta.
+          </span>
+        </label>
+
+        <div class="manual-verify-links">
+          <a href="{{ url_for('privacy_policy') }}" data-no-prefetch="1">Política de privacidad</a>
+        </div>
+
+        <button class="btn btn-primary manual-verify-submit" type="submit" id="submitVerificationBtn">
+          Enviar solicitud de verificación
+        </button>
+        <div class="manual-verify-feedback" id="verifySubmitStatus" aria-live="polite"></div>
+      </form>
       {% endif %}
     </div>
   </section>
@@ -54,6 +123,11 @@
 {% block styles %}
 {{ super() }}
 <style>
+  .verify-page-wrap {
+    max-width: 900px;
+    padding-bottom: 88px;
+  }
+
   .manual-verify-card {
     display: grid;
     grid-template-columns: auto 1fr;
@@ -88,14 +162,21 @@
   }
 
   .manual-verify-card p {
-    margin: 0 0 1.15rem;
+    margin: 0 0 1rem;
     color: rgba(237, 233, 254, 0.78);
     line-height: 1.55;
   }
 
+  .manual-verify-privacy {
+    padding: 0.85rem 1rem;
+    border-radius: 18px;
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid rgba(196, 181, 253, 0.2);
+  }
+
   .manual-verify-status {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.7rem;
     margin: 1rem 0;
     padding: 0.95rem 1rem;
@@ -121,17 +202,134 @@
     background: rgba(239, 68, 68, 0.1);
   }
 
+  .manual-verify-benefits {
+    margin: 1.2rem 0;
+    padding: 1rem;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .manual-verify-benefits ul {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+    padding: 0;
+    margin: 0.9rem 0 0;
+    list-style: none;
+    color: rgba(245, 243, 255, 0.9);
+  }
+
+  .manual-verify-benefits li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .manual-verify-benefits i {
+    color: #a78bfa;
+  }
+
+  .manual-verify-form {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .manual-verify-field,
+  .manual-verify-consent {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .manual-verify-field > span,
+  .manual-verify-consent {
+    color: rgba(245, 243, 255, 0.95);
+    font-weight: 800;
+  }
+
+  .manual-verify-field strong {
+    color: #fb7185;
+  }
+
+  .manual-verify-field input,
+  .manual-verify-field textarea {
+    width: 100%;
+    border: 1px solid rgba(196, 181, 253, 0.24);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    padding: 0.85rem 1rem;
+    font: inherit;
+  }
+
+  .manual-verify-field input[type="file"] {
+    cursor: pointer;
+  }
+
+  .manual-verify-field textarea {
+    resize: vertical;
+    min-height: 110px;
+  }
+
+  .manual-verify-field small,
+  .manual-verify-links {
+    color: rgba(237, 233, 254, 0.66);
+    line-height: 1.45;
+  }
+
+  .manual-verify-consent {
+    grid-template-columns: auto 1fr;
+    align-items: flex-start;
+    padding: 1rem;
+    border-radius: 18px;
+    border: 1px solid rgba(196, 181, 253, 0.22);
+    background: rgba(255, 255, 255, 0.05);
+    font-weight: 700;
+    line-height: 1.45;
+  }
+
+  .manual-verify-consent input {
+    margin-top: 0.2rem;
+    width: 18px;
+    height: 18px;
+  }
+
+  .manual-verify-links a {
+    color: #c4b5fd;
+    font-weight: 800;
+  }
+
+  .manual-verify-submit {
+    justify-self: start;
+  }
+
   .manual-verify-feedback {
     min-height: 1.4rem;
-    margin-top: 0.8rem;
     color: #c4b5fd;
     font-weight: 700;
+  }
+
+  .manual-verify-feedback.is-error {
+    color: #fecaca;
+  }
+
+  .manual-verify-feedback.is-success {
+    color: #bbf7d0;
   }
 
   @media (max-width: 640px) {
     .manual-verify-card {
       grid-template-columns: 1fr;
       border-radius: 24px;
+    }
+
+    .manual-verify-benefits ul {
+      grid-template-columns: 1fr;
+    }
+
+    .manual-verify-submit {
+      width: 100%;
     }
   }
 </style>
@@ -140,35 +338,56 @@
 {% block scripts %}
 {{ super() }}
 <script>
+  const verificationForm = document.getElementById('verificationForm');
   const submitBtn = document.getElementById('submitVerificationBtn');
   const statusEl = document.getElementById('verifySubmitStatus');
 
-  if (submitBtn) {
-    submitBtn.addEventListener('click', async () => {
+  function setVerificationStatus(message, type = '') {
+    if (!statusEl) return;
+    statusEl.textContent = message || '';
+    statusEl.classList.toggle('is-error', type === 'error');
+    statusEl.classList.toggle('is-success', type === 'success');
+  }
+
+  if (verificationForm && submitBtn) {
+    verificationForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const formData = new FormData(verificationForm);
+      const evidence = formData.get('evidence');
+      const consent = formData.get('consent_accepted');
+
+      if (!evidence || !evidence.name) {
+        setVerificationStatus('Necesitas subir una foto o video para enviar tu solicitud de verificación.', 'error');
+        return;
+      }
+      if (!consent) {
+        setVerificationStatus('Debes aceptar el consentimiento para enviar tu solicitud.', 'error');
+        return;
+      }
+
       submitBtn.disabled = true;
       const originalText = submitBtn.textContent;
       submitBtn.textContent = 'Enviando...';
-      if (statusEl) statusEl.textContent = '';
+      setVerificationStatus('');
 
       try {
         const response = await fetch('/api/verify/submit', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
             'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '',
           },
-          body: JSON.stringify({}),
+          body: formData,
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.success) {
           throw new Error(data.error || 'No pudimos enviar la solicitud.');
         }
-        if (statusEl) statusEl.textContent = data.message || 'Solicitud enviada.';
+        setVerificationStatus(data.message || 'Solicitud enviada.', 'success');
         setTimeout(() => window.location.reload(), 650);
       } catch (error) {
         submitBtn.disabled = false;
         submitBtn.textContent = originalText;
-        if (statusEl) statusEl.textContent = error.message || 'No pudimos enviar la solicitud.';
+        setVerificationStatus(error.message || 'No pudimos enviar la solicitud.', 'error');
       }
     });
   }

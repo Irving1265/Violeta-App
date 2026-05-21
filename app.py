@@ -95,6 +95,19 @@ SAFETY_DESTINATION_VIEWBOX = '-100.80,26.10,-99.90,25.30'
 SAFETY_DESTINATION_BBOX = (25.30, -100.80, 26.10, -99.90)
 OPTIMIZED_UPLOAD_WIDTHS = {360, 720, 1080}
 OPTIMIZED_UPLOAD_QUALITY = 82
+VERIFICATION_IMAGE_MAX_BYTES = 8 * 1024 * 1024
+VERIFICATION_VIDEO_MAX_BYTES = 40 * 1024 * 1024
+VERIFICATION_ALLOWED_MIME_BY_EXT = {
+    'jpg': {'image/jpeg'},
+    'jpeg': {'image/jpeg'},
+    'png': {'image/png'},
+    'heic': {'image/heic', 'image/heif'},
+    'mp4': {'video/mp4'},
+    'mov': {'video/quicktime'},
+    'webm': {'video/webm'},
+}
+VERIFICATION_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'heic'}
+VERIFICATION_VIDEO_EXTENSIONS = {'mp4', 'mov', 'webm'}
 SAFETY_ALLOWED_DESTINATION_CITIES = {
     'monterrey',
     'san pedro garza garcia', 'san pedro',
@@ -2024,8 +2037,8 @@ def create_app():
     if not os.environ.get('SECRET_KEY'):
         app.logger.warning('SECRET_KEY no está definido en entorno. Se usa una clave efímera para esta sesión.')
 
-    # FORCE UPDATE MAX_CONTENT_LENGTH to 32MB
-    app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
+    # Keep request parsing high enough for verification videos; per-type limits are enforced below.
+    app.config['MAX_CONTENT_LENGTH'] = max(int(app.config.get('MAX_CONTENT_LENGTH') or 0), VERIFICATION_VIDEO_MAX_BYTES)
 
     # --- Extensiones ---
     db.init_app(app)
@@ -2219,6 +2232,44 @@ def create_app():
         ext = filename.rsplit('.', 1)[1].lower()
         return ext in {'png', 'jpg', 'jpeg', 'pdf'}
 
+    def verification_evidence_metadata(file) -> tuple[bool, dict, str, int]:
+        original_name = secure_filename((getattr(file, 'filename', None) or '').strip())
+        if not original_name or '.' not in original_name:
+            return False, {}, 'Necesitas subir una foto o video para enviar tu solicitud de verificación.', 400
+
+        ext = original_name.rsplit('.', 1)[1].lower()
+        allowed_mimes = VERIFICATION_ALLOWED_MIME_BY_EXT.get(ext)
+        if not allowed_mimes:
+            return False, {}, 'Formato no permitido. Usa JPG, PNG, HEIC, MP4, MOV o WEBM.', 400
+
+        mime_type = (getattr(file, 'mimetype', None) or '').strip().lower()
+        if not mime_type or mime_type not in allowed_mimes:
+            return False, {}, 'El tipo de archivo no coincide con el formato permitido.', 400
+
+        try:
+            current_pos = file.stream.tell()
+            file.stream.seek(0, os.SEEK_END)
+            file_size = int(file.stream.tell())
+            file.stream.seek(current_pos)
+        except Exception:
+            file_size = int(getattr(file, 'content_length', 0) or 0)
+
+        if file_size <= 0:
+            return False, {}, 'El archivo de evidencia está vacío o no se pudo validar.', 400
+
+        evidence_type = 'video' if ext in VERIFICATION_VIDEO_EXTENSIONS else 'image'
+        max_size = VERIFICATION_VIDEO_MAX_BYTES if evidence_type == 'video' else VERIFICATION_IMAGE_MAX_BYTES
+        if file_size > max_size:
+            max_mb = max_size // (1024 * 1024)
+            return False, {}, f'El archivo es demasiado grande. El máximo para {"videos" if evidence_type == "video" else "imágenes"} es {max_mb} MB.', 413
+
+        return True, {
+            'extension': ext,
+            'evidence_type': evidence_type,
+            'mime_type': mime_type,
+            'file_size': file_size,
+        }, '', 200
+
     def ensure_upload_folder() -> str:
         folder = app.config.get('UPLOAD_FOLDER')
         if not folder:
@@ -2233,6 +2284,26 @@ def create_app():
         folder = os.path.join(base, 'verify')
         os.makedirs(folder, exist_ok=True)
         return folder
+
+    def save_verification_evidence(file, user_id: int, extension: str) -> tuple[str, str]:
+        verification_root = os.path.abspath(ensure_verification_folder())
+        user_folder = os.path.abspath(os.path.join(verification_root, str(int(user_id))))
+        if os.path.commonpath([verification_root, user_folder]) != verification_root:
+            raise ValueError('verification evidence path escaped root')
+
+        os.makedirs(user_folder, exist_ok=True)
+        safe_name = f'{uuid4().hex}.{extension}'
+        absolute_path = os.path.abspath(os.path.join(user_folder, safe_name))
+        if os.path.commonpath([verification_root, absolute_path]) != verification_root:
+            raise ValueError('verification evidence file escaped root')
+
+        try:
+            file.stream.seek(0)
+        except Exception:
+            pass
+        file.save(absolute_path)
+        relative_path = f'verify/{int(user_id)}/{safe_name}'
+        return relative_path, absolute_path
 
     def record_background_job_event(
         job_name: str,
@@ -6148,15 +6219,75 @@ def create_app():
     def verify_submit():
         if is_user_verified(current_user):
             return jsonify({'error': 'Cuenta ya verificada.'}), 400
+
+        current_status = verification_status_for_user(current_user)
+        if current_status == VERIFICATION_STATUS_SUSPENDED:
+            return jsonify({'error': 'Tu cuenta está suspendida y no puede enviar solicitudes de verificación.'}), 403
+
+        existing_pending = VerificationRequest.query.filter_by(
+            user_id=current_user.id,
+            status='pending',
+        ).first()
+        if existing_pending or current_status == VERIFICATION_STATUS_PENDING:
+            return jsonify({'error': 'Ya tienes una solicitud en revisión.'}), 409
+
+        consent_value = (
+            request.form.get('consent_accepted')
+            or request.form.get('consent')
+            or ''
+        ).strip().lower()
+        if consent_value not in {'1', 'true', 'yes', 'on', 'y', 'si', 'sí'}:
+            return jsonify({'error': 'Debes aceptar el consentimiento para enviar tu solicitud.'}), 400
+
+        evidence_file = request.files.get('evidence')
+        if not evidence_file or not (getattr(evidence_file, 'filename', '') or '').strip():
+            return jsonify({'error': 'Necesitas subir una foto o video para enviar tu solicitud de verificación.'}), 400
+
+        metadata_ok, evidence_meta, metadata_error, metadata_status = verification_evidence_metadata(evidence_file)
+        if not metadata_ok:
+            return jsonify({'error': metadata_error}), metadata_status
+
         req = get_or_create_verification(current_user)
+        if req.status == 'pending':
+            return jsonify({'error': 'Ya tienes una solicitud en revisión.'}), 409
+
+        try:
+            evidence_relative_path, evidence_absolute_path = save_verification_evidence(
+                evidence_file,
+                current_user.id,
+                evidence_meta['extension'],
+            )
+        except Exception as exc:
+            _debug_log_suppressed('suppressed verification evidence save error', exc)
+            return jsonify({'error': 'No pudimos guardar tu evidencia. Inténtalo de nuevo.'}), 500
+
+        now = utc_now_naive()
         req.status = 'pending'
-        req.submitted_at = datetime.now()
+        req.evidence_file_path = evidence_relative_path
+        req.evidence_type = evidence_meta['evidence_type']
+        req.mime_type = evidence_meta['mime_type']
+        req.file_size = evidence_meta['file_size']
+        req.note = (request.form.get('note') or '').strip()[:1200] or None
+        req.consent_accepted = True
+        req.consent_accepted_at = now
+        req.submitted_at = now
         current_user.verification_status = VERIFICATION_STATUS_PENDING
         current_user.is_verified = False
         current_user.rejection_reason = None
-        db.session.add(req)
-        db.session.add(current_user)
-        db.session.commit()
+
+        try:
+            db.session.add(req)
+            db.session.add(current_user)
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            try:
+                os.remove(evidence_absolute_path)
+            except Exception as cleanup_exc:
+                _debug_log_suppressed('suppressed verification evidence cleanup error', cleanup_exc)
+            _debug_log_suppressed('suppressed verification submit commit error', exc)
+            return jsonify({'error': 'No pudimos enviar tu solicitud. Inténtalo de nuevo.'}), 500
+
         invalidate_user_snapshot_cache(current_user.id)
         invalidate_runtime_response_cache('page_profile_shell')
         invalidate_runtime_response_cache('page_profile_content')

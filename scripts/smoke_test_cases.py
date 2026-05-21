@@ -427,19 +427,87 @@ class VioletaSmokeTests(unittest.TestCase):
             self.assertEqual(user.verification_status, 'unverified')
             self.assertEqual(int(user.trial_location_views_limit or 0), 3)
 
-    def test_manual_verification_request_sets_pending_review_without_codes(self):
+    def test_visual_verification_requires_evidence_consent_and_valid_file(self):
         user_id = self.create_user('solicita_revision', verified=False)
         client = self.client_for(user_id)
 
         page = client.get('/verify')
         self.assertEqual(page.status_code, 200)
         html = page.get_data(as_text=True).lower()
-        self.assertIn('solicitud de revisión', html)
+        self.assertIn('verifica tu cuenta', html)
+        self.assertIn('foto o video', html)
+        self.assertIn('consentimiento', html)
+        self.assertIn('video corto', html)
         self.assertNotIn('otp', html)
         self.assertNotIn('código', html)
-        self.assertNotIn('video', html)
 
-        response = client.post('/api/verify/submit', json={})
+        def assert_unverified_without_pending():
+            with app.app_context():
+                user = db.session.get(User, user_id)
+                self.assertEqual(user.verification_status, 'unverified')
+                pending = VerificationRequest.query.filter_by(user_id=user_id, status='pending').first()
+                self.assertIsNone(pending)
+
+        missing_file = client.post('/api/verify/submit', data={'consent_accepted': 'on'})
+        self.assertEqual(missing_file.status_code, 400)
+        self.assertIn('foto o video', (missing_file.get_json() or {}).get('error', '').lower())
+        assert_unverified_without_pending()
+
+        missing_consent = client.post(
+            '/api/verify/submit',
+            data={'evidence': (io.BytesIO(b'\xff\xd8\xff\xd9'), 'selfie.jpg', 'image/jpeg')},
+            content_type='multipart/form-data',
+        )
+        self.assertEqual(missing_consent.status_code, 400)
+        self.assertIn('consentimiento', (missing_consent.get_json() or {}).get('error', '').lower())
+        assert_unverified_without_pending()
+
+        invalid_ext = client.post(
+            '/api/verify/submit',
+            data={
+                'consent_accepted': 'on',
+                'evidence': (io.BytesIO(b'MZ'), 'malware.exe', 'application/x-msdownload'),
+            },
+            content_type='multipart/form-data',
+        )
+        self.assertEqual(invalid_ext.status_code, 400)
+        self.assertIn('formato', (invalid_ext.get_json() or {}).get('error', '').lower())
+        assert_unverified_without_pending()
+
+        invalid_mime = client.post(
+            '/api/verify/submit',
+            data={
+                'consent_accepted': 'on',
+                'evidence': (io.BytesIO(b'\xff\xd8\xff\xd9'), 'selfie.jpg', 'application/octet-stream'),
+            },
+            content_type='multipart/form-data',
+        )
+        self.assertEqual(invalid_mime.status_code, 400)
+        self.assertIn('tipo de archivo', (invalid_mime.get_json() or {}).get('error', '').lower())
+        assert_unverified_without_pending()
+
+        oversized_image = client.post(
+            '/api/verify/submit',
+            data={
+                'consent_accepted': 'on',
+                'evidence': (io.BytesIO(b'x' * (8 * 1024 * 1024 + 1)), 'selfie.jpg', 'image/jpeg'),
+            },
+            content_type='multipart/form-data',
+        )
+        self.assertEqual(oversized_image.status_code, 413)
+        self.assertIn('demasiado grande', (oversized_image.get_json() or {}).get('error', '').lower())
+        assert_unverified_without_pending()
+
+        image_bytes = b'\xff\xd8\xff\xe0violeta-selfie\xff\xd9'
+        response = client.post(
+            '/api/verify/submit',
+            data={
+                'consent_accepted': 'on',
+                'note': 'Quiero participar en Violeta.',
+                'evidence': (io.BytesIO(image_bytes), 'selfie.jpg', 'image/jpeg'),
+            },
+            content_type='multipart/form-data',
+        )
         self.assertEqual(response.status_code, 200)
         payload = response.get_json() or {}
         self.assertTrue(payload.get('success'))
@@ -450,6 +518,58 @@ class VioletaSmokeTests(unittest.TestCase):
             request_row = VerificationRequest.query.filter_by(user_id=user_id).first()
             self.assertIsNotNone(request_row)
             self.assertEqual(request_row.status, 'pending')
+            self.assertEqual(request_row.evidence_type, 'image')
+            self.assertEqual(request_row.mime_type, 'image/jpeg')
+            self.assertEqual(request_row.file_size, len(image_bytes))
+            self.assertEqual(request_row.note, 'Quiero participar en Violeta.')
+            self.assertTrue(request_row.consent_accepted)
+            self.assertIsNotNone(request_row.consent_accepted_at)
+            self.assertIsNotNone(request_row.submitted_at)
+            evidence_path = request_row.evidence_file_path
+            self.assertTrue(evidence_path.startswith(f'verify/{user_id}/'))
+            self.assertTrue(evidence_path.endswith('.jpg'))
+            self.assertNotIn('selfie', evidence_path)
+            self.assertTrue((UPLOAD_DIR / evidence_path).exists())
+
+        private_response = app.test_client().get(f'/uploads/{evidence_path}')
+        self.assertEqual(private_response.status_code, 403)
+
+        duplicate = client.post(
+            '/api/verify/submit',
+            data={
+                'consent_accepted': 'on',
+                'evidence': (io.BytesIO(image_bytes), 'otra.jpg', 'image/jpeg'),
+            },
+            content_type='multipart/form-data',
+        )
+        self.assertEqual(duplicate.status_code, 409)
+        self.assertIn('solicitud en revisión', (duplicate.get_json() or {}).get('error', '').lower())
+
+    def test_visual_verification_accepts_video_evidence(self):
+        user_id = self.create_user('solicita_revision_video', verified=False)
+        client = self.client_for(user_id)
+        video_bytes = b'\x00\x00\x00\x18ftypmp42violeta-video'
+
+        response = client.post(
+            '/api/verify/submit',
+            data={
+                'consent_accepted': 'on',
+                'evidence': (io.BytesIO(video_bytes), 'revision.mp4', 'video/mp4'),
+            },
+            content_type='multipart/form-data',
+        )
+        self.assertEqual(response.status_code, 200)
+        with app.app_context():
+            user = db.session.get(User, user_id)
+            self.assertEqual(user.verification_status, 'pending_review')
+            request_row = VerificationRequest.query.filter_by(user_id=user_id).first()
+            self.assertEqual(request_row.status, 'pending')
+            self.assertEqual(request_row.evidence_type, 'video')
+            self.assertEqual(request_row.mime_type, 'video/mp4')
+            self.assertEqual(request_row.file_size, len(video_bytes))
+            self.assertTrue(request_row.evidence_file_path.startswith(f'verify/{user_id}/'))
+            self.assertTrue(request_row.evidence_file_path.endswith('.mp4'))
+            self.assertNotIn('revision', request_row.evidence_file_path)
 
     def test_health_check_public_safe_and_degrades_on_cache_failure(self):
         client = app.test_client()

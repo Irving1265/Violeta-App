@@ -70,7 +70,7 @@ class Config:
         os.environ.get('UPLOAD_FOLDER')
         or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
     )
-    MAX_CONTENT_LENGTH = 32 * 1024 * 1024  # 32MB máximo
+    MAX_CONTENT_LENGTH = 40 * 1024 * 1024  # 40MB máximo para videos de verificación
     # Extensiones permitidas (añadimos formatos comunes de móviles)
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif'}
     UPLOAD_BACKEND = (os.environ.get('UPLOAD_BACKEND') or 'local').strip().lower()
