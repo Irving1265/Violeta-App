@@ -446,6 +446,8 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertNotIn('type="file"', html)
         self.assertNotIn('otp', html)
         self.assertNotIn('código', html)
+        with app.app_context():
+            self.assertIsNone(VerificationRequest.query.filter_by(user_id=user_id).first())
 
         def assert_unverified_without_pending():
             with app.app_context():

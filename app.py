@@ -3444,20 +3444,19 @@ def create_app():
             return f"+52{digits}"
         return ''
 
-    def get_or_create_verification(user):
-        req = VerificationRequest.query.filter_by(user_id=user.id).order_by(VerificationRequest.created_at.desc()).first()
-        if req and req.status in ('pending', 'approved'):
+    def latest_verification_request(user):
+        return (
+            VerificationRequest.query
+            .filter_by(user_id=user.id)
+            .order_by(VerificationRequest.created_at.desc())
+            .first()
+        )
+
+    def verification_request_for_submit(user):
+        req = latest_verification_request(user)
+        if req and req.status in ('pending', 'approved', 'draft'):
             return req
-        if req and req.status == 'draft':
-            db.session.commit()
-            return req
-        # If rejected or none, create new draft
-        req = VerificationRequest()
-        req.user_id = user.id
-        req.status = 'draft'
-        db.session.add(req)
-        db.session.commit()
-        return req
+        return VerificationRequest(user_id=user.id, status='draft')
 
     def append_user_export(user):
         if str(os.environ.get('ENABLE_USER_EXPORT', '')).strip().lower() not in {'1', 'true', 'yes', 'on'}:
@@ -6204,14 +6203,16 @@ def create_app():
     @app.route('/verify')
     @login_required
     def verify_identity():
+        user_status = verification_status_for_user(current_user)
         if is_user_verified(current_user):
-            return render_template('verify.html', status='verified', verification=None)
-        req = get_or_create_verification(current_user)
+            return render_template('verify.html', status='verified', verification=None, user_status=user_status)
+        req = latest_verification_request(current_user)
+        request_status = req.status if req else 'not_started'
         return render_template(
             'verify.html',
-            status=req.status,
+            status=request_status,
             verification=req,
-            user_status=verification_status_for_user(current_user),
+            user_status=user_status,
         )
 
     @app.route('/api/verify/submit', methods=['POST'])
@@ -6253,7 +6254,7 @@ def create_app():
         if evidence_meta.get('evidence_type') != 'video':
             return jsonify({'error': 'La evidencia de verificación debe ser un video grabado desde la app.'}), 400
 
-        req = get_or_create_verification(current_user)
+        req = verification_request_for_submit(current_user)
         if req.status == 'pending':
             return jsonify({'error': 'Ya tienes una solicitud en revisión.'}), 409
 
