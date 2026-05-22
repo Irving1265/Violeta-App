@@ -93,7 +93,9 @@ set +a
 python scripts/production_env_audit.py
 ```
 
-El auditor redacta secretos. Si `status` es `ok`, la configuración básica está completa.
+El auditor redacta secretos y falla si detecta placeholders como `TU_PROYECTO`,
+`TU_SERVICE_ROLE_KEY`, `TU_RESEND_API_KEY` o `tu-dominio.com`. Si `status` es `ok`,
+la configuración básica está completa.
 
 ## Validación con Flask
 

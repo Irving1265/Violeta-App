@@ -4523,9 +4523,13 @@ def create_app():
                 ))
         else:
             issues.append(_preflight_issue(
-                'warning',
+                'error' if strict else 'warning',
                 'mail_not_configured',
-                'MAIL_DELIVERY_METHOD no está configurado; recuperación de contraseña y mensajes transaccionales pueden fallar.',
+                (
+                    'MAIL_DELIVERY_METHOD no está configurado; en producción no funcionarán recuperación de contraseña ni mensajes transaccionales.'
+                    if strict
+                    else 'MAIL_DELIVERY_METHOD no está configurado; recuperación de contraseña y mensajes transaccionales pueden fallar.'
+                ),
             ))
 
         if strict and not (app.config.get('REDIS_URL') or '').strip():

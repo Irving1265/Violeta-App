@@ -20,6 +20,11 @@ SECRET_NAMES = {
     'REDIS_URL',
 }
 
+PLACEHOLDER_PATTERN = re.compile(
+    r'(tu_|your_|placeholder|pon_aqui|cambia|xxx|tu-dominio|example\.com)',
+    re.I,
+)
+
 
 def load_env_file(path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
@@ -62,6 +67,10 @@ def is_truthy(value: str) -> bool:
     return value.strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
+def looks_placeholder(value: str) -> bool:
+    return bool(value and PLACEHOLDER_PATTERN.search(value))
+
+
 def audit(file_values: dict[str, str]) -> dict[str, object]:
     issues: list[dict[str, str]] = []
 
@@ -101,16 +110,22 @@ def audit(file_values: dict[str, str]) -> dict[str, object]:
         ))
     else:
         for name in ('SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_STORAGE_BUCKET'):
-            if not env_value(name, file_values):
+            value = env_value(name, file_values)
+            if not value:
                 issues.append(issue('error', f'missing_{name.lower()}', f'Falta {name}.'))
+            elif looks_placeholder(value):
+                issues.append(issue('error', f'placeholder_{name.lower()}', f'{name} parece ser un placeholder, usa el valor real.'))
         if env_value('SUPABASE_URL', file_values) and not env_value('SUPABASE_URL', file_values).startswith('https://'):
             issues.append(issue('error', 'supabase_url_not_https', 'SUPABASE_URL debe usar https://.'))
 
     mail_method = env_value('MAIL_DELIVERY_METHOD', file_values).lower()
     if mail_method == 'resend':
         for name in ('RESEND_API_KEY', 'RESEND_FROM'):
-            if not env_value(name, file_values):
+            value = env_value(name, file_values)
+            if not value:
                 issues.append(issue('error', f'missing_{name.lower()}', f'Falta {name}.'))
+            elif looks_placeholder(value):
+                issues.append(issue('error', f'placeholder_{name.lower()}', f'{name} parece ser un placeholder, usa el valor real.'))
     elif mail_method == 'smtp':
         if not env_value('MAIL_SERVER', file_values):
             issues.append(issue('error', 'missing_mail_server', 'Falta MAIL_SERVER.'))

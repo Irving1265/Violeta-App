@@ -714,8 +714,22 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertIn('remember_cookie_not_secure', strict.output)
         self.assertIn('background_jobs_inline_in_strict_mode', strict.output)
         self.assertIn('async_jobs_disabled', strict.output)
+        self.assertIn('missing_smtp_password', strict.output)
         self.assertNotIn(os.environ['SECRET_KEY'], strict.output)
         self.assertNotIn(str(DB_PATH), strict.output)
+
+        app.config.update(
+            MAIL_DELIVERY_METHOD='',
+            MAIL_SERVER='',
+            MAIL_USERNAME='',
+            MAIL_PASSWORD='',
+            MAIL_DEFAULT_SENDER='',
+        )
+        no_mail_strict = runner.invoke(args=['preflight-check', '--strict'])
+        self.assertEqual(no_mail_strict.exit_code, 1)
+        no_mail_payload = json.loads(no_mail_strict.output)
+        no_mail_issues = {issue.get('code'): issue.get('level') for issue in no_mail_payload.get('issues') or []}
+        self.assertEqual(no_mail_issues.get('mail_not_configured'), 'error')
 
         app.config.update(UPLOAD_BACKEND='invalid', REDIS_URL='redis+sentinel://cache')
         invalid = runner.invoke(args=['preflight-check', '--strict'])
@@ -748,6 +762,28 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertIn('local_uploads', incomplete_codes)
         self.assertIn('mail_not_configured', incomplete_codes)
 
+        placeholder_config = audit_module.audit({
+            'APP_ENV': 'production',
+            'SECRET_KEY': 'violeta-produccion-llave-larga-aleatoria',
+            'DATABASE_URL': 'postgresql://violeta:secret@db.internal/violeta',
+            'PREFERRED_URL_SCHEME': 'https',
+            'SESSION_COOKIE_SECURE': 'true',
+            'REMEMBER_COOKIE_SECURE': 'true',
+            'UPLOAD_BACKEND': 'supabase',
+            'SUPABASE_URL': 'https://TU_PROYECTO.supabase.co',
+            'SUPABASE_SERVICE_ROLE_KEY': 'TU_SERVICE_ROLE_KEY',
+            'SUPABASE_STORAGE_BUCKET': 'uploads',
+            'MAIL_DELIVERY_METHOD': 'resend',
+            'RESEND_API_KEY': 'TU_RESEND_API_KEY',
+            'RESEND_FROM': 'Violeta <no-reply@tu-dominio.com>',
+        })
+        placeholder_codes = {issue.get('code') for issue in placeholder_config.get('issues') or []}
+        self.assertEqual(placeholder_config.get('status'), 'error')
+        self.assertIn('placeholder_supabase_url', placeholder_codes)
+        self.assertIn('placeholder_supabase_service_role_key', placeholder_codes)
+        self.assertIn('placeholder_resend_api_key', placeholder_codes)
+        self.assertIn('placeholder_resend_from', placeholder_codes)
+
         complete = audit_module.audit({
             'APP_ENV': 'production',
             'SECRET_KEY': 'violeta-produccion-llave-larga-aleatoria',
@@ -761,7 +797,7 @@ class VioletaSmokeTests(unittest.TestCase):
             'SUPABASE_STORAGE_BUCKET': 'uploads',
             'MAIL_DELIVERY_METHOD': 'resend',
             'RESEND_API_KEY': 're_secret_value',
-            'RESEND_FROM': 'Violeta <no-reply@example.com>',
+            'RESEND_FROM': 'Violeta <no-reply@violeta.app>',
             'REDIS_URL': 'rediss://cache.example.com:6379/0',
         })
         self.assertEqual(complete.get('status'), 'ok')
