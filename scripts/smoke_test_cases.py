@@ -427,7 +427,7 @@ class VioletaSmokeTests(unittest.TestCase):
             self.assertEqual(user.verification_status, 'unverified')
             self.assertEqual(int(user.trial_location_views_limit or 0), 3)
 
-    def test_visual_verification_requires_evidence_consent_and_valid_file(self):
+    def test_visual_verification_requires_app_camera_video_consent_and_valid_file(self):
         user_id = self.create_user('solicita_revision', verified=False)
         client = self.client_for(user_id)
 
@@ -435,9 +435,15 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         html = page.get_data(as_text=True).lower()
         self.assertIn('verifica tu cuenta', html)
-        self.assertIn('foto o video', html)
+        self.assertIn('grabación de seguridad', html)
         self.assertIn('consentimiento', html)
         self.assertIn('video corto', html)
+        self.assertIn('activar mi cámara', html)
+        self.assertIn('verification_page.css', html)
+        self.assertIn('verification_page.js', html)
+        self.assertNotIn('cdn.tailwindcss', html)
+        self.assertNotIn('livenessphrases', html)
+        self.assertNotIn('type="file"', html)
         self.assertNotIn('otp', html)
         self.assertNotIn('código', html)
 
@@ -448,23 +454,39 @@ class VioletaSmokeTests(unittest.TestCase):
                 pending = VerificationRequest.query.filter_by(user_id=user_id, status='pending').first()
                 self.assertIsNone(pending)
 
-        missing_file = client.post('/api/verify/submit', data={'consent_accepted': 'on'})
+        missing_file = client.post('/api/verify/submit', data={'capture_source': 'app_camera', 'consent_accepted': 'on'})
         self.assertEqual(missing_file.status_code, 400)
         self.assertIn('foto o video', (missing_file.get_json() or {}).get('error', '').lower())
         assert_unverified_without_pending()
 
         missing_consent = client.post(
             '/api/verify/submit',
-            data={'evidence': (io.BytesIO(b'\xff\xd8\xff\xd9'), 'selfie.jpg', 'image/jpeg')},
+            data={
+                'capture_source': 'app_camera',
+                'evidence': (io.BytesIO(b'\x00\x00\x00\x18ftypmp42'), 'revision.mp4', 'video/mp4'),
+            },
             content_type='multipart/form-data',
         )
         self.assertEqual(missing_consent.status_code, 400)
         self.assertIn('consentimiento', (missing_consent.get_json() or {}).get('error', '').lower())
         assert_unverified_without_pending()
 
+        uploaded_file_source = client.post(
+            '/api/verify/submit',
+            data={
+                'consent_accepted': 'on',
+                'evidence': (io.BytesIO(b'\x00\x00\x00\x18ftypmp42'), 'revision.mp4', 'video/mp4'),
+            },
+            content_type='multipart/form-data',
+        )
+        self.assertEqual(uploaded_file_source.status_code, 400)
+        self.assertIn('cámara de la app', (uploaded_file_source.get_json() or {}).get('error', '').lower())
+        assert_unverified_without_pending()
+
         invalid_ext = client.post(
             '/api/verify/submit',
             data={
+                'capture_source': 'app_camera',
                 'consent_accepted': 'on',
                 'evidence': (io.BytesIO(b'MZ'), 'malware.exe', 'application/x-msdownload'),
             },
@@ -477,6 +499,7 @@ class VioletaSmokeTests(unittest.TestCase):
         invalid_mime = client.post(
             '/api/verify/submit',
             data={
+                'capture_source': 'app_camera',
                 'consent_accepted': 'on',
                 'evidence': (io.BytesIO(b'\xff\xd8\xff\xd9'), 'selfie.jpg', 'application/octet-stream'),
             },
@@ -489,6 +512,7 @@ class VioletaSmokeTests(unittest.TestCase):
         oversized_image = client.post(
             '/api/verify/submit',
             data={
+                'capture_source': 'app_camera',
                 'consent_accepted': 'on',
                 'evidence': (io.BytesIO(b'x' * (8 * 1024 * 1024 + 1)), 'selfie.jpg', 'image/jpeg'),
             },
@@ -499,12 +523,27 @@ class VioletaSmokeTests(unittest.TestCase):
         assert_unverified_without_pending()
 
         image_bytes = b'\xff\xd8\xff\xe0violeta-selfie\xff\xd9'
+        image_response = client.post(
+            '/api/verify/submit',
+            data={
+                'capture_source': 'app_camera',
+                'consent_accepted': 'on',
+                'evidence': (io.BytesIO(image_bytes), 'selfie.jpg', 'image/jpeg'),
+            },
+            content_type='multipart/form-data',
+        )
+        self.assertEqual(image_response.status_code, 400)
+        self.assertIn('video grabado', (image_response.get_json() or {}).get('error', '').lower())
+        assert_unverified_without_pending()
+
+        video_bytes = b'\x00\x00\x00\x18ftypmp42violeta-video'
         response = client.post(
             '/api/verify/submit',
             data={
+                'capture_source': 'app_camera',
                 'consent_accepted': 'on',
                 'note': 'Quiero participar en Violeta.',
-                'evidence': (io.BytesIO(image_bytes), 'selfie.jpg', 'image/jpeg'),
+                'evidence': (io.BytesIO(video_bytes), 'video_verificacion.webm', 'video/webm'),
             },
             content_type='multipart/form-data',
         )
@@ -518,17 +557,17 @@ class VioletaSmokeTests(unittest.TestCase):
             request_row = VerificationRequest.query.filter_by(user_id=user_id).first()
             self.assertIsNotNone(request_row)
             self.assertEqual(request_row.status, 'pending')
-            self.assertEqual(request_row.evidence_type, 'image')
-            self.assertEqual(request_row.mime_type, 'image/jpeg')
-            self.assertEqual(request_row.file_size, len(image_bytes))
+            self.assertEqual(request_row.evidence_type, 'video')
+            self.assertEqual(request_row.mime_type, 'video/webm')
+            self.assertEqual(request_row.file_size, len(video_bytes))
             self.assertEqual(request_row.note, 'Quiero participar en Violeta.')
             self.assertTrue(request_row.consent_accepted)
             self.assertIsNotNone(request_row.consent_accepted_at)
             self.assertIsNotNone(request_row.submitted_at)
             evidence_path = request_row.evidence_file_path
             self.assertTrue(evidence_path.startswith(f'verify/{user_id}/'))
-            self.assertTrue(evidence_path.endswith('.jpg'))
-            self.assertNotIn('selfie', evidence_path)
+            self.assertTrue(evidence_path.endswith('.webm'))
+            self.assertNotIn('video_verificacion', evidence_path)
             self.assertTrue((UPLOAD_DIR / evidence_path).exists())
 
         private_response = app.test_client().get(f'/uploads/{evidence_path}')
@@ -537,8 +576,9 @@ class VioletaSmokeTests(unittest.TestCase):
         duplicate = client.post(
             '/api/verify/submit',
             data={
+                'capture_source': 'app_camera',
                 'consent_accepted': 'on',
-                'evidence': (io.BytesIO(image_bytes), 'otra.jpg', 'image/jpeg'),
+                'evidence': (io.BytesIO(video_bytes), 'otra.webm', 'video/webm'),
             },
             content_type='multipart/form-data',
         )
@@ -553,6 +593,7 @@ class VioletaSmokeTests(unittest.TestCase):
         response = client.post(
             '/api/verify/submit',
             data={
+                'capture_source': 'app_camera',
                 'consent_accepted': 'on',
                 'evidence': (io.BytesIO(video_bytes), 'revision.mp4', 'video/mp4'),
             },

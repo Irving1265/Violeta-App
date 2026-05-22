@@ -2,394 +2,261 @@
 
 {% set effective_user_status = user_status|default(status)|default('unverified') %}
 
+{% block styles %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/verification_page.css') }}?v=20260521-camera-v2">
+{% endblock %}
+
 {% block content %}
-<div class="container verify-page-wrap">
-  <section class="manual-verify-card" aria-labelledby="verifyTitle">
-    <div class="manual-verify-card__icon" aria-hidden="true">
-      <i class="fas fa-shield-heart"></i>
+<div class="verification-page" data-verification-page data-submit-url="{{ url_for('verify_submit') }}">
+  <section class="verification-card" aria-labelledby="verificationTitle">
+    {% if status == 'verified' or effective_user_status == 'verified' %}
+    <div class="verification-state-card">
+      <div class="verification-state-card__icon verification-state-card__icon--success" aria-hidden="true">
+        <i class="fas fa-check"></i>
+      </div>
+      <h1 id="verificationTitle">Tu cuenta ya está verificada</h1>
+      <p>Ya tienes acceso completo a reportes, comentarios, publicaciones y chat.</p>
+      <a href="{{ url_for('index') }}" class="verification-button verification-button--dark">Volver al inicio</a>
     </div>
-    <div class="manual-verify-card__body">
-      <p class="profile-kicker">Verificación manual</p>
-      <h1 id="verifyTitle">Verifica tu cuenta</h1>
-      <p class="manual-verify-lead">
-        Para proteger a la comunidad, necesitamos confirmar tu identidad antes de activar todas las funciones de Violeta.
-      </p>
-      <p class="manual-verify-privacy">
-        Tu evidencia solo será revisada por el equipo autorizado de Violeta. No será visible para otras usuarias.
-      </p>
 
-      {% if status == 'verified' or effective_user_status == 'verified' %}
-      <div class="manual-verify-status manual-verify-status--ok">
-        <i class="fas fa-circle-check"></i>
-        Tu cuenta ya está verificada.
-      </div>
-      <a href="{{ url_for('index') }}" class="btn btn-primary">Volver al inicio</a>
-
-      {% elif status == 'pending' or effective_user_status == 'pending_review' %}
-      <div class="manual-verify-status manual-verify-status--pending">
+    {% elif status == 'pending' or effective_user_status == 'pending_review' %}
+    <div class="verification-state-card">
+      <div class="verification-state-card__icon" aria-hidden="true">
         <i class="fas fa-user-clock"></i>
-        <span>
-          <strong>Tu solicitud está en revisión.</strong>
-          Te avisaremos cuando el equipo de Violeta la revise. Mientras tanto, tu cuenta seguirá con acceso limitado.
-        </span>
       </div>
-      <a href="{{ url_for('index') }}" class="btn btn-outline-light">Explorar con acceso limitado</a>
+      <h1 id="verificationTitle">Tu solicitud está en revisión</h1>
+      <p>Te avisaremos cuando el equipo de Violeta la revise. Mientras tanto, tu cuenta seguirá con acceso limitado.</p>
+      <a href="{{ url_for('index') }}" class="verification-button">Explorar con acceso limitado</a>
+    </div>
 
-      {% elif effective_user_status == 'suspended' %}
-      <div class="manual-verify-status manual-verify-status--blocked">
+    {% elif effective_user_status == 'suspended' %}
+    <div class="verification-state-card">
+      <div class="verification-state-card__icon verification-state-card__icon--danger" aria-hidden="true">
         <i class="fas fa-ban"></i>
-        Tu cuenta está suspendida. Contacta al equipo de Violeta si crees que es un error.
       </div>
+      <h1 id="verificationTitle">Tu cuenta está suspendida</h1>
+      <p>Contacta al equipo de Violeta si crees que esto es un error. No puedes enviar una nueva solicitud por ahora.</p>
+    </div>
 
-      {% else %}
-      {% if effective_user_status == 'rejected' %}
-      <div class="manual-verify-status manual-verify-status--blocked">
-        <i class="fas fa-circle-exclamation"></i>
-        <span>
-          <strong>Tu solicitud anterior no pudo aprobarse.</strong>
-          {% if current_user.rejection_reason %}Motivo: {{ current_user.rejection_reason }}{% else %}Puedes enviar una nueva solicitud para revisión.{% endif %}
-        </span>
+    {% else %}
+    <div class="verification-progress">
+      <div class="verification-progress__top">
+        <div>
+          <span class="verification-progress__label" id="stepIndicatorLabel">Paso 1 de 3</span>
+          <h2 id="stepTitle">Bienvenida y Beneficios</h2>
+        </div>
+        <div class="verification-progress__icon" id="headerStatusIcon" aria-hidden="true">
+          <i class="fas fa-user-shield"></i>
+        </div>
       </div>
-      {% else %}
-      <div class="manual-verify-status">
-        <i class="fas fa-user-clock"></i>
-        Estado actual: {{ verification_badge_label(current_user) }}.
+      <div class="verification-progress__track" aria-hidden="true">
+        <div class="verification-progress__bar" id="progressBar"></div>
       </div>
-      {% endif %}
+    </div>
 
-      <div class="manual-verify-benefits" aria-label="Funciones desbloqueadas al verificar">
-        <strong>Al verificarte podrás:</strong>
-        <ul>
-          <li><i class="fas fa-eye"></i> Ver reportes completos</li>
-          <li><i class="fas fa-location-dot"></i> Consultar más ubicaciones</li>
-          <li><i class="fas fa-camera"></i> Publicar reportes</li>
-          <li><i class="fas fa-comment"></i> Comentar</li>
-          <li><i class="fas fa-comments"></i> Usar chat</li>
-          <li><i class="fas fa-people-group"></i> Participar en la comunidad</li>
-        </ul>
-      </div>
+    <div id="toastContainer" class="verification-toast is-hidden" role="status" aria-live="polite">
+      <div id="toastIcon" class="verification-toast__icon" aria-hidden="true"></div>
+      <p id="toastMessage"></p>
+      <button type="button" class="verification-toast__close" data-close-toast aria-label="Cerrar aviso">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
 
-      <form class="manual-verify-form" id="verificationForm" enctype="multipart/form-data" novalidate>
-        <label class="manual-verify-field">
-          <span>Evidencia visual <strong>*</strong></span>
-          <input
-            type="file"
-            name="evidence"
-            id="verificationEvidence"
-            accept="image/jpeg,image/png,image/heic,video/mp4,video/quicktime,video/webm,.jpg,.jpeg,.png,.heic,.mp4,.mov,.webm"
-            required
-          >
-          <small>
-            Graba un video corto de 5 a 10 segundos mostrando tu rostro. Mueve ligeramente la cabeza o parpadea para confirmar que eres una persona real.
-            Si no puedes grabar video, sube una foto/selfie como respaldo.
-          </small>
-          <small>Máximo: 8 MB para imágenes y 40 MB para videos.</small>
-        </label>
+    {% if effective_user_status == 'rejected' %}
+    <div class="verification-alert verification-alert--danger">
+      <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+      <p>
+        <strong>Tu solicitud anterior no pudo aprobarse.</strong>
+        {% if current_user.rejection_reason %}Motivo: {{ current_user.rejection_reason }}{% else %}Puedes enviar una nueva solicitud para revisión.{% endif %}
+      </p>
+    </div>
+    {% endif %}
 
-        <label class="manual-verify-field">
-          <span>Comentario opcional</span>
-          <textarea
-            name="note"
-            id="verificationNote"
-            rows="4"
-            maxlength="1200"
-            placeholder="Cuéntanos brevemente por qué quieres unirte a Violeta."
-          ></textarea>
-        </label>
-
-        <label class="manual-verify-consent">
-          <input type="checkbox" name="consent_accepted" id="verificationConsent" required>
-          <span>
-            Entiendo que mi foto o video será usado únicamente para revisar mi solicitud de verificación.
-            Esta evidencia no será visible para otras usuarias y solo podrá ser revisada por el equipo autorizado de Violeta.
-          </span>
-        </label>
-
-        <div class="manual-verify-links">
-          <a href="{{ url_for('privacy_policy') }}" data-no-prefetch="1">Política de privacidad</a>
+    <form id="verifyForm" class="verification-form" novalidate>
+      <section id="step1" class="verification-step" data-step="1" aria-labelledby="verificationTitle">
+        <div class="verification-copy">
+          <h1 id="verificationTitle">Verifica tu cuenta</h1>
+          <p>
+            Para proteger a nuestra comunidad y asegurar la confianza entre todas las usuarias,
+            necesitamos confirmar que eres una persona real antes de otorgarte acceso total.
+          </p>
         </div>
 
-        <button class="btn btn-primary manual-verify-submit" type="submit" id="submitVerificationBtn">
-          Enviar solicitud de verificación
+        <div class="verification-note">
+          <div class="verification-note__icon" aria-hidden="true">
+            <i class="fas fa-lock"></i>
+          </div>
+          <div>
+            <h3>Privacidad protegida</h3>
+            <p>Tu grabación de prueba solo será visible para el equipo auditor autorizado de Violeta. Jamás se publicará ni se mostrará en tu perfil o a otras usuarias.</p>
+          </div>
+        </div>
+
+        <div class="verification-benefits" aria-label="Funciones desbloqueadas al verificar">
+          <h3><i class="fas fa-circle-check" aria-hidden="true"></i> Al estar verificada podrás:</h3>
+          <div class="verification-benefits__grid">
+            <div class="verification-benefit"><span><i class="fas fa-eye"></i></span> Ver reportes completos</div>
+            <div class="verification-benefit"><span><i class="fas fa-location-dot"></i></span> Consultar más ubicaciones</div>
+            <div class="verification-benefit"><span><i class="fas fa-camera"></i></span> Publicar nuevos reportes</div>
+            <div class="verification-benefit"><span><i class="fas fa-comment"></i></span> Comentar publicaciones</div>
+            <div class="verification-benefit"><span><i class="fas fa-comments"></i></span> Chatear con usuarias</div>
+            <div class="verification-benefit"><span><i class="fas fa-users"></i></span> Participar en la comunidad</div>
+          </div>
+        </div>
+
+        <button type="button" class="verification-button verification-button--full" data-step-target="2">
+          Comenzar verificación <i class="fas fa-arrow-right" aria-hidden="true"></i>
         </button>
-        <div class="manual-verify-feedback" id="verifySubmitStatus" aria-live="polite"></div>
-      </form>
-      {% endif %}
+      </section>
+
+      <section id="step2" class="verification-step is-hidden" data-step="2" aria-labelledby="verificationCameraTitle">
+        <div class="verification-copy">
+          <h3 id="verificationCameraTitle">Grabación de Seguridad</h3>
+          <p>Graba un video corto y di la siguiente frase asignada en voz alta frente a la cámara. Debe durar entre 5 segundos y 1 minuto.</p>
+        </div>
+
+        <div class="verification-phrase">
+          <span>Lee esta frase en voz alta:</span>
+          <p id="livenessPhraseDisplay">Cargando frase de verificación...</p>
+        </div>
+
+        <div id="cameraCaptureInterface" class="verification-camera">
+          <div class="verification-camera__viewport" id="cameraViewContainer">
+            <video id="cameraVideo" class="verification-camera__video mirror-view is-hidden" playsinline muted></video>
+            <video id="playbackVideo" class="verification-camera__video mirror-view is-hidden" playsinline></video>
+
+            <div id="playbackOverlay" class="verification-playback is-hidden">
+              <button type="button" id="playbackPlayBtn" class="verification-playback__button" data-playback-toggle aria-label="Reproducir grabación">
+                <i class="fas fa-play" id="playbackIcon"></i>
+              </button>
+            </div>
+
+            <div id="recordingOverlay" class="verification-recording is-hidden" aria-hidden="true">
+              <div class="verification-recording__top">
+                <span class="verification-recording__pill"><span></span> GRABANDO</span>
+                <span id="recordingTimer" class="verification-recording__timer">0:00 / 1:00</span>
+              </div>
+              <div class="verification-recording__hint">
+                <span>Mueve la cabeza o parpadea mientras hablas</span>
+                <strong id="recordingMinIndicator">Duración mínima obligatoria: 5 segundos</strong>
+              </div>
+            </div>
+
+            <div id="recordingBarContainer" class="verification-recording-bar is-hidden" aria-hidden="true">
+              <div id="recordingProgressBar"></div>
+            </div>
+
+            <div id="cameraPlaceholder" class="verification-camera__placeholder">
+              <div class="verification-camera__placeholder-icon" aria-hidden="true">
+                <i class="fas fa-video"></i>
+              </div>
+              <p><strong>Permitir acceso a la cámara</strong></p>
+              <p>Requerimos acceso temporal a tu cámara para completar la prueba de vida.</p>
+              <button type="button" class="verification-button verification-button--compact" data-camera-start>
+                <i class="fas fa-video" aria-hidden="true"></i> Activar mi Cámara
+              </button>
+            </div>
+          </div>
+
+          <div id="cameraControls" class="verification-camera__controls is-hidden">
+            <div id="liveControls" class="verification-camera__control-row">
+              <button type="button" id="btnRecordToggle" class="verification-button verification-button--record" data-record-toggle>
+                <i class="fas fa-circle" id="recordToggleIcon" aria-hidden="true"></i>
+                <span id="recordToggleText">Iniciar Grabación</span>
+              </button>
+            </div>
+
+            <div id="previewControls" class="verification-camera__control-row is-hidden">
+              <button type="button" class="verification-button verification-button--muted" data-reset-capture>
+                <i class="fas fa-rotate-left" aria-hidden="true"></i> Volver a grabar
+              </button>
+              <div class="verification-ready">
+                <i class="fas fa-circle-check" aria-hidden="true"></i> Grabación lista
+              </div>
+            </div>
+          </div>
+
+          <div class="verification-help">
+            <i class="fas fa-circle-info" aria-hidden="true"></i>
+            <span>Esta evidencia será revisada por el equipo autorizado de Violeta. No usamos reconocimiento facial automático ni clasificación de género.</span>
+          </div>
+        </div>
+
+        <div class="verification-actions">
+          <button type="button" class="verification-button verification-button--muted" data-step-target="1">Atrás</button>
+          <button type="button" id="btnNextToStep3" class="verification-button is-disabled" data-next-final disabled>
+            Continuar <i class="fas fa-arrow-right" aria-hidden="true"></i>
+          </button>
+        </div>
+      </section>
+
+      <section id="step3" class="verification-step is-hidden" data-step="3" aria-labelledby="verificationConsentTitle">
+        <div class="verification-copy">
+          <h3 id="verificationConsentTitle">Pasos Finales</h3>
+          <p>Completa el consentimiento de privacidad para poder procesar tu solicitud de manera segura.</p>
+        </div>
+
+        <label class="verification-field" for="verificationNote">
+          <span>Mensaje (opcional) <small id="charCounter">0/1200</small></span>
+          <textarea name="note" id="verificationNote" rows="3" maxlength="1200" placeholder="Cuéntanos brevemente por qué quieres unirte a Violeta o añade algún detalle relevante para tu revisión."></textarea>
+        </label>
+
+        <label class="verification-consent">
+          <input type="checkbox" name="consent_accepted" id="verificationConsent" required>
+          <span>Entiendo y acepto que el video grabado será procesado única y exclusivamente por el equipo autorizado de Violeta para verificar mi identidad. Esta evidencia jamás será pública ni visible para otras usuarias.</span>
+        </label>
+
+        <div class="verification-privacy-link">
+          <a href="{{ url_for('privacy_policy') }}" data-no-prefetch="1">Política de privacidad completa</a>
+        </div>
+
+        <div class="verification-actions">
+          <button type="button" class="verification-button verification-button--muted" data-step-target="2">Atrás</button>
+          <button type="submit" id="submitVerificationBtn" class="verification-button is-disabled" disabled>
+            <i class="fas fa-paper-plane" aria-hidden="true"></i> Enviar Solicitud
+          </button>
+        </div>
+      </section>
+
+      <section id="sendingState" class="verification-sending is-hidden" aria-live="polite">
+        <div class="verification-spinner" aria-hidden="true">
+          <span></span>
+          <i class="fas fa-lock"></i>
+        </div>
+        <h3>Enviando tu solicitud con seguridad</h3>
+        <p>Estamos subiendo tu video de validación para revisión humana por el equipo autorizado de Violeta.</p>
+      </section>
+
+      <section id="successState" class="verification-success is-hidden" aria-live="polite">
+        <div class="verification-state-card__icon verification-state-card__icon--success" aria-hidden="true">
+          <i class="fas fa-check"></i>
+        </div>
+        <span class="verification-success__pill">Solicitud Recibida</span>
+        <h3>Todo listo, gracias por cuidarnos</h3>
+        <p>Hemos recibido tu grabación correctamente. Nuestro equipo revisará la solicitud y tu cuenta seguirá con acceso limitado mientras tanto.</p>
+        <div class="verification-next">
+          <strong><i class="fas fa-circle-question" aria-hidden="true"></i> ¿Qué pasará después?</strong>
+          <p>1. El equipo autorizado revisará que la grabación corresponda a una persona real en movimiento.</p>
+          <p>2. Si se aprueba, se activará tu acceso completo.</p>
+          <p>3. La evidencia no será visible para otras usuarias.</p>
+        </div>
+        <a href="{{ url_for('index') }}" class="verification-button verification-button--dark verification-button--full">Volver al inicio</a>
+      </section>
+    </form>
+
+    <div class="verification-footer">
+      <span><i class="fas fa-lock" aria-hidden="true"></i> Conexión protegida</span>
+      <a href="{{ url_for('privacy_policy') }}" data-no-prefetch="1">Privacidad</a>
     </div>
+    {% endif %}
   </section>
 </div>
 {% endblock %}
 
-{% block styles %}
-{{ super() }}
-<style>
-  .verify-page-wrap {
-    max-width: 900px;
-    padding-bottom: 88px;
-  }
-
-  .manual-verify-card {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 1.25rem;
-    border: 1px solid rgba(167, 139, 250, 0.2);
-    border-radius: 28px;
-    padding: clamp(1.2rem, 4vw, 2rem);
-    background:
-      radial-gradient(circle at top left, rgba(139, 92, 246, 0.22), transparent 34%),
-      rgba(20, 16, 31, 0.92);
-    color: #fff;
-    box-shadow: 0 24px 60px rgba(8, 5, 18, 0.32);
-  }
-
-  .manual-verify-card__icon {
-    width: 58px;
-    height: 58px;
-    border-radius: 20px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(139, 92, 246, 0.18);
-    color: #c4b5fd;
-    font-size: 1.4rem;
-  }
-
-  .manual-verify-card h1 {
-    margin: 0 0 0.65rem;
-    font-size: clamp(1.8rem, 5vw, 2.6rem);
-    font-weight: 900;
-    letter-spacing: -0.04em;
-  }
-
-  .manual-verify-card p {
-    margin: 0 0 1rem;
-    color: rgba(237, 233, 254, 0.78);
-    line-height: 1.55;
-  }
-
-  .manual-verify-privacy {
-    padding: 0.85rem 1rem;
-    border-radius: 18px;
-    background: rgba(139, 92, 246, 0.12);
-    border: 1px solid rgba(196, 181, 253, 0.2);
-  }
-
-  .manual-verify-status {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.7rem;
-    margin: 1rem 0;
-    padding: 0.95rem 1rem;
-    border-radius: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.05);
-    color: rgba(245, 243, 255, 0.92);
-    font-weight: 700;
-  }
-
-  .manual-verify-status--ok {
-    color: #bbf7d0;
-    background: rgba(34, 197, 94, 0.1);
-  }
-
-  .manual-verify-status--pending {
-    color: #fde68a;
-    background: rgba(245, 158, 11, 0.1);
-  }
-
-  .manual-verify-status--blocked {
-    color: #fecaca;
-    background: rgba(239, 68, 68, 0.1);
-  }
-
-  .manual-verify-benefits {
-    margin: 1.2rem 0;
-    padding: 1rem;
-    border-radius: 22px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-
-  .manual-verify-benefits ul {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.65rem;
-    padding: 0;
-    margin: 0.9rem 0 0;
-    list-style: none;
-    color: rgba(245, 243, 255, 0.9);
-  }
-
-  .manual-verify-benefits li {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .manual-verify-benefits i {
-    color: #a78bfa;
-  }
-
-  .manual-verify-form {
-    display: grid;
-    gap: 1rem;
-    margin-top: 1rem;
-  }
-
-  .manual-verify-field,
-  .manual-verify-consent {
-    display: grid;
-    gap: 0.5rem;
-  }
-
-  .manual-verify-field > span,
-  .manual-verify-consent {
-    color: rgba(245, 243, 255, 0.95);
-    font-weight: 800;
-  }
-
-  .manual-verify-field strong {
-    color: #fb7185;
-  }
-
-  .manual-verify-field input,
-  .manual-verify-field textarea {
-    width: 100%;
-    border: 1px solid rgba(196, 181, 253, 0.24);
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
-    padding: 0.85rem 1rem;
-    font: inherit;
-  }
-
-  .manual-verify-field input[type="file"] {
-    cursor: pointer;
-  }
-
-  .manual-verify-field textarea {
-    resize: vertical;
-    min-height: 110px;
-  }
-
-  .manual-verify-field small,
-  .manual-verify-links {
-    color: rgba(237, 233, 254, 0.66);
-    line-height: 1.45;
-  }
-
-  .manual-verify-consent {
-    grid-template-columns: auto 1fr;
-    align-items: flex-start;
-    padding: 1rem;
-    border-radius: 18px;
-    border: 1px solid rgba(196, 181, 253, 0.22);
-    background: rgba(255, 255, 255, 0.05);
-    font-weight: 700;
-    line-height: 1.45;
-  }
-
-  .manual-verify-consent input {
-    margin-top: 0.2rem;
-    width: 18px;
-    height: 18px;
-  }
-
-  .manual-verify-links a {
-    color: #c4b5fd;
-    font-weight: 800;
-  }
-
-  .manual-verify-submit {
-    justify-self: start;
-  }
-
-  .manual-verify-feedback {
-    min-height: 1.4rem;
-    color: #c4b5fd;
-    font-weight: 700;
-  }
-
-  .manual-verify-feedback.is-error {
-    color: #fecaca;
-  }
-
-  .manual-verify-feedback.is-success {
-    color: #bbf7d0;
-  }
-
-  @media (max-width: 640px) {
-    .manual-verify-card {
-      grid-template-columns: 1fr;
-      border-radius: 24px;
-    }
-
-    .manual-verify-benefits ul {
-      grid-template-columns: 1fr;
-    }
-
-    .manual-verify-submit {
-      width: 100%;
-    }
-  }
-</style>
-{% endblock %}
-
 {% block scripts %}
 {{ super() }}
-<script>
-  const verificationForm = document.getElementById('verificationForm');
-  const submitBtn = document.getElementById('submitVerificationBtn');
-  const statusEl = document.getElementById('verifySubmitStatus');
-
-  function setVerificationStatus(message, type = '') {
-    if (!statusEl) return;
-    statusEl.textContent = message || '';
-    statusEl.classList.toggle('is-error', type === 'error');
-    statusEl.classList.toggle('is-success', type === 'success');
-  }
-
-  if (verificationForm && submitBtn) {
-    verificationForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const formData = new FormData(verificationForm);
-      const evidence = formData.get('evidence');
-      const consent = formData.get('consent_accepted');
-
-      if (!evidence || !evidence.name) {
-        setVerificationStatus('Necesitas subir una foto o video para enviar tu solicitud de verificación.', 'error');
-        return;
-      }
-      if (!consent) {
-        setVerificationStatus('Debes aceptar el consentimiento para enviar tu solicitud.', 'error');
-        return;
-      }
-
-      submitBtn.disabled = true;
-      const originalText = submitBtn.textContent;
-      submitBtn.textContent = 'Enviando...';
-      setVerificationStatus('');
-
-      try {
-        const response = await fetch('/api/verify/submit', {
-          method: 'POST',
-          headers: {
-            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '',
-          },
-          body: formData,
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.success) {
-          throw new Error(data.error || 'No pudimos enviar la solicitud.');
-        }
-        setVerificationStatus(data.message || 'Solicitud enviada.', 'success');
-        setTimeout(() => window.location.reload(), 650);
-      } catch (error) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
-        setVerificationStatus(error.message || 'No pudimos enviar la solicitud.', 'error');
-      }
-    });
-  }
-</script>
+{% if not (status == 'verified' or effective_user_status in ['verified', 'pending_review', 'suspended']) %}
+<script defer src="{{ url_for('static', filename='js/verification_page.js') }}?v=20260521-camera-v2"></script>
+{% endif %}
 {% endblock %}

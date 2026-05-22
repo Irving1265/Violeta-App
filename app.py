@@ -6231,6 +6231,10 @@ def create_app():
         if existing_pending or current_status == VERIFICATION_STATUS_PENDING:
             return jsonify({'error': 'Ya tienes una solicitud en revisión.'}), 409
 
+        capture_source = (request.form.get('capture_source') or '').strip().lower()
+        if capture_source != 'app_camera':
+            return jsonify({'error': 'La verificación debe grabarse directamente desde la cámara de la app.'}), 400
+
         consent_value = (
             request.form.get('consent_accepted')
             or request.form.get('consent')
@@ -6246,6 +6250,8 @@ def create_app():
         metadata_ok, evidence_meta, metadata_error, metadata_status = verification_evidence_metadata(evidence_file)
         if not metadata_ok:
             return jsonify({'error': metadata_error}), metadata_status
+        if evidence_meta.get('evidence_type') != 'video':
+            return jsonify({'error': 'La evidencia de verificación debe ser un video grabado desde la app.'}), 400
 
         req = get_or_create_verification(current_user)
         if req.status == 'pending':
