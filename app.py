@@ -3083,6 +3083,16 @@ def create_app():
                 print('DEBUG: metadata strip failed:', exc)
             return False
 
+    def should_scan_image_for_face_blur(image_path: str) -> bool:
+        """Avoid warming heavy face detectors for tiny thumbnails/test fixtures."""
+        try:
+            from PIL import Image
+            with Image.open(image_path) as image:
+                width, height = image.size
+        except Exception:
+            return True
+        return max(width, height) >= 160 and min(width, height) >= 80
+
     def process_public_upload_image(
         filename: str,
         *,
@@ -3101,16 +3111,17 @@ def create_app():
 
         if ext in safe_image_exts:
             strip_image_metadata_in_place(local_path)
-            try:
-                blur_t0 = datetime.now()
-                faces_blurred = blur_faces_in_image(local_path)
-                if app.debug:
-                    blur_ms = int((datetime.now() - blur_t0).total_seconds() * 1000)
-                    print(f'DEBUG: Faces blurred in upload processing: {faces_blurred}')
-                    print(f'DEBUG: Face blur elapsed: {blur_ms}ms')
-            except Exception as exc:
-                if app.debug:
-                    print('DEBUG: Face blur failed in upload processing:', exc)
+            if should_scan_image_for_face_blur(local_path):
+                try:
+                    blur_t0 = datetime.now()
+                    faces_blurred = blur_faces_in_image(local_path)
+                    if app.debug:
+                        blur_ms = int((datetime.now() - blur_t0).total_seconds() * 1000)
+                        print(f'DEBUG: Faces blurred in upload processing: {faces_blurred}')
+                        print(f'DEBUG: Face blur elapsed: {blur_ms}ms')
+                except Exception as exc:
+                    if app.debug:
+                        print('DEBUG: Face blur failed in upload processing:', exc)
 
         if not sync_public_upload_to_storage(normalized, local_path=local_path, mime_type=mime_type):
             return False
@@ -5714,45 +5725,34 @@ def create_app():
             post.categories = categories_json
             post.publish_at = publish_at
             db.session.add(post)
+            db.session.flush()
+
+            meta = PostMeta()  # type: ignore
+            meta.post_id = post.id
+            meta.alt_text = alt_text or None
+            meta.show_public = initial_show_public
+            meta.allow_likes = allow_likes
+            meta.allow_comments = allow_comments
+            meta.location_visibility = location_visibility
+            db.session.add(meta)
+
+            tag_names = list(dict.fromkeys(extract_hashtags(caption)))
+            if tag_names:
+                existing_tags = {
+                    tag.name: tag
+                    for tag in Tag.query.filter(Tag.name.in_(tag_names)).all()
+                }
+                for name in tag_names:
+                    tag = existing_tags.get(name)
+                    if tag is None:
+                        tag = Tag()  # type: ignore
+                        tag.name = name
+                        db.session.add(tag)
+                        db.session.flush()
+                        existing_tags[name] = tag
+                    post.tags.append(tag)
+
             db.session.commit()
-
-            # Guardar meta de interacción/visibilidad
-            try:
-                meta = PostMeta.query.filter_by(post_id=post.id).first()
-                if not meta:
-                    meta = PostMeta()  # type: ignore
-                    meta.post_id = post.id
-                meta.alt_text = alt_text or None
-                meta.show_public = initial_show_public
-                meta.allow_likes = allow_likes
-                meta.allow_comments = allow_comments
-                meta.location_visibility = location_visibility
-                db.session.add(meta)
-                db.session.commit()
-            except Exception as _meta_e:
-                if app.debug:
-                    print('DEBUG: PostMeta save failed:', _meta_e)
-
-            # Etiquetas a partir de hashtags en la descripción
-            try:
-                tags = extract_hashtags(caption)
-                if tags:
-                    for name in tags:
-                        tag = Tag.query.filter_by(name=name).first()
-                        if not tag:
-                            tag = Tag()  # type: ignore
-                            tag.name = name
-                            db.session.add(tag)
-                            db.session.flush()
-                        # evitar duplicados
-                        tags_list = getattr(post, 'tags', [])
-                        if tag not in tags_list:
-                            tags_list.append(tag)
-                    db.session.add(post)
-                    db.session.commit()
-            except Exception as _tag_e:
-                if app.debug:
-                    print('DEBUG: tag attach failed:', _tag_e)
         except Exception as e:
             db.session.rollback()
             if app.debug:
