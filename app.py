@@ -2299,8 +2299,8 @@ def create_app():
 
         try:
             file.stream.seek(0)
-        except Exception:
-            pass
+        except (AttributeError, OSError, ValueError) as exc:
+            _debug_log_suppressed('suppressed verification evidence stream seek error', exc)
         file.save(absolute_path)
         relative_path = f'verify/{int(user_id)}/{safe_name}'
         return relative_path, absolute_path
@@ -13176,7 +13176,7 @@ if __name__ == '__main__':
     # allow_unsafe_werkzeug=True evita el warning en modo desarrollo
     socketio.run(
         app,
-        host=os.environ.get('HOST', '0.0.0.0'),
+        host=os.environ.get('HOST', '127.0.0.1'),
         port=port,
         debug=app.config.get('DEBUG', False),
         allow_unsafe_werkzeug=bool(app.config.get('DEBUG', False)),
