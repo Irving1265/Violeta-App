@@ -836,11 +836,15 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertIn('/static/js/app_core.js?', login_html)
         self.assertNotIn('/static/js/app.js?', login_html)
         self.assertNotIn('/static/js/app_realtime.js?', login_html)
+        self.assertNotIn('id="reportPostModal"', login_html)
+        self.assertNotIn('id="reportCommentModal"', login_html)
 
         client = self.client_for(user_id)
         feed_html = client.get('/').get_data(as_text=True)
         self.assertIn('20260523-global-css-prune-v2', feed_html)
         self.assertIn('20260523-report-modal-split-v1', feed_html)
+        self.assertIn('id="reportPostModal"', feed_html)
+        self.assertIn('id="reportCommentModal"', feed_html)
         self.assertIn('/static/js/app.js?', feed_html)
         self.assertIn('/static/js/post_map.js?', feed_html)
         self.assertIn('20260523-pending-timer-hhmmss-v1', feed_html)
@@ -865,6 +869,8 @@ class VioletaSmokeTests(unittest.TestCase):
 
         post_html = client.get(f'/post/{post_id}').get_data(as_text=True)
         self.assertIn('20260523-report-modal-split-v1', post_html)
+        self.assertIn('id="reportPostModal"', post_html)
+        self.assertIn('id="reportCommentModal"', post_html)
         self.assertIn('/static/js/app.js?', post_html)
         self.assertIn('/static/js/post_map.js?', post_html)
         self.assertNotIn('/static/js/app_core.js?', post_html)
@@ -876,12 +882,16 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertIn('/static/js/app_realtime.js?', chat_html)
         self.assertNotIn('/static/js/app.js?', chat_html)
         self.assertNotIn('/static/js/post_map.js?', chat_html)
+        self.assertNotIn('id="reportPostModal"', chat_html)
+        self.assertNotIn('id="reportCommentModal"', chat_html)
 
         profile_html = client.get('/user/bundle_smoke').get_data(as_text=True)
         self.assertIn('/static/js/app_core.js?', profile_html)
         self.assertIn('/static/js/app_realtime.js?', profile_html)
         self.assertNotIn('/static/js/app.js?', profile_html)
         self.assertNotIn('/static/js/post_map.js?', profile_html)
+        self.assertNotIn('id="reportPostModal"', profile_html)
+        self.assertNotIn('id="reportCommentModal"', profile_html)
 
     def test_mobile_chat_viewport_guards_prevent_ios_zoom_and_overflow(self):
         user_id = self.create_user('mobile_chat_guard', verified=True)

@@ -325,6 +325,7 @@
     {% include 'post_create_modal.html' %}
     {% endif %}
 
+    {% if load_post_interaction_scripts %}
     <!-- Report Comment Modal -->
     <div class="modal fade" id="reportCommentModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered report-comment-modal__dialog">
@@ -699,6 +700,8 @@
             </div>
         </div>
     </div>
+
+    {% endif %}
 
     <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
     {% if request.endpoint in ['index', 'hotspots_page', 'safety_center'] %}
