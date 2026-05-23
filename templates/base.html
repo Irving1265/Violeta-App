@@ -753,7 +753,7 @@
     <script src="{{ url_for('static', filename='js/strike_overlay.js') }}?v=20260420-strike-file-preview-v1"></script>
     {% endif %}
     {% if current_user.is_authenticated and not current_user_can_override_content_controls %}
-    <script src="{{ url_for('static', filename='js/pending_post_release.js') }}?v=20260402-progressive-v1"></script>
+    <script src="{{ url_for('static', filename='js/pending_post_release.js') }}?v=20260523-pending-timer-hhmmss-v1"></script>
     {% endif %}
     {% if request.endpoint == 'index' %}
     <script src="{{ url_for('static', filename='js/post_create.js') }}?v=20260523-current-location-map-v1"></script>

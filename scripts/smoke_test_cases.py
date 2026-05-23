@@ -841,6 +841,7 @@ class VioletaSmokeTests(unittest.TestCase):
         feed_html = client.get('/').get_data(as_text=True)
         self.assertIn('/static/js/app.js?', feed_html)
         self.assertIn('/static/js/post_map.js?', feed_html)
+        self.assertIn('20260523-pending-timer-hhmmss-v1', feed_html)
         self.assertIn('20260523-current-location-map-v1', feed_html)
         self.assertNotIn('/static/js/app_core.js?', feed_html)
         self.assertNotIn('/static/js/app_realtime.js?', feed_html)
@@ -848,6 +849,10 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertIn('centerMapOnCurrentUserLocation', post_create_js)
         self.assertIn('getDeviceCurrentPosition', post_create_js)
         self.assertIn('USER_LOCATION_MAP_ZOOM', post_create_js)
+        pending_release_js = (PROJECT_ROOT / 'static/js/pending_post_release.js').read_text(encoding='utf-8')
+        self.assertIn('String(hours).padStart(2', pending_release_js)
+        self.assertIn('String(minutes).padStart(2', pending_release_js)
+        self.assertIn('String(seconds).padStart(2', pending_release_js)
 
         post_html = client.get(f'/post/{post_id}').get_data(as_text=True)
         self.assertIn('/static/js/app.js?', post_html)
