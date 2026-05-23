@@ -118,6 +118,9 @@
     const CAPTURE_POSITION_RETRY_DELAY_MS = 1200;
     const CAPTURE_MOTION_SAMPLE_MS = 2500;
     const MAX_NATIVE_CAPTURE_DRIFT_METERS = 25;
+    const DEFAULT_MAP_CENTER = [25.6866, -100.3161];
+    const DEFAULT_MAP_ZOOM = 13;
+    const USER_LOCATION_MAP_ZOOM = 16;
     const TOTAL_STEPS = 3;
     const metroBbox = '-100.80,26.10,-99.90,25.30';
     const allowedCities = new Set([
@@ -132,6 +135,7 @@
         'garcia',
         'juarez', 'ciudad benito juarez', 'benito juarez', 'cd benito juarez'
     ]);
+    let hasRequestedInitialMapLocation = false;
 
     function applyNativeMobilePhotoUI() {
         if (!isNativeMobile) {
@@ -354,8 +358,10 @@
         setLocationMode('person');
 
         if (marker && map) {
-            marker.setLatLng([25.6866, -100.3161]);
-            map.setView([25.6866, -100.3161], 13);
+            setMapMarkerPosition(DEFAULT_MAP_CENTER[0], DEFAULT_MAP_CENTER[1], {
+                zoom: DEFAULT_MAP_ZOOM,
+                animate: false,
+            });
         }
 
         if (uploadProgress) {
@@ -532,8 +538,10 @@
                 locationStatusText.textContent = 'Ubicación pendiente';
             }
             if (marker && map) {
-                marker.setLatLng([25.6866, -100.3161]);
-                map.setView([25.6866, -100.3161], 13);
+                setMapMarkerPosition(DEFAULT_MAP_CENTER[0], DEFAULT_MAP_CENTER[1], {
+                    zoom: DEFAULT_MAP_ZOOM,
+                    animate: false,
+                });
             }
             setLocationMode('person');
         }
@@ -1320,15 +1328,105 @@
         renderCaptureStatus();
     }
 
-    async function getFreshCapturePosition() {
-        if (!nativeBridge || typeof nativeBridge.getCurrentPosition !== 'function') {
-            throw new Error('No pudimos acceder a la ubicacion del dispositivo.');
+    async function getDeviceCurrentPosition(options = {}) {
+        if (nativeBridge && typeof nativeBridge.getCurrentPosition === 'function') {
+            return nativeBridge.getCurrentPosition(options);
         }
-        return nativeBridge.getCurrentPosition({
+        return new Promise((resolve, reject) => {
+            if (!navigator.geolocation) {
+                reject(new Error('No pudimos acceder a la ubicacion del dispositivo.'));
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                (position) => resolve({
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude,
+                    accuracy: position.coords.accuracy || null,
+                    timestamp: position.timestamp || Date.now(),
+                    raw: position,
+                    source: 'browser',
+                }),
+                reject,
+                {
+                    enableHighAccuracy: options.enableHighAccuracy !== false,
+                    timeout: options.timeout ?? 10000,
+                    maximumAge: options.maximumAge ?? 300000,
+                }
+            );
+        });
+    }
+
+    async function getFreshCapturePosition() {
+        return getDeviceCurrentPosition({
             enableHighAccuracy: true,
             timeout: 10000,
             maximumAge: 0,
         });
+    }
+
+    function setMapMarkerPosition(lat, lng, options = {}) {
+        if (!marker || !map || lat == null || lng == null) {
+            return;
+        }
+        const currentZoom = typeof map.getZoom === 'function' ? map.getZoom() : DEFAULT_MAP_ZOOM;
+        const zoom = Number.isFinite(options.zoom)
+            ? options.zoom
+            : Math.max(currentZoom || DEFAULT_MAP_ZOOM, USER_LOCATION_MAP_ZOOM);
+        marker.setLatLng([lat, lng]);
+        map.setView([lat, lng], zoom, { animate: options.animate !== false });
+    }
+
+    async function centerMapOnCurrentUserLocation(options = {}) {
+        if (!map || !marker) {
+            return;
+        }
+        if (!options.force && hasRequestedInitialMapLocation) {
+            return;
+        }
+        hasRequestedInitialMapLocation = true;
+        try {
+            if (locationStatusText && options.showStatus !== false) {
+                locationStatusText.textContent = 'Obteniendo ubicacion actual...';
+            }
+            const position = await getDeviceCurrentPosition({
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0,
+            });
+            if (position.lat == null || position.lng == null) {
+                throw new Error('No pudimos obtener coordenadas validas.');
+            }
+            if (options.updateLocationState) {
+                updateLocation({ lat: position.lat, lng: position.lng }, true);
+                if (useCurrentLocationToggle) {
+                    useCurrentLocationToggle.checked = true;
+                }
+            } else {
+                setMapMarkerPosition(position.lat, position.lng, {
+                    zoom: USER_LOCATION_MAP_ZOOM,
+                    animate: true,
+                });
+                if (locationStatusText && options.showStatus !== false) {
+                    locationStatusText.textContent = 'Mapa centrado en tu ubicacion actual.';
+                }
+            }
+            if (locationStatus) {
+                locationStatus.classList.add('pc-location-card__status--success');
+                locationStatus.classList.remove('pc-location-card__status--error');
+            }
+        } catch (error) {
+            console.warn('Current map location error:', error);
+            if (locationStatus && options.showStatus !== false) {
+                locationStatus.classList.add('pc-location-card__status--error');
+                locationStatus.classList.remove('pc-location-card__status--success');
+            }
+            if (locationStatusText && options.showStatus !== false) {
+                locationStatusText.textContent = 'No pudimos obtener tu ubicacion actual. Revisa permisos de ubicacion.';
+            }
+            if (options.updateLocationState && useCurrentLocationToggle) {
+                useCurrentLocationToggle.checked = false;
+            }
+        }
     }
 
     async function getPreciseCapturePosition(statusMessage) {
@@ -1405,16 +1503,19 @@
         map = L.map('pcMap', {
             zoomControl: true,
             attributionControl: false
-        }).setView([25.6866, -100.3161], 13);
+        }).setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19
         }).addTo(map);
 
-        marker = L.marker([25.6866, -100.3161], { draggable: isAdmin && state.location.source !== 'manual' }).addTo(map);
+        marker = L.marker(DEFAULT_MAP_CENTER, { draggable: isAdmin && state.location.source !== 'manual' }).addTo(map);
         marker.on('moveend', (event) => {
             if (state.location.source === 'manual' || (!isAdmin && state.location.source === 'capture')) {
-                event.target.setLatLng([state.location.lat || 25.6866, state.location.lng || -100.3161]);
+                event.target.setLatLng([
+                    state.location.lat ?? DEFAULT_MAP_CENTER[0],
+                    state.location.lng ?? DEFAULT_MAP_CENTER[1],
+                ]);
                 return;
             }
             const { lat, lng } = event.target.getLatLng();
@@ -1426,10 +1527,13 @@
             marker.dragging.disable();
         }
 
-        // Initialize location state with default marker position only for admin or when capture already froze location.
-        if (isAdmin || state.captureContext) {
-            const { lat, lng } = marker.getLatLng();
-            updateLocation({ lat, lng }, true);
+        if (state.captureContext && state.captureContext.lat != null && state.captureContext.lng != null) {
+            freezeIncidentLocationFromCapture(state.captureContext);
+        } else {
+            centerMapOnCurrentUserLocation({
+                updateLocationState: isAdmin && state.location.source !== 'manual',
+                showStatus: isAdmin,
+            });
         }
     }
 
@@ -1510,8 +1614,7 @@
         }
 
         if (marker && lat != null && lng != null) {
-            marker.setLatLng([lat, lng]);
-            map.setView([lat, lng], map.getZoom(), { animate: true });
+            setMapMarkerPosition(lat, lng);
         }
 
         if (address) {
@@ -1613,10 +1716,11 @@
             locationStatusText.textContent = 'Obteniendo ubicación actual...';
         }
         try {
-            const position = await getPreciseCapturePosition('Obteniendo una ubicación precisa...');
-
-            updateLocation({ lat: position.lat, lng: position.lng }, true);
-            if (useCurrentLocationToggle) useCurrentLocationToggle.checked = true;
+            await centerMapOnCurrentUserLocation({
+                updateLocationState: true,
+                force: true,
+                showStatus: true,
+            });
         } catch (error) {
             console.warn('Geolocation error:', error);
             if (locationStatus) {
