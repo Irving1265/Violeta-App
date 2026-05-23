@@ -525,51 +525,6 @@
     opacity: 1;
 }
 
-.report-details-modal .report-details-grid {
-    display: grid;
-    grid-template-columns: 200px 1fr;
-    gap: 1.2rem;
-}
-
-.report-details-image img {
-    width: 100%;
-    border-radius: 14px;
-    object-fit: cover;
-}
-
-.report-details-author {
-    display: flex;
-    gap: 0.75rem;
-    align-items: center;
-}
-
-.report-details-author img {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    object-fit: cover;
-}
-
-.report-details-metrics {
-    display: flex;
-    gap: 1.2rem;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-}
-
-.report-details-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.report-detail-item {
-    padding: 0.75rem;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
 .admin-user-audit-dialog {
     max-width: 1080px;
 }
@@ -855,9 +810,6 @@
 }
 
 @media (max-width: 768px) {
-    .report-details-modal .report-details-grid {
-        grid-template-columns: 1fr;
-    }
     .bulk-count {
         margin-left: 0;
     }

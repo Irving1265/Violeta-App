@@ -1,6 +1,5 @@
     const ADMIN_PAGE_CONFIG = window.ADMIN_PAGE_CONFIG || {};
     const ADMIN_CSRF_TOKEN = ADMIN_PAGE_CONFIG.csrfToken || document.querySelector('meta[name="csrf-token"]')?.content || '';
-    const ADMIN_BADGE_URL = ADMIN_PAGE_CONFIG.adminBadgeUrl || '/static/images/admin_badge.svg';
     let currentUserId = null;
     let currentCoordsPostId = null;
     let currentCoordsButton = null;
@@ -1755,102 +1754,6 @@
                     errorBox.classList.remove('d-none');
                 }
             });
-    }
-
-    function openReportDetails(event, postId) {
-        if (event && event.target.closest('input,button,a,label')) return;
-        fetch(`/admin/report_details/${postId}`)
-            .then(r => r.json())
-            .then(data => {
-                if (data.error) {
-                    alert('Error: ' + data.error);
-                    return;
-                }
-                const post = data.post || {};
-                document.getElementById('reportDetailsImage').src = post.image_url || '';
-                document.getElementById('reportDetailsAuthorPic').src = post.author?.profile_pic || '';
-                const authorName = post.author?.username || 'unknown';
-                const authorEl = document.getElementById('reportDetailsAuthor');
-                authorEl.textContent = authorName;
-                if (authorName === 'admin') {
-                    const badge = document.createElement('span');
-                    badge.className = 'admin-badge admin-badge--xs';
-                    badge.title = 'Admin verificada';
-                    badge.setAttribute('aria-label', 'Admin verificada');
-                    badge.innerHTML = `<img src="${ADMIN_BADGE_URL}" alt="Admin">`;
-                    authorEl.appendChild(badge);
-                }
-                document.getElementById('reportDetailsCreated').textContent = post.created_at ? new Date(post.created_at).toLocaleString() : '';
-                const loc = post.location || {};
-                const locText = [loc.name, loc.city, loc.country].filter(Boolean).join(' · ');
-                document.getElementById('reportDetailsLocation').textContent = locText || 'Sin ubicación';
-                document.getElementById('reportDetailsCaption').textContent = post.caption || 'Sin descripción';
-                document.getElementById('reportDetailsLikes').textContent = post.likes_count ?? '0';
-                document.getElementById('reportDetailsCommentsCount').textContent = post.comments_count ?? '0';
-
-                const reportsEl = document.getElementById('reportDetailsReports');
-                const commentsEl = document.getElementById('reportDetailsComments');
-                reportsEl.innerHTML = '';
-                commentsEl.innerHTML = '';
-
-                if (data.reports && data.reports.length) {
-                    data.reports.forEach(r => {
-                        const item = document.createElement('div');
-                        item.className = 'report-detail-item';
-                        const reporterBadge = r.reporter === 'admin'
-                            ? `<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="${ADMIN_BADGE_URL}" alt="Admin"></span>`
-                            : '';
-                        const statusMap = {
-                            pending: { label: 'Pendiente', cls: 'bg-warning text-dark' },
-                            restored: { label: 'Restaurada', cls: 'bg-success text-white' },
-                            struck: { label: 'Strike aplicado', cls: 'bg-danger text-white' },
-                            dismissed: { label: 'Descartado', cls: 'bg-secondary text-white' },
-                        };
-                        const statusInfo = statusMap[r.status] || statusMap.pending;
-                        const resolutionText = r.resolved_at
-                            ? `<div class="small text-secondary mt-1">${r.resolved_by ? `Revisado por ${r.resolved_by}` : 'Revisado'} · ${formatRelativeTime(r.resolved_at)}</div>`
-                            : '';
-                        item.innerHTML = `
-                            <div class="d-flex align-items-center justify-content-between gap-2">
-                                <div class="fw-bold text-white">${r.reason}</div>
-                                <span class="badge ${statusInfo.cls}">${statusInfo.label}</span>
-                            </div>
-                            <div class="small text-secondary">Reportado por ${r.reporter}${reporterBadge} · ${formatRelativeTime(r.created_at)}</div>
-                            ${r.details ? `<div class="small text-white mt-1">${r.details}</div>` : ''}
-                            ${r.admin_note ? `<div class="small text-info mt-1"><strong>Nota admin:</strong> ${r.admin_note}</div>` : ''}
-                            ${resolutionText}
-                            <div class="d-flex flex-wrap gap-2 mt-2">
-                                <button class="btn btn-sm btn-outline-success" onclick="restorePostReport('${r.id}')">Restaurar</button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="strikePostReport('${r.id}')">Mandar un strike</button>
-                            </div>
-                        `;
-                        reportsEl.appendChild(item);
-                    });
-                } else {
-                    reportsEl.innerHTML = '<div class="text-muted small">Sin reportes.</div>';
-                }
-
-                if (data.comments && data.comments.length) {
-                    data.comments.forEach(c => {
-                        const item = document.createElement('div');
-                        item.className = 'report-detail-item';
-                        const badge = c.username === 'admin'
-                            ? `<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="${ADMIN_BADGE_URL}" alt="Admin"></span>`
-                            : '';
-                        item.innerHTML = `
-                            <div class="fw-bold text-white">${c.username}${badge}</div>
-                            <div class="small text-secondary">${formatRelativeTime(c.created_at)}</div>
-                            <div class="small text-white mt-1">${c.content}</div>
-                        `;
-                        commentsEl.appendChild(item);
-                    });
-                } else {
-                    commentsEl.innerHTML = '<div class="text-muted small">Sin comentarios.</div>';
-                }
-
-                new bootstrap.Modal(document.getElementById('reportDetailsModal')).show();
-            })
-            .catch(() => alert('Error al cargar el detalle'));
     }
 
     window.initAdminPageEnhancements = initAdminPageEnhancements;

@@ -123,7 +123,7 @@ class VioletaSmokeTests(unittest.TestCase):
             db.session.remove()
 
     @classmethod
-    def tearDownClass(cls):
+    def tearDownClass(_cls):
         if TEMP_ROOT.exists():
             shutil.rmtree(TEMP_ROOT)
 
@@ -1756,7 +1756,7 @@ class VioletaSmokeTests(unittest.TestCase):
             def __enter__(self):
                 return self
 
-            def __exit__(self, exc_type, exc, tb):
+            def __exit__(self, _exc_type, _exc, _tb):
                 return False
 
             def read(self):
@@ -2200,7 +2200,7 @@ class VioletaSmokeTests(unittest.TestCase):
             def __enter__(self):
                 return self
 
-            def __exit__(self, exc_type, exc, tb):
+            def __exit__(self, _exc_type, _exc, _tb):
                 return False
 
             def read(self):
@@ -3171,7 +3171,7 @@ class VioletaSmokeTests(unittest.TestCase):
             def __enter__(self):
                 return self
 
-            def __exit__(self, exc_type, exc, tb):
+            def __exit__(self, _exc_type, _exc, _tb):
                 return False
 
         def fake_urlopen(request_obj, timeout=15):  # noqa: ARG001
