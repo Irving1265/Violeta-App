@@ -2477,6 +2477,25 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertEqual((payload.get('released_posts') or [{}])[0].get('reason'), 'fallback')
         self.assertIn(post_id, self.post_ids_in_feed(self.client_for()))
 
+    def test_pending_post_overlay_uses_utc_timestamps(self):
+        author_id = self.create_user('autora_pending_timer')
+        self.create_public_post(
+            author_id,
+            caption='Reporte pendiente con hora UTC',
+            created_at=app_module.utc_now_naive(),
+            publish_at=app_module.utc_now_naive() + timedelta(minutes=60),
+            show_public=False,
+        )
+
+        response = self.client_for(author_id).get('/user/autora_pending_timer/content')
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn('data-pending-post', html)
+        self.assertRegex(html, r'data-min-ready-at="[^"]+Z"')
+        self.assertRegex(html, r'data-fallback-at="[^"]+Z"')
+        self.assertNotIn('data-min-ready-at=""', html)
+        self.assertNotIn('data-fallback-at=""', html)
+
     def test_uploaded_images_strip_exif_metadata(self):
         author_id = self.create_user('autora_exif')
         client = self.client_for(author_id)

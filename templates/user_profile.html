@@ -158,8 +158,8 @@
             <div class="grid-pending-overlay"
               title="Se publicará cuando pasen {{ safety_publish_policy.min_delay_minutes }} min y te alejes {{ safety_publish_policy.distance_meters }} m, o en máximo {{ safety_publish_policy.fallback_minutes }} min."
               data-pending-post
-              data-min-ready-at="{{ p.pending_min_ready_at.isoformat() if p.pending_min_ready_at else '' }}"
-              data-fallback-at="{{ p.pending_fallback_at.isoformat() if p.pending_fallback_at else '' }}">
+              data-min-ready-at="{{ (p.pending_min_ready_at.isoformat() ~ 'Z') if p.pending_min_ready_at else '' }}"
+              data-fallback-at="{{ (p.pending_fallback_at.isoformat() ~ 'Z') if p.pending_fallback_at else '' }}">
               <span class="grid-pending-overlay__title">Pendiente</span>
               <span class="grid-pending-overlay__status">Preparando publicación segura...</span>
               <span class="grid-pending-overlay__meta">Regla: {{ safety_publish_policy.min_delay_minutes }} min + {{ safety_publish_policy.distance_meters }} m</span>
