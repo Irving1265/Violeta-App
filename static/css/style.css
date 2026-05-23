@@ -1504,6 +1504,13 @@ body.modal-open .main-content {
     color: white;
 }
 
+body.post-create-modal-open .floating-create-btn {
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+    transform: scale(0.82);
+}
+
 @media (min-width: 768px) {
     .floating-create-btn {
         bottom: 40px;

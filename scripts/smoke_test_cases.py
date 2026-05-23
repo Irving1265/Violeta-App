@@ -841,7 +841,7 @@ class VioletaSmokeTests(unittest.TestCase):
 
         client = self.client_for(user_id)
         feed_html = client.get('/').get_data(as_text=True)
-        self.assertIn('20260523-global-css-prune-v2', feed_html)
+        self.assertIn('20260523-hide-create-fab-v1', feed_html)
         self.assertIn('20260523-report-modal-split-v1', feed_html)
         self.assertIn('id="reportPostModal"', feed_html)
         self.assertIn('id="reportCommentModal"', feed_html)
@@ -869,6 +869,9 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertNotIn('#reportPostModal', style_css)
         self.assertNotIn('#reportChatMessageModal', style_css)
         self.assertNotIn('#editRoomModal', style_css)
+        self.assertIn('body.post-create-modal-open .floating-create-btn', style_css)
+        self.assertIn("classList.add('post-create-modal-open')", post_create_js)
+        self.assertIn("classList.remove('post-create-modal-open')", post_create_js)
         post_card_css = (PROJECT_ROOT / 'static/css/post_card.css').read_text(encoding='utf-8')
         self.assertIn('#reportPostModal', post_card_css)
         self.assertIn('#reportCommentModal', post_card_css)

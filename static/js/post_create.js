@@ -229,6 +229,7 @@
         resetWorkflow();
         modal.hidden = false;
         overlay.hidden = false;
+        document.body.classList.add('post-create-modal-open');
         void modal.offsetWidth;
         void overlay.offsetWidth;
 
@@ -262,6 +263,7 @@
         modalHideTimer = window.setTimeout(() => {
             modal.hidden = true;
             overlay.hidden = true;
+            document.body.classList.remove('post-create-modal-open');
             document.body.style.overflow = '';
             if (validationMsg) {
                 validationMsg.textContent = '';
