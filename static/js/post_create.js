@@ -99,6 +99,7 @@
     const isAdmin = isAdminCtx ? isAdminCtx.value === 'true' : false;
     const nativeBridge = window.VioletaNativeBridge || null;
     const isNativeMobile = !isAdmin && !!(nativeBridge && typeof nativeBridge.isNativePlatform === 'function' && nativeBridge.isNativePlatform());
+    const useIOSCameraInputCapture = !isAdmin && !isNativeMobile && detectIOSLikeDevice();
 
     const photoErrorsContainer = document.getElementById('postStepPhotoErrors');
 
@@ -118,6 +119,11 @@
     const CAPTURE_POSITION_RETRY_DELAY_MS = 1200;
     const CAPTURE_MOTION_SAMPLE_MS = 2500;
     const MAX_NATIVE_CAPTURE_DRIFT_METERS = 25;
+    const CAMERA_FRAME_READY_TIMEOUT_MS = 4500;
+    const CAMERA_FRAME_RETRY_MS = 80;
+    const BLANK_CAMERA_SAMPLE_SIZE = 24;
+    const BLANK_CAMERA_MAX_CHANNEL = 10;
+    const BLANK_CAMERA_AVG_CHANNEL = 4;
     const DEFAULT_MAP_CENTER = [25.6866, -100.3161];
     const DEFAULT_MAP_ZOOM = 13;
     const USER_LOCATION_MAP_ZOOM = 16;
@@ -137,15 +143,22 @@
     ]);
     let hasRequestedInitialMapLocation = false;
 
+    function detectIOSLikeDevice() {
+        const ua = navigator.userAgent || '';
+        const platform = navigator.platform || '';
+        return /iPad|iPhone|iPod/.test(ua)
+            || (platform === 'MacIntel' && Number(navigator.maxTouchPoints || 0) > 1);
+    }
+
     function applyNativeMobilePhotoUI() {
-        if (!isNativeMobile) {
+        if (!isNativeMobile && !useIOSCameraInputCapture) {
             return;
         }
         if (cameraVideo) {
             cameraVideo.hidden = true;
         }
         if (cameraStartBtn) {
-            cameraStartBtn.textContent = 'Abrir cámara del teléfono';
+            cameraStartBtn.textContent = useIOSCameraInputCapture ? 'Abrir cámara del iPhone' : 'Abrir cámara del teléfono';
         }
         if (cameraCaptureBtn) {
             cameraCaptureBtn.hidden = true;
@@ -154,11 +167,15 @@
         if (cameraPlaceholder) {
             const label = cameraPlaceholder.querySelector('span');
             if (label) {
-                label.textContent = 'Abre la camara nativa para capturar el reporte';
+                label.textContent = useIOSCameraInputCapture
+                    ? 'Abre la camara del iPhone para capturar el reporte'
+                    : 'Abre la camara nativa para capturar el reporte';
             }
         }
         if (cameraHelp) {
-            cameraHelp.textContent = 'Usaremos la cámara nativa del teléfono. No se permiten archivos guardados.';
+            cameraHelp.textContent = useIOSCameraInputCapture
+                ? 'Usaremos la cámara del iPhone para evitar pantalla negra en Safari. No se permiten archivos guardados.'
+                : 'Usaremos la cámara nativa del teléfono. No se permiten archivos guardados.';
         }
     }
 
@@ -1091,6 +1108,27 @@
         return `${(bytes / Math.pow(1024, exponent)).toFixed(1)} ${units[exponent]}`;
     }
 
+    function getFileExtension(file) {
+        const name = String(file?.name || '').toLowerCase();
+        const index = name.lastIndexOf('.');
+        return index >= 0 ? name.slice(index + 1) : '';
+    }
+
+    function isAllowedPhotoFile(file) {
+        const mimeType = String(file?.type || '').toLowerCase();
+        const extension = getFileExtension(file);
+        if (['image/jpeg', 'image/png'].includes(mimeType)) {
+            return true;
+        }
+        if (['image/heic', 'image/heif'].includes(mimeType)) {
+            return extension === 'heic' || extension === 'heif';
+        }
+        if (!mimeType && ['jpg', 'jpeg', 'png', 'heic', 'heif'].includes(extension)) {
+            return true;
+        }
+        return false;
+    }
+
     function commitFile(file, source = '') {
         setPhotoError('');
         state.file = file;
@@ -1137,8 +1175,8 @@
             return;
         }
 
-        if (!['image/jpeg', 'image/png'].includes(file.type)) {
-            setPhotoError('Usa JPG o PNG.');
+        if (!isAllowedPhotoFile(file)) {
+            setPhotoError('Usa JPG, PNG o HEIC.');
             return;
         }
 
@@ -1196,6 +1234,98 @@
     function wait(ms) {
         return new Promise((resolve) => {
             window.setTimeout(resolve, ms);
+        });
+    }
+
+    function waitForVideoSignal(video, timeoutMs = CAMERA_FRAME_RETRY_MS) {
+        return new Promise((resolve) => {
+            let settled = false;
+            const events = ['loadedmetadata', 'loadeddata', 'canplay', 'playing', 'resize', 'timeupdate'];
+            const cleanup = () => {
+                events.forEach((eventName) => video.removeEventListener(eventName, onSignal));
+                window.clearTimeout(timer);
+            };
+            const onSignal = () => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                resolve();
+            };
+            const timer = window.setTimeout(onSignal, timeoutMs);
+            events.forEach((eventName) => video.addEventListener(eventName, onSignal, { once: true }));
+        });
+    }
+
+    async function waitForCameraVideoFrame(video, timeoutMs = CAMERA_FRAME_READY_TIMEOUT_MS) {
+        const startedAt = Date.now();
+        while (Date.now() - startedAt < timeoutMs) {
+            const hasDimensions = Number(video.videoWidth || 0) > 0 && Number(video.videoHeight || 0) > 0;
+            const hasFrame = Number(video.readyState || 0) >= 2;
+            if (hasDimensions && hasFrame) {
+                return {
+                    width: video.videoWidth,
+                    height: video.videoHeight,
+                };
+            }
+            await waitForVideoSignal(video);
+        }
+        throw new Error('La cámara tardó demasiado en entregar imagen. Cierra y vuelve a abrir la cámara.');
+    }
+
+    function isBlankCameraFrame(video) {
+        if (!video || !video.videoWidth || !video.videoHeight) {
+            return true;
+        }
+        const sampleCanvas = document.createElement('canvas');
+        sampleCanvas.width = BLANK_CAMERA_SAMPLE_SIZE;
+        sampleCanvas.height = BLANK_CAMERA_SAMPLE_SIZE;
+        const ctx = sampleCanvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) {
+            return false;
+        }
+        try {
+            ctx.drawImage(video, 0, 0, sampleCanvas.width, sampleCanvas.height);
+            const pixels = ctx.getImageData(0, 0, sampleCanvas.width, sampleCanvas.height).data;
+            let total = 0;
+            let maxChannel = 0;
+            let counted = 0;
+            for (let i = 0; i < pixels.length; i += 4) {
+                const alpha = pixels[i + 3];
+                if (alpha === 0) {
+                    continue;
+                }
+                const r = pixels[i];
+                const g = pixels[i + 1];
+                const b = pixels[i + 2];
+                maxChannel = Math.max(maxChannel, r, g, b);
+                total += (r + g + b) / 3;
+                counted += 1;
+            }
+            if (!counted) {
+                return true;
+            }
+            return maxChannel <= BLANK_CAMERA_MAX_CHANNEL && (total / counted) <= BLANK_CAMERA_AVG_CHANNEL;
+        } catch (error) {
+            console.warn('camera frame sample failed:', error);
+            return false;
+        }
+    }
+
+    async function ensureCameraFrameVisible(video) {
+        await waitForCameraVideoFrame(video);
+        if (!isBlankCameraFrame(video)) {
+            return;
+        }
+        await wait(350);
+        await waitForCameraVideoFrame(video, 1000);
+        if (isBlankCameraFrame(video)) {
+            throw new Error('La cámara está abierta, pero todavía no entrega imagen visible. Vuelve a abrirla e inténtalo de nuevo.');
+        }
+    }
+
+    function canvasToBlob(canvas, type, quality) {
+        return new Promise((resolve) => {
+            canvas.toBlob((blob) => resolve(blob), type, quality);
         });
     }
 
@@ -1537,6 +1667,19 @@
         }
     }
 
+    function captureWithFileInputCamera() {
+        if (!fileInput) {
+            setPhotoError('Tu navegador no permite abrir la cámara del teléfono.');
+            return false;
+        }
+        setPhotoError('');
+        fileInput.value = '';
+        fileInput.setAttribute('accept', 'image/*');
+        fileInput.setAttribute('capture', 'environment');
+        fileInput.click();
+        return true;
+    }
+
     async function captureWithNativeCamera() {
         if (!isNativeMobile || !nativeBridge || typeof nativeBridge.capturePhoto !== 'function') {
             return false;
@@ -1821,9 +1964,13 @@
         renderCaptureStatus();
     }
 
-    function startCameraStream() {
+    async function startCameraStream() {
         if (isNativeMobile) {
             captureWithNativeCamera();
+            return;
+        }
+        if (useIOSCameraInputCapture) {
+            captureWithFileInputCamera();
             return;
         }
         if (!cameraVideo) return;
@@ -1832,27 +1979,73 @@
             return;
         }
         setPhotoError('');
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
-            .then((stream) => {
-                cameraStream = stream;
-                activeCameraFacingMode = getStreamFacingMode(stream) || 'environment';
-                syncLiveCameraMirror();
-                cameraVideo.srcObject = stream;
-                cameraVideo.play().catch(() => {});
-                if (cameraPlaceholder) cameraPlaceholder.hidden = true;
-                if (cameraCaptureBtn) {
-                    cameraCaptureBtn.hidden = false;
-                    cameraCaptureBtn.disabled = false;
-                }
-                if (cameraRetakeBtn) {
-                    cameraRetakeBtn.hidden = true;
-                }
-            })
-            .catch(() => {
+        if (cameraCaptureBtn) {
+            cameraCaptureBtn.hidden = false;
+            cameraCaptureBtn.disabled = true;
+        }
+        if (validationMsg) {
+            validationMsg.textContent = 'Iniciando cámara...';
+        }
+
+        let stream = null;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: { ideal: 'environment' },
+                    width: { ideal: 1280 },
+                    height: { ideal: 1280 },
+                },
+                audio: false,
+            });
+        } catch (error) {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            } catch (_fallbackError) {
                 activeCameraFacingMode = 'environment';
                 syncLiveCameraMirror();
+                if (cameraCaptureBtn) {
+                    cameraCaptureBtn.hidden = true;
+                    cameraCaptureBtn.disabled = true;
+                }
                 setPhotoError('No pudimos acceder a la cámara. Permite el acceso e inténtalo de nuevo.');
-            });
+                if (validationMsg) {
+                    validationMsg.textContent = '';
+                }
+                return;
+            }
+        }
+
+        try {
+            cameraStream = stream;
+            activeCameraFacingMode = getStreamFacingMode(stream) || 'environment';
+            syncLiveCameraMirror();
+            cameraVideo.muted = true;
+            cameraVideo.autoplay = true;
+            cameraVideo.playsInline = true;
+            cameraVideo.setAttribute('playsinline', '');
+            cameraVideo.setAttribute('webkit-playsinline', '');
+            cameraVideo.srcObject = stream;
+            await cameraVideo.play();
+            await ensureCameraFrameVisible(cameraVideo);
+            if (cameraPlaceholder) cameraPlaceholder.hidden = true;
+            if (cameraCaptureBtn) {
+                cameraCaptureBtn.hidden = false;
+                cameraCaptureBtn.disabled = false;
+            }
+            if (cameraRetakeBtn) {
+                cameraRetakeBtn.hidden = true;
+            }
+            if (validationMsg) {
+                validationMsg.textContent = '';
+            }
+        } catch (error) {
+            console.warn('Camera preview start failed:', error);
+            stopCameraStream();
+            setPhotoError(error?.message || 'No pudimos iniciar la vista de cámara. Vuelve a intentarlo.');
+            if (validationMsg) {
+                validationMsg.textContent = '';
+            }
+        }
     }
 
     function stopCameraStream() {
@@ -1872,9 +2065,13 @@
         if (cameraPlaceholder) cameraPlaceholder.hidden = false;
     }
 
-    function captureFromCamera() {
+    async function captureFromCamera() {
         if (isNativeMobile) {
             captureWithNativeCamera();
+            return;
+        }
+        if (useIOSCameraInputCapture) {
+            captureWithFileInputCamera();
             return;
         }
         if (!cameraVideo || !cameraCanvas) return;
@@ -1885,48 +2082,51 @@
         if (cameraCaptureBtn) {
             cameraCaptureBtn.disabled = true;
         }
-        resolveCaptureContext()
-            .then(() => {
-                const width = cameraVideo.videoWidth || 1280;
-                const height = cameraVideo.videoHeight || 720;
-                const ctx = cameraCanvas.getContext('2d');
-                const shouldMirrorCapture = isFrontFacingMode(activeCameraFacingMode);
-                cameraCanvas.width = width;
-                cameraCanvas.height = height;
-                ctx.save();
-                if (shouldMirrorCapture) {
-                    ctx.translate(width, 0);
-                    ctx.scale(-1, 1);
-                }
-                ctx.drawImage(cameraVideo, 0, 0, width, height);
-                ctx.restore();
-                cameraCanvas.toBlob((blob) => {
-                    if (!blob) {
-                        setPhotoError('No se pudo capturar la foto.');
-                        if (cameraCaptureBtn) cameraCaptureBtn.disabled = false;
-                        return;
-                    }
-                    const file = new File([blob], `captura-${Date.now()}.jpg`, { type: 'image/jpeg' });
-                    handleFiles([file], 'camera', {
-                        facingMode: activeCameraFacingMode,
-                        mirrorPreview: false,
-                    });
-                    stopCameraStream();
-                    if (cameraRetakeBtn) cameraRetakeBtn.hidden = true;
-                    if (validationMsg) {
-                        validationMsg.textContent = '';
-                    }
-                }, 'image/jpeg', 0.92);
-            })
-            .catch((error) => {
-                setPhotoError(error?.message || 'No pudimos confirmar tu ubicacion al tomar la foto.');
-                if (validationMsg) {
-                    validationMsg.textContent = '';
-                }
-                if (cameraCaptureBtn) {
-                    cameraCaptureBtn.disabled = false;
-                }
+        try {
+            await ensureCameraFrameVisible(cameraVideo);
+            await resolveCaptureContext();
+            await ensureCameraFrameVisible(cameraVideo);
+
+            const width = cameraVideo.videoWidth;
+            const height = cameraVideo.videoHeight;
+            const ctx = cameraCanvas.getContext('2d');
+            if (!ctx || !width || !height) {
+                throw new Error('La cámara no entregó una imagen válida. Vuelve a abrirla e inténtalo de nuevo.');
+            }
+            const shouldMirrorCapture = isFrontFacingMode(activeCameraFacingMode);
+            cameraCanvas.width = width;
+            cameraCanvas.height = height;
+            ctx.save();
+            if (shouldMirrorCapture) {
+                ctx.translate(width, 0);
+                ctx.scale(-1, 1);
+            }
+            ctx.drawImage(cameraVideo, 0, 0, width, height);
+            ctx.restore();
+
+            const blob = await canvasToBlob(cameraCanvas, 'image/jpeg', 0.92);
+            if (!blob) {
+                throw new Error('No se pudo capturar la foto.');
+            }
+            const file = new File([blob], `captura-${Date.now()}.jpg`, { type: 'image/jpeg' });
+            handleFiles([file], 'camera', {
+                facingMode: activeCameraFacingMode,
+                mirrorPreview: false,
             });
+            stopCameraStream();
+            if (cameraRetakeBtn) cameraRetakeBtn.hidden = true;
+            if (validationMsg) {
+                validationMsg.textContent = '';
+            }
+        } catch (error) {
+            setPhotoError(error?.message || 'No pudimos confirmar tu ubicacion al tomar la foto.');
+            if (validationMsg) {
+                validationMsg.textContent = '';
+            }
+            if (cameraCaptureBtn) {
+                cameraCaptureBtn.disabled = false;
+            }
+        }
     }
 
 
@@ -1986,9 +2186,36 @@
             });
         }
         if (fileInput) {
-            fileInput.addEventListener('change', (event) => {
+            fileInput.addEventListener('change', async (event) => {
+                const files = event.target.files;
+                if (!isAdmin && currentPhotoMode === 'camera') {
+                    if (!files || !files[0]) {
+                        return;
+                    }
+                    if (cameraStartBtn) {
+                        cameraStartBtn.disabled = true;
+                    }
+                    try {
+                        await resolveCaptureContext();
+                        handleFiles(files, 'camera', {
+                            facingMode: 'environment',
+                            mirrorPreview: false,
+                        });
+                    } catch (error) {
+                        setPhotoError(error?.message || 'No pudimos confirmar tu ubicación al tomar la foto.');
+                    } finally {
+                        if (validationMsg) {
+                            validationMsg.textContent = '';
+                        }
+                        if (cameraStartBtn) {
+                            cameraStartBtn.disabled = false;
+                        }
+                        event.target.value = '';
+                    }
+                    return;
+                }
                 if (currentPhotoMode !== 'upload') return;
-                handleFiles(event.target.files, 'upload');
+                handleFiles(files, 'upload');
             });
         }
 
