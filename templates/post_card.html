@@ -132,8 +132,9 @@
                 <span>Verifica tu cuenta para ver reportes completos.</span>
             </div>
             {% else %}
+            {% set post_image_srcset = optimized_media_srcset(post.image_filename, [360, 720, 1080]) %}
             <img src="{{ optimized_media_url(post.image_filename, 720) }}"
-                srcset="{{ optimized_media_url(post.image_filename, 360) }} 360w, {{ optimized_media_url(post.image_filename, 720) }} 720w, {{ optimized_media_url(post.image_filename, 1080) }} 1080w"
+                {% if post_image_srcset %}srcset="{{ post_image_srcset }}"{% endif %}
                 sizes="(max-width: 768px) 100vw, 680px"
                 class="post-image violet-post-image" alt="Post image" loading="lazy" decoding="async">
             {% endif %}

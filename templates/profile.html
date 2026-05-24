@@ -122,8 +122,9 @@
           </form>
           {% endif %}
           <a href="{{ url_for('post_detail', post_id=p.id) }}">
+            {% set grid_image_srcset = optimized_media_srcset(p.image_filename, [360, 720]) %}
             <img src="{{ optimized_media_url(p.image_filename, 360) }}"
-              srcset="{{ optimized_media_url(p.image_filename, 360) }} 360w, {{ optimized_media_url(p.image_filename, 720) }} 720w"
+              {% if grid_image_srcset %}srcset="{{ grid_image_srcset }}"{% endif %}
               sizes="(max-width: 768px) 33vw, 220px"
               alt="Post" loading="lazy" decoding="async">
             {% if p.is_pending %}

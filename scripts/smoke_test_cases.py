@@ -1991,6 +1991,66 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertIn('image/webp', second_response.headers.get('Content-Type', ''))
         self.assertIn('public, max-age=31536000, immutable', second_response.headers.get('Cache-Control', ''))
 
+    def test_optimized_media_srcset_only_lists_real_ready_variants(self):
+        user_id = self.create_user('srcset_smoke')
+        client = self.client_for(user_id)
+
+        small_post_id = self.create_public_post(user_id, caption='Imagen chica sin srcset falso')
+        small_html = client.get(f'/post/{small_post_id}').get_data(as_text=True)
+        self.assertIn('/uploads/optimized/720/', small_html)
+        self.assertNotIn('srcset=', small_html)
+        self.assertNotIn(' 360w', small_html)
+        self.assertNotIn(' 720w', small_html)
+
+        large_filename = 'large-srcset.jpg'
+        Image.new('RGB', (1200, 900), (122, 64, 210)).save(UPLOAD_DIR / large_filename, format='JPEG')
+        large_post_id = self.create_public_post(user_id, caption='Imagen grande con variantes reales')
+        with app.app_context():
+            post = db.session.get(Post, large_post_id)
+            assert post is not None
+            post.image_filename = large_filename
+            db.session.add(post)
+            db.session.commit()
+
+        missing_variant_html = client.get(f'/post/{large_post_id}').get_data(as_text=True)
+        self.assertNotIn('srcset=', missing_variant_html)
+
+        for width in (360, 720, 1080):
+            variant_response = client.get(f'/uploads/optimized/{width}/{large_filename}')
+            try:
+                self.assertEqual(variant_response.status_code, 200)
+                self.assertIn('image/webp', variant_response.headers.get('Content-Type', ''))
+            finally:
+                variant_response.close()
+
+        ready_variant_html = client.get(f'/post/{large_post_id}').get_data(as_text=True)
+        self.assertIn('/uploads/optimized/360/large-srcset.jpg 360w', ready_variant_html)
+        self.assertIn('/uploads/optimized/720/large-srcset.jpg 720w', ready_variant_html)
+        self.assertIn('/uploads/optimized/1080/large-srcset.jpg 1080w', ready_variant_html)
+        self.assertNotIn('/uploads/large-srcset.jpg 360w', ready_variant_html)
+
+        original_config = {
+            key: app.config.get(key)
+            for key in (
+                'UPLOAD_BACKEND',
+                'SUPABASE_URL',
+                'SUPABASE_SERVICE_ROLE_KEY',
+                'SUPABASE_STORAGE_BUCKET',
+            )
+        }
+        self.addCleanup(lambda: app.config.update(original_config))
+        app.config.update(
+            UPLOAD_BACKEND='supabase',
+            SUPABASE_URL='https://example.supabase.co',
+            SUPABASE_SERVICE_ROLE_KEY='service-role',
+            SUPABASE_STORAGE_BUCKET='uploads',
+        )
+        external_html = client.get(f'/post/{large_post_id}').get_data(as_text=True)
+        self.assertIn('https://example.supabase.co/storage/v1/object/public/uploads/large-srcset.jpg', external_html)
+        self.assertNotIn(' 360w', external_html)
+        self.assertNotIn(' 720w', external_html)
+        self.assertNotIn(' 1080w', external_html)
+
     def test_pwa_manifest_service_worker_and_offline_shell(self):
         user_id = self.create_user('pwa_smoke')
         html_response = self.client_for(user_id).get('/')

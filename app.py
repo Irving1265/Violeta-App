@@ -50,7 +50,7 @@ import base64
 import hashlib
 import re
 import unicodedata
-from functools import wraps
+from functools import lru_cache, wraps
 try:
     import redis
 except Exception:  # pragma: no cover - optional runtime dependency
@@ -2526,6 +2526,59 @@ def create_app():
         os.makedirs(variant_dir, exist_ok=True)
         return variant_dir, variant_name
 
+    @lru_cache(maxsize=1024)
+    def local_image_dimensions(source_path: str, source_mtime_ns: int) -> tuple[int, int] | None:
+        try:
+            if source_path.lower().endswith(('.heic', '.heif')):
+                try:
+                    from pillow_heif import register_heif_opener
+                    register_heif_opener()
+                except Exception as exc:
+                    _debug_log_suppressed('suppressed exception', exc)
+            from PIL import Image
+            with Image.open(source_path) as image:
+                return int(image.width), int(image.height)
+        except Exception as exc:
+            _debug_log_suppressed('suppressed image dimension read', exc)
+            return None
+
+    def optimized_upload_variant_ready(filename: str | None, width: int) -> bool:
+        normalized = normalize_upload_filename(filename)
+        if width not in OPTIMIZED_UPLOAD_WIDTHS or not is_optimizable_upload(normalized):
+            return False
+        # Supabase currently stores only canonical public uploads. Do not emit
+        # width descriptors that point to the same original object.
+        if public_upload_storage_enabled():
+            return False
+
+        upload_folder = ensure_upload_folder()
+        source_path = os.path.abspath(os.path.join(upload_folder, normalized))
+        upload_root = os.path.abspath(upload_folder)
+        try:
+            if os.path.commonpath([upload_root, source_path]) != upload_root:
+                return False
+        except ValueError:
+            return False
+        if not os.path.exists(source_path):
+            return False
+
+        try:
+            source_stat = os.stat(source_path)
+        except OSError:
+            return False
+
+        dimensions = local_image_dimensions(source_path, int(source_stat.st_mtime_ns))
+        if not dimensions or dimensions[0] < width:
+            return False
+
+        variant_dir, variant_name = optimized_upload_path(normalized, width)
+        variant_path = os.path.join(variant_dir, variant_name)
+        try:
+            variant_stat = os.stat(variant_path)
+        except OSError:
+            return False
+        return source_stat.st_mtime <= variant_stat.st_mtime
+
     def generate_optimized_upload(source_path: str, target_path: str, width: int) -> bool:
         try:
             if source_path.lower().endswith(('.heic', '.heif')):
@@ -4944,6 +4997,7 @@ def create_app():
             moderation_badge_level=moderation_badge_level,
             media_url=media_url,
             optimized_media_url=optimized_media_url,
+            optimized_media_srcset=optimized_media_srcset,
             avatar_url_for_user=avatar_url_for_user,
         )
 
@@ -5973,6 +6027,17 @@ def create_app():
                 return external
             return url_for('uploaded_optimized_file', width=width, filename=normalized)
         return media_url(normalized, fallback_static=fallback_static)
+
+    def optimized_media_srcset(filename: str | None, widths: list[int] | tuple[int, ...] | None = None) -> str:
+        normalized = normalize_upload_filename(filename)
+        if not normalized or not is_optimizable_upload(normalized):
+            return ''
+        selected_widths = sorted({int(width) for width in (widths or sorted(OPTIMIZED_UPLOAD_WIDTHS))})
+        entries = []
+        for width in selected_widths:
+            if optimized_upload_variant_ready(normalized, width):
+                entries.append(f'{url_for("uploaded_optimized_file", width=width, filename=normalized)} {width}w')
+        return ', '.join(entries)
 
     def avatar_url_for_user(user) -> str:
         try:
