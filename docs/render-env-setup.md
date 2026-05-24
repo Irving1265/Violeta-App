@@ -118,6 +118,6 @@ En producción debe quedar sin errores. Warnings aceptables dependen del caso, p
 
 1. Guarda variables en Render.
 2. Ejecuta `Manual Deploy > Deploy latest commit`.
-3. Revisa `/healthz`.
+3. Revisa `/healthz`; en producción debe mostrar `uploads.backend=supabase` y `mail.backend=resend` o `mail.backend=smtp` con `status=ok`.
 4. Revisa logs de Render al crear publicación, subir avatar y recuperar contraseña.
 5. Corre el flujo real en teléfono: login, feed, crear publicación, comentar, reportar, chat y borrar cuenta.

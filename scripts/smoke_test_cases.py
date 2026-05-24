@@ -27,6 +27,7 @@ DB_PATH = TEMP_ROOT / 'violeta_smoke.sqlite3'
 UPLOAD_DIR = TEMP_ROOT / 'uploads'
 
 os.environ['SECRET_KEY'] = 'violeta-smoke-secret'
+os.environ['APP_ENV'] = 'development'
 os.environ['DATABASE_URL'] = f"sqlite:///{DB_PATH}"
 os.environ['DATABASE_REQUIRE_SSL'] = 'false'
 os.environ['UPLOAD_BACKEND'] = 'local'
@@ -623,6 +624,8 @@ class VioletaSmokeTests(unittest.TestCase):
         checks = payload.get('checks') or {}
         self.assertEqual((checks.get('database') or {}).get('status'), 'ok')
         self.assertEqual((checks.get('uploads') or {}).get('status'), 'ok')
+        self.assertEqual((checks.get('uploads') or {}).get('backend'), 'local')
+        self.assertIn((checks.get('mail') or {}).get('status'), {'disabled', 'ok'})
         self.assertIn((checks.get('cache') or {}).get('status'), {'disabled', 'ok'})
         self.assertIn((checks.get('background_jobs') or {}).get('status'), {'ok', 'inline', 'disabled'})
         self.assertIn('no-store', response.headers.get('Cache-Control', ''))
@@ -648,6 +651,44 @@ class VioletaSmokeTests(unittest.TestCase):
         degraded_payload = degraded.get_json() or {}
         self.assertEqual(degraded_payload.get('status'), 'degraded')
         self.assertIn('cache', degraded_payload.get('failing_checks') or [])
+
+        original_health_config = {
+            'APP_ENV': app.config.get('APP_ENV'),
+            'UPLOAD_BACKEND': app.config.get('UPLOAD_BACKEND'),
+            'SUPABASE_URL': app.config.get('SUPABASE_URL'),
+            'SUPABASE_SERVICE_ROLE_KEY': app.config.get('SUPABASE_SERVICE_ROLE_KEY'),
+            'SUPABASE_STORAGE_BUCKET': app.config.get('SUPABASE_STORAGE_BUCKET'),
+            'MAIL_DELIVERY_METHOD': app.config.get('MAIL_DELIVERY_METHOD'),
+            'RESEND_API_KEY': app.config.get('RESEND_API_KEY'),
+            'RESEND_FROM': app.config.get('RESEND_FROM'),
+        }
+
+        def restore_health_config():
+            app.config.update(original_health_config)
+
+        self.addCleanup(restore_health_config)
+        app.config.update(
+            APP_ENV='production',
+            REDIS_URL='',
+            UPLOAD_BACKEND='supabase',
+            SUPABASE_URL='https://abc.supabase.co',
+            SUPABASE_SERVICE_ROLE_KEY='service-role-secret-value',
+            SUPABASE_STORAGE_BUCKET='uploads',
+            MAIL_DELIVERY_METHOD='resend',
+            RESEND_API_KEY='re_secret_value',
+            RESEND_FROM='Violeta <no-reply@violeta.app>',
+        )
+        production_response = client.get('/healthz')
+        self.assertEqual(production_response.status_code, 200)
+        production_payload = production_response.get_json() or {}
+        production_checks = production_payload.get('checks') or {}
+        self.assertEqual((production_checks.get('uploads') or {}).get('backend'), 'supabase')
+        self.assertEqual((production_checks.get('uploads') or {}).get('status'), 'ok')
+        self.assertEqual((production_checks.get('mail') or {}).get('backend'), 'resend')
+        self.assertEqual((production_checks.get('mail') or {}).get('status'), 'ok')
+        production_body = production_response.get_data(as_text=True)
+        self.assertNotIn('service-role-secret-value', production_body)
+        self.assertNotIn('re_secret_value', production_body)
 
     def test_preflight_check_reports_warnings_and_strict_failures_without_secrets(self):
         original_config = {

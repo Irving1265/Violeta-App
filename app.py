@@ -4439,12 +4439,53 @@ def create_app():
         else:
             checks['cache'] = {'status': 'disabled', 'backend': 'memory'}
 
-        upload_folder = app.config.get('UPLOAD_FOLDER') or ''
-        try:
-            upload_ok = bool(upload_folder and os.path.isdir(upload_folder) and os.access(upload_folder, os.W_OK))
-        except Exception:
-            upload_ok = False
-        checks['uploads'] = {'status': 'ok' if upload_ok else 'fail'}
+        upload_backend = (app.config.get('UPLOAD_BACKEND') or 'local').strip().lower()
+        if upload_backend == 'supabase':
+            supabase_ready = all(
+                (app.config.get(name) or '').strip()
+                for name in ('SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_STORAGE_BUCKET')
+            )
+            checks['uploads'] = {
+                'status': 'ok' if supabase_ready else 'fail',
+                'backend': 'supabase',
+            }
+        else:
+            upload_folder = app.config.get('UPLOAD_FOLDER') or ''
+            try:
+                upload_ok = bool(upload_folder and os.path.isdir(upload_folder) and os.access(upload_folder, os.W_OK))
+            except Exception:
+                upload_ok = False
+            checks['uploads'] = {
+                'status': 'ok' if upload_ok else 'fail',
+                'backend': upload_backend or 'local',
+            }
+
+        app_env = (app.config.get('APP_ENV') or '').strip().lower()
+        mail_method = (app.config.get('MAIL_DELIVERY_METHOD') or '').strip().lower()
+        production_like = app_env in {'production', 'staging'}
+        if mail_method == 'resend':
+            mail_ok = bool(
+                (app.config.get('RESEND_API_KEY') or '').strip()
+                and (app.config.get('RESEND_FROM') or app.config.get('MAIL_DEFAULT_SENDER') or '').strip()
+            )
+            checks['mail'] = {'status': 'ok' if mail_ok else 'fail', 'backend': 'resend'}
+        elif mail_method == 'smtp':
+            smtp_has_required_config = bool(
+                (app.config.get('MAIL_SERVER') or '').strip()
+                and (app.config.get('MAIL_DEFAULT_SENDER') or app.config.get('MAIL_USERNAME') or '').strip()
+            )
+            if not smtp_has_required_config and not production_like:
+                checks['mail'] = {'status': 'disabled', 'backend': 'smtp'}
+            else:
+                mail_ok = bool(
+                    smtp_has_required_config
+                    and ((app.config.get('MAIL_PASSWORD') or '').strip() or not production_like)
+                )
+                checks['mail'] = {'status': 'ok' if mail_ok else 'fail', 'backend': 'smtp'}
+        elif production_like:
+            checks['mail'] = {'status': 'fail', 'backend': 'none'}
+        else:
+            checks['mail'] = {'status': 'disabled', 'backend': 'none'}
 
         background_enabled = bool(app.config.get('BACKGROUND_JOBS_ENABLED'))
         background_inline = bool(app.config.get('BACKGROUND_JOBS_INLINE'))

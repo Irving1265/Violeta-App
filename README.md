@@ -136,7 +136,7 @@ También puedes ejecutarlo desde Flask CLI:
 flask --app app:app health-check
 ```
 
-El check valida base de datos, cache, uploads y workers background sin exponer secretos ni URLs internas. Usa `/healthz` como health check en Render o cualquier plataforma de deploy.
+El check valida base de datos, cache, backend de uploads, configuración de correo y workers background sin exponer secretos ni URLs internas. Usa `/healthz` como health check en Render o cualquier plataforma de deploy.
 
 ### Preflight antes de deploy
 

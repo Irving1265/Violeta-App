@@ -19,6 +19,7 @@ def run_step(label: str, command: list[str]) -> None:
 def main() -> int:
     python = sys.executable
     os.environ.setdefault('PYTHONUNBUFFERED', '1')
+    os.environ.setdefault('APP_ENV', 'development')
     os.environ.setdefault('BACKGROUND_JOBS_INLINE', 'true')
 
     run_step(

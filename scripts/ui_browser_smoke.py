@@ -27,6 +27,7 @@ UPLOAD_DIR = TEMP_ROOT / 'uploads'
 SCREENSHOT_DIR = TEMP_ROOT / 'screenshots'
 
 os.environ['SECRET_KEY'] = 'violeta-ui-smoke-secret'
+os.environ['APP_ENV'] = 'development'
 os.environ['DATABASE_URL'] = f'sqlite:///{DB_PATH}'
 os.environ['DATABASE_REQUIRE_SSL'] = 'false'
 os.environ['UPLOAD_BACKEND'] = 'local'
