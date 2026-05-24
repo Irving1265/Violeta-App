@@ -153,6 +153,15 @@
                 </div>
             </div>
         </div>
+
+        <div class="sidebar-legal" aria-label="Aviso legal de Violeta">
+            <p>© 2026 Violeta. Todos los derechos reservados.</p>
+            <nav class="sidebar-legal__links" aria-label="Enlaces legales">
+                <a href="{{ url_for('privacy_policy') }}">Política de privacidad</a>
+                <span aria-hidden="true">|</span>
+                <a href="{{ url_for('account_delete') }}">Eliminar cuenta</a>
+            </nav>
+        </div>
     </aside>
 </div>
 
@@ -232,5 +241,5 @@
         }
     };
 </script>
-<script src="{{ url_for('static', filename='js/index_page.js') }}?v=20260524-widget-purple-explore-header-v1" defer></script>
+<script src="{{ url_for('static', filename='js/index_page.js') }}?v=20260524-sidebar-legal-v1" defer></script>
 {% endblock %}

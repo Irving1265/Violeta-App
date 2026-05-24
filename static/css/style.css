@@ -1475,6 +1475,46 @@ body.modal-open .main-content {
     padding: 1rem;
 }
 
+.sidebar-legal {
+    display: none;
+}
+
+.sidebar-legal p {
+    margin: 0 0 0.35rem;
+}
+
+.sidebar-legal__links {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+
+.sidebar-legal a {
+    color: var(--primary-light);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+.sidebar-legal a:hover,
+.sidebar-legal a:focus-visible {
+    color: #ffffff;
+    outline: none;
+}
+
+@media (min-width: 1024px) {
+    .sidebar-legal {
+        display: block;
+        color: var(--text-secondary);
+        font-size: 0.72rem;
+        line-height: 1.45;
+        text-align: center;
+        padding: 0 0.5rem 1rem;
+        margin-top: -0.25rem;
+    }
+}
+
 /* FAB (Floating Action Button) */
 .floating-create-btn {
     position: fixed;

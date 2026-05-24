@@ -841,7 +841,7 @@ class VioletaSmokeTests(unittest.TestCase):
 
         client = self.client_for(user_id)
         feed_html = client.get('/').get_data(as_text=True)
-        self.assertIn('20260524-widget-purple-explore-header-v1', feed_html)
+        self.assertIn('20260524-sidebar-legal-v1', feed_html)
         self.assertIn('id="mainHeader"', feed_html)
         self.assertIn('violeta-header-top', feed_html)
         self.assertIn('violeta-filters-bar', feed_html)
@@ -852,6 +852,10 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertIn('data-city="apodaca"', feed_html)
         self.assertNotIn('violeta-city-filters-section', feed_html)
         self.assertNotIn('Zonas seleccionadas', feed_html)
+        self.assertIn('sidebar-legal', feed_html)
+        self.assertIn('© 2026 Violeta. Todos los derechos reservados.', feed_html)
+        self.assertIn('Política de privacidad', feed_html)
+        self.assertIn('Eliminar cuenta', feed_html)
         self.assertIn('20260523-report-modal-split-v1', feed_html)
 
         style_css = (PROJECT_ROOT / 'static' / 'css' / 'style.css').read_text()
