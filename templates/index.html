@@ -61,38 +61,31 @@
     <aside class="sidebar-right">
         {% if current_user.is_authenticated %}
         <!-- Mini Map Preview Widget -->
-        <div class="widget-card"
-            style="background: linear-gradient(145deg, #1e1b2e, #2a2436); border: 1px solid rgba(124, 58, 237, 0.2); overflow: hidden; padding: 0;">
-            <div class="widget-header"
-                style="padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
-                <h3
-                    style="color: #ffffff; font-size: 0.95rem; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 10px;">
-                    <i class="fas fa-map-marker-alt" style="color: #7c3aed;"></i> Reportes cercanos
+        <div class="widget-card mini-map-widget">
+            <div class="widget-header mini-map-widget__header">
+                <h3 class="mini-map-widget__title">
+                    <i class="fas fa-map-marker-alt" aria-hidden="true"></i> Reportes cercanos
                 </h3>
-                <a href="{{ url_for('hotspots_page') }}" class="text-decoration-none"
-                    style="color: #a78bfa; font-size: 0.8rem; font-weight: 500;">Ver más →</a>
+                <a href="{{ url_for('hotspots_page') }}" class="mini-map-widget__link text-decoration-none">Ver más <span aria-hidden="true">→</span></a>
             </div>
-            <div style="position: relative;">
-                <div id="miniMap" style="height: 200px; width: 100%;"></div>
-                <div id="miniMapLoading"
-                    style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(30, 27, 46, 0.95);">
-                    <div style="text-align: center; color: #9ca3af;">
-                        <i class="fas fa-spinner fa-spin" style="font-size: 1.5rem; margin-bottom: 8px;"></i>
-                        <div style="font-size: 0.75rem;">Cargando mapa...</div>
+            <div class="mini-map-widget__map-shell">
+                <div id="miniMap" class="mini-map-widget__map"></div>
+                <div id="miniMapLoading" class="mini-map-widget__loading" aria-live="polite">
+                    <div class="mini-map-widget__loading-copy">
+                        <i class="fas fa-spinner fa-spin mini-map-widget__loading-icon" aria-hidden="true"></i>
+                        <div class="mini-map-widget__loading-text">Cargando mapa...</div>
                     </div>
                 </div>
             </div>
-            <div style="padding: 10px 16px; background: rgba(0,0,0,0.2);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <span style="color: #9ca3af; font-size: 0.75rem;"><span id="nearbyCount">--</span> reportes
-                        cerca</span>
-                    <span style="color: #22c55e; font-size: 0.7rem;"><i class="fas fa-circle"
-                            style="font-size: 0.4rem;"></i> Tu ubicación</span>
+            <div class="mini-map-widget__footer">
+                <div class="mini-map-widget__summary">
+                    <span><span id="nearbyCount">--</span> reportes cerca</span>
+                    <span class="mini-map-widget__current"><i class="fas fa-circle mini-map-widget__legend-dot mini-map-widget__legend-dot--user" aria-hidden="true"></i> Tu ubicación</span>
                 </div>
-                <div style="display: flex; gap: 12px; font-size: 0.65rem; color: #9ca3af;">
-                    <span><i class="fas fa-circle" style="color: #ef4444; font-size: 0.45rem;"></i> Cerca</span>
-                    <span><i class="fas fa-circle" style="color: #f97316; font-size: 0.45rem;"></i> Medio</span>
-                    <span><i class="fas fa-circle" style="color: #fbbf24; font-size: 0.45rem;"></i> Lejos</span>
+                <div class="mini-map-widget__legend">
+                    <span><i class="fas fa-circle mini-map-widget__legend-dot mini-map-widget__legend-dot--near" aria-hidden="true"></i> Cerca</span>
+                    <span><i class="fas fa-circle mini-map-widget__legend-dot mini-map-widget__legend-dot--medium" aria-hidden="true"></i> Medio</span>
+                    <span><i class="fas fa-circle mini-map-widget__legend-dot mini-map-widget__legend-dot--far" aria-hidden="true"></i> Lejos</span>
                 </div>
             </div>
         </div>
@@ -226,7 +219,7 @@
 {% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/index_page.css') }}?v=20260402-perf-v2">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/index_page.css') }}?v=20260524-mini-map-sidebar-v1">
 {% endblock %}
 
 {% block scripts %}
@@ -241,5 +234,5 @@
         }
     };
 </script>
-<script src="{{ url_for('static', filename='js/index_page.js') }}?v=20260524-sidebar-legal-v1" defer></script>
+<script src="{{ url_for('static', filename='js/index_page.js') }}?v=20260524-mini-map-sidebar-v1" defer></script>
 {% endblock %}

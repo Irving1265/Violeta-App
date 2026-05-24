@@ -7,6 +7,7 @@
 {% set post_interaction_endpoints = ['index', 'post_detail'] %}
 {% set load_post_interaction_scripts = request.endpoint in post_interaction_endpoints %}
 {% set load_realtime_scripts = current_user.is_authenticated and not load_post_interaction_scripts and request.endpoint not in verification_gate_excluded_endpoints %}
+{% set load_leaflet_assets = request.endpoint in ['index', 'post_detail', 'hotspots_page', 'safety_center'] %}
 
 <head>
     <meta charset="UTF-8">
@@ -26,7 +27,7 @@
     {% if request.endpoint in ['chat', 'admin_panel'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/cropper/cropper.min.css') }}" />
     {% endif %}
-    {% if request.endpoint in ['index', 'hotspots_page', 'safety_center'] %}
+    {% if load_leaflet_assets %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260524-sidebar-legal-v1">
@@ -704,7 +705,7 @@
     {% endif %}
 
     <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
-    {% if request.endpoint in ['index', 'hotspots_page', 'safety_center'] %}
+    {% if load_leaflet_assets %}
     <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
     {% endif %}
     {% if request.endpoint in ['chat', 'admin_panel'] %}

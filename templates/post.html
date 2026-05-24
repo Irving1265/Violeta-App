@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ post.caption }}</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
+    <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
     <style>
         #map {
             height: 400px; /* Ajusta la altura del mapa */

@@ -1,5 +1,5 @@
 // Configuración para JS
-        // Mini Map Initialization
+    // Mini Map Initialization
     (function () {
         const mapEl = document.getElementById('miniMap');
         const loadingEl = document.getElementById('miniMapLoading');
@@ -21,48 +21,54 @@
             // User marker
             L.marker([lat, lng], {
                 icon: L.divIcon({
-                    html: '<div style="background:#22c55e;width:12px;height:12px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.5);"></div>',
-                    className: '', iconSize: [18, 18], iconAnchor: [9, 9]
+                    html: '<div class="mini-map-marker mini-map-marker--user"></div>',
+                    className: 'mini-map-marker-host',
+                    iconSize: [18, 18],
+                    iconAnchor: [9, 9]
                 })
             }).addTo(map);
 
             // Fetch hotspots already filtered near the current location.
             fetch(`/api/hotspots?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&radius_km=8&limit=30`).then(r => r.json()).then(data => {
                 let count = 0;
-                    (data.hotspots || []).forEach(h => {
-	                    // Distancia aproximada (km) para radios cortos.
-	                    const dx = (h.lng - lng) * Math.cos(((h.lat + lat) / 2) * Math.PI / 180) * 111.32;
-	                    const dy = (h.lat - lat) * 110.57;
-	                    const d = Math.sqrt(dx * dx + dy * dy);
-	                    count += h.count || 1;
-	                    // Cerca: <= 0.5km, Medio: (0.5km, 1km), Lejos: >= 1km
-	                    const c = d <= 0.5 ? '#ef4444' : d < 1 ? '#f97316' : '#fbbf24';
-	                    const s = Math.min(14, 8 + (h.count || 1));
-	                    L.marker([h.lat, h.lng], {
-	                        icon: L.divIcon({
-                            html: `<div style="background:${c};width:${s}px;height:${s}px;border-radius:50%;opacity:0.85;"></div>`,
-                            className: '', iconSize: [s, s], iconAnchor: [s / 2, s / 2]
+                (data.hotspots || []).forEach(h => {
+                    // Distancia aproximada (km) para radios cortos.
+                    const dx = (h.lng - lng) * Math.cos(((h.lat + lat) / 2) * Math.PI / 180) * 111.32;
+                    const dy = (h.lat - lat) * 110.57;
+                    const d = Math.sqrt(dx * dx + dy * dy);
+                    const hotspotCount = h.count || 1;
+                    const distanceClass = d <= 0.5 ? 'near' : d < 1 ? 'medium' : 'far';
+                    const sizeClass = hotspotCount >= 6 ? 'large' : hotspotCount >= 3 ? 'regular' : 'small';
+                    const markerSize = sizeClass === 'large' ? 14 : sizeClass === 'regular' ? 11 : 8;
+                    count += hotspotCount;
+
+                    L.marker([h.lat, h.lng], {
+                        icon: L.divIcon({
+                            html: `<div class="mini-map-marker mini-map-marker--hotspot mini-map-marker--${distanceClass} mini-map-marker--${sizeClass}"></div>`,
+                            className: 'mini-map-marker-host',
+                            iconSize: [markerSize, markerSize],
+                            iconAnchor: [markerSize / 2, markerSize / 2]
                         })
                     }).addTo(map);
                 });
                 if (countEl) countEl.textContent = count;
-            }).catch(e => console.error(e));
+            }).catch(e => console.warn('Mini map hotspots unavailable:', e));
 
-            if (loadingEl) loadingEl.style.display = 'none';
-            mapEl.style.cursor = 'pointer';
+            if (loadingEl) loadingEl.hidden = true;
             mapEl.onclick = () => window.location.href = (window.INDEX_PAGE_CONFIG && window.INDEX_PAGE_CONFIG.hotspotsUrl) || '/hotspots';
         }
 
         // Request user's CURRENT location with high accuracy
         if (navigator.geolocation) {
             // Show "Buscando ubicación..." while getting location
-            const loadingText = document.querySelector('#miniMapLoading div');
-            if (loadingText) loadingText.innerHTML = '<i class="fas fa-location-arrow fa-spin" style="font-size: 1.5rem; margin-bottom: 8px;"></i><div style="font-size: 0.75rem;">Obteniendo tu ubicación...</div>';
+            const loadingText = document.querySelector('#miniMapLoading .mini-map-widget__loading-copy');
+            if (loadingText) {
+                loadingText.innerHTML = '<i class="fas fa-location-arrow fa-spin mini-map-widget__loading-icon" aria-hidden="true"></i><div class="mini-map-widget__loading-text">Obteniendo tu ubicación...</div>';
+            }
 
             navigator.geolocation.getCurrentPosition(
                 function (position) {
                     // SUCCESS: Center map on USER's actual location
-                    console.log('User location:', position.coords.latitude, position.coords.longitude);
                     init(position.coords.latitude, position.coords.longitude);
                 },
                 function (error) {
