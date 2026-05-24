@@ -29,7 +29,7 @@
     {% if request.endpoint in ['index', 'hotspots_page', 'safety_center'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260524-flat-explore-header-v1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260524-purple-explore-header-v1">
     {% if request.endpoint in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/auth_page.css') }}?v=20260507-auth-split-v1">
     {% endif %}

@@ -841,7 +841,7 @@ class VioletaSmokeTests(unittest.TestCase):
 
         client = self.client_for(user_id)
         feed_html = client.get('/').get_data(as_text=True)
-        self.assertIn('20260524-flat-explore-header-v1', feed_html)
+        self.assertIn('20260524-purple-explore-header-v1', feed_html)
         self.assertIn('id="mainHeader"', feed_html)
         self.assertIn('violeta-header-top', feed_html)
         self.assertIn('violeta-filters-bar', feed_html)
@@ -853,6 +853,10 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertNotIn('violeta-city-filters-section', feed_html)
         self.assertNotIn('Zonas seleccionadas', feed_html)
         self.assertIn('20260523-report-modal-split-v1', feed_html)
+
+        style_css = (PROJECT_ROOT / 'static' / 'css' / 'style.css').read_text()
+        self.assertIn('background: #6d28d9;', style_css)
+        self.assertIn('background: rgba(255, 255, 255, 0.12);', style_css)
         self.assertIn('id="reportPostModal"', feed_html)
         self.assertIn('id="reportCommentModal"', feed_html)
         self.assertIn('/static/js/app.js?', feed_html)
