@@ -186,6 +186,27 @@
         };
     })();
 
+    // Compact explore header while scrolling.
+    (function () {
+        const header = document.querySelector('.violeta-header');
+        if (!header) return;
+
+        let ticking = false;
+
+        function syncHeaderState() {
+            ticking = false;
+            header.classList.toggle('header-scrolled', window.scrollY > 50);
+        }
+
+        window.addEventListener('scroll', () => {
+            if (ticking) return;
+            ticking = true;
+            window.requestAnimationFrame(syncHeaderState);
+        }, { passive: true });
+
+        syncHeaderState();
+    })();
+
     // Advanced feed filters
     (function () {
         const modal = document.getElementById('advancedModal');
