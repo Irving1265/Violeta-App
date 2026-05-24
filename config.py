@@ -18,7 +18,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
 def _database_url() -> str:
     raw = (os.environ.get('DATABASE_URL') or '').strip()
     if not raw:
-        return f"sqlite:///{os.path.join(instance_dir, 'instagram_clone.db')}"
+        return f"sqlite:///{os.path.join(instance_dir, 'Violeta-App.db')}"
 
     if raw.startswith('postgres://'):
         raw = 'postgresql://' + raw[len('postgres://'):]

@@ -89,8 +89,8 @@ El diseño "Violeta" se centra en una estética nocturna y elegante, utilizando 
 
 1.  **Clonar el repositorio**:
     ```bash
-    git clone https://github.com/tu-usuario/violeta-app.git
-    cd violeta-app
+    git clone https://github.com/tu-usuario/Violeta-App.git
+    cd Violeta-App
     ```
 
 2.  **Instalar dependencias**:
@@ -162,7 +162,7 @@ Si vas a mover la app a una base administrada, revisa:
 ## 📂 Estructura del Proyecto
 
 ```
-instagram-clone/
+Violeta-App/
 ├── app.py              # Controlador principal y rutas
 ├── models.py           # Definición de esquema de BD
 ├── forms.py            # Formularios WTF (Validación)

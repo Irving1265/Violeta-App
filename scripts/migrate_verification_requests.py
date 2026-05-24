@@ -22,7 +22,7 @@ def normalize_database_url(raw: str) -> str:
     if not url:
         # Fallback a SQLite si no está especificado DATABASE_URL
         instance_dir = PROJECT_ROOT / 'instance'
-        return f"sqlite:///{instance_dir / 'instagram_clone.db'}"
+        return f"sqlite:///{instance_dir / 'Violeta-App.db'}"
     if url.startswith('postgres://'):
         url = 'postgresql://' + url[len('postgres://'):]
     return url

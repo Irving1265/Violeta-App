@@ -25,7 +25,7 @@ def normalize_database_url(raw: str) -> str:
 
 
 def build_default_sqlite_url() -> str:
-    return f"sqlite:///{PROJECT_ROOT / 'instance' / 'instagram_clone.db'}"
+    return f"sqlite:///{PROJECT_ROOT / 'instance' / 'Violeta-App.db'}"
 
 
 def batched_rows(conn, table, batch_size: int):
@@ -79,7 +79,7 @@ def main() -> int:
     parser.add_argument(
         '--sqlite-url',
         default=os.environ.get('SQLITE_SOURCE_URL') or build_default_sqlite_url(),
-        help='URL SQLAlchemy de SQLite origen. Default: instance/instagram_clone.db',
+        help='URL SQLAlchemy de SQLite origen. Default: instance/Violeta-App.db',
     )
     parser.add_argument(
         '--postgres-url',

@@ -5,7 +5,7 @@ Este proyecto ya puede leer `DATABASE_URL` para usar PostgreSQL en lugar de SQLi
 ## 1. Instala dependencias
 
 ```bash
-cd "/Users/irv.cantu/Desktop/Versiones/Todo bien/instagram-clone"
+cd "/Users/irv.cantu/Desktop/Versiones/Todo bien/Violeta-App"
 ./.venv/bin/pip install -r requirements.txt
 ```
 
@@ -26,10 +26,10 @@ Notas:
 
 ## 3. Migra datos desde SQLite
 
-El script copia todas las tablas conocidas desde `instance/instagram_clone.db` hacia la base PostgreSQL vacía.
+El script copia todas las tablas conocidas desde `instance/Violeta-App.db` hacia la base PostgreSQL vacía.
 
 ```bash
-cd "/Users/irv.cantu/Desktop/Versiones/Todo bien/instagram-clone"
+cd "/Users/irv.cantu/Desktop/Versiones/Todo bien/Violeta-App"
 export DATABASE_URL="postgresql+psycopg://usuario:password@host:5432/violeta"
 ./.venv/bin/python scripts/migrate_sqlite_to_postgres.py
 ```
@@ -44,7 +44,7 @@ Si tu SQLite origen está en otra ruta:
 ## 4. Arranca la app usando PostgreSQL
 
 ```bash
-cd "/Users/irv.cantu/Desktop/Versiones/Todo bien/instagram-clone"
+cd "/Users/irv.cantu/Desktop/Versiones/Todo bien/Violeta-App"
 export DATABASE_URL="postgresql+psycopg://usuario:password@host:5432/violeta"
 ./.venv/bin/python app.py
 ```
