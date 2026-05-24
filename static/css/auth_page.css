@@ -93,6 +93,7 @@
 .input-icon-wrapper {
     position: relative;
     margin-bottom: 16px;
+    --auth-input-height: 50px;
 }
 
 .input-icon {
@@ -166,7 +167,7 @@
 .pwd-toggle {
     position: absolute;
     right: 16px;
-    top: 50%;
+    top: calc(var(--auth-input-height) / 2);
     transform: translateY(-50%);
     background: none;
     border: none;

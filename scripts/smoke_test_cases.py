@@ -428,6 +428,25 @@ class VioletaSmokeTests(unittest.TestCase):
             self.assertEqual(user.verification_status, 'unverified')
             self.assertEqual(int(user.trial_location_views_limit or 0), 3)
 
+    def test_password_toggle_buttons_anchor_to_input_row_with_errors(self):
+        auth_templates = ('login.html', 'register.html', 'reset_password.html')
+        for template_name in auth_templates:
+            template_html = (PROJECT_ROOT / 'templates' / template_name).read_text(encoding='utf-8')
+            self.assertIn('--password-input-height: 50px;', template_html)
+            self.assertIn('top: calc(var(--password-input-height) / 2);', template_html)
+
+        landing_html = (PROJECT_ROOT / 'templates' / 'landing.html').read_text(encoding='utf-8')
+        self.assertIn('--password-input-height: 50px;', landing_html)
+        self.assertIn('top: calc(var(--password-input-height) / 2);', landing_html)
+
+        auth_css = (PROJECT_ROOT / 'static' / 'css' / 'auth_page.css').read_text(encoding='utf-8')
+        self.assertIn('--auth-input-height: 50px;', auth_css)
+        self.assertIn('top: calc(var(--auth-input-height) / 2);', auth_css)
+
+        profile_html = (PROJECT_ROOT / 'templates' / 'profile_edit.html').read_text(encoding='utf-8')
+        self.assertIn('--profile-password-input-height: 50px;', profile_html)
+        self.assertIn('top: calc(var(--profile-password-input-height) / 2);', profile_html)
+
     def test_visual_verification_requires_app_camera_video_consent_and_valid_file(self):
         user_id = self.create_user('solicita_revision', verified=False)
         client = self.client_for(user_id)

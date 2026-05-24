@@ -258,6 +258,7 @@
 
   .profile-edit-v2__password-field {
     position: relative;
+    --profile-password-input-height: 50px;
   }
 
   .profile-edit-v2__password-field .profile-edit-v2__input {
@@ -268,7 +269,7 @@
   .profile-edit-v2__field-icon {
     position: absolute;
     left: 1rem;
-    top: 50%;
+    top: calc(var(--profile-password-input-height) / 2);
     transform: translateY(-50%);
     color: rgba(233, 227, 239, 0.48);
     pointer-events: none;
@@ -277,7 +278,7 @@
   .profile-edit-v2__password-toggle {
     position: absolute;
     right: 0.65rem;
-    top: 50%;
+    top: calc(var(--profile-password-input-height) / 2);
     width: 2rem;
     height: 2rem;
     border: 0;
