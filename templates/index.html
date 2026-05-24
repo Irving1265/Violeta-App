@@ -5,8 +5,8 @@
 {% set near_selected = feed_filters.get('near') if feed_filters else false %}
 
 {% block content %}
-<header class="violeta-header">
-    <div class="violeta-header-content">
+<header class="violeta-header" id="mainHeader">
+    <div class="violeta-header-top">
         <h1 class="violeta-title">Explorar</h1>
         {% if current_user.is_authenticated and current_user_can_access_admin_panel %}
         <a href="{{ url_for('admin_panel') }}" class="violeta-admin-mobile-btn" aria-label="Abrir panel de admin" title="Panel de admin">
@@ -15,15 +15,12 @@
         {% endif %}
     </div>
 
-    <div class="violeta-city-filters-section">
-        <div class="violeta-filter-header">
-            <span class="violeta-filter-label">
-                <i class="fas fa-map-marked-alt"></i> Zonas seleccionadas
-            </span>
-            <button class="violeta-advanced-btn" type="button" id="openAdvancedFilters">
-                <i class="fas fa-sliders-h"></i> Avanzado
-            </button>
-        </div>
+    <div class="violeta-filters-bar">
+        <button class="violeta-advanced-btn" type="button" id="openAdvancedFilters">
+            <i class="fas fa-sliders-h"></i> <span>Avanzado</span>
+        </button>
+
+        <div class="filter-divider"></div>
 
         <div class="violeta-chip-container" id="cityChipContainer">
             <button class="violeta-chip {{ 'active' if city_selected == 'all' else '' }}" data-city="all">Todas</button>
@@ -31,6 +28,8 @@
             <button class="violeta-chip {{ 'active' if city_selected == 'san-pedro' else '' }}" data-city="san-pedro">San Pedro</button>
             <button class="violeta-chip {{ 'active' if city_selected == 'guadalupe' else '' }}" data-city="guadalupe">Guadalupe</button>
             <button class="violeta-chip {{ 'active' if city_selected == 'san-nicolas' else '' }}" data-city="san-nicolas">San Nicolás</button>
+            <button class="violeta-chip {{ 'active' if city_selected == 'santa-catarina' else '' }}" data-city="santa-catarina">Sta. Catarina</button>
+            <button class="violeta-chip {{ 'active' if city_selected == 'apodaca' else '' }}" data-city="apodaca">Apodaca</button>
         </div>
     </div>
 
@@ -233,5 +232,5 @@
         }
     };
 </script>
-<script src="{{ url_for('static', filename='js/index_page.js') }}?v=20260524-explore-header-scroll-v1" defer></script>
+<script src="{{ url_for('static', filename='js/index_page.js') }}?v=20260524-flat-explore-header-v1" defer></script>
 {% endblock %}
