@@ -1610,16 +1610,16 @@ body.post-create-modal-open .floating-create-btn {
     z-index: 1020;
     width: calc(100% + 2rem);
     margin: calc(-1rem - env(safe-area-inset-top, 0px)) -1rem 1.5rem;
-    background: #6d28d9;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
-    box-shadow: 0 1px 3px rgba(76, 29, 149, 0.22);
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
     display: flex;
     flex-direction: column;
     transition: box-shadow 0.28s ease;
 }
 
 .violeta-header.header-scrolled {
-    box-shadow: 0 2px 8px rgba(76, 29, 149, 0.24);
+    box-shadow: var(--shadow-md);
 }
 
 @media (min-width: 768px) {
@@ -1665,15 +1665,15 @@ body.post-create-modal-open .floating-create-btn {
     width: 40px;
     height: 40px;
     border-radius: 999px;
-    color: #ede9fe;
+    color: var(--text-secondary);
     text-decoration: none;
     transition: background 0.2s ease, color 0.2s ease;
 }
 
 .violeta-admin-mobile-btn:hover,
 .violeta-admin-mobile-btn:focus-visible {
-    background: rgba(255, 255, 255, 0.14);
-    color: #ffffff;
+    background: rgba(139, 92, 246, 0.14);
+    color: var(--primary-light);
     outline: none;
 }
 
@@ -1697,10 +1697,10 @@ body.post-create-modal-open .floating-create-btn {
     align-items: center;
     gap: 0.5rem;
     flex: 0 0 auto;
-    border: 1px solid rgba(255, 255, 255, 0.22);
+    border: 1px solid var(--border-color);
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.14);
-    color: #ffffff;
+    background: rgba(139, 92, 246, 0.08);
+    color: var(--text-main);
     cursor: pointer;
     font-size: 0.875rem;
     font-weight: 600;
@@ -1713,8 +1713,8 @@ body.post-create-modal-open .floating-create-btn {
 
 .violeta-advanced-btn:hover,
 .violeta-advanced-btn:focus-visible {
-    background: rgba(255, 255, 255, 0.22);
-    color: #ffffff;
+    background: rgba(139, 92, 246, 0.14);
+    color: var(--primary-light);
     outline: none;
 }
 
@@ -1726,7 +1726,7 @@ body.post-create-modal-open .floating-create-btn {
     flex: 0 0 auto;
     width: 1px;
     height: 24px;
-    background: rgba(255, 255, 255, 0.28);
+    background: var(--border-color);
 }
 
 .violeta-chip-container {
@@ -1748,11 +1748,11 @@ body.post-create-modal-open .floating-create-btn {
 
 .violeta-chip-container .violeta-chip {
     flex: 0 0 auto;
-    border: 1px solid rgba(255, 255, 255, 0.22);
+    border: 1px solid var(--border-color);
     border-radius: 999px;
     padding: 0.5rem 1rem;
-    background: rgba(255, 255, 255, 0.12);
-    color: #ede9fe;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-secondary);
     font-size: 0.875rem;
     font-weight: 500;
     box-shadow: none;
@@ -1762,16 +1762,16 @@ body.post-create-modal-open .floating-create-btn {
 }
 
 .violeta-chip-container .violeta-chip:hover {
-    border-color: rgba(255, 255, 255, 0.45);
-    background: rgba(255, 255, 255, 0.18);
-    color: #ffffff;
+    border-color: var(--primary-color);
+    background: rgba(139, 92, 246, 0.1);
+    color: var(--primary-light);
 }
 
 .violeta-chip-container .violeta-chip.active {
-    background: #ffffff;
-    border-color: #ffffff;
-    color: #5b21b6;
-    box-shadow: 0 2px 4px rgba(76, 29, 149, 0.16);
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
     filter: none;
 }
 
