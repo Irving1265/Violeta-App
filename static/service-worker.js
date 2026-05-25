@@ -1,5 +1,5 @@
 const NAV_CACHE = 'violeta-nav-v5';
-const APP_SHELL_CACHE = 'violeta-app-shell-v3';
+const APP_SHELL_CACHE = 'violeta-app-shell-v4';
 const NAV_CACHE_TTL_MS = 300000;
 const PREFETCH_LIMIT = 12;
 const OFFLINE_URL = '/static/offline.html';

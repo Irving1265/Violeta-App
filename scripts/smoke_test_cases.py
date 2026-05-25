@@ -2147,7 +2147,7 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertEqual(service_worker_response.headers.get('Cache-Control'), 'no-cache, no-store, must-revalidate')
         service_worker = service_worker_response.get_data(as_text=True)
         self.assertIn('APP_SHELL_CACHE', service_worker)
-        self.assertIn('violeta-app-shell-v3', service_worker)
+        self.assertIn('violeta-app-shell-v4', service_worker)
         self.assertIn('/static/offline.html', service_worker)
         self.assertIn('/manifest.json', service_worker)
         self.assertIn('/static/images/pwa/maskable-512.png', service_worker)
@@ -2158,6 +2158,8 @@ class VioletaSmokeTests(unittest.TestCase):
         offline_html = offline_response.get_data(as_text=True)
         self.assertIn('Sin conexión', offline_html)
         self.assertIn('Beta v1.0', offline_html)
+        self.assertIn('/static/images/favicon.png', offline_html)
+        self.assertIn('border-radius: 50%', offline_html)
         self.assertIn('Volver al inicio', offline_html)
         self.assertIn('Reintentar', offline_html)
 
