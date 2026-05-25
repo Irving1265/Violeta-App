@@ -915,7 +915,6 @@ AUDIT_EVENT_FILTER_HINTS = (
     'verification.reject',
     'verification.suspend',
     'report_details.view',
-    'safety.route_points.view',
     'panic.resolve',
 )
 BACKGROUND_JOB_EVENT_DEFAULT_RETENTION_DAYS = 30
@@ -8219,42 +8218,6 @@ def create_app():
             )
             post.active_reports_admin = active_reports
 
-    def _build_checkin_user_groups(checkins) -> list[dict]:
-        groups: list[dict] = []
-        by_key: dict[object, dict] = {}
-        for checkin in checkins or []:
-            user = getattr(checkin, 'user', None)
-            if user is not None:
-                key: object = ('user', user.id)
-                username = user.username
-            else:
-                key = ('deleted', getattr(checkin, 'user_id', None) or getattr(checkin, 'id', None))
-                username = 'Usuaria eliminada'
-
-            group = by_key.get(key)
-            if group is None:
-                group = {
-                    'key': f'{key[0]}-{key[1]}',
-                    'user': user,
-                    'username': username,
-                    'checkins': [],
-                    'total': 0,
-                    'active_count': 0,
-                    'latest_started_at': getattr(checkin, 'started_at', None),
-                }
-                by_key[key] = group
-                groups.append(group)
-
-            group['checkins'].append(checkin)
-            group['total'] += 1
-            if getattr(checkin, 'status', None) == 'active':
-                group['active_count'] += 1
-            started_at = getattr(checkin, 'started_at', None)
-            latest_started_at = group.get('latest_started_at')
-            if started_at and (latest_started_at is None or started_at > latest_started_at):
-                group['latest_started_at'] = started_at
-        return groups
-
     def _serialize_chat_message_payload(message: ChatMessage):
         is_deleted = bool(getattr(message, 'is_deleted', False))
         attachment_url = None
@@ -9493,7 +9456,7 @@ def create_app():
 
     def _build_super_admin_ops_context(active_tab: str = 'users', reports_subtab: str = 'reportados', *, include_overview: bool = True, page_number: int = 1) -> dict:
         context = _base_ops_panel_context()
-        available_tabs = ['users', 'posts', 'reportes', 'chats', 'verificaciones', 'rutas']
+        available_tabs = ['users', 'posts', 'reportes', 'chats', 'verificaciones']
         if active_tab not in available_tabs:
             active_tab = 'users'
         report_subtabs = {'reportados', 'reportes-chat', 'reportes-comentarios'}
@@ -9507,8 +9470,6 @@ def create_app():
         chat_rooms_limit = app.config.get('ADMIN_CHAT_ROOMS_LIMIT', 8)
         reports_limit = app.config.get('ADMIN_REPORTS_LIMIT', 8)
         verifications_limit = app.config.get('ADMIN_VERIFICATIONS_LIMIT', 8)
-        checkins_limit = app.config.get('ADMIN_CHECKINS_LIMIT', 10)
-        panic_events_limit = app.config.get('ADMIN_PANIC_EVENTS_LIMIT', 8)
 
         context.update({
             'available_admin_tabs': available_tabs,
@@ -9780,31 +9741,6 @@ def create_app():
             })
             return context
 
-        if active_tab == 'rutas':
-            maybe_process_overdue_checkins(ttl_seconds=30)
-            route_checkins_limit = max(int(checkins_limit or 0), 200)
-            checkins = (
-                SafetyCheckin.query.options(selectinload(SafetyCheckin.user))
-                .order_by(SafetyCheckin.started_at.desc())
-                .limit(route_checkins_limit)
-                .all()
-            )
-            checkins_total_count = db.session.query(func.count(SafetyCheckin.id)).scalar() or 0
-            panic_events = (
-                PanicEvent.query.options(selectinload(PanicEvent.user), selectinload(PanicEvent.resolver))
-                .filter_by(status='open')
-                .order_by(PanicEvent.created_at.desc())
-                .limit(panic_events_limit)
-                .all()
-            )
-            context.update({
-                'checkins': checkins,
-                'checkin_user_groups': _build_checkin_user_groups(checkins),
-                'checkins_total_count': checkins_total_count,
-                'panic_events': panic_events,
-            })
-            return context
-
         return context
 
     def _build_verification_ops_context() -> dict:
@@ -9878,12 +9814,6 @@ def create_app():
     def _build_safety_ops_context() -> dict:
         maybe_process_overdue_checkins(ttl_seconds=30)
         context = _base_ops_panel_context()
-        checkins = (
-            SafetyCheckin.query.options(selectinload(SafetyCheckin.user))
-            .order_by(SafetyCheckin.started_at.desc())
-            .limit(200)
-            .all()
-        )
         panic_events = (
             PanicEvent.query.options(selectinload(PanicEvent.user), selectinload(PanicEvent.resolver))
             .filter_by(status='open')
@@ -9891,13 +9821,12 @@ def create_app():
             .all()
         )
         context.update({
-            'checkins': checkins,
-            'checkin_user_groups': _build_checkin_user_groups(checkins),
             'panic_events': panic_events,
-            'available_admin_tabs': ['rutas'],
-            'initial_admin_tab': 'rutas',
+            'available_admin_tabs': [],
+            'active_admin_tab': 'safety',
+            'initial_admin_tab': 'safety',
             'ops_panel_title': 'Centro de Safety',
-            'ops_panel_subtitle': 'Monitoreo de check-ins, trayectos y eventos de pánico.',
+            'ops_panel_subtitle': 'Monitoreo de eventos de pánico y operaciones de seguridad.',
         })
         return context
 
@@ -12522,10 +12451,8 @@ def create_app():
             flash(VERIFY_REQUIRED_MSG, 'info')
             return redirect(url_for('verify_identity'))
         checkin = SafetyCheckin.query.get_or_404(checkin_id)
-        if not user_has_permission(current_user, PERM_SAFETY_VIEW_ANY) and checkin.user_id != current_user.id:
+        if checkin.user_id != current_user.id:
             abort(403)
-        if user_has_permission(current_user, PERM_SAFETY_VIEW_ANY) and checkin.user_id != current_user.id:
-            return redirect(url_for('safety_workspace'))
         return redirect(url_for('safety_center'))
 
     @app.route('/emergency')
@@ -12964,7 +12891,7 @@ def create_app():
             title = title[:180]
 
         checkin = SafetyCheckin.query.get_or_404(checkin_id)
-        if not user_has_permission(current_user, PERM_SAFETY_VIEW_ANY) and checkin.user_id != current_user.id:
+        if checkin.user_id != current_user.id:
             return jsonify({'ok': False, 'error': 'Acceso denegado.'}), 403
         if checkin.status != 'arrived':
             return jsonify({'ok': False, 'error': 'Solo puedes renombrar trayectos finalizados.'}), 400
@@ -12991,7 +12918,7 @@ def create_app():
             return jsonify({'ok': False, 'error': 'Coordenadas inválidas.'}), 400
 
         checkin = SafetyCheckin.query.get_or_404(checkin_id)
-        if not user_has_permission(current_user, PERM_SAFETY_VIEW_ANY) and checkin.user_id != current_user.id:
+        if checkin.user_id != current_user.id:
             return jsonify({'ok': False, 'error': 'Acceso denegado.'}), 403
         if checkin.status != 'active':
             return jsonify({'ok': False, 'error': 'El check-in ya no está activo.'}), 400
@@ -13026,7 +12953,7 @@ def create_app():
         if current_user.is_authenticated and not is_user_verified(current_user):
             return jsonify({'ok': False, 'error': VERIFY_REQUIRED_MSG}), 403
         checkin = SafetyCheckin.query.get_or_404(checkin_id)
-        if not user_has_permission(current_user, PERM_SAFETY_VIEW_ANY) and checkin.user_id != current_user.id:
+        if checkin.user_id != current_user.id:
             return jsonify({'ok': False, 'error': 'Acceso denegado.'}), 403
 
         rows = CheckinRoutePoint.query.filter_by(checkin_id=checkin.id).order_by(
@@ -13045,20 +12972,6 @@ def create_app():
                 'speed_kmh': r.speed_kmh,
                 'accuracy_m': r.accuracy_m,
             })
-
-        if user_has_permission(current_user, PERM_SAFETY_VIEW_ANY) and checkin.user_id != current_user.id:
-            record_audit_event(
-                'safety.route_points.view',
-                workspace='safety',
-                target_user=checkin.user,
-                resource_type='safety_checkin',
-                resource_id=checkin.id,
-                summary='Consultó la ruta detallada de un check-in.',
-                details={
-                    'points_count': len(points),
-                    'checkin_status': checkin.status,
-                },
-            )
 
         return jsonify({
             'ok': True,

@@ -66,6 +66,8 @@ db = app_module.db
 User = app_module.User
 SafetyContact = app_module.SafetyContact
 PanicEvent = app_module.PanicEvent
+SafetyCheckin = app_module.SafetyCheckin
+CheckinRoutePoint = app_module.CheckinRoutePoint
 Post = app_module.Post
 PostMeta = app_module.PostMeta
 Comment = app_module.Comment
@@ -255,6 +257,43 @@ class VioletaSmokeTests(unittest.TestCase):
             db.session.add(contact)
             db.session.commit()
             return int(contact.id)
+
+    def create_checkin_with_route(self, user_id: int, *, status: str = 'arrived', destination: str = 'Destino privado') -> int:
+        with app.app_context():
+            now = app_module.utc_now_naive() - timedelta(minutes=10)
+            checkin = SafetyCheckin(
+                user_id=user_id,
+                destination=destination,
+                eta_minutes=30,
+                latitude=25.6866,
+                longitude=-100.3161,
+                destination_latitude=25.6870,
+                destination_longitude=-100.3166,
+                started_at=now,
+                expires_at=now + timedelta(minutes=30),
+                arrived_at=now + timedelta(minutes=12) if status == 'arrived' else None,
+                status=status,
+            )
+            db.session.add(checkin)
+            db.session.flush()
+            db.session.add(CheckinRoutePoint(
+                checkin_id=checkin.id,
+                recorded_at=now,
+                latitude=25.6866,
+                longitude=-100.3161,
+                speed_kmh=4.0,
+                accuracy_m=7.0,
+            ))
+            db.session.add(CheckinRoutePoint(
+                checkin_id=checkin.id,
+                recorded_at=now + timedelta(minutes=3),
+                latitude=25.6869,
+                longitude=-100.3164,
+                speed_kmh=5.0,
+                accuracy_m=6.0,
+            ))
+            db.session.commit()
+            return int(checkin.id)
 
     def create_chat_message(self, user_id: int, *, room_name: str, content: str) -> tuple[int, int]:
         with app.app_context():
@@ -3031,6 +3070,48 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertEqual(moderation_workspace.status_code, 200)
         no_safety_access = moderation_client.get('/staff/safety')
         self.assertEqual(no_safety_access.status_code, 302)
+
+    def test_safety_routes_are_owner_only_and_hidden_from_admin(self):
+        owner_id = self.create_user('route_owner')
+        other_id = self.create_user('route_other')
+        super_admin_id = self.create_user('admin')
+        safety_operator_id = self.create_user('route_safety', roles=['safety_operator'])
+        checkin_id = self.create_checkin_with_route(owner_id, destination='Destino privado Smoke')
+
+        owner_client = self.client_for(owner_id)
+        owner_points = owner_client.get(f'/api/safety/checkin/{checkin_id}/route/points')
+        self.assertEqual(owner_points.status_code, 200)
+        owner_payload = owner_points.get_json() or {}
+        self.assertTrue(owner_payload.get('ok'))
+        self.assertEqual(len(owner_payload.get('points') or []), 2)
+
+        owner_title = owner_client.post(f'/api/safety/checkin/{checkin_id}/title', json={'title': 'Mi trayecto privado'})
+        self.assertEqual(owner_title.status_code, 200)
+        self.assertEqual((owner_title.get_json() or {}).get('title'), 'Mi trayecto privado')
+        self.assertEqual(owner_client.get(f'/safety/checkin/{checkin_id}/summary').status_code, 302)
+
+        for user_id in (other_id, super_admin_id, safety_operator_id):
+            client = self.client_for(user_id)
+            self.assertEqual(client.get(f'/api/safety/checkin/{checkin_id}/route/points').status_code, 403)
+            self.assertEqual(client.post(f'/api/safety/checkin/{checkin_id}/title', json={'title': 'No permitido'}).status_code, 403)
+            self.assertEqual(client.get(f'/safety/checkin/{checkin_id}/summary').status_code, 403)
+
+        super_admin_client = self.client_for(super_admin_id)
+        admin_response = super_admin_client.get('/admin?tab=rutas')
+        self.assertEqual(admin_response.status_code, 200)
+        admin_html = admin_response.get_data(as_text=True)
+        self.assertNotIn('id="tab-rutas"', admin_html)
+        self.assertNotIn('id="view-rutas"', admin_html)
+        self.assertNotIn('Resumen de rutas', admin_html)
+        self.assertNotIn('Destino privado Smoke', admin_html)
+
+        safety_client = self.client_for(safety_operator_id)
+        safety_response = safety_client.get('/staff/safety')
+        self.assertEqual(safety_response.status_code, 200)
+        safety_html = safety_response.get_data(as_text=True)
+        self.assertNotIn('id="tab-rutas"', safety_html)
+        self.assertNotIn('id="view-rutas"', safety_html)
+        self.assertNotIn('Destino privado Smoke', safety_html)
 
     def test_audit_logs_sensitive_access_and_role_changes(self):
         super_admin_id = self.create_user('admin')

@@ -237,7 +237,7 @@ Roles objetivo para una versión operable en producción:
 `super_admin`
 
 - administra configuración y personal
-- no debe revisar de rutina videos, rutas o chats privados si otro rol puede hacerlo
+- no debe revisar videos, rutas o chats privados fuera de flujos estrictamente autorizados
 
 `verification_reviewer`
 
@@ -251,7 +251,8 @@ Roles objetivo para una versión operable en producción:
 
 `safety_operator`
 
-- puede ver panic events abiertos, contactos de confianza y check-ins activos
+- puede ver panic events abiertos y datos mínimos necesarios para atender incidentes
+- no puede listar ni consultar rutas/trayectos de otras usuarias; esos datos son solo de la usuaria dueña
 - no debe revisar verificación salvo necesidad formal documentada
 
 `support_readonly`
@@ -301,7 +302,8 @@ Las ventanas siguientes son metas operativas recomendadas para Violeta. Si exist
 ### Emergencia y acompañamiento
 
 - los datos de contactos, panic events y trayectos son confidenciales por defecto
-- el acceso administrativo a estos datos debe registrarse siempre
+- los trayectos y puntos de ruta solo deben mostrarse a la usuaria que los creó
+- el acceso administrativo autorizado a datos sensibles debe registrarse siempre
 - la notificación a contactos debe limitarse a la información mínima necesaria para ayudar
 - no se debe afirmar integración automática con policía si no existe integración oficial real
 
