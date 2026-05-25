@@ -32,7 +32,7 @@
     {% if load_leaflet_assets %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260524-beta-public-v1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260525-beta-public-modal-v1">
     {% if request.endpoint in auth_shell_endpoints %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/auth_page.css') }}?v=20260507-auth-split-v1">
     {% endif %}
@@ -145,13 +145,6 @@
         <!-- Main Content -->
         <main
             class="main-content {% if request.endpoint in auth_shell_endpoints %}no-sidebar{% endif %}">
-            {% if request.endpoint not in auth_shell_endpoints and request.endpoint != 'emergency_call' %}
-            <a href="{{ url_for('beta_notice') }}" class="beta-public-banner" data-no-prefetch="1" aria-label="Aviso de beta pública">
-                <span class="beta-public-banner__badge">{{ public_beta_label }}</span>
-                <span class="beta-public-banner__copy">Violeta está en beta pública. Seguimos ajustando funciones, seguridad y rendimiento.</span>
-                <span class="beta-public-banner__link">Ver aviso</span>
-            </a>
-            {% endif %}
             <!-- Flash Messages -->
             <div class="flash-popups" id="flashPopups">
                 {% with messages = get_flashed_messages(with_categories=true) %}

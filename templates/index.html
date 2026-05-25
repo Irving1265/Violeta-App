@@ -169,6 +169,27 @@
 {% endblock %}
 
 {% block modals %}
+<div class="beta-public-modal is-hidden" id="betaPublicModal" data-beta-key="{{ public_beta_label|e }}" aria-hidden="true">
+    <div class="beta-public-modal__backdrop" data-beta-public-dismiss></div>
+    <section class="beta-public-modal__panel" role="dialog" aria-modal="true" aria-labelledby="betaPublicTitle" aria-describedby="betaPublicCopy">
+        <button type="button" class="beta-public-modal__close" data-beta-public-dismiss aria-label="Cerrar aviso de beta">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+        <div class="beta-public-modal__icon" aria-hidden="true">
+            <i class="fas fa-flask-vial"></i>
+        </div>
+        <div class="beta-public-modal__copy">
+            <span class="beta-public-modal__badge">{{ public_beta_label }}</span>
+            <h2 id="betaPublicTitle">Violeta está en beta pública</h2>
+            <p id="betaPublicCopy">Seguimos ajustando funciones, seguridad y rendimiento. Puedes usar la app, pero algunas partes todavía pueden cambiar mientras mejoramos la experiencia.</p>
+        </div>
+        <div class="beta-public-modal__actions">
+            <button type="button" class="beta-public-modal__dismiss" data-beta-public-dismiss>Entendido</button>
+            <a href="{{ url_for('beta_notice') }}" class="beta-public-modal__link" data-no-prefetch="1">Ver aviso</a>
+        </div>
+    </section>
+</div>
+
 <div class="v-modal-overlay" id="advancedModal" aria-hidden="true">
     <div class="v-modal-content" role="dialog" aria-modal="true" aria-labelledby="advancedFiltersTitle">
         <div class="v-modal-header">
@@ -240,5 +261,5 @@
         }
     };
 </script>
-<script src="{{ url_for('static', filename='js/index_page.js') }}?v=20260524-mini-map-sidebar-v1" defer></script>
+<script src="{{ url_for('static', filename='js/index_page.js') }}?v=20260525-beta-public-modal-v1" defer></script>
 {% endblock %}

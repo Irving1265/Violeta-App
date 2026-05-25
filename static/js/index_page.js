@@ -1,4 +1,68 @@
 // Configuración para JS
+    // Public beta notice shown only on the home feed.
+    (function () {
+        const modal = document.getElementById('betaPublicModal');
+        if (!modal) return;
+        if (document.body.classList.contains('has-limited-access-popup')) return;
+
+        const rawKey = modal.dataset.betaKey || 'Beta v1.0';
+        const storageKey = `violeta.betaPublicModal.dismissed.${rawKey}`;
+        const dismissButtons = modal.querySelectorAll('[data-beta-public-dismiss]');
+        const learnMoreLink = modal.querySelector('.beta-public-modal__link');
+        let storageAvailable = true;
+
+        function isDismissed() {
+            if (!storageAvailable) return false;
+            try {
+                return window.localStorage.getItem(storageKey) === '1';
+            } catch (error) {
+                storageAvailable = false;
+                return false;
+            }
+        }
+
+        function rememberDismissal() {
+            if (!storageAvailable) return;
+            try {
+                window.localStorage.setItem(storageKey, '1');
+            } catch (error) {
+                storageAvailable = false;
+            }
+        }
+
+        function openModal() {
+            modal.classList.remove('is-hidden');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('has-beta-public-modal');
+            const closeButton = modal.querySelector('.beta-public-modal__close');
+            if (closeButton) closeButton.focus({ preventScroll: true });
+        }
+
+        function closeModal() {
+            rememberDismissal();
+            modal.classList.add('is-hidden');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('has-beta-public-modal');
+        }
+
+        dismissButtons.forEach((button) => {
+            button.addEventListener('click', closeModal);
+        });
+        if (learnMoreLink) {
+            learnMoreLink.addEventListener('click', rememberDismissal);
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !modal.classList.contains('is-hidden')) {
+                closeModal();
+            }
+        });
+
+        if (!isDismissed()) {
+            window.requestAnimationFrame(openModal);
+        }
+    })();
+
     // Mini Map Initialization
     (function () {
         const mapEl = document.getElementById('miniMap');
