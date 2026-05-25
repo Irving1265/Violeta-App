@@ -74,6 +74,32 @@
   .support-actions .btn {
     min-height: 46px;
   }
+
+  .support-email-panel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(167, 139, 250, 0.18);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .support-email-address {
+    color: #ffffff;
+    font-weight: 800;
+    overflow-wrap: anywhere;
+  }
+
+  .support-copy-status {
+    min-height: 1.2rem;
+    margin: 0.7rem 0 0;
+    color: #c4b5fd;
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
 </style>
 {% endblock %}
 
@@ -99,20 +125,77 @@
       </ul>
 
       <div class="support-actions">
-        <a href="{{ support_mailto }}" class="btn btn-primary" data-no-prefetch="1">
+        <a href="{{ support_mailto }}" class="btn btn-primary" data-no-prefetch="1" id="supportMailLink">
           <i class="fa-solid fa-envelope"></i>
           Escribir a soporte
         </a>
+        <button type="button" class="btn btn-outline-light" data-copy-support-email data-support-email="{{ support_email }}">
+          <i class="fa-solid fa-copy"></i>
+          Copiar correo
+        </button>
         <a href="{{ url_for('beta_notice') }}" class="btn btn-outline-light" data-no-prefetch="1">
           <i class="fa-solid fa-flask"></i>
           Ver aviso beta
         </a>
       </div>
 
-      <p class="support-copy mt-3">
-        Correo de soporte: <strong>{{ support_email }}</strong>
+      <div class="support-email-panel" aria-label="Correo de soporte">
+        <span class="support-copy">Correo de soporte:</span>
+        <span class="support-email-address">{{ support_email }}</span>
+      </div>
+      <p class="support-copy-status" id="supportCopyStatus" role="status" aria-live="polite"></p>
+      <p class="support-copy mt-2">
+        Si no se abre tu app de correo, usa “Copiar correo” y escríbenos desde Mail, Gmail o el cliente que uses.
       </p>
     </section>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var copyButton = document.querySelector('[data-copy-support-email]');
+    var mailLink = document.getElementById('supportMailLink');
+    var statusEl = document.getElementById('supportCopyStatus');
+    if (!copyButton || !statusEl) return;
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    function fallbackCopy(text) {
+      var textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.top = '-1000px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      var copied = document.execCommand('copy');
+      textarea.remove();
+      return copied;
+    }
+
+    copyButton.addEventListener('click', async function () {
+      var email = copyButton.getAttribute('data-support-email') || 'soporte@violeta.app';
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(email);
+        } else if (!fallbackCopy(email)) {
+          throw new Error('clipboard unavailable');
+        }
+        setStatus('Correo copiado. Pégalo en tu app de correo.');
+      } catch (error) {
+        setStatus('No pudimos copiarlo automáticamente. Selecciona el correo y cópialo manualmente.');
+      }
+    });
+
+    if (mailLink) {
+      mailLink.addEventListener('click', function () {
+        setStatus('Si no se abre tu app de correo, usa “Copiar correo”.');
+      });
+    }
+  });
+</script>
 {% endblock %}

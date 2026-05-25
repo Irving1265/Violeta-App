@@ -2525,6 +2525,13 @@ class VioletaSmokeTests(unittest.TestCase):
             self.assertIn(expected_text, response.get_data(as_text=True))
             self.assert_timing_headers(response)
 
+        support_html = public_client.get('/support').get_data(as_text=True)
+        self.assertIn('mailto:soporte@violeta.app?subject=Soporte%20Violeta%20Beta', support_html)
+        self.assertIn('data-copy-support-email', support_html)
+        self.assertIn('Copiar correo', support_html)
+        self.assertIn('supportCopyStatus', support_html)
+        self.assertIn('navigator.clipboard', support_html)
+
         public_delete_response = public_client.get('/account/delete')
         self.assertEqual(public_delete_response.status_code, 200)
         self.assertIn(b'Iniciar sesi', public_delete_response.data)
