@@ -51,6 +51,8 @@ class Config:
     DEBUG = _env_bool('FLASK_DEBUG', False)
     APP_ENV = (os.environ.get('APP_ENV') or ('development' if DEBUG else 'production')).strip().lower()
     PREFERRED_URL_SCHEME = os.environ.get('PREFERRED_URL_SCHEME') or ('https' if not DEBUG else 'http')
+    PUBLIC_BETA_VERSION = (os.environ.get('PUBLIC_BETA_VERSION') or 'Beta v1.0').strip()
+    SUPPORT_EMAIL = (os.environ.get('SUPPORT_EMAIL') or 'soporte@violeta.app').strip()
 
     # Zona horaria "de negocio" para cálculos de "hoy" (p. ej. reportes del día).
     # Se usa para convertir límites locales -> UTC naive (created_at se guarda en UTC naive).

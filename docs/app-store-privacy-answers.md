@@ -81,10 +81,17 @@ Los datos anteriores no deben usarse para tracking publicitario. Si se agrega un
 
 - Privacy Policy: https://violeta-app.onrender.com/privacy
 - Privacy Choices / Account Deletion: https://violeta-app.onrender.com/account/delete
+- Terms of Use: https://violeta-app.onrender.com/terms
+- Beta Notice / Support: https://violeta-app.onrender.com/beta y https://violeta-app.onrender.com/support
+
+## Beta v1.0 notes
+
+La app puede describirse como Beta v1.0 mientras este abierta a usuarias reales y todavia se ajusten funciones. La metadata no debe prometer seguridad garantizada, respuesta oficial de emergencias ni verificacion infalible.
+
+La evidencia visual de verificacion debe explicarse como revision humana autorizada para reducir riesgo comunitario, no como reconocimiento facial automatico ni clasificacion de genero.
 
 ## Review notes
 
 Apple exige politica de privacidad dentro de la app y en metadata. Si la app permite crear cuenta, tambien exige borrado de cuenta dentro de la app.
 
 Para revision, prepara una cuenta demo verificada y no la guardes en GitHub.
-

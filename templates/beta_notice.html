@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block styles %}
+<style>
+  .launch-page {
+    min-height: calc(100svh - 5rem);
+    padding: clamp(1rem, 3vw, 2.5rem) 1rem 4rem;
+  }
+
+  .launch-shell {
+    max-width: 920px;
+    margin: 0 auto;
+  }
+
+  .launch-hero,
+  .launch-card {
+    border: 1px solid rgba(167, 139, 250, 0.16);
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(31, 22, 46, 0.94), rgba(21, 16, 32, 0.96));
+    box-shadow: 0 22px 62px rgba(0, 0, 0, 0.24);
+  }
+
+  .launch-hero {
+    padding: clamp(1.35rem, 4vw, 2.4rem);
+    margin-bottom: 1rem;
+  }
+
+  .launch-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 0.8rem;
+    color: #c4b5fd;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .launch-title {
+    margin: 0;
+    color: #fff;
+    font-size: clamp(1.75rem, 5vw, 3rem);
+    line-height: 1.02;
+  }
+
+  .launch-copy {
+    max-width: 68ch;
+    margin: 0.85rem 0 0;
+    color: rgba(233, 227, 239, 0.74);
+    line-height: 1.7;
+  }
+
+  .launch-grid {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .launch-card {
+    padding: clamp(1rem, 3vw, 1.45rem);
+  }
+
+  .launch-card h2 {
+    margin: 0 0 0.7rem;
+    color: #fff;
+    font-size: 1.08rem;
+  }
+
+  .launch-card p,
+  .launch-card li {
+    color: rgba(233, 227, 239, 0.72);
+    line-height: 1.68;
+  }
+
+  .launch-card ul {
+    display: grid;
+    gap: 0.55rem;
+    margin: 0;
+    padding-left: 1.1rem;
+  }
+
+  .launch-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+
+  .launch-actions .btn {
+    min-height: 44px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="launch-page">
+  <div class="launch-shell">
+    <section class="launch-hero">
+      <p class="launch-kicker"><i class="fa-solid fa-flask"></i> {{ public_beta_label }}</p>
+      <h1 class="launch-title">Violeta está en beta pública</h1>
+      <p class="launch-copy">
+        La app ya está disponible para uso real, pero seguiremos ajustando funciones, seguridad,
+        rendimiento y detalles de experiencia durante esta etapa inicial.
+      </p>
+    </section>
+
+    <div class="launch-grid">
+      <section class="launch-card">
+        <h2>Qué significa beta pública</h2>
+        <p>
+          Puedes usar Violeta para explorar reportes comunitarios, crear reportes, solicitar verificación
+          y usar funciones de comunidad según tu estado de cuenta. Algunas pantallas o reglas pueden cambiar
+          conforme recibamos retroalimentación y mejoremos la plataforma.
+        </p>
+      </section>
+
+      <section class="launch-card">
+        <h2>Qué seguiremos mejorando</h2>
+        <ul>
+          <li>Flujos de verificación, moderación y soporte.</li>
+          <li>Rendimiento de mapas, feed, carga de imágenes y cámara en móviles reales.</li>
+          <li>Mensajes de error, accesibilidad y experiencia en pantallas pequeñas.</li>
+          <li>Documentación legal, privacidad y controles para cuentas.</li>
+        </ul>
+      </section>
+
+      <section class="launch-card">
+        <h2>Cómo reportar problemas</h2>
+        <p>
+          Si encuentras errores, pantallas lentas o comportamientos inesperados, repórtalo para que podamos
+          priorizarlo durante la beta.
+        </p>
+        <div class="launch-actions">
+          <a href="{{ url_for('support_page') }}" class="btn btn-primary" data-no-prefetch="1">
+            <i class="fa-solid fa-life-ring"></i>
+            Reportar problema
+          </a>
+          <a href="{{ url_for('privacy_policy') }}" class="btn btn-outline-light" data-no-prefetch="1">
+            <i class="fa-solid fa-user-lock"></i>
+            Ver privacidad
+          </a>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}

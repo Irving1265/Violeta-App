@@ -2096,6 +2096,15 @@ def create_app():
         return {'safety_publish_policy': safety_publish_policy_payload()}
 
     @app.context_processor
+    def inject_public_launch_info():
+        support_email = (app.config.get('SUPPORT_EMAIL') or 'soporte@violeta.app').strip()
+        return {
+            'public_beta_label': app.config.get('PUBLIC_BETA_VERSION') or 'Beta v1.0',
+            'support_email': support_email,
+            'support_mailto': f'mailto:{support_email}?subject=Soporte%20Violeta%20Beta',
+        }
+
+    @app.context_processor
     def inject_access_control():
         return {
             'user_role_names': user_role_names,
@@ -10582,6 +10591,18 @@ def create_app():
     @app.route('/privacy')
     def privacy_policy():
         return render_template('privacy.html')
+
+    @app.route('/terms')
+    def terms_of_use():
+        return render_template('terms.html')
+
+    @app.route('/beta')
+    def beta_notice():
+        return render_template('beta_notice.html')
+
+    @app.route('/support')
+    def support_page():
+        return render_template('support.html')
 
     @app.route('/account/delete', methods=['GET', 'POST'])
     def account_delete():

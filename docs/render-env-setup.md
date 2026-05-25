@@ -10,6 +10,8 @@ En Render entra a `Dashboard > Web Service > Environment` y configura:
 APP_ENV=production
 PREFERRED_URL_SCHEME=https
 HOST=0.0.0.0
+PUBLIC_BETA_VERSION=Beta v1.0
+SUPPORT_EMAIL=soporte@tu-dominio.com
 SESSION_COOKIE_SECURE=true
 REMEMBER_COOKIE_SECURE=true
 DATABASE_REQUIRE_SSL=true

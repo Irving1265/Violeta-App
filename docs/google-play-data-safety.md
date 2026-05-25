@@ -8,8 +8,14 @@ Violeta ofrece borrado de cuenta dentro de la app y por web.
 
 - Web deletion URL: https://violeta-app.onrender.com/account/delete
 - Privacy Policy: https://violeta-app.onrender.com/privacy
+- Terms of Use: https://violeta-app.onrender.com/terms
+- Beta Notice / Support: https://violeta-app.onrender.com/beta y https://violeta-app.onrender.com/support
 
 La ruta web debe cargar sin pedir reinstalar la app y debe mencionar Violeta de forma clara.
+
+## Beta v1.0
+
+Si se publica como Beta v1.0, la ficha debe explicar que es una beta publica funcional y que seguiremos mejorando seguridad, rendimiento y experiencia. Evita frases que sugieran servicio oficial de emergencia, seguridad garantizada o verificacion automatica infalible.
 
 ## Data collection
 
@@ -118,4 +124,3 @@ Shared:
 ## Sensitive permissions
 
 Violeta usa camera, location, notifications and microphone only for app functionality and safety features. It does not request SMS or Call Log permissions.
-

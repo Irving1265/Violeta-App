@@ -914,8 +914,12 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertNotIn('violeta-city-filters-section', feed_html)
         self.assertNotIn('Zonas seleccionadas', feed_html)
         self.assertIn('sidebar-legal', feed_html)
+        self.assertIn('beta-public-banner', feed_html)
+        self.assertIn('Beta v1.0', feed_html)
+        self.assertIn('Reportar problema', feed_html)
         self.assertIn('© 2026 Violeta. Todos los derechos reservados.', feed_html)
         self.assertIn('Política de privacidad', feed_html)
+        self.assertIn('Términos', feed_html)
         self.assertIn('Eliminar cuenta', feed_html)
         self.assertIn('mini-map-widget', feed_html)
         self.assertIn('mini-map-widget__map', feed_html)
@@ -2494,7 +2498,20 @@ class VioletaSmokeTests(unittest.TestCase):
         privacy_response = public_client.get('/privacy')
         self.assertEqual(privacy_response.status_code, 200)
         self.assertIn(b'Pol', privacy_response.data)
+        privacy_html = privacy_response.get_data(as_text=True)
+        self.assertIn('Beta v1.0', privacy_html)
+        self.assertIn('Verificación visual', privacy_html)
         self.assert_timing_headers(privacy_response)
+
+        for path, expected_text in (
+            ('/beta', 'Violeta está en beta pública'),
+            ('/support', 'Reportar problema'),
+            ('/terms', 'Términos de uso'),
+        ):
+            response = public_client.get(path)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(expected_text, response.get_data(as_text=True))
+            self.assert_timing_headers(response)
 
         public_delete_response = public_client.get('/account/delete')
         self.assertEqual(public_delete_response.status_code, 200)

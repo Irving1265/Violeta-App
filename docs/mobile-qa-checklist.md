@@ -76,7 +76,14 @@ Si `run:ios` o `run:android` no encuentra dispositivo, abre Xcode o Android Stud
 - Capturas en iPhone y Android.
 - Notas de permisos: camara, fotos, ubicacion y notificaciones.
 - Confirmacion de que `/privacy` y `/account/delete` son publicas.
+- Confirmacion de que `/beta`, `/support` y `/terms` son publicas.
 - Confirmacion de que `/healthz` responde sano antes de generar builds.
+
+Smoke publico:
+
+```bash
+./.venv/bin/python scripts/production_smoke.py --base-url https://violeta-app.onrender.com
+```
 
 ## Bloqueantes
 

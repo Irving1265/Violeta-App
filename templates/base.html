@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
-{% set verification_gate_excluded_endpoints = ['verify_identity', 'emergency_call', 'register', 'forgot_password', 'login', 'reset_password', 'force_password_reset', 'account_restricted', 'privacy_policy', 'account_delete'] %}
+{% set auth_shell_endpoints = ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset'] %}
+{% set public_info_endpoints = ['privacy_policy', 'account_delete', 'terms_of_use', 'beta_notice', 'support_page'] %}
+{% set verification_gate_excluded_endpoints = ['verify_identity', 'emergency_call', 'account_restricted'] + auth_shell_endpoints + public_info_endpoints %}
 {% set show_limited_access_popup = current_user.is_authenticated and not user_is_verified and request.endpoint not in verification_gate_excluded_endpoints %}
 {% set show_warning_strike_overlay = active_warning_strike and request.endpoint not in ['account_restricted', 'emergency_call'] %}
 {% set load_security_overlay_styles = show_warning_strike_overlay or request.endpoint == 'account_restricted' %}
@@ -30,8 +32,8 @@
     {% if load_leaflet_assets %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260524-sidebar-legal-v1">
-    {% if request.endpoint in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset'] %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260524-beta-public-v1">
+    {% if request.endpoint in auth_shell_endpoints %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/auth_page.css') }}?v=20260507-auth-split-v1">
     {% endif %}
     {% if request.endpoint in ['user_profile', 'profile'] %}
@@ -46,7 +48,7 @@
     {% if request.endpoint == 'index' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/post_create.css') }}?v=20260403-post-modal-motion-v17">
     {% endif %}
-    {% if current_user.is_authenticated and request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset'] %}
+    {% if current_user.is_authenticated and request.endpoint not in auth_shell_endpoints %}
     <link rel="prefetch" as="document" href="{{ url_for('index') }}">
     {% if current_user_can_access_admin_panel %}<link rel="prefetch" as="document" href="{{ url_for('admin_panel') }}">{% endif %}
     <link rel="prefetch" as="document" href="{{ url_for('hotspots_page') }}">
@@ -60,11 +62,11 @@
 
     <div class="app-layout">
         <!-- Sidebar (Desktop) -->
-        {% if request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset'] %}
+        {% if request.endpoint not in auth_shell_endpoints %}
         <aside class="sidebar">
             <div class="brand-logo">
                 <span class="brand-logo__word">Violeta</span>
-                <span class="brand-logo__meta">Beta v1.0</span>
+                <span class="brand-logo__meta">{{ public_beta_label }}</span>
             </div>
             {% if current_user.is_authenticated and not user_is_verified %}
             <a href="{{ url_for('verify_identity') }}" class="sidebar-limited-pill">
@@ -130,6 +132,9 @@
                 {% endif %}
             </nav>
             <div class="mt-auto d-grid gap-2">
+                <a href="{{ url_for('support_page') }}" class="sidebar-support-link" data-no-prefetch="1">
+                    <i class="fa-solid fa-life-ring"></i> Reportar problema
+                </a>
                 <a href="{{ url_for('emergency_call') }}" class="btn btn-danger w-100" target="_blank" rel="noopener">
                     <i class="fa-solid fa-phone"></i> Emergencia
                 </a>
@@ -139,7 +144,14 @@
 
         <!-- Main Content -->
         <main
-            class="main-content {% if request.endpoint in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset'] %}no-sidebar{% endif %}">
+            class="main-content {% if request.endpoint in auth_shell_endpoints %}no-sidebar{% endif %}">
+            {% if request.endpoint not in auth_shell_endpoints and request.endpoint != 'emergency_call' %}
+            <a href="{{ url_for('beta_notice') }}" class="beta-public-banner" data-no-prefetch="1" aria-label="Aviso de beta pública">
+                <span class="beta-public-banner__badge">{{ public_beta_label }}</span>
+                <span class="beta-public-banner__copy">Violeta está en beta pública. Seguimos ajustando funciones, seguridad y rendimiento.</span>
+                <span class="beta-public-banner__link">Ver aviso</span>
+            </a>
+            {% endif %}
             <!-- Flash Messages -->
             <div class="flash-popups" id="flashPopups">
                 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -184,7 +196,7 @@
         {% endif %}
 
         <!-- Bottom Nav (Mobile) -->
-        {% if request.endpoint not in ['register', 'forgot_password', 'login', 'reset_password', 'force_password_reset'] %}
+        {% if request.endpoint not in auth_shell_endpoints %}
         <nav class="bottom-nav">
             <a href="{{ url_for('index') }}" class="nav-item {{ 'active' if request.endpoint == 'index' else '' }}">
                 <i class="fa-solid fa-house"></i>

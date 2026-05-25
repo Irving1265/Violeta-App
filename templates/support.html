@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+
+{% block styles %}
+<style>
+  .support-page {
+    min-height: calc(100svh - 5rem);
+    padding: clamp(1rem, 3vw, 2.5rem) 1rem 4rem;
+  }
+
+  .support-shell {
+    max-width: 820px;
+    margin: 0 auto;
+  }
+
+  .support-card {
+    border: 1px solid rgba(167, 139, 250, 0.18);
+    border-radius: 26px;
+    background:
+      radial-gradient(circle at top right, rgba(124, 58, 237, 0.18), transparent 38%),
+      linear-gradient(180deg, rgba(31, 22, 46, 0.96), rgba(18, 13, 27, 0.98));
+    box-shadow: 0 24px 68px rgba(0, 0, 0, 0.28);
+    padding: clamp(1.25rem, 4vw, 2.2rem);
+  }
+
+  .support-icon {
+    width: 58px;
+    height: 58px;
+    border-radius: 20px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 1rem;
+    color: #ddd6fe;
+    background: rgba(124, 58, 237, 0.14);
+    border: 1px solid rgba(167, 139, 250, 0.24);
+    font-size: 1.35rem;
+  }
+
+  .support-kicker {
+    margin: 0 0 0.6rem;
+    color: #c4b5fd;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .support-title {
+    margin: 0;
+    color: #fff;
+    font-size: clamp(1.7rem, 5vw, 2.6rem);
+    line-height: 1.05;
+  }
+
+  .support-copy,
+  .support-list li {
+    color: rgba(233, 227, 239, 0.74);
+    line-height: 1.7;
+  }
+
+  .support-list {
+    display: grid;
+    gap: 0.6rem;
+    margin: 1.25rem 0;
+    padding-left: 1.1rem;
+  }
+
+  .support-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+
+  .support-actions .btn {
+    min-height: 46px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="support-page">
+  <div class="support-shell">
+    <section class="support-card">
+      <div class="support-icon" aria-hidden="true">
+        <i class="fa-solid fa-life-ring"></i>
+      </div>
+      <p class="support-kicker">Soporte beta</p>
+      <h1 class="support-title">Reportar problema</h1>
+      <p class="support-copy">
+        Violeta está en {{ public_beta_label }}. Si algo falla, envíanos contexto suficiente para reproducirlo
+        y priorizarlo.
+      </p>
+
+      <ul class="support-list">
+        <li>Qué estabas intentando hacer.</li>
+        <li>Si estabas en iPhone, Android o web.</li>
+        <li>Captura de pantalla si no contiene información sensible.</li>
+        <li>Hora aproximada del problema y tu nombre de usuaria, si aplica.</li>
+      </ul>
+
+      <div class="support-actions">
+        <a href="{{ support_mailto }}" class="btn btn-primary" data-no-prefetch="1">
+          <i class="fa-solid fa-envelope"></i>
+          Escribir a soporte
+        </a>
+        <a href="{{ url_for('beta_notice') }}" class="btn btn-outline-light" data-no-prefetch="1">
+          <i class="fa-solid fa-flask"></i>
+          Ver aviso beta
+        </a>
+      </div>
+
+      <p class="support-copy mt-3">
+        Correo de soporte: <strong>{{ support_email }}</strong>
+      </p>
+    </section>
+  </div>
+</div>
+{% endblock %}

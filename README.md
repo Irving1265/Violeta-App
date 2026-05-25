@@ -156,6 +156,7 @@ Si vas a mover la app a una base administrada, revisa:
 - [Gobernanza de datos y privacidad](./docs/data-governance.md)
 - [Runbook operativo](./docs/operational-runbook.md)
 - [Preparación de staging y producción](./docs/production-staging.md)
+- [Checklist de lanzamiento Beta v1.0](./docs/beta-launch-checklist.md)
 
 ---
 

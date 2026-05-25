@@ -84,6 +84,33 @@ Smoke manual minimo:
 - Seguridad: abrir Centro de seguridad y validar que el boton de emergencia no se active por accidente.
 - Chat: abrir lista de chats y confirmar que carga sin errores visuales.
 
+Smoke publico automatizado:
+
+```bash
+./.venv/bin/python scripts/production_smoke.py --base-url https://violeta-app.onrender.com
+```
+
+Este smoke confirma que produccion expone health, privacidad, borrado de cuenta, aviso beta, soporte y terminos.
+
+## Lanzamiento Beta v1.0
+
+Antes de abrir Violeta a publico:
+
+- confirma que el banner `Beta v1.0` aparece en la app;
+- confirma que `/beta`, `/support`, `/terms`, `/privacy` y `/account/delete` abren sin iniciar sesion;
+- ejecuta `scripts/production_smoke.py` contra produccion;
+- genera backup de PostgreSQL y confirma acceso al storage de Supabase;
+- entra con una cuenta admin y una cuenta no admin desde telefono real;
+- prueba registro, login, feed, mapa, camara, publicar reporte, verificacion y borrado de cuenta.
+
+Durante las primeras 24 horas:
+
+- revisa `/healthz` cada 2-3 horas;
+- revisa logs de Render;
+- revisa `/admin/background-jobs`;
+- revisa reportes de alto riesgo y verificaciones pendientes;
+- atiende mensajes recibidos en soporte.
+
 ## Monitoreo Diario
 
 Revisar al inicio del dia:
@@ -166,6 +193,14 @@ Antes de migraciones o cambios de esquema:
 - Verifica login, feed, crear publicacion, comentarios, reportes y admin.
 
 Nunca uses la base real para pruebas destructivas.
+
+Antes de un anuncio publico:
+
+- genera snapshot/backup desde el proveedor de PostgreSQL;
+- confirma que puedes restaurar o descargar el backup;
+- confirma que Supabase Storage usa bucket de produccion y no storage local;
+- guarda el commit desplegado y la hora del deploy;
+- evita cambios manuales en base real durante el lanzamiento salvo incidente.
 
 ## Criterio Para Cerrar Un Cambio
 

@@ -121,7 +121,8 @@
       <p class="legal-kicker"><i class="fa-solid fa-user-lock"></i> Privacidad</p>
       <h1 class="legal-title">Política de privacidad de Violeta</h1>
       <p class="legal-copy">
-        Esta página resume qué datos usa Violeta, para qué se usan y cómo puedes pedir que se elimine tu cuenta.
+        Esta página resume qué datos usa Violeta, para qué se usan, qué implica la etapa {{ public_beta_label }}
+        y cómo puedes pedir que se elimine tu cuenta.
       </p>
     </section>
 
@@ -156,6 +157,24 @@
       </section>
 
       <section class="legal-card">
+        <h2>Verificación visual</h2>
+        <p>
+          Si solicitas verificación, Violeta puede pedir un video corto o selfie para revisión humana por equipo
+          autorizado. Esta evidencia se usa solo para revisar la solicitud, no se publica en tu perfil, feed, búsqueda
+          ni comentarios, y debe conservarse solo el tiempo necesario para operación, seguridad y auditoría.
+        </p>
+      </section>
+
+      <section class="legal-card">
+        <h2>Etapa {{ public_beta_label }}</h2>
+        <p>
+          Violeta está en beta pública. Durante esta etapa podemos ajustar funciones, reglas de acceso, moderación,
+          seguridad y rendimiento para mejorar la experiencia y proteger a la comunidad. Puedes reportar problemas en
+          soporte.
+        </p>
+      </section>
+
+      <section class="legal-card">
         <h2>No sustituye servicios oficiales</h2>
         <p>
           Violeta es una plataforma comunitaria de reportes ciudadanos. No está afiliada a instituciones
@@ -176,6 +195,14 @@
           <a href="{{ url_for('account_delete') }}" class="btn btn-danger" data-no-prefetch="1">
             <i class="fa-solid fa-user-xmark"></i>
             Eliminar mi cuenta
+          </a>
+          <a href="{{ url_for('terms_of_use') }}" class="btn btn-outline-light" data-no-prefetch="1">
+            <i class="fa-solid fa-scale-balanced"></i>
+            Términos de uso
+          </a>
+          <a href="{{ url_for('support_page') }}" class="btn btn-outline-light" data-no-prefetch="1">
+            <i class="fa-solid fa-life-ring"></i>
+            Soporte
           </a>
           {% if current_user.is_authenticated %}
           <a href="{{ url_for('edit_profile') }}#security" class="btn btn-outline-light">
