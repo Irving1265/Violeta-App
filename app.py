@@ -2124,8 +2124,22 @@ def create_app():
     def track_request_start_time():
         request._violeta_started_at = time.perf_counter()
 
+    def is_cacheable_asset_request() -> bool:
+        endpoint = (request.endpoint or '').strip()
+        path = request.path or ''
+        return (
+            endpoint == 'static'
+            or endpoint.startswith('static')
+            or endpoint in {'service_worker', 'webmanifest', 'manifest_json', 'uploaded_file', 'uploaded_optimized_file'}
+            or path.startswith('/static/')
+            or path.startswith('/uploads/')
+            or path in {'/service-worker.js', '/manifest.webmanifest', '/manifest.json'}
+        )
+
     @app.before_request
     def enforce_forced_password_reset():
+        if is_cacheable_asset_request():
+            return None
         if not current_user.is_authenticated:
             return None
         if not bool(getattr(current_user, 'force_password_change', False)):
@@ -2153,6 +2167,8 @@ def create_app():
 
     @app.before_request
     def enforce_account_restrictions():
+        if is_cacheable_asset_request():
+            return None
         if not current_user.is_authenticated:
             return None
         if user_has_permission(current_user, PERM_ACCOUNT_BYPASS_RESTRICTIONS):
@@ -4944,16 +4960,19 @@ def create_app():
             response.headers['Pragma'] = 'no-cache'
             response.headers['Expires'] = '0'
             response.headers['Service-Worker-Allowed'] = '/'
+            response.headers.pop('Vary', None)
         elif path in ('/manifest.webmanifest', '/manifest.json'):
             static_cache_seconds = int(app.config.get('STATIC_ASSET_CACHE_SECONDS') or 0)
             response.headers['Cache-Control'] = f'public, max-age={static_cache_seconds}'
             response.headers.pop('Pragma', None)
             response.headers.pop('Expires', None)
+            response.headers.pop('Vary', None)
         elif path.startswith('/static/'):
             static_cache_seconds = int(app.config.get('STATIC_ASSET_CACHE_SECONDS') or 0)
             response.headers['Cache-Control'] = f'public, max-age={static_cache_seconds}, immutable'
             response.headers.pop('Pragma', None)
             response.headers.pop('Expires', None)
+            response.headers.pop('Vary', None)
         elif method == 'GET' and path.startswith('/uploads/optimized/'):
             if response.headers.get('X-Violeta-Optimized-Fallback') == '1':
                 response.headers['Cache-Control'] = 'public, max-age=60, stale-while-revalidate=86400'

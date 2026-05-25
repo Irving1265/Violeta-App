@@ -10,6 +10,7 @@
 {% set load_post_interaction_scripts = request.endpoint in post_interaction_endpoints %}
 {% set load_realtime_scripts = current_user.is_authenticated and not load_post_interaction_scripts and request.endpoint not in verification_gate_excluded_endpoints %}
 {% set load_leaflet_assets = request.endpoint in ['index', 'post_detail', 'hotspots_page', 'safety_center'] %}
+{% set load_bootstrap_scripts = request.endpoint not in auth_shell_endpoints and request.endpoint not in public_info_endpoints %}
 
 <head>
     <meta charset="UTF-8">
@@ -32,7 +33,7 @@
     {% if load_leaflet_assets %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260525-beta-public-modal-v1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260525-static-cache-v1">
     {% if request.endpoint in auth_shell_endpoints %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/auth_page.css') }}?v=20260507-auth-split-v1">
     {% endif %}
@@ -709,7 +710,9 @@
 
     {% endif %}
 
+    {% if load_bootstrap_scripts %}
     <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
+    {% endif %}
     {% if load_leaflet_assets %}
     <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
     {% endif %}
@@ -776,7 +779,13 @@
             var nodes = document.querySelectorAll('.violet-flash-messages .alert, .container .alert, .alert');
             nodes.forEach(function (el) {
                 setTimeout(function () {
-                    try { (new bootstrap.Alert(el)).close(); } catch (e) { if (el && el.parentNode) el.parentNode.removeChild(el); }
+                    try {
+                        if (window.bootstrap && bootstrap.Alert) {
+                            (new bootstrap.Alert(el)).close();
+                        } else if (el && el.parentNode) {
+                            el.parentNode.removeChild(el);
+                        }
+                    } catch (e) { if (el && el.parentNode) el.parentNode.removeChild(el); }
                 }, 5000);
             });
         });

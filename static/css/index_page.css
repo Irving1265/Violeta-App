@@ -185,3 +185,173 @@
     width: 14px;
     height: 14px;
 }
+
+.beta-public-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2600;
+    display: grid;
+    place-items: center;
+    padding: max(1rem, env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px)) max(1rem, env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px));
+}
+
+.beta-public-modal.is-hidden {
+    display: none;
+}
+
+body.has-beta-public-modal {
+    overflow: hidden;
+}
+
+.beta-public-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 50% 20%, rgba(139, 92, 246, 0.28), transparent 34%),
+        rgba(4, 2, 10, 0.74);
+    backdrop-filter: blur(10px);
+}
+
+.beta-public-modal__panel {
+    position: relative;
+    width: min(92vw, 460px);
+    border: 1px solid rgba(167, 139, 250, 0.28);
+    border-radius: 30px;
+    padding: 1.25rem;
+    background:
+        linear-gradient(145deg, rgba(42, 30, 68, 0.98), rgba(19, 14, 30, 0.98)),
+        var(--bg-surface);
+    color: #fff;
+    box-shadow: 0 28px 90px rgba(8, 5, 18, 0.52);
+    animation: modalSlideUp 0.24s ease-out;
+}
+
+.beta-public-modal__close {
+    position: absolute;
+    top: 0.95rem;
+    right: 0.95rem;
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(245, 243, 255, 0.74);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.beta-public-modal__close:hover,
+.beta-public-modal__close:focus-visible {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    outline: none;
+}
+
+.beta-public-modal__icon {
+    width: 58px;
+    height: 58px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.05rem;
+    color: #ddd6fe;
+    background: rgba(139, 92, 246, 0.16);
+    font-size: 1.35rem;
+}
+
+.beta-public-modal__copy {
+    padding-right: 2.35rem;
+}
+
+.beta-public-modal__badge {
+    display: inline-flex;
+    width: fit-content;
+    margin-bottom: 0.55rem;
+    border-radius: 999px;
+    padding: 0.28rem 0.62rem;
+    background: rgba(124, 58, 237, 0.2);
+    color: #ddd6fe;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.beta-public-modal__copy h2 {
+    margin: 0 0 0.65rem;
+    font-size: clamp(1.7rem, 7vw, 2.35rem);
+    font-weight: 950;
+    letter-spacing: -0.05em;
+    line-height: 1.02;
+}
+
+.beta-public-modal__copy p {
+    margin: 0;
+    color: rgba(237, 233, 254, 0.72);
+    font-size: 0.98rem;
+    line-height: 1.52;
+}
+
+.beta-public-modal__actions {
+    display: grid;
+    grid-template-columns: 0.95fr 1.05fr;
+    gap: 0.75rem;
+    margin-top: 1.35rem;
+}
+
+.beta-public-modal__dismiss,
+.beta-public-modal__link {
+    min-height: 48px;
+    border-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1rem;
+    font-weight: 900;
+    text-decoration: none;
+}
+
+.beta-public-modal__dismiss {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(245, 243, 255, 0.88);
+}
+
+.beta-public-modal__link {
+    border: 1px solid rgba(196, 181, 253, 0.34);
+    background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+    color: #fff;
+    box-shadow: 0 18px 40px rgba(109, 40, 217, 0.32);
+}
+
+.beta-public-modal__dismiss:hover,
+.beta-public-modal__dismiss:focus-visible,
+.beta-public-modal__link:hover,
+.beta-public-modal__link:focus-visible {
+    color: #fff;
+    outline: none;
+    transform: translateY(-1px);
+}
+
+@media (max-width: 767px) {
+    .beta-public-modal {
+        align-items: end;
+        padding: max(0.75rem, env(safe-area-inset-top, 0px)) 0.75rem max(0.75rem, env(safe-area-inset-bottom, 0px));
+    }
+
+    .beta-public-modal__panel {
+        width: 100%;
+        border-radius: 28px;
+        padding: 1.15rem;
+    }
+
+    .beta-public-modal__copy {
+        padding-right: 1.85rem;
+    }
+
+    .beta-public-modal__actions {
+        grid-template-columns: 1fr;
+    }
+}

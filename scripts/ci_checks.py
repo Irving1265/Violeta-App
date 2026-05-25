@@ -32,6 +32,7 @@ def main() -> int:
             'config.py',
             'forms.py',
             'models.py',
+            'scripts/perf_home_check.py',
             'scripts/smoke_test_cases.py',
         ],
     )
