@@ -11,7 +11,7 @@ APP_ENV=production
 PREFERRED_URL_SCHEME=https
 HOST=0.0.0.0
 PUBLIC_BETA_VERSION=Beta v1.0
-SUPPORT_EMAIL=soporte@tu-dominio.com
+SUPPORT_EMAIL=violetaapp38@gmail.com
 SESSION_COOKIE_SECURE=true
 REMEMBER_COOKIE_SECURE=true
 DATABASE_REQUIRE_SSL=true
@@ -29,7 +29,7 @@ SUPABASE_STORAGE_BUCKET=uploads
 MAIL_DELIVERY_METHOD=resend
 RESEND_API_KEY=TU_RESEND_API_KEY
 RESEND_FROM=Violeta <no-reply@tu-dominio.com>
-RESEND_REPLY_TO=soporte@tu-dominio.com
+RESEND_REPLY_TO=violetaapp38@gmail.com
 ```
 
 Render normalmente ya define `DATABASE_URL` si conectaste PostgreSQL al servicio. Si no aparece,
@@ -75,7 +75,7 @@ Opción recomendada en Render: Resend por HTTPS.
 MAIL_DELIVERY_METHOD=resend
 RESEND_API_KEY=TU_RESEND_API_KEY
 RESEND_FROM=Violeta <no-reply@tu-dominio.com>
-RESEND_REPLY_TO=soporte@tu-dominio.com
+RESEND_REPLY_TO=violetaapp38@gmail.com
 ```
 
 ## Validación local sin imprimir secretos

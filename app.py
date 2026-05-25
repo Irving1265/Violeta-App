@@ -2097,7 +2097,7 @@ def create_app():
 
     @app.context_processor
     def inject_public_launch_info():
-        support_email = (app.config.get('SUPPORT_EMAIL') or 'soporte@violeta.app').strip()
+        support_email = (app.config.get('SUPPORT_EMAIL') or 'violetaapp38@gmail.com').strip()
         return {
             'public_beta_label': app.config.get('PUBLIC_BETA_VERSION') or 'Beta v1.0',
             'support_email': support_email,

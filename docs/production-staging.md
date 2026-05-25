@@ -201,7 +201,7 @@ Opcion recomendada en plataformas que bloquean SMTP: Resend.
 MAIL_DELIVERY_METHOD=resend
 RESEND_API_KEY=<api-key>
 RESEND_FROM=Violeta <no-reply@tu-dominio.com>
-RESEND_REPLY_TO=soporte@tu-dominio.com
+RESEND_REPLY_TO=violetaapp38@gmail.com
 ```
 
 Opcion SMTP:

@@ -2538,7 +2538,7 @@ class VioletaSmokeTests(unittest.TestCase):
             self.assert_timing_headers(response)
 
         support_html = public_client.get('/support').get_data(as_text=True)
-        self.assertIn('mailto:soporte@violeta.app?subject=Soporte%20Violeta%20Beta', support_html)
+        self.assertIn('mailto:violetaapp38@gmail.com?subject=Soporte%20Violeta%20Beta', support_html)
         self.assertIn('data-copy-support-email', support_html)
         self.assertIn('Copiar correo', support_html)
         self.assertIn('supportCopyStatus', support_html)
