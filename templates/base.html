@@ -41,7 +41,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/profile_page.css') }}?v=20260514-profile-mobile-identity-v1">
     {% endif %}
     {% if request.endpoint in ['index', 'post_detail'] %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/post_card.css') }}?v=20260526-admin-caption-edit-v1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/post_card.css') }}?v=20260526-admin-caption-modal-v2">
     {% endif %}
     {% if load_security_overlay_styles %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/security_overlays.css') }}?v=20260507-security-overlays-v1">
@@ -712,30 +712,50 @@
     <div class="modal fade" id="adminCaptionModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered report-post-modal__dialog">
             <div class="modal-content report-post-modal__shell admin-caption-modal__shell">
-                <div class="modal-header report-post-modal__header">
-                    <h5 class="modal-title report-post-modal__title">
-                        <i class="fas fa-pen" aria-hidden="true"></i>
-                        <span>Corregir descripción</span>
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                        aria-label="Cerrar"></button>
+                <div class="modal-header report-post-modal__header admin-caption-modal__header">
+                    <div class="admin-caption-modal__title-wrap">
+                        <span class="admin-caption-modal__icon" aria-hidden="true">
+                            <i class="fas fa-pen"></i>
+                        </span>
+                        <div>
+                            <p class="admin-caption-modal__eyebrow">Herramienta admin</p>
+                            <h5 class="modal-title report-post-modal__title">Corregir descripción</h5>
+                        </div>
+                    </div>
+                    <button type="button" class="admin-caption-modal__close" data-bs-dismiss="modal"
+                        aria-label="Cerrar">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
                 </div>
                 <form id="adminCaptionForm" class="report-post-modal__form" onsubmit="submitAdminCaptionEdit(event)">
                     <div class="report-post-modal__scroll admin-caption-modal__body">
-                        <div class="report-post-modal__intro admin-caption-modal__intro">
-                            <i class="fas fa-shield-halved" aria-hidden="true"></i>
-                            <p>Esta acción es solo para administración. Úsala para corregir ortografía, claridad o información imprecisa sin cambiar el sentido del reporte.</p>
+                        <div class="admin-caption-modal__summary">
+                            <div>
+                                <span class="admin-caption-modal__summary-label">Uso recomendado</span>
+                                <p>Corrige ortografía, claridad o información imprecisa sin cambiar el sentido del reporte.</p>
+                            </div>
+                            <span class="admin-caption-modal__audit-pill">
+                                <i class="fas fa-shield-halved" aria-hidden="true"></i>
+                                Auditado
+                            </span>
                         </div>
-                        <label for="adminCaptionInput" class="report-post-modal__details-label">
-                            Nueva descripción <span id="adminCaptionCount">0 / 500</span>
-                        </label>
-                        <textarea id="adminCaptionInput" class="report-post-modal__textarea admin-caption-modal__textarea"
-                            rows="5" maxlength="500" placeholder="Escribe la descripción corregida..."></textarea>
+                        <div class="admin-caption-modal__field">
+                            <div class="admin-caption-modal__label-row">
+                                <label for="adminCaptionInput">Nueva descripción</label>
+                                <span id="adminCaptionCount" class="admin-caption-modal__counter">0 / 500</span>
+                            </div>
+                            <textarea id="adminCaptionInput" class="report-post-modal__textarea admin-caption-modal__textarea"
+                                rows="6" maxlength="500" placeholder="Escribe la descripción corregida..."></textarea>
+                            <p class="admin-caption-modal__hint">
+                                La corrección se verá inmediatamente en feed, mapa y detalle de publicación.
+                            </p>
+                        </div>
                         <div class="alert alert-danger d-none report-post-modal__error" id="adminCaptionError"></div>
                     </div>
-                    <div class="report-post-modal__footer">
-                        <button type="button" class="report-post-modal__cancel" data-bs-dismiss="modal">Cancelar</button>
+                    <div class="report-post-modal__footer admin-caption-modal__footer">
+                        <button type="button" class="report-post-modal__cancel admin-caption-modal__cancel" data-bs-dismiss="modal">Cancelar</button>
                         <button type="submit" id="adminCaptionSubmitBtn" class="report-post-modal__submit">
+                            <i class="fas fa-check" aria-hidden="true"></i>
                             <span id="adminCaptionSubmitText">Guardar corrección</span>
                             <i id="adminCaptionSubmitSpinner" class="fas fa-spinner fa-spin d-none" aria-hidden="true"></i>
                         </button>
@@ -792,7 +812,7 @@
         window.VIOLETA_SAFETY_PUBLISH_POLICY = {{ safety_publish_policy|tojson }};
     </script>
     {% if load_post_interaction_scripts %}
-    <script src="{{ url_for('static', filename='js/app.js') }}?v=20260526-admin-caption-edit-v1"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=20260526-admin-caption-modal-v2"></script>
     {% else %}
     <script src="{{ url_for('static', filename='js/app_core.js') }}?v=20260508-js-split-v1"></script>
     {% endif %}

@@ -236,7 +236,10 @@ function getAdminCaptionModalRefs() {
 function updateAdminCaptionCount() {
     const { input, count } = getAdminCaptionModalRefs();
     if (!input || !count) return;
-    count.textContent = `${input.value.length} / 500`;
+    const length = input.value.length;
+    count.textContent = `${length} / 500`;
+    count.classList.toggle('is-warning', length >= 420 && length < 480);
+    count.classList.toggle('is-danger', length >= 480);
 }
 
 function setAdminCaptionSubmittingState(isSubmitting) {

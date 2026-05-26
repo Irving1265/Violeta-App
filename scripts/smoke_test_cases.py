@@ -971,7 +971,7 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertIn('mini-map-widget', feed_html)
         self.assertIn('mini-map-widget__map', feed_html)
         self.assertNotIn('style="background: linear-gradient(145deg, #1e1b2e, #2a2436);', feed_html)
-        self.assertIn('20260526-admin-caption-edit-v1', feed_html)
+        self.assertIn('20260526-admin-caption-modal-v2', feed_html)
 
         style_css = (PROJECT_ROOT / 'static' / 'css' / 'style.css').read_text()
         index_css = (PROJECT_ROOT / 'static' / 'css' / 'index_page.css').read_text()
@@ -1032,12 +1032,15 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertIn('#reportPostModal', post_card_css)
         self.assertIn('#reportCommentModal', post_card_css)
         self.assertIn('.post-caption-edit-btn', post_card_css)
+        self.assertIn('.admin-caption-modal__summary', post_card_css)
+        self.assertIn('.admin-caption-modal__counter.is-warning', post_card_css)
         app_js = (PROJECT_ROOT / 'static/js/app.js').read_text(encoding='utf-8')
         self.assertIn('openAdminCaptionModal', app_js)
         self.assertIn('/admin/post/${currentAdminCaptionPostId}/caption', app_js)
+        self.assertIn("count.classList.toggle('is-warning'", app_js)
 
         post_html = client.get(f'/post/{post_id}').get_data(as_text=True)
-        self.assertIn('20260526-admin-caption-edit-v1', post_html)
+        self.assertIn('20260526-admin-caption-modal-v2', post_html)
         self.assertIn('id="reportPostModal"', post_html)
         self.assertIn('id="reportCommentModal"', post_html)
         self.assertIn('/static/js/app.js?', post_html)
@@ -3251,6 +3254,9 @@ class VioletaSmokeTests(unittest.TestCase):
         admin_html = admin_client.get('/').get_data(as_text=True)
         self.assertIn(f'data-post-caption-edit="{post_id}"', admin_html)
         self.assertIn('id="adminCaptionModal"', admin_html)
+        self.assertIn('admin-caption-modal__summary', admin_html)
+        self.assertIn('Herramienta admin', admin_html)
+        self.assertIn('Auditado', admin_html)
         self.assertIn('Texto original con error', admin_html)
 
         too_long = admin_client.post(
