@@ -38,6 +38,7 @@ function handleAuthRedirect(response) {
 let currentReportPostId = null;
 let currentReportCommentId = null;
 let currentReportCommentPostId = null;
+let currentAdminCaptionPostId = null;
 const commentLoadPromises = new Map();
 
 function getReportPostModalRefs() {
@@ -217,6 +218,116 @@ function initReportPostModal() {
     updateReportPostFormState();
 }
 
+function getAdminCaptionModalRefs() {
+    const modalEl = document.getElementById('adminCaptionModal');
+    if (!modalEl) return {};
+    return {
+        modalEl,
+        form: document.getElementById('adminCaptionForm'),
+        input: document.getElementById('adminCaptionInput'),
+        count: document.getElementById('adminCaptionCount'),
+        errorEl: document.getElementById('adminCaptionError'),
+        submitBtn: document.getElementById('adminCaptionSubmitBtn'),
+        submitText: document.getElementById('adminCaptionSubmitText'),
+        submitSpinner: document.getElementById('adminCaptionSubmitSpinner')
+    };
+}
+
+function updateAdminCaptionCount() {
+    const { input, count } = getAdminCaptionModalRefs();
+    if (!input || !count) return;
+    count.textContent = `${input.value.length} / 500`;
+}
+
+function setAdminCaptionSubmittingState(isSubmitting) {
+    const { submitBtn, submitText, submitSpinner } = getAdminCaptionModalRefs();
+    if (submitBtn) submitBtn.disabled = !!isSubmitting;
+    if (submitText) submitText.textContent = isSubmitting ? 'Guardando...' : 'Guardar corrección';
+    if (submitSpinner) submitSpinner.classList.toggle('d-none', !isSubmitting);
+}
+
+function setAdminCaptionError(message) {
+    const { errorEl } = getAdminCaptionModalRefs();
+    if (!errorEl) return;
+    errorEl.textContent = message || '';
+    errorEl.classList.toggle('d-none', !message);
+}
+
+function openAdminCaptionModal(postId, trigger) {
+    if (!window.CURRENT_USER || !window.CURRENT_USER.is_super_admin) {
+        showAlert('Solo admin puede corregir descripciones de publicaciones.', 'danger');
+        return;
+    }
+    const { modalEl, input } = getAdminCaptionModalRefs();
+    if (!modalEl || !input || typeof bootstrap === 'undefined') return;
+    currentAdminCaptionPostId = Number(postId);
+    const caption = trigger && trigger.dataset ? (trigger.dataset.currentCaption || '') : '';
+    input.value = caption;
+    setAdminCaptionError('');
+    setAdminCaptionSubmittingState(false);
+    updateAdminCaptionCount();
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    setTimeout(() => input.focus(), 120);
+}
+
+function updateCaptionInPostCards(postId, caption) {
+    const normalized = String(caption || '');
+    const displayText = normalized || 'Sin descripción.';
+    document.querySelectorAll(`[data-post-caption="${postId}"]`).forEach((node) => {
+        node.textContent = displayText;
+        node.classList.toggle('post-caption-empty', !normalized);
+    });
+    document.querySelectorAll(`[data-post-caption-edit="${postId}"]`).forEach((button) => {
+        button.dataset.currentCaption = normalized;
+    });
+}
+
+async function submitAdminCaptionEdit(event) {
+    event.preventDefault();
+    const { modalEl, input } = getAdminCaptionModalRefs();
+    if (!modalEl || !input || !currentAdminCaptionPostId) return;
+
+    const caption = input.value.trim();
+    if (caption.length > 500) {
+        setAdminCaptionError('La descripción no puede superar 500 caracteres.');
+        return;
+    }
+
+    setAdminCaptionError('');
+    setAdminCaptionSubmittingState(true);
+    try {
+        const response = await fetch(`/admin/post/${currentAdminCaptionPostId}/caption`, {
+            method: 'POST',
+            headers: buildHeaders('application/json'),
+            body: JSON.stringify({ caption })
+        });
+        if (handleAuthRedirect(response)) return;
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'No se pudo actualizar la descripción.');
+        }
+        updateCaptionInPostCards(data.post_id || currentAdminCaptionPostId, data.caption || '');
+        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+        showAlert(data.message || 'Descripción actualizada.', 'success');
+    } catch (error) {
+        const message = error.message || 'No se pudo actualizar la descripción.';
+        setAdminCaptionError(message);
+        showAlert(message, 'danger');
+    } finally {
+        setAdminCaptionSubmittingState(false);
+    }
+}
+
+function initAdminCaptionModal() {
+    const { modalEl, input } = getAdminCaptionModalRefs();
+    if (!modalEl) return;
+    if (input) input.addEventListener('input', updateAdminCaptionCount);
+    modalEl.addEventListener('hidden.bs.modal', () => {
+        currentAdminCaptionPostId = null;
+        setAdminCaptionError('');
+    });
+}
+
 function extractRemainingSeconds(text) {
     const msg = String(text || '');
     const m = msg.match(/([0-9]+)\s*segundos?/i);
@@ -313,6 +424,7 @@ async function submitReport(event) {
 }
 
 initReportPostModal();
+initAdminCaptionModal();
 
 // Funcionalidad para dar like a publicaciones
 async function toggleLike(postId) {

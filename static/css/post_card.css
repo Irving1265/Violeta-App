@@ -278,6 +278,13 @@
     color: #fb7185;
 }
 
+.post-caption-edit-btn:hover,
+.post-caption-edit-btn:focus-visible {
+    border-color: rgba(167, 139, 250, 0.3);
+    background: rgba(124, 58, 237, 0.16);
+    color: #ddd6fe;
+}
+
 .post-category-strip {
     display: flex;
     flex-wrap: wrap;
@@ -751,6 +758,11 @@
 .post-caption-author {
     color: #ffffff;
     font-weight: 800;
+}
+
+.post-caption-empty {
+    color: rgba(233, 227, 239, 0.44);
+    font-style: italic;
 }
 
 /* Enhanced Comment Input */

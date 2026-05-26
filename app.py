@@ -915,6 +915,7 @@ AUDIT_EVENT_FILTER_HINTS = (
     'verification.reject',
     'verification.suspend',
     'report_details.view',
+    'post.caption.update',
     'panic.resolve',
 )
 BACKGROUND_JOB_EVENT_DEFAULT_RETENTION_DAYS = 30
@@ -10686,6 +10687,56 @@ def create_app():
             'latitude': post.latitude,
             'longitude': post.longitude,
             'location_name': post.location_name
+        })
+
+    @app.route('/admin/post/<int:post_id>/caption', methods=['POST'])
+    @login_required
+    @permission_required(PERM_POSTS_MANAGE, json_only=True)
+    def admin_update_post_caption(post_id):
+        post = Post.query.get_or_404(post_id)
+        payload = request.get_json(silent=True) or request.form or {}
+        caption = (payload.get('caption') or '').strip()
+        if len(caption) > 500:
+            return jsonify({'success': False, 'error': 'La descripción no puede superar 500 caracteres.'}), 400
+
+        previous_caption = post.caption or ''
+        if previous_caption == caption:
+            return jsonify({
+                'success': True,
+                'message': 'La descripción no cambió.',
+                'post_id': post.id,
+                'caption': caption,
+            })
+
+        post.caption = caption
+        try:
+            db.session.add(post)
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            if app.debug:
+                print('DEBUG admin_update_post_caption error:', exc)
+            return jsonify({'success': False, 'error': 'No se pudo actualizar la descripción.'}), 500
+
+        record_audit_event(
+            'post.caption.update',
+            workspace='admin',
+            target_user=post.author,
+            resource_type='post',
+            resource_id=post.id,
+            summary='Actualizó la descripción de una publicación.',
+            details={
+                'previous_caption_length': len(previous_caption),
+                'new_caption_length': len(caption),
+            },
+        )
+        invalidate_admin_panel_page_cache()
+        invalidate_post_discovery_caches()
+        return jsonify({
+            'success': True,
+            'message': 'Descripción actualizada.',
+            'post_id': post.id,
+            'caption': caption,
         })
 
     @app.route('/admin/change_username/<int:user_id>', methods=['POST'])

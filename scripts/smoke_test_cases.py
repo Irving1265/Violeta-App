@@ -971,7 +971,7 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertIn('mini-map-widget', feed_html)
         self.assertIn('mini-map-widget__map', feed_html)
         self.assertNotIn('style="background: linear-gradient(145deg, #1e1b2e, #2a2436);', feed_html)
-        self.assertIn('20260523-report-modal-split-v1', feed_html)
+        self.assertIn('20260526-admin-caption-edit-v1', feed_html)
 
         style_css = (PROJECT_ROOT / 'static' / 'css' / 'style.css').read_text()
         index_css = (PROJECT_ROOT / 'static' / 'css' / 'index_page.css').read_text()
@@ -1031,9 +1031,13 @@ class VioletaSmokeTests(unittest.TestCase):
         post_card_css = (PROJECT_ROOT / 'static/css/post_card.css').read_text(encoding='utf-8')
         self.assertIn('#reportPostModal', post_card_css)
         self.assertIn('#reportCommentModal', post_card_css)
+        self.assertIn('.post-caption-edit-btn', post_card_css)
+        app_js = (PROJECT_ROOT / 'static/js/app.js').read_text(encoding='utf-8')
+        self.assertIn('openAdminCaptionModal', app_js)
+        self.assertIn('/admin/post/${currentAdminCaptionPostId}/caption', app_js)
 
         post_html = client.get(f'/post/{post_id}').get_data(as_text=True)
-        self.assertIn('20260523-report-modal-split-v1', post_html)
+        self.assertIn('20260526-admin-caption-edit-v1', post_html)
         self.assertIn('id="reportPostModal"', post_html)
         self.assertIn('id="reportCommentModal"', post_html)
         self.assertIn('/static/js/app.js?', post_html)
@@ -3225,6 +3229,61 @@ class VioletaSmokeTests(unittest.TestCase):
             ).order_by(AuditLog.id.desc()).first()
             self.assertIsNotNone(panic_log)
             self.assertEqual(panic_log.target_user_id, target_user_id)
+
+    def test_only_admin_can_correct_post_caption_from_feed(self):
+        admin_id = self.create_user('admin')
+        author_id = self.create_user('caption_author')
+        viewer_id = self.create_user('caption_viewer')
+        post_id = self.create_public_post(author_id, caption='Texto original con error')
+
+        viewer_client = self.client_for(viewer_id)
+        viewer_html = viewer_client.get('/').get_data(as_text=True)
+        self.assertNotIn(f'data-post-caption-edit="{post_id}"', viewer_html)
+        self.assertNotIn('id="adminCaptionModal"', viewer_html)
+        denied = viewer_client.post(
+            f'/admin/post/{post_id}/caption',
+            json={'caption': 'Intento no autorizado'},
+            headers={'Accept': 'application/json'},
+        )
+        self.assertEqual(denied.status_code, 403)
+
+        admin_client = self.client_for(admin_id)
+        admin_html = admin_client.get('/').get_data(as_text=True)
+        self.assertIn(f'data-post-caption-edit="{post_id}"', admin_html)
+        self.assertIn('id="adminCaptionModal"', admin_html)
+        self.assertIn('Texto original con error', admin_html)
+
+        too_long = admin_client.post(
+            f'/admin/post/{post_id}/caption',
+            json={'caption': 'x' * 501},
+            headers={'Accept': 'application/json'},
+        )
+        self.assertEqual(too_long.status_code, 400)
+        self.assertEqual(self.get_post(post_id).caption, 'Texto original con error')
+
+        update = admin_client.post(
+            f'/admin/post/{post_id}/caption',
+            json={'caption': 'Texto corregido por admin'},
+            headers={'Accept': 'application/json'},
+        )
+        self.assertEqual(update.status_code, 200)
+        payload = update.get_json() or {}
+        self.assertTrue(payload.get('success'))
+        self.assertEqual(payload.get('caption'), 'Texto corregido por admin')
+        self.assertEqual(self.get_post(post_id).caption, 'Texto corregido por admin')
+
+        refreshed_html = admin_client.get('/').get_data(as_text=True)
+        self.assertIn('Texto corregido por admin', refreshed_html)
+        self.assertNotIn('Texto original con error', refreshed_html)
+
+        with app.app_context():
+            audit_log = AuditLog.query.filter_by(
+                event_type='post.caption.update',
+                actor_id=admin_id,
+                resource_id=post_id,
+            ).order_by(AuditLog.id.desc()).first()
+            self.assertIsNotNone(audit_log)
+            self.assertEqual(audit_log.target_user_id, author_id)
 
     def test_audit_logs_export_and_purge(self):
         super_admin_id = self.create_user('admin')

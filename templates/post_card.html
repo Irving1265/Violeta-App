@@ -8,6 +8,7 @@
     {% set safe_loc = public_location_for_post(post, current_user) %}
     {% set post_author_level = moderation_badge_level(post.author) if not protected_post else 0 %}
     {% set post_author_is_staff = user_has_staff_badge(post.author) and not protected_post %}
+    {% set current_user_can_edit_post_caption = current_user.is_authenticated and user_has_permission(current_user, 'posts.manage') %}
     {% set month_names = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'] %}
     {% set post_date_label = 'Reporte comunitario' if protected_post else (post.created_at.strftime('%d') ~ ' ' ~ month_names[post.created_at.month - 1] ~ ' ' ~ post.created_at.strftime('%Y') if post.created_at else '') %}
     {% set country_label = safe_loc.country %}
@@ -68,6 +69,15 @@
                 </div>
             </div>
             <div class="post-header-actions">
+                {% if current_user_can_edit_post_caption %}
+                <button class="post-top-action post-caption-edit-btn" type="button"
+                    title="Corregir descripción" aria-label="Corregir descripción"
+                    data-post-caption-edit="{{ post.id }}"
+                    data-current-caption="{{ (post.caption or '')|e }}"
+                    onclick="openAdminCaptionModal({{ post.id }}, this)">
+                    <i class="fas fa-pen"></i>
+                </button>
+                {% endif %}
                 {% if protected_location and current_user.is_authenticated %}
                 <button class="post-top-action post-map-toggle post-map-reveal" type="button"
                     title="Revelar ubicación de prueba" aria-label="Revelar ubicación de prueba"
@@ -228,7 +238,7 @@
 <div class="post-caption-block post-caption-block--protected">
     <span>Reporte protegido. Verifica tu cuenta para ver los detalles completos.</span>
 </div>
-{% elif post.caption %}
+{% elif post.caption or current_user_can_edit_post_caption %}
 <div class="post-caption-block">
     <span class="post-caption-author">{{ display_author_name }}</span>
     {% if post_author_level > 0 %}
@@ -237,7 +247,7 @@
     </span>
     {% endif %}
     {% if post_author_is_staff %}<span class="admin-badge admin-badge--sm" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
-    <span>{{ post.caption }}</span>
+    <span data-post-caption="{{ post.id }}" class="{{ 'post-caption-empty' if not post.caption else '' }}">{{ post.caption or 'Sin descripción.' }}</span>
 </div>
 {% endif %}
 
