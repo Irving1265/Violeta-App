@@ -10,6 +10,7 @@
     let assistedPasswordResetModal = null;
     let currentRoleUserId = null;
     let userRolesModal = null;
+    let verificationEvidenceModal = null;
     const ADMIN_REPORT_PALETTE = ['#8b5cf6', '#a78bfa', '#f43f5e', '#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#14b8a6'];
     const ADMIN_REPORT_COLOR_BY_REASON = {
         'Poca iluminación': '#f59e0b',
@@ -784,6 +785,79 @@
         }
     }
 
+    function resetVerificationEvidencePreview() {
+        const video = document.getElementById('verificationEvidenceVideo');
+        const source = document.getElementById('verificationEvidenceVideoSource');
+        const image = document.getElementById('verificationEvidenceImage');
+        const fallback = document.getElementById('verificationEvidenceFallback');
+        if (video) {
+            video.pause();
+            video.classList.add('d-none');
+            video.removeAttribute('src');
+        }
+        if (source) {
+            source.src = '';
+            source.type = '';
+        }
+        if (image) {
+            image.classList.add('d-none');
+            image.removeAttribute('src');
+        }
+        fallback?.classList.add('d-none');
+    }
+
+    function openVerificationEvidence(reqId, username, evidenceUrl, mimeType, evidenceType) {
+        const modalEl = document.getElementById('verificationEvidenceModal');
+        if (!modalEl || !evidenceUrl) return;
+
+        resetVerificationEvidencePreview();
+
+        const subtitle = document.getElementById('verificationEvidenceSubtitle');
+        const openLink = document.getElementById('verificationEvidenceOpenLink');
+        const fallbackLink = document.getElementById('verificationEvidenceFallbackLink');
+        const video = document.getElementById('verificationEvidenceVideo');
+        const source = document.getElementById('verificationEvidenceVideoSource');
+        const image = document.getElementById('verificationEvidenceImage');
+        const fallback = document.getElementById('verificationEvidenceFallback');
+
+        if (subtitle) {
+            subtitle.textContent = `Solicitud #${reqId} · @${username || 'usuaria'}`;
+        }
+        [openLink, fallbackLink].forEach((link) => {
+            if (link) {
+                link.href = evidenceUrl;
+            }
+        });
+
+        const normalizedType = String(evidenceType || '').toLowerCase();
+        const normalizedMime = String(mimeType || '').toLowerCase();
+        if (normalizedType === 'video' || normalizedMime.startsWith('video/')) {
+            if (source && video) {
+                source.src = evidenceUrl;
+                source.type = mimeType || 'video/webm';
+                video.classList.remove('d-none');
+                video.load();
+            }
+        } else if (normalizedType === 'image' || normalizedMime.startsWith('image/')) {
+            if (image) {
+                image.src = evidenceUrl;
+                image.classList.remove('d-none');
+            }
+        } else {
+            fallback?.classList.remove('d-none');
+        }
+
+        verificationEvidenceModal = verificationEvidenceModal || new bootstrap.Modal(modalEl);
+        verificationEvidenceModal.show();
+    }
+
+    function bindVerificationEvidenceModal() {
+        const modalEl = document.getElementById('verificationEvidenceModal');
+        if (!modalEl || modalEl.dataset.evidenceResetBound === '1') return;
+        modalEl.dataset.evidenceResetBound = '1';
+        modalEl.addEventListener('hidden.bs.modal', resetVerificationEvidencePreview);
+    }
+
     function changePhoto(userId, photoUrl, userBio) {
         currentUserId = userId;
         document.getElementById('photoFile').value = '';
@@ -1538,6 +1612,7 @@
 
     function bindAdminPageDom() {
         bindAdminEditButtons();
+        bindVerificationEvidenceModal();
         wireBulkSelection('selectAllUsers', '.user-select', 'usersSelectedCount');
         wireBulkSelection('selectAllPosts', '.post-select', 'postsSelectedCount');
         wireBulkSelection('selectAllChats', '.chat-select', 'chatsSelectedCount');
@@ -1832,6 +1907,7 @@
     window.initAdminPageEnhancements = initAdminPageEnhancements;
     window.openUserRolesModal = openUserRolesModal;
     window.saveUserRoles = saveUserRoles;
+    window.openVerificationEvidence = openVerificationEvidence;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initAdminPageEnhancements, { once: true });

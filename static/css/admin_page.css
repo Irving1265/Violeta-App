@@ -3977,6 +3977,107 @@
         line-height: 1.35;
     }
 
+    .admin-verification-evidence {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.8rem;
+        padding: 0.78rem;
+        border: 1px solid rgba(167, 139, 250, 0.18);
+        border-radius: 14px;
+        background: rgba(124, 58, 237, 0.08);
+    }
+
+    .admin-verification-evidence--missing {
+        justify-content: flex-start;
+        color: #fcd34d;
+        background: rgba(180, 83, 9, 0.14);
+        border-color: rgba(251, 191, 36, 0.28);
+        font-size: 0.85rem;
+        font-weight: 700;
+    }
+
+    .admin-verification-evidence__meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        color: rgba(226, 232, 240, 0.82);
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+
+    .admin-verification-evidence__meta span {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.28rem;
+        padding: 0.22rem 0.42rem;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.34);
+    }
+
+    .admin-verification-evidence__btn {
+        flex: 0 0 auto;
+        border-color: rgba(167, 139, 250, 0.38);
+        color: #ddd6fe;
+    }
+
+    .admin-verification-evidence-modal {
+        border-radius: 24px;
+        overflow: hidden;
+    }
+
+    .admin-verification-evidence-modal__privacy {
+        display: flex;
+        align-items: center;
+        gap: 0.62rem;
+        margin-bottom: 1rem;
+        padding: 0.82rem 0.95rem;
+        border: 1px solid rgba(167, 139, 250, 0.18);
+        border-radius: 16px;
+        background: rgba(124, 58, 237, 0.08);
+        color: rgba(226, 232, 240, 0.86);
+        font-size: 0.88rem;
+    }
+
+    .admin-verification-evidence-modal__privacy i {
+        color: #a78bfa;
+    }
+
+    .admin-verification-evidence-modal__viewer {
+        display: grid;
+        place-items: center;
+        min-height: 280px;
+        border-radius: 18px;
+        overflow: hidden;
+        background: #070510;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .admin-verification-evidence-modal__video,
+    .admin-verification-evidence-modal__image {
+        width: 100%;
+        max-height: 68vh;
+        background: #000;
+    }
+
+    .admin-verification-evidence-modal__image {
+        object-fit: contain;
+    }
+
+    .admin-verification-evidence-modal__fallback {
+        display: grid;
+        justify-items: center;
+        gap: 0.75rem;
+        color: rgba(226, 232, 240, 0.88);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .admin-verification-evidence-modal__fallback i {
+        color: #a78bfa;
+        font-size: 2rem;
+    }
+
     .admin-table-footer {
         padding: 0.9rem 1.25rem 1.05rem;
         border-top: 1px solid rgba(45, 36, 56, 0.72);

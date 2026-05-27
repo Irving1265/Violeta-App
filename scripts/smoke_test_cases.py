@@ -617,6 +617,7 @@ class VioletaSmokeTests(unittest.TestCase):
             self.assertEqual(user.verification_status, 'pending_review')
             request_row = VerificationRequest.query.filter_by(user_id=user_id).first()
             self.assertIsNotNone(request_row)
+            request_id = int(request_row.id)
             self.assertEqual(request_row.status, 'pending')
             self.assertEqual(request_row.evidence_type, 'video')
             self.assertEqual(request_row.mime_type, 'video/webm')
@@ -633,6 +634,45 @@ class VioletaSmokeTests(unittest.TestCase):
 
         private_response = app.test_client().get(f'/uploads/{evidence_path}')
         self.assertEqual(private_response.status_code, 403)
+
+        admin_id = self.create_user('admin')
+        intruder_id = self.create_user('evidence_intruder')
+        admin_client = self.client_for(admin_id)
+        intruder_client = self.client_for(intruder_id)
+
+        admin_shell = admin_client.get('/admin')
+        self.assertEqual(admin_shell.status_code, 200)
+        admin_shell_html = admin_shell.get_data(as_text=True)
+        self.assertIn('id="verificationEvidenceModal"', admin_shell_html)
+        self.assertIn('verificationEvidenceVideo', admin_shell_html)
+
+        verification_panel = admin_client.get('/admin/content?tab=verificaciones')
+        self.assertEqual(verification_panel.status_code, 200)
+        verification_html = verification_panel.get_data(as_text=True)
+        self.assertIn('Ver evidencia', verification_html)
+        self.assertIn(f'/admin/verification/{request_id}/evidence', verification_html)
+        self.assertIn('openVerificationEvidence', verification_html)
+        self.assertIn('Quiero participar en Violeta.', verification_html)
+
+        protected_evidence = intruder_client.get(
+            f'/admin/verification/{request_id}/evidence',
+            headers={'Accept': 'application/json'},
+        )
+        self.assertEqual(protected_evidence.status_code, 403)
+
+        admin_evidence = admin_client.get(f'/admin/verification/{request_id}/evidence')
+        self.assertEqual(admin_evidence.status_code, 200)
+        self.assertEqual(admin_evidence.data, video_bytes)
+        self.assertEqual(admin_evidence.mimetype, 'video/webm')
+        self.assertIn('no-store', admin_evidence.headers.get('Cache-Control', ''))
+
+        with app.app_context():
+            audit = AuditLog.query.filter_by(
+                event_type='verification_evidence.view',
+                actor_id=admin_id,
+                resource_id=request_id,
+            ).order_by(AuditLog.id.desc()).first()
+            self.assertIsNotNone(audit)
 
         duplicate = client.post(
             '/api/verify/submit',

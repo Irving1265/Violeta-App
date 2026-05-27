@@ -945,7 +945,32 @@
                             </span>
                         </div>
                         <div class="mt-3">
-                            <div class="text-secondary small">Solicitud manual pendiente de revisión administrativa.</div>
+                            <div class="text-secondary small">Solicitud con evidencia visual pendiente de revisión administrativa.</div>
+                            {% if v.evidence_file_path %}
+                            <div class="admin-verification-evidence mt-3">
+                                <div class="admin-verification-evidence__meta">
+                                    <span><i class="fas fa-video"></i> {{ 'Video' if v.evidence_type == 'video' else 'Evidencia' }}</span>
+                                    {% if v.file_size %}
+                                    <span>{{ ((v.file_size or 0) / 1048576)|round(1) }} MB</span>
+                                    {% endif %}
+                                    {% if v.submitted_at %}
+                                    <span>{{ v.submitted_at.strftime('%d/%m/%Y %H:%M') }}</span>
+                                    {% endif %}
+                                </div>
+                                <button type="button" class="btn btn-outline-light btn-sm admin-verification-evidence__btn"
+                                    onclick='openVerificationEvidence({{ v.id|tojson }}, {{ v.user.username|tojson }}, {{ url_for("admin_verification_evidence", req_id=v.id)|tojson }}, {{ (v.mime_type or "")|tojson }}, {{ (v.evidence_type or "")|tojson }})'>
+                                    <i class="fas fa-play-circle"></i> Ver evidencia
+                                </button>
+                            </div>
+                            {% else %}
+                            <div class="admin-verification-evidence admin-verification-evidence--missing mt-3">
+                                <i class="fas fa-triangle-exclamation"></i>
+                                <span>Sin evidencia visual adjunta.</span>
+                            </div>
+                            {% endif %}
+                            {% if v.note %}
+                            <div class="text-secondary small mt-2">Comentario: <span class="text-white">{{ v.note }}</span></div>
+                            {% endif %}
                             {% if v.admin_notes %}
                             <div class="text-secondary small mt-1">Notas: <span class="text-white">{{ v.admin_notes }}</span></div>
                             {% endif %}

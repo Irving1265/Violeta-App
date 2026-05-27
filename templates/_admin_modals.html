@@ -181,6 +181,44 @@
     </div>
 </div>
 
+<!-- Verification Evidence Modal -->
+<div class="modal fade" id="verificationEvidenceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content bg-surface border border-secondary text-white admin-verification-evidence-modal">
+            <div class="modal-header border-secondary">
+                <div>
+                    <h5 class="modal-title">Evidencia visual</h5>
+                    <div class="small text-secondary" id="verificationEvidenceSubtitle">Revisión de identidad</div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="admin-verification-evidence-modal__privacy">
+                    <i class="fas fa-lock" aria-hidden="true"></i>
+                    <span>Esta evidencia es privada y solo debe revisarla personal autorizado de Violeta.</span>
+                </div>
+                <div class="admin-verification-evidence-modal__viewer">
+                    <video id="verificationEvidenceVideo" controls playsinline preload="metadata" class="admin-verification-evidence-modal__video d-none">
+                        <source id="verificationEvidenceVideoSource" src="" type="">
+                    </video>
+                    <img id="verificationEvidenceImage" class="admin-verification-evidence-modal__image d-none" src="" alt="Evidencia visual">
+                    <div id="verificationEvidenceFallback" class="admin-verification-evidence-modal__fallback d-none">
+                        <i class="fas fa-file-shield"></i>
+                        <span>No se pudo previsualizar esta evidencia. Ábrela en una pestaña protegida.</span>
+                        <a id="verificationEvidenceFallbackLink" href="#" target="_blank" rel="noopener" class="btn btn-outline-light btn-sm">Abrir evidencia</a>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <a id="verificationEvidenceOpenLink" href="#" target="_blank" rel="noopener" class="btn btn-outline-light btn-sm">
+                    Abrir en pestaña
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- User Roles Modal -->
 <div class="modal fade" id="userRolesModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

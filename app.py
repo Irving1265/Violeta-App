@@ -914,6 +914,7 @@ AUDIT_EVENT_FILTER_HINTS = (
     'verification.approve',
     'verification.reject',
     'verification.suspend',
+    'verification_evidence.view',
     'report_details.view',
     'post.caption.update',
     'panic.resolve',
@@ -4913,7 +4914,7 @@ def create_app():
         invalidate_runtime_response_cache('page_admin_content')
         invalidate_runtime_response_cache('page_admin_overview')
 
-    ADMIN_PANEL_CACHE_VERSION = '20260526-staff-roles-v1'
+    ADMIN_PANEL_CACHE_VERSION = '20260527-verification-evidence-v1'
 
     def enrich_posts_for_cards(posts, viewer=None):
         if not posts:
@@ -10419,6 +10420,52 @@ def create_app():
             },
         )
         return jsonify({'success': True})
+
+    @app.route('/admin/verification/<int:req_id>/evidence')
+    @login_required
+    @permission_required(PERM_VERIFICATION_REVIEW, flash_message='Acceso denegado.')
+    def admin_verification_evidence(req_id):
+        req = VerificationRequest.query.options(selectinload(VerificationRequest.user)).get_or_404(req_id)
+        normalized = normalize_upload_filename(getattr(req, 'evidence_file_path', None))
+        if (
+            not normalized
+            or not normalized.startswith('verify/')
+            or '..' in normalized.split('/')
+            or normalized.endswith('/')
+            or getattr(req, 'evidence_deleted_at', None)
+        ):
+            abort(404)
+
+        upload_root = os.path.abspath(ensure_upload_folder())
+        evidence_path = os.path.abspath(os.path.join(upload_root, normalized))
+        if os.path.commonpath([upload_root, evidence_path]) != upload_root or not os.path.isfile(evidence_path):
+            abort(404)
+
+        record_audit_event(
+            'verification_evidence.view',
+            workspace='verification',
+            target_user=getattr(req, 'user', None),
+            resource_type='verification_request',
+            resource_id=req.id,
+            summary='Abrió evidencia visual de verificación.',
+            details={
+                'request_id': req.id,
+                'evidence_type': req.evidence_type,
+                'mime_type': req.mime_type,
+            },
+        )
+
+        response = send_from_directory(
+            upload_root,
+            normalized,
+            mimetype=req.mime_type or None,
+            as_attachment=False,
+            conditional=True,
+        )
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['X-Robots-Tag'] = 'noindex, nofollow'
+        return response
 
     @app.route('/admin/verify/<int:req_id>/reject', methods=['POST'])
     @login_required
