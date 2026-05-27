@@ -7,6 +7,7 @@
     let changePhotoCropper = null;
     let changePhotoCropModal = null;
     let changePhotoCropUrl = null;
+    const AVATAR_UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
     let assistedPasswordResetModal = null;
     let currentRoleUserId = null;
     let userRolesModal = null;
@@ -890,6 +891,10 @@
             alert('Selecciona una imagen o agrega una descripción.');
             return;
         }
+        if (fileToSend && fileToSend.size > AVATAR_UPLOAD_MAX_BYTES) {
+            alert('La foto de perfil es demasiado grande. Usa una imagen de máximo 8 MB.');
+            return;
+        }
 
         const formData = new FormData();
         if (fileToSend) {
@@ -1083,9 +1088,13 @@
                     fillColor: '#000'
                 });
                 if (!canvas) return;
-                const quality = outputType === 'image/jpeg' ? 0.92 : undefined;
+                const quality = outputType === 'image/jpeg' ? 0.86 : undefined;
                 canvas.toBlob((blob) => {
                     if (!blob) return;
+                    if (blob.size > AVATAR_UPLOAD_MAX_BYTES) {
+                        alert('La foto de perfil es demasiado grande. Usa una imagen de máximo 8 MB.');
+                        return;
+                    }
                     changePhotoCropFile = new File([blob], changePhotoCropFile.name || `avatar-${Date.now()}.jpg`, { type: outputType });
                     if (preview) {
                         const url = URL.createObjectURL(blob);

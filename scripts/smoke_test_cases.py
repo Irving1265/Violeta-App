@@ -467,6 +467,70 @@ class VioletaSmokeTests(unittest.TestCase):
             self.assertEqual(user.verification_status, 'unverified')
             self.assertEqual(int(user.trial_location_views_limit or 0), 3)
 
+    def test_profile_avatar_upload_compresses_limits_and_handles_413(self):
+        user_id = self.create_user('avatar_smoke', verified=True)
+        client = self.client_for(user_id)
+        original_avatar_limit = app_module.AVATAR_IMAGE_MAX_BYTES
+        original_content_limit = app.config.get('MAX_CONTENT_LENGTH')
+
+        try:
+            app_module.AVATAR_IMAGE_MAX_BYTES = 1024
+            oversized = client.post(
+                '/profile/edit',
+                data={
+                    'profile_form_action': 'profile',
+                    'bio': 'Avatar',
+                    'profile_pic': (io.BytesIO(b'x' * 1025), 'avatar.jpg', 'image/jpeg'),
+                },
+                content_type='multipart/form-data',
+            )
+            self.assertEqual(oversized.status_code, 413)
+            self.assertIn('máximo permitido es 8 mb', oversized.get_data(as_text=True).lower())
+            with app.app_context():
+                user = db.session.get(User, user_id)
+                self.assertFalse(user.profile_pic)
+
+            invalid_mime = client.post(
+                '/profile/edit',
+                data={
+                    'profile_form_action': 'profile',
+                    'bio': 'Avatar',
+                    'profile_pic': (io.BytesIO(b'\xff\xd8\xff\xd9'), 'avatar.jpg', 'application/octet-stream'),
+                },
+                content_type='multipart/form-data',
+            )
+            self.assertEqual(invalid_mime.status_code, 400)
+            self.assertIn('tipo de imagen', invalid_mime.get_data(as_text=True).lower())
+
+            valid = client.post(
+                '/profile/edit',
+                data={
+                    'profile_form_action': 'profile',
+                    'bio': 'Nueva foto',
+                    'profile_pic': (*self.image_upload('avatar.jpg'), 'image/jpeg'),
+                },
+                content_type='multipart/form-data',
+                follow_redirects=False,
+            )
+            self.assertEqual(valid.status_code, 302)
+            with app.app_context():
+                user = db.session.get(User, user_id)
+                self.assertTrue(user.profile_pic.endswith('.jpg'))
+                self.assertTrue((UPLOAD_DIR / user.profile_pic).exists())
+
+            app.config['MAX_CONTENT_LENGTH'] = 512
+            json_413 = client.post(
+                '/api/profile/avatar',
+                data={'image': (io.BytesIO(b'x' * 2048), 'avatar.jpg', 'image/jpeg')},
+                content_type='multipart/form-data',
+                headers={'Accept': 'application/json'},
+            )
+            self.assertEqual(json_413.status_code, 413)
+            self.assertIn('demasiado grande', (json_413.get_json() or {}).get('error', '').lower())
+        finally:
+            app_module.AVATAR_IMAGE_MAX_BYTES = original_avatar_limit
+            app.config['MAX_CONTENT_LENGTH'] = original_content_limit
+
     def test_password_toggle_buttons_anchor_to_input_row_with_errors(self):
         auth_templates = ('login.html', 'register.html', 'reset_password.html')
         for template_name in auth_templates:

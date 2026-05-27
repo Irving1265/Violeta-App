@@ -65,6 +65,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.exceptions import RequestEntityTooLarge
 
 VERIFY_REQUIRED_MSG = 'Por favor verifica tu cuenta para identificarte y realizar más acciones dentro de la aplicación.'
 PUBLISH_VERIFY_REQUIRED_MSG = 'Para publicar reportes ciudadanos, primero necesitamos verificar tu cuenta.'
@@ -97,6 +98,16 @@ OPTIMIZED_UPLOAD_WIDTHS = {360, 720, 1080}
 OPTIMIZED_UPLOAD_QUALITY = 82
 VERIFICATION_IMAGE_MAX_BYTES = 8 * 1024 * 1024
 VERIFICATION_VIDEO_MAX_BYTES = 40 * 1024 * 1024
+AVATAR_IMAGE_MAX_BYTES = 8 * 1024 * 1024
+AVATAR_ALLOWED_MIME_BY_EXT = {
+    'jpg': {'image/jpeg'},
+    'jpeg': {'image/jpeg'},
+    'png': {'image/png'},
+    'webp': {'image/webp'},
+    'gif': {'image/gif'},
+    'heic': {'image/heic', 'image/heif'},
+    'heif': {'image/heic', 'image/heif'},
+}
 VERIFICATION_ALLOWED_MIME_BY_EXT = {
     'jpg': {'image/jpeg'},
     'jpeg': {'image/jpeg'},
@@ -2113,6 +2124,20 @@ def create_app():
     csrf = CSRFProtect()
     csrf.init_app(app)
 
+    @app.errorhandler(RequestEntityTooLarge)
+    def handle_request_entity_too_large(error):
+        message = 'La imagen o video es demasiado grande. Para foto de perfil usa una imagen de máximo 8 MB.'
+        wants_json = (
+            request.path.startswith('/api/')
+            or request.path.startswith('/admin/')
+            or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            or 'application/json' in (request.headers.get('Accept') or '')
+        )
+        if wants_json:
+            return jsonify({'ok': False, 'success': False, 'error': message}), 413
+        flash(message, 'error')
+        return redirect(request.referrer or url_for('index'))
+
     # Initialize SocketIO for real-time chat (same-origin by default).
     socketio_cors_allowed_origins = app.config.get('SOCKETIO_CORS_ALLOWED_ORIGINS')
     socketio = SocketIO(app, cors_allowed_origins=socketio_cors_allowed_origins)
@@ -2319,6 +2344,45 @@ def create_app():
         )
         return ext in allowed
 
+    def uploaded_stream_size(file) -> int:
+        try:
+            current_pos = file.stream.tell()
+            file.stream.seek(0, os.SEEK_END)
+            file_size = int(file.stream.tell())
+            file.stream.seek(current_pos)
+            return file_size
+        except Exception:
+            return int(getattr(file, 'content_length', 0) or 0)
+
+    def validate_avatar_file(file) -> tuple[bool, dict, str, int]:
+        filename = secure_filename((getattr(file, 'filename', None) or '').strip())
+        if not filename or '.' not in filename:
+            return False, {}, 'Formato de imagen no permitido.', 400
+
+        ext = filename.rsplit('.', 1)[1].lower()
+        allowed_mimes = AVATAR_ALLOWED_MIME_BY_EXT.get(ext)
+        if not allowed_mimes:
+            return False, {}, 'Formato de imagen no permitido. Usa JPG, PNG, WEBP, GIF o HEIC.', 400
+
+        mime_type = (getattr(file, 'mimetype', None) or '').strip().lower()
+        if not mime_type or mime_type not in allowed_mimes:
+            return False, {}, 'El tipo de imagen no coincide con el archivo seleccionado.', 400
+
+        file_size = uploaded_stream_size(file)
+        if file_size <= 0:
+            return False, {}, 'La imagen está vacía o no se pudo validar.', 400
+        if file_size > AVATAR_IMAGE_MAX_BYTES:
+            return False, {}, 'La foto de perfil es demasiado grande. El máximo permitido es 8 MB.', 413
+
+        return True, {'extension': ext, 'mime_type': mime_type, 'file_size': file_size}, '', 200
+
+    def avatar_extension_for_mime(mime_type: str) -> str | None:
+        mime_type = (mime_type or '').strip().lower()
+        for ext, allowed_mimes in AVATAR_ALLOWED_MIME_BY_EXT.items():
+            if mime_type in allowed_mimes:
+                return 'jpg' if ext == 'jpeg' else ext
+        return None
+
     def allowed_chat_attachment(filename: str) -> bool:
         if not filename or '.' not in filename:
             return False
@@ -2339,13 +2403,7 @@ def create_app():
         if not mime_type or mime_type not in allowed_mimes:
             return False, {}, 'El tipo de archivo no coincide con el formato permitido.', 400
 
-        try:
-            current_pos = file.stream.tell()
-            file.stream.seek(0, os.SEEK_END)
-            file_size = int(file.stream.tell())
-            file.stream.seek(current_pos)
-        except Exception:
-            file_size = int(getattr(file, 'content_length', 0) or 0)
+        file_size = uploaded_stream_size(file)
 
         if file_size <= 0:
             return False, {}, 'El archivo de evidencia está vacío o no se pudo validar.', 400
@@ -10903,18 +10961,13 @@ def create_app():
             invalidate_admin_panel_page_cache()
             return jsonify({'success': True, 'message': 'Descripción actualizada'})
 
-        # Defense-in-depth: normalize and validate filename again.
-        photo_filename = (file.filename or '').strip()
-        if not photo_filename:
-            return jsonify({'error': 'No se seleccionó archivo'}), 400
-
-        if file and allowed_file(photo_filename):
-            filename = secure_filename(photo_filename)
-            unique_filename = str(uuid4()) + '.' + filename.rsplit('.', 1)[1].lower()
+        is_valid_avatar, avatar_meta, avatar_error, avatar_status = validate_avatar_file(file)
+        if is_valid_avatar:
+            unique_filename = f"{uuid4().hex}.{avatar_meta['extension']}"
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
             file.save(file_path)
             strip_image_metadata_in_place(file_path)
-            if not sync_public_upload_to_storage(unique_filename, local_path=file_path, mime_type=file.mimetype):
+            if not sync_public_upload_to_storage(unique_filename, local_path=file_path, mime_type=avatar_meta['mime_type']):
                 try:
                     os.remove(file_path)
                 except Exception as exc:
@@ -10929,7 +10982,7 @@ def create_app():
             invalidate_admin_panel_page_cache()
             return jsonify({'success': True, 'message': 'Foto de perfil actualizada', 'photo_url': url_for('uploaded_file', filename=unique_filename)})
         else:
-            return jsonify({'error': 'Tipo de archivo no permitido'}), 400
+            return jsonify({'error': avatar_error}), avatar_status
 
     @app.route('/admin/user/<int:user_id>/assisted_password_reset', methods=['POST'])
     @login_required
@@ -11914,6 +11967,7 @@ def create_app():
     def edit_profile():
         user = current_user
         error = None
+        error_status = 200
         password_errors = []
         active_tab = 'profile'
         if request.method == 'POST':
@@ -11965,25 +12019,19 @@ def create_app():
             file = request.files.get('profile_pic')
             b64data = (request.form.get('profile_pic_data') or '').strip()
             if file and getattr(file, 'filename', ''):
-                # Defense-in-depth: normalize and validate filename again.
-                profile_filename = (file.filename or '').strip()
-                if not profile_filename:
-                    error = 'Formato de imagen no permitido.'
-                elif not allowed_file(profile_filename):
-                    error = 'Formato de imagen no permitido.'
+                is_valid_avatar, avatar_meta, avatar_error, avatar_status = validate_avatar_file(file)
+                if not is_valid_avatar:
+                    error = avatar_error
+                    error_status = avatar_status
                 else:
                     upload_folder = ensure_upload_folder()
-                    from werkzeug.utils import secure_filename as _sf
-                    name = _sf(profile_filename)
-                    _, ext = os.path.splitext(name)
-                    ext = ext.lower()
-                    unique_name = f"{uuid4().hex}{ext}"
+                    unique_name = f"{uuid4().hex}.{avatar_meta['extension']}"
                     save_path = os.path.join(upload_folder, unique_name)
                     old_pic = (user.profile_pic or '').strip()
                     try:
                         file.save(save_path)
                         strip_image_metadata_in_place(save_path)
-                        if not sync_public_upload_to_storage(unique_name, local_path=save_path, mime_type=file.mimetype):
+                        if not sync_public_upload_to_storage(unique_name, local_path=save_path, mime_type=avatar_meta['mime_type']):
                             try:
                                 os.remove(save_path)
                             except Exception as exc:
@@ -12004,16 +12052,25 @@ def create_app():
                 try:
                     import base64
                     upload_folder = ensure_upload_folder()
-                    # Detectar extensión simple
                     mime = b64data.split(';')[0].split(':')[1]
-                    ext = '.jpg'
-                    if 'png' in mime:
-                        ext = '.png'
-                    elif 'webp' in mime:
-                        ext = '.webp'
-                    unique_name = f"{uuid4().hex}{ext}"
+                    ext = avatar_extension_for_mime(mime)
+                    if not ext:
+                        raise ValueError('unsupported avatar mime')
                     data_part = b64data.split(',')[1]
-                    raw = base64.b64decode(data_part)
+                    max_encoded_len = ((AVATAR_IMAGE_MAX_BYTES + 2) // 3 * 4) + 1024
+                    if len(data_part) > max_encoded_len:
+                        error = 'La foto de perfil es demasiado grande. El máximo permitido es 8 MB.'
+                        error_status = 413
+                        raw = None
+                    else:
+                        raw = base64.b64decode(data_part, validate=True)
+                    if raw is not None and len(raw) > AVATAR_IMAGE_MAX_BYTES:
+                        error = 'La foto de perfil es demasiado grande. El máximo permitido es 8 MB.'
+                        error_status = 413
+                        raw = None
+                    if raw is None:
+                        raise RequestEntityTooLarge()
+                    unique_name = f"{uuid4().hex}.{ext}"
                     save_path = os.path.join(upload_folder, unique_name)
                     with open(save_path, 'wb') as f:
                         f.write(raw)
@@ -12032,6 +12089,10 @@ def create_app():
                             safe_remove_upload(old_pic)
                     except Exception as exc:
                         _debug_log_suppressed('suppressed exception', exc)
+                except RequestEntityTooLarge:
+                    if not error:
+                        error = 'La foto de perfil es demasiado grande. El máximo permitido es 8 MB.'
+                    error_status = 413
                 except Exception:
                     error = 'No se pudo procesar la imagen recortada.'
 
@@ -12046,7 +12107,7 @@ def create_app():
                     db.session.rollback()
                     error = 'No se pudo guardar el perfil.'
 
-        return render_template('profile_edit.html', user=user, error=error, password_errors=password_errors, active_tab=active_tab)
+        return render_template('profile_edit.html', user=user, error=error, password_errors=password_errors, active_tab=active_tab), (error_status if error else 200)
 
     @app.route('/api/profile/avatar', methods=['POST'])
     @login_required
@@ -12068,24 +12129,20 @@ def create_app():
         file = request.files.get('image')
         b64 = request.form.get('image_b64') or request.form.get('profile_pic_data') or ''
 
-        max_avatar_bytes = 8 * 1024 * 1024
+        max_avatar_bytes = AVATAR_IMAGE_MAX_BYTES
         new_name = None
         try:
             if file and getattr(file, 'filename', ''):
-                # Defense-in-depth: normalize and validate filename again.
-                avatar_filename = (file.filename or '').strip()
-                if not avatar_filename or not allowed_file(avatar_filename):
-                    return jsonify({'ok': False, 'error': 'Formato de imagen no permitido.'}), 400
+                is_valid_avatar, avatar_meta, avatar_error, avatar_status = validate_avatar_file(file)
+                if not is_valid_avatar:
+                    return jsonify({'ok': False, 'error': avatar_error}), avatar_status
 
                 # Guardar desde archivo
-                name = secure_filename(avatar_filename)
-                _, ext = os.path.splitext(name)
-                ext = ext.lower() or '.jpg'
-                new_name = f"{uuid4().hex}{ext}"
+                new_name = f"{uuid4().hex}.{avatar_meta['extension']}"
                 file_path = os.path.join(upload_folder, new_name)
                 file.save(file_path)
                 strip_image_metadata_in_place(file_path)
-                if not sync_public_upload_to_storage(new_name, local_path=file_path, mime_type=file.mimetype):
+                if not sync_public_upload_to_storage(new_name, local_path=file_path, mime_type=avatar_meta['mime_type']):
                     try:
                         os.remove(file_path)
                     except Exception as exc:
@@ -12094,21 +12151,18 @@ def create_app():
             elif b64.startswith('data:image/'):
                 # Guardar desde base64
                 mime = b64.split(';')[0].split(':')[1]
-                ext = '.jpg'
-                if 'png' in mime:
-                    ext = '.png'
-                elif 'webp' in mime:
-                    ext = '.webp'
-                elif 'jpeg' in mime or 'jpg' in mime:
-                    ext = '.jpg'
-                else:
+                ext = avatar_extension_for_mime(mime)
+                if not ext:
                     return jsonify({'ok': False, 'error': 'Formato de imagen no permitido.'}), 400
 
-                new_name = f"{uuid4().hex}{ext}"
                 data_part = b64.split(',')[1]
-                raw = base64.b64decode(data_part)
+                max_encoded_len = ((max_avatar_bytes + 2) // 3 * 4) + 1024
+                if len(data_part) > max_encoded_len:
+                    return jsonify({'ok': False, 'error': 'La imagen excede el tamaño permitido.'}), 413
+                raw = base64.b64decode(data_part, validate=True)
                 if len(raw) > max_avatar_bytes:
-                    return jsonify({'ok': False, 'error': 'La imagen excede el tamaño permitido.'}), 400
+                    return jsonify({'ok': False, 'error': 'La imagen excede el tamaño permitido.'}), 413
+                new_name = f"{uuid4().hex}.{ext}"
                 file_path = os.path.join(upload_folder, new_name)
                 with open(file_path, 'wb') as f:
                     f.write(raw)

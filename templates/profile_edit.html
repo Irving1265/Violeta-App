@@ -655,9 +655,48 @@
     const reqAlphanumeric = document.getElementById('profileReqAlphanumeric');
     const initialTab = "{{ active_tab|default('profile') }}";
     const BIO_MAX_LENGTH = 50;
+    const AVATAR_UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
+    const AVATAR_OUTPUT_SIZE = 512;
+    const AVATAR_OUTPUT_QUALITY = 0.86;
 
     let cropper = null;
+    let avatarObjectUrl = null;
+    let avatarFileReady = false;
     const cropModal = new bootstrap.Modal(cropperModalEl);
+
+    function revokeAvatarObjectUrl() {
+      if (!avatarObjectUrl) return;
+      URL.revokeObjectURL(avatarObjectUrl);
+      avatarObjectUrl = null;
+    }
+
+    function setSaveButtonState(disabled, label) {
+      saveBtn.disabled = disabled;
+      saveBtn.textContent = label;
+    }
+
+    function showAvatarError(message) {
+      window.alert(message);
+      setSaveButtonState(false, 'Guardar cambios');
+    }
+
+    function attachCroppedAvatarFile(blob) {
+      const hiddenInput = document.getElementById('profile_pic_data');
+      const avatarFile = new File([blob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      try {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(avatarFile);
+        fileInput.files = dataTransfer.files;
+        fileInput.setAttribute('name', 'profile_pic');
+        hiddenInput.value = '';
+        avatarFileReady = true;
+        return true;
+      } catch (error) {
+        fileInput.removeAttribute('name');
+        avatarFileReady = false;
+        return false;
+      }
+    }
 
     function setActiveTab(tabName, syncHash = true) {
       tabs.forEach((tab) => {
@@ -823,12 +862,17 @@
     });
 
     function handleFile(file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        cropperImage.src = event.target.result;
-        cropModal.show();
-      };
-      reader.readAsDataURL(file);
+      if (!file.type || !file.type.startsWith('image/')) {
+        showAvatarError('Selecciona una imagen válida para tu foto de perfil.');
+        return;
+      }
+      document.getElementById('profile_pic_data').value = '';
+      fileInput.removeAttribute('name');
+      avatarFileReady = false;
+      revokeAvatarObjectUrl();
+      avatarObjectUrl = URL.createObjectURL(file);
+      cropperImage.src = avatarObjectUrl;
+      cropModal.show();
     }
 
     cropperModalEl.addEventListener('shown.bs.modal', () => {
@@ -856,37 +900,56 @@
         cropper.destroy();
         cropper = null;
       }
-      fileInput.value = '';
+      if (!avatarFileReady) {
+        fileInput.value = '';
+      }
+      revokeAvatarObjectUrl();
     });
 
     applyCropBtn.addEventListener('click', () => {
       if (!cropper) return;
 
       fileInput.removeAttribute('name');
-      saveBtn.disabled = true;
-      saveBtn.textContent = 'Procesando...';
+      setSaveButtonState(true, 'Procesando...');
 
       const canvas = cropper.getCroppedCanvas({
-        width: 512,
-        height: 512,
-        fillColor: '#000'
+        width: AVATAR_OUTPUT_SIZE,
+        height: AVATAR_OUTPUT_SIZE,
+        fillColor: '#ffffff'
       });
 
+      if (!canvas) {
+        showAvatarError('No se pudo procesar la imagen. Intenta con otra foto.');
+        return;
+      }
+
       canvas.toBlob((blob) => {
+        if (!blob) {
+          showAvatarError('No se pudo procesar la imagen. Intenta con otra foto.');
+          return;
+        }
+        if (blob.size > AVATAR_UPLOAD_MAX_BYTES) {
+          showAvatarError('La foto de perfil es demasiado grande. Usa una imagen de máximo 8 MB.');
+          return;
+        }
         const url = URL.createObjectURL(blob);
         avatarPreview.src = url;
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          document.getElementById('profile_pic_data').value = reader.result;
-          saveBtn.disabled = false;
-          saveBtn.textContent = 'Guardar cambios';
-          fileInput.value = '';
-        };
-        reader.readAsDataURL(blob);
+        if (attachCroppedAvatarFile(blob)) {
+          setSaveButtonState(false, 'Guardar cambios');
+        } else {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            document.getElementById('profile_pic_data').value = reader.result;
+            avatarFileReady = true;
+            setSaveButtonState(false, 'Guardar cambios');
+            fileInput.value = '';
+          };
+          reader.readAsDataURL(blob);
+        }
 
         cropModal.hide();
-      });
+      }, 'image/jpeg', AVATAR_OUTPUT_QUALITY);
     });
 
     restoreBtn.addEventListener('click', async () => {
@@ -894,9 +957,9 @@
       fileInput.value = '';
       const hiddenInput = document.getElementById('profile_pic_data');
       hiddenInput.value = '';
+      avatarFileReady = false;
       fileInput.setAttribute('name', 'profile_pic');
-      saveBtn.disabled = false;
-      saveBtn.textContent = 'Guardar cambios';
+      setSaveButtonState(false, 'Guardar cambios');
 
       try {
         const response = await fetch(defaultRestoreUrl, { cache: 'no-cache' });
@@ -913,6 +976,8 @@
     form.addEventListener('submit', () => {
       if (document.getElementById('profile_pic_data').value) {
         fileInput.removeAttribute('name');
+      } else {
+        fileInput.setAttribute('name', 'profile_pic');
       }
     });
   });
