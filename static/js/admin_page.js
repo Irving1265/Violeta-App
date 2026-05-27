@@ -726,6 +726,7 @@
         modalEl.querySelectorAll('.staff-role-checkbox').forEach((input) => {
             input.checked = selectedRoles.has(String(input.value || '').toLowerCase());
         });
+        syncNormalUserRoleOption(modalEl);
         if (subtitle) {
             subtitle.textContent = `Roles de @${username || 'usuaria'}`;
         }
@@ -736,6 +737,41 @@
 
         userRolesModal = userRolesModal || new bootstrap.Modal(modalEl);
         userRolesModal.show();
+    }
+
+    function syncNormalUserRoleOption(modalEl = document.getElementById('userRolesModal')) {
+        if (!modalEl) return;
+        const normalOption = modalEl.querySelector('[data-normal-role-option]');
+        if (!normalOption) return;
+        const hasSpecialRoles = Array.from(modalEl.querySelectorAll('.staff-role-checkbox'))
+            .some((input) => input.checked);
+        normalOption.checked = !hasSpecialRoles;
+    }
+
+    function bindUserRoleOptions() {
+        const modalEl = document.getElementById('userRolesModal');
+        if (!modalEl || modalEl.dataset.roleOptionsBound === '1') return;
+        modalEl.dataset.roleOptionsBound = '1';
+        const normalOption = modalEl.querySelector('[data-normal-role-option]');
+        const staffOptions = Array.from(modalEl.querySelectorAll('.staff-role-checkbox'));
+        normalOption?.addEventListener('change', () => {
+            if (!normalOption.checked) {
+                syncNormalUserRoleOption(modalEl);
+                return;
+            }
+            staffOptions.forEach((input) => {
+                input.checked = false;
+            });
+        });
+        staffOptions.forEach((input) => {
+            input.addEventListener('change', () => {
+                if (input.checked && normalOption) {
+                    normalOption.checked = false;
+                    return;
+                }
+                syncNormalUserRoleOption(modalEl);
+            });
+        });
     }
 
     async function saveUserRoles() {
@@ -1622,6 +1658,7 @@
     function bindAdminPageDom() {
         bindAdminEditButtons();
         bindVerificationEvidenceModal();
+        bindUserRoleOptions();
         wireBulkSelection('selectAllUsers', '.user-select', 'usersSelectedCount');
         wireBulkSelection('selectAllPosts', '.post-select', 'postsSelectedCount');
         wireBulkSelection('selectAllChats', '.chat-select', 'chatsSelectedCount');

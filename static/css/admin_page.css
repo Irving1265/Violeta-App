@@ -3956,6 +3956,17 @@
         transform: translateY(-1px);
     }
 
+    .admin-user-role-option--normal {
+        border-color: rgba(167, 139, 250, 0.22);
+        background: linear-gradient(135deg, rgba(124, 58, 237, 0.14), rgba(15, 23, 42, 0.18));
+    }
+
+    .staff-role-badge--normal {
+        background: rgba(226, 232, 240, 0.1);
+        border-color: rgba(226, 232, 240, 0.22);
+        color: #e9d5ff;
+    }
+
     .admin-user-role-option__badge {
         display: inline-flex;
         align-items: center;

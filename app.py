@@ -9995,6 +9995,17 @@ def create_app():
         active_tab = (request.args.get('tab') or 'users').strip().lower()
         reports_subtab = (request.args.get('reports_subtab') or 'reportados').strip().lower()
         page_number = max(1, request.args.get('page', default=1, type=int) or 1)
+        if not app.testing and request.headers.get('X-Requested-With') != 'XMLHttpRequest':
+            redirect_args = {
+                'tab': active_tab,
+                'reports_subtab': reports_subtab,
+                'page': page_number,
+            }
+            for key in ('user_q', 'user_status', 'user_strikes', 'user_reports', 'report_q', 'report_status', 'report_reason', 'report_since'):
+                value = request.args.get(key)
+                if value:
+                    redirect_args[key] = value
+            return redirect(url_for('admin_panel', **redirect_args))
         if active_tab == 'chats':
             try:
                 _ensure_default_chat_room()
@@ -10027,6 +10038,8 @@ def create_app():
     @login_required
     @permission_required(PERM_ADMIN_PANEL_VIEW, flash_message='Acceso denegado. Solo para personal autorizado.')
     def admin_panel_overview():
+        if not app.testing and request.headers.get('X-Requested-With') != 'XMLHttpRequest':
+            return redirect(url_for('admin_panel'))
         page_cache_key = (
             'page_admin_overview',
             ADMIN_PANEL_CACHE_VERSION,

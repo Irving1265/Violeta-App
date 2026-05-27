@@ -1487,6 +1487,18 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertIn('admin-user-filter-panel', base_html)
         self.assertIn('adminUserStatusFilter', base_html)
 
+        original_testing = app.config.get('TESTING')
+        try:
+            app.config['TESTING'] = False
+            direct_fragment = admin.get('/admin/content?tab=verificaciones', follow_redirects=False)
+            self.assertEqual(direct_fragment.status_code, 302)
+            self.assertIn('/admin?tab=verificaciones', direct_fragment.headers.get('Location', ''))
+            direct_overview = admin.get('/admin/overview', follow_redirects=False)
+            self.assertEqual(direct_overview.status_code, 302)
+            self.assertIn('/admin', direct_overview.headers.get('Location', ''))
+        finally:
+            app.config['TESTING'] = original_testing
+
         search_response = admin.get('/admin/content?tab=users&user_q=busqueda-directa')
         self.assertEqual(search_response.status_code, 200)
         search_html = search_response.get_data(as_text=True)
@@ -3153,6 +3165,18 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertTrue(assigned_payload.get('success'))
         self.assertIn('verification_reviewer', assigned_payload.get('roles', []))
 
+        clear_roles = super_admin_client.post(
+            f'/admin/user/{target_user_id}/roles',
+            json={'roles': ['normal_user']},
+        )
+        self.assertEqual(clear_roles.status_code, 200)
+        cleared_payload = clear_roles.get_json() or {}
+        self.assertTrue(cleared_payload.get('success'))
+        self.assertEqual(cleared_payload.get('roles'), [])
+        with app.app_context():
+            target_user = db.session.get(User, target_user_id)
+            self.assertEqual(target_user.role_set(), set())
+
         verification_client = self.client_for(verification_reviewer_id)
         verification_workspace = verification_client.get('/staff/verificaciones')
         self.assertEqual(verification_workspace.status_code, 200)
@@ -3193,6 +3217,8 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertEqual(shell_response.status_code, 200)
         shell_html = shell_response.get_data(as_text=True)
         self.assertIn('id="userRolesModal"', shell_html)
+        self.assertIn('Usuaria normal', shell_html)
+        self.assertIn('data-normal-role-option', shell_html)
         self.assertIn('staff-role-badge--moderation', shell_html)
         self.assertIn('Editar roles', shell_html)
 

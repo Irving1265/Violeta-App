@@ -233,9 +233,22 @@
             <div class="modal-body">
                 <div class="admin-user-roles-note">
                     <i class="fas fa-circle-info" aria-hidden="true"></i>
-                    <span>Sin roles seleccionados, la cuenta queda como usuaria normal. Los roles especiales pueden publicar con controles avanzados, pero sus posts no son visibles completos para cuentas no verificadas.</span>
+                    <span>Selecciona “Usuaria normal” para quitar permisos especiales. Los roles especiales pueden publicar con controles avanzados, pero sus posts no son visibles completos para cuentas no verificadas.</span>
                 </div>
                 <div class="admin-user-roles-list">
+                    <label class="admin-user-role-option admin-user-role-option--normal">
+                        <input type="checkbox" class="form-check-input" value="normal_user" data-normal-role-option>
+                        <span class="admin-user-role-option__badge">
+                            <span class="staff-role-badge staff-role-badge--normal staff-role-badge--xs" title="Usuaria normal" aria-label="Usuaria normal">
+                                <i class="fas fa-user" aria-hidden="true"></i>
+                                <span class="staff-role-badge__text">Normal</span>
+                            </span>
+                        </span>
+                        <span class="admin-user-role-option__copy">
+                            <strong>Usuaria normal</strong>
+                            <small>Sin permisos administrativos ni herramientas especiales.</small>
+                        </span>
+                    </label>
                     {% for role in staff_role_options %}
                     <label class="admin-user-role-option">
                         <input type="checkbox" class="form-check-input staff-role-checkbox" value="{{ role.key }}">
