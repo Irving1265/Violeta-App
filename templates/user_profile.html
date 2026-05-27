@@ -1,5 +1,6 @@
 {% set viewer_is_self = is_self if is_self is defined else (current_user.is_authenticated and user.id == current_user.id) %}
 {% set profile_level = moderation_badge_level(user) %}
+{% set profile_staff_badge = staff_badge_for_user(user) %}
 <div class="container px-0 profile-page-shell">
   <section class="profile-header profile-hero-card">
     <div class="profile-cover" aria-hidden="true"></div>
@@ -18,7 +19,9 @@
             <h2 class="profile-username">
               <span class="profile-username-main">
                 <span class="profile-username-text">@{{ user.username }}</span>
-                {% if user_has_staff_badge(user) %}<span class="admin-badge admin-badge--profile" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+                {% set staff_badge = profile_staff_badge %}
+                {% set staff_badge_size = 'profile' %}
+                {% include '_staff_badge.html' %}
                 {% if viewer_is_self and not user_is_verified %}<span class="unverified-account-badge" title="Acceso limitado" aria-label="Acceso limitado"><i class="fas fa-user-clock"></i> No verificada</span>{% endif %}
               </span>
               {% if profile_level > 0 %}

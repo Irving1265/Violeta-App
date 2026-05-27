@@ -33,15 +33,15 @@
     {% if load_leaflet_assets %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260525-static-cache-v1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260526-staff-roles-v1">
     {% if request.endpoint in auth_shell_endpoints %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/auth_page.css') }}?v=20260507-auth-split-v1">
     {% endif %}
     {% if request.endpoint in ['user_profile', 'profile'] %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/profile_page.css') }}?v=20260514-profile-mobile-identity-v1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/profile_page.css') }}?v=20260526-staff-roles-v1">
     {% endif %}
     {% if request.endpoint in ['index', 'post_detail'] %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/post_card.css') }}?v=20260526-admin-caption-modal-v2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/post_card.css') }}?v=20260526-staff-roles-v1">
     {% endif %}
     {% if load_security_overlay_styles %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/security_overlays.css') }}?v=20260507-security-overlays-v1">
@@ -812,7 +812,7 @@
         window.VIOLETA_SAFETY_PUBLISH_POLICY = {{ safety_publish_policy|tojson }};
     </script>
     {% if load_post_interaction_scripts %}
-    <script src="{{ url_for('static', filename='js/app.js') }}?v=20260526-admin-caption-modal-v2"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=20260526-staff-roles-v1"></script>
     {% else %}
     <script src="{{ url_for('static', filename='js/app_core.js') }}?v=20260508-js-split-v1"></script>
     {% endif %}

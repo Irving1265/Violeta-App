@@ -202,6 +202,7 @@
                         {% for user in users %}
                         {% set protected_staff = user_is_protected_staff(user) %}
                         {% set user_level = moderation_badge_level(user) %}
+                        {% set user_staff_badge = staff_badge_for_user(user) %}
                         {% set user_report_count = user.active_report_count|default(0) %}
                         {% set user_status_key = 'recovery' if user.password_recovery_requested_at else ('active' if user.username == 'admin' else ('with_posts' if user.post_count|default(0) > 0 else 'offline')) %}
                         <tr class="user-item{% if user.password_recovery_requested_at %} is-recovery-pending{% endif %}" data-user-id="{{ user.id }}" data-password-recovery-pending="{{ '1' if user.password_recovery_requested_at else '0' }}" data-user-status="{{ user_status_key }}" data-user-verified="{{ '1' if user.is_verified else '0' }}" data-user-posts="{{ user.post_count|default(0) }}" data-user-strikes="{{ user_level }}" data-user-reports-active="{{ user_report_count }}" data-user-search="{{ (user.username ~ ' ' ~ user.email)|lower }}">
@@ -228,9 +229,9 @@
                                                 <i class="fas fa-triangle-exclamation"></i>
                                             </span>
                                             {% endif %}
-                                            {% if user.username == 'admin' %}
-                                            <span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>
-                                            {% endif %}
+                                            {% set staff_badge = user_staff_badge %}
+                                            {% set staff_badge_size = 'xs' %}
+                                            {% include '_staff_badge.html' %}
                                         </div>
                                         <div class="admin-user-cell__email user-email">{{ user.email }}</div>
                                         {% if user.password_recovery_requested_at %}
@@ -265,6 +266,11 @@
                                     <button class="admin-icon-action is-history" onclick="openUserAudit('{{ user.id }}')" title="Ver historial">
                                         <i class="fas fa-clock-rotate-left"></i>
                                     </button>
+                                    {% if current_user_is_super_admin %}
+                                    <button class="admin-icon-action is-role" onclick='openUserRolesModal({{ user.id }}, {{ user.username|tojson }}, {{ user_role_names(user)|list|tojson }})' title="Editar roles">
+                                        <i class="fas fa-user-gear"></i>
+                                    </button>
+                                    {% endif %}
                                     {% if not protected_staff %}
                                     <button class="admin-icon-action" onclick="editUsername('{{ user.id }}', '{{ user.username }}')" title="Editar nombre">
                                         <i class="fas fa-edit"></i>
@@ -387,7 +393,7 @@
                             <img src="{{ url_for('uploaded_file', filename=post.author.profile_pic) if post.author.profile_pic and post.author.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
                                 class="rounded-circle" width="24" height="24" alt="Author" loading="lazy" decoding="async">
                             {% set post_admin_level = moderation_badge_level(post.author) %}
-                            <span class="small fw-bold text-white post-author">{{ post.author.username }}{% if post_admin_level > 0 %}<span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if post_admin_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if post_admin_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if post_admin_level >= 2 else 'Usuaria con un strike' }}"><i class="fas fa-triangle-exclamation"></i></span>{% endif %}{% if post.author.username == 'admin' %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}</span>
+                            <span class="small fw-bold text-white post-author">{{ post.author.username }}{% if post_admin_level > 0 %}<span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if post_admin_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if post_admin_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if post_admin_level >= 2 else 'Usuaria con un strike' }}"><i class="fas fa-triangle-exclamation"></i></span>{% endif %}{% set staff_badge = staff_badge_for_user(post.author) %}{% set staff_badge_size = 'xs' %}{% include '_staff_badge.html' %}</span>
                                         <span class="small text-muted ms-auto">{{ post.created_at.strftime('%d/%m') if
                                             post.created_at else '' }}</span>
                                     </div>
@@ -611,9 +617,9 @@
                                         <i class="fas fa-triangle-exclamation"></i>
                                     </span>
                                     {% endif %}
-                                    {% if post.author.username == 'admin' %}
-                                    <span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>
-                                    {% endif %}
+                                    {% set staff_badge = staff_badge_for_user(post.author) %}
+                                    {% set staff_badge_size = 'xs' %}
+                                    {% include '_staff_badge.html' %}
                                 </div>
                                 <div class="message-report-card__entity-subtitle">
                                     {{ post.author.email }}
@@ -742,9 +748,9 @@
                                         <i class="fas fa-triangle-exclamation"></i>
                                     </span>
                                     {% endif %}
-                                    {% if sender and sender.username == 'admin' %}
-                                    <span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>
-                                    {% endif %}
+                                    {% set staff_badge = staff_badge_for_user(sender) if sender else none %}
+                                    {% set staff_badge_size = 'xs' %}
+                                    {% include '_staff_badge.html' %}
                                 </div>
                                 <div class="message-report-card__entity-subtitle">
                                     Enviado {{ msg.created_at.strftime('%d/%m/%Y %H:%M') if msg and msg.created_at else 'Sin fecha' }}
@@ -863,9 +869,9 @@
                                         <i class="fas fa-triangle-exclamation"></i>
                                     </span>
                                     {% endif %}
-                                    {% if sender and sender.username == 'admin' %}
-                                    <span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>
-                                    {% endif %}
+                                    {% set staff_badge = staff_badge_for_user(sender) if sender else none %}
+                                    {% set staff_badge_size = 'xs' %}
+                                    {% include '_staff_badge.html' %}
                                 </div>
                                 <div class="message-report-card__entity-subtitle">
                                     Comentó {{ comment.created_at.strftime('%d/%m/%Y %H:%M') if comment and comment.created_at else 'Sin fecha' }}

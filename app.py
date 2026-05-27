@@ -1132,22 +1132,34 @@ PERM_SAFETY_RESOLVE_PANIC = 'safety.resolve_panic'
 PERM_STAFF_BADGE = 'staff.badge'
 PERM_PROTECTED_STAFF = 'staff.protected'
 
+CONTENT_STAFF_PERMISSIONS = {
+    PERM_ACCOUNT_BYPASS_RESTRICTIONS,
+    PERM_CONTENT_UNRESTRICTED,
+    PERM_POSTS_MANAGE,
+    PERM_STAFF_BADGE,
+}
+
 ROLE_PERMISSIONS = {
     ROLE_SUPER_ADMIN: {'*'},
     ROLE_VERIFICATION_REVIEWER: {
         PERM_VERIFICATION_REVIEW,
+        *CONTENT_STAFF_PERMISSIONS,
     },
     ROLE_MODERATION_REVIEWER: {
         PERM_CONTENT_REVIEW_PRIVATE,
         PERM_REPORTS_REVIEW,
         PERM_CHAT_ROOMS_MANAGE,
         PERM_CHAT_MESSAGES_MODERATE,
+        *CONTENT_STAFF_PERMISSIONS,
     },
     ROLE_SAFETY_OPERATOR: {
         PERM_SAFETY_VIEW_ANY,
         PERM_SAFETY_RESOLVE_PANIC,
+        *CONTENT_STAFF_PERMISSIONS,
     },
-    ROLE_SUPPORT_READONLY: set(),
+    ROLE_SUPPORT_READONLY: {
+        *CONTENT_STAFF_PERMISSIONS,
+    },
 }
 
 STAFF_ROLE_OPTIONS = (
@@ -1155,27 +1167,51 @@ STAFF_ROLE_OPTIONS = (
         'key': ROLE_SUPER_ADMIN,
         'label': 'Súper admin',
         'description': 'Acceso total y gestión de roles.',
+        'badge_label': 'Admin',
+        'badge_icon': '',
+        'badge_variant': 'admin',
     },
     {
         'key': ROLE_VERIFICATION_REVIEWER,
         'label': 'Verificación',
-        'description': 'Revisión de identidad y elegibilidad.',
+        'description': 'Revisión de identidad, publicaciones y herramientas de contenido.',
+        'badge_label': 'Verificación',
+        'badge_icon': 'fa-user-check',
+        'badge_variant': 'verification',
     },
     {
         'key': ROLE_MODERATION_REVIEWER,
         'label': 'Moderación',
-        'description': 'Reportes, restauraciones y strikes.',
+        'description': 'Reportes, restauraciones, strikes y herramientas de contenido.',
+        'badge_label': 'Moderación',
+        'badge_icon': 'fa-shield-halved',
+        'badge_variant': 'moderation',
     },
     {
         'key': ROLE_SAFETY_OPERATOR,
         'label': 'Safety',
-        'description': 'Check-ins, trayectos y pánico.',
+        'description': 'Eventos de seguridad, pánico y herramientas de contenido.',
+        'badge_label': 'Safety',
+        'badge_icon': 'fa-shield-heart',
+        'badge_variant': 'safety',
     },
     {
         'key': ROLE_SUPPORT_READONLY,
         'label': 'Soporte',
-        'description': 'Consulta operativa de solo lectura.',
+        'description': 'Soporte operativo y herramientas de contenido.',
+        'badge_label': 'Soporte',
+        'badge_icon': 'fa-headset',
+        'badge_variant': 'support',
     },
+)
+
+STAFF_ROLE_BADGES = {item['key']: dict(item) for item in STAFF_ROLE_OPTIONS}
+STAFF_BADGE_PRIORITY = (
+    ROLE_SUPER_ADMIN,
+    ROLE_VERIFICATION_REVIEWER,
+    ROLE_MODERATION_REVIEWER,
+    ROLE_SAFETY_OPERATOR,
+    ROLE_SUPPORT_READONLY,
 )
 
 
@@ -1242,6 +1278,36 @@ def user_is_protected_staff(user) -> bool:
 
 def user_has_staff_badge(user) -> bool:
     return user_has_permission(user, PERM_STAFF_BADGE)
+
+
+def staff_badge_for_roles(roles, username: str | None = None):
+    normalized_roles = {
+        str(role).strip().lower()
+        for role in (roles or [])
+        if str(role).strip()
+    }
+    if not normalized_roles and str(username or '').strip().lower() == 'admin':
+        normalized_roles.add(ROLE_SUPER_ADMIN)
+    for role in STAFF_BADGE_PRIORITY:
+        if role in normalized_roles and (role == ROLE_SUPER_ADMIN or PERM_STAFF_BADGE in ROLE_PERMISSIONS.get(role, set()) or '*' in ROLE_PERMISSIONS.get(role, set())):
+            badge = STAFF_ROLE_BADGES.get(role)
+            if not badge:
+                continue
+            return {
+                'key': role,
+                'label': badge.get('badge_label') or badge.get('label') or role,
+                'title': badge.get('label') or badge.get('badge_label') or role,
+                'icon': badge.get('badge_icon') or '',
+                'variant': badge.get('badge_variant') or role.replace('_', '-'),
+                'is_admin': role == ROLE_SUPER_ADMIN,
+            }
+    return None
+
+
+def staff_badge_for_user(user):
+    if not user or not getattr(user, 'is_authenticated', False):
+        return None
+    return staff_badge_for_roles(user_role_names(user), getattr(user, 'username', None))
 
 
 def user_can_override_content_controls(user) -> bool:
@@ -1315,7 +1381,7 @@ def is_limited_access_user(user) -> bool:
 
 
 def is_admin_post(post) -> bool:
-    return bool(post and user_has_staff_badge(getattr(post, 'author', None)))
+    return bool(post and user_is_super_admin(getattr(post, 'author', None)))
 
 
 def can_view_full_post(user, post) -> bool:
@@ -2113,6 +2179,7 @@ def create_app():
             'user_is_super_admin': user_is_super_admin,
             'user_is_protected_staff': user_is_protected_staff,
             'user_has_staff_badge': user_has_staff_badge,
+            'staff_badge_for_user': staff_badge_for_user,
             'staff_role_options': staff_role_payloads(),
             'current_user_is_super_admin': user_is_super_admin(current_user),
             'current_user_can_access_admin_panel': user_can_access_admin_panel(current_user),
@@ -4846,7 +4913,7 @@ def create_app():
         invalidate_runtime_response_cache('page_admin_content')
         invalidate_runtime_response_cache('page_admin_overview')
 
-    ADMIN_PANEL_CACHE_VERSION = '20260409-admin-mobile-v2'
+    ADMIN_PANEL_CACHE_VERSION = '20260526-staff-roles-v1'
 
     def enrich_posts_for_cards(posts, viewer=None):
         if not posts:
@@ -5990,7 +6057,7 @@ def create_app():
             if staff_post and is_admin_post(staff_post):
                 return True
             staff_user = User.query.filter(User.profile_pic == normalized).first()
-            if staff_user and user_has_staff_badge(staff_user):
+            if staff_user and user_is_super_admin(staff_user):
                 return True
         except Exception as exc:
             _debug_log_suppressed('suppressed upload visibility lookup', exc)
@@ -6167,6 +6234,7 @@ def create_app():
             'location_visibility': loc.get('visibility'),
             'protected': False,
             'categories': categories,
+            'staff_badge': staff_badge_for_user(author),
         }
         if include_profile_pic:
             payload['profile_pic'] = avatar_url_for_user(author)
@@ -6230,12 +6298,14 @@ def create_app():
             try:
                 username = getattr(row, 'username', 'unknown')
                 strikes = int(getattr(row, 'abuse_strikes', 0) or 0)
-                is_staff_badged = ROLE_SUPER_ADMIN in {
+                row_roles = {
                     chunk.strip().lower()
                     for chunk in str(getattr(row, 'roles', '') or '').split(',')
                     if chunk.strip()
                 }
-                moderation_level = 0 if is_staff_badged else (2 if strikes >= 2 else 1 if strikes >= 1 else 0)
+                comment_badge = staff_badge_for_roles(row_roles, username=username)
+                is_super_admin_comment = ROLE_SUPER_ADMIN in row_roles or str(username or '').strip().lower() == 'admin'
+                moderation_level = 0 if comment_badge else (2 if strikes >= 2 else 1 if strikes >= 1 else 0)
                 payload = {
                     'id': row.id,
                     'user_id': row.user_id,
@@ -6244,7 +6314,8 @@ def create_app():
                     'content': row.content,
                     'created_at': row.created_at.isoformat() if getattr(row, 'created_at', None) else None,
                     'moderation_level': moderation_level,
-                    'is_super_admin': is_staff_badged,
+                    'is_super_admin': is_super_admin_comment,
+                    'staff_badge': comment_badge,
                     'is_hidden': bool(getattr(row, 'is_hidden', False)),
                 }
                 if payload['is_hidden']:
@@ -7096,7 +7167,8 @@ def create_app():
                             'id': last_unread.id,
                             'content': last_unread.content,
                             'username': last_unread.user.username if getattr(last_unread, 'user', None) else None,
-                            'is_super_admin': user_has_staff_badge(last_unread.user) if getattr(last_unread, 'user', None) else False,
+                            'is_super_admin': user_is_super_admin(last_unread.user) if getattr(last_unread, 'user', None) else False,
+                            'staff_badge': staff_badge_for_user(last_unread.user) if getattr(last_unread, 'user', None) else None,
                             'created_at': last_unread.created_at.isoformat() if last_unread.created_at else None,
                             'message_type': last_unread.message_type,
                             'attachment_name': last_unread.attachment_name,
@@ -7125,7 +7197,8 @@ def create_app():
                         'id': last_message.id if last_message else None,
                         'content': '' if last_is_deleted else (last_message.content if last_message else None),
                         'username': last_message.user.username if last_message and getattr(last_message, 'user', None) else None,
-                        'is_super_admin': user_has_staff_badge(last_message.user) if last_message and getattr(last_message, 'user', None) else False,
+                        'is_super_admin': user_is_super_admin(last_message.user) if last_message and getattr(last_message, 'user', None) else False,
+                        'staff_badge': staff_badge_for_user(last_message.user) if last_message and getattr(last_message, 'user', None) else None,
                         'created_at': last_message.created_at.isoformat() if last_message else None,
                         'message_type': last_message.message_type if last_message else None,
                         'attachment_name': None if last_is_deleted else (last_message.attachment_name if last_message else None),
@@ -7233,7 +7306,8 @@ def create_app():
                     'id': msg.id,
                     'content': '' if is_deleted else msg.content,
                     'username': msg.user.username if getattr(msg, 'user', None) else 'unknown',
-                    'is_super_admin': user_has_staff_badge(msg.user) if getattr(msg, 'user', None) else False,
+                    'is_super_admin': user_is_super_admin(msg.user) if getattr(msg, 'user', None) else False,
+                    'staff_badge': staff_badge_for_user(msg.user) if getattr(msg, 'user', None) else None,
                     'user_id': msg.user.id if getattr(msg, 'user', None) else None,
                     'user_avatar': avatar_url_for_user(msg.user) if getattr(msg, 'user', None) else url_for('static', filename='images/default_avatar.jpg'),
                     'created_at': msg.created_at.isoformat(),
@@ -7356,7 +7430,8 @@ def create_app():
                 'is_deleted': False,
                 'deleted_reason': None,
                 'moderation_level': moderation_badge_level(current_user),
-                'is_super_admin': user_has_staff_badge(current_user),
+                'is_super_admin': user_is_super_admin(current_user),
+                'staff_badge': staff_badge_for_user(current_user),
             }
 
             try:
@@ -8243,7 +8318,8 @@ def create_app():
             'is_deleted': is_deleted,
             'deleted_reason': chat_message_deleted_reason(message),
             'moderation_level': moderation_badge_level(message.user),
-            'is_super_admin': user_has_staff_badge(message.user),
+            'is_super_admin': user_is_super_admin(message.user),
+            'staff_badge': staff_badge_for_user(message.user),
         }
 
     def _emit_message_restored(message: ChatMessage):
@@ -11490,7 +11566,8 @@ def create_app():
         for c in post.comments:
             comments.append({
                 'username': c.author.username if c.author else 'unknown',
-                'is_super_admin': user_has_staff_badge(c.author) if getattr(c, 'author', None) else False,
+                'is_super_admin': user_is_super_admin(c.author) if getattr(c, 'author', None) else False,
+                'staff_badge': staff_badge_for_user(c.author) if getattr(c, 'author', None) else None,
                 'content': c.content,
                 'created_at': c.created_at.isoformat() if c.created_at else None,
             })
@@ -11502,7 +11579,8 @@ def create_app():
                 'reason': r.reason,
                 'details': r.details or '',
                 'reporter': r.reporter.username if r.reporter else 'unknown',
-                'reporter_is_super_admin': user_has_staff_badge(r.reporter) if getattr(r, 'reporter', None) else False,
+                'reporter_is_super_admin': user_is_super_admin(r.reporter) if getattr(r, 'reporter', None) else False,
+                'reporter_staff_badge': staff_badge_for_user(r.reporter) if getattr(r, 'reporter', None) else None,
                 'created_at': r.created_at.isoformat() if r.created_at else None,
                 'status': r.status or 'pending',
                 'admin_note': r.admin_note or '',
@@ -11533,7 +11611,8 @@ def create_app():
                 'author': {
                     'username': author.username if author else 'unknown',
                     'profile_pic': author_pic,
-                    'is_super_admin': user_has_staff_badge(author) if author else False,
+                    'is_super_admin': user_is_super_admin(author) if author else False,
+                    'staff_badge': staff_badge_for_user(author) if author else None,
                 },
                 'location': {
                     'name': post.location_name or '',
@@ -12328,7 +12407,7 @@ def create_app():
         if current_user.is_authenticated and current_user.id != user.id and is_user_blocked_between(current_user.id, user.id):
             abort(404)
         is_self = (current_user.is_authenticated and current_user.id == user.id)
-        if current_user.is_authenticated and not is_self and not is_user_verified(current_user) and not user_has_staff_badge(user):
+        if current_user.is_authenticated and not is_self and not is_user_verified(current_user) and not user_is_super_admin(user):
             flash(VERIFY_REQUIRED_MSG, 'warning')
             return redirect(url_for('verify_identity'))
         html = render_template(
@@ -12366,7 +12445,7 @@ def create_app():
         if current_user.is_authenticated and current_user.id != user.id and is_user_blocked_between(current_user.id, user.id):
             abort(404)
         is_self = (current_user.is_authenticated and current_user.id == user.id)
-        if current_user.is_authenticated and not is_self and not is_user_verified(current_user) and not user_has_staff_badge(user):
+        if current_user.is_authenticated and not is_self and not is_user_verified(current_user) and not user_is_super_admin(user):
             return jsonify({'error': VERIFY_REQUIRED_MSG}), 403
         html = _build_user_profile_view_context(
             user,

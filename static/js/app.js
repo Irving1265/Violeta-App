@@ -563,7 +563,7 @@ function buildCommentMarkup(comment, postId, options = {}) {
             <div class="violet-comment-content">
                 ${reportBtn}
                 <div class="violet-comment-mainline">
-                    <span class="violet-comment-username">${escapeHtml(comment.username)}${renderModerationBadge(comment.moderation_level)}${renderAdminBadge(comment.is_super_admin)}</span>
+                    <span class="violet-comment-username">${escapeHtml(comment.username)}${renderModerationBadge(comment.moderation_level)}${renderStaffBadge(comment.staff_badge, comment.is_super_admin)}</span>
                     <span class="violet-comment-text${textClass}">${bodyText}</span>
                 </div>
                 <div class="violet-comment-time">${timeLabel}</div>
@@ -1027,6 +1027,20 @@ function renderAdminBadge(isSuperAdmin, sizeClass = 'admin-badge--xs') {
     if (!isSuperAdmin) return '';
     const cls = sizeClass ? ` ${sizeClass}` : '';
     return `<span class="admin-badge${cls}" title="Admin verificada" aria-label="Admin verificada"><img src="/static/images/admin_badge.svg" alt="Admin"></span>`;
+}
+
+function renderStaffBadge(staffBadge, isSuperAdmin = false, sizeClass = 'staff-role-badge--xs') {
+    if (!staffBadge) {
+        return renderAdminBadge(isSuperAdmin, sizeClass.replace('staff-role-badge', 'admin-badge'));
+    }
+    if (staffBadge.is_admin) {
+        return renderAdminBadge(true, sizeClass.replace('staff-role-badge', 'admin-badge'));
+    }
+    const variant = String(staffBadge.variant || 'support').replace(/[^a-z0-9_-]/gi, '');
+    const icon = String(staffBadge.icon || 'fa-shield-halved').replace(/[^a-z0-9_-]/gi, '');
+    const label = escapeHtml(staffBadge.label || 'Staff');
+    const title = escapeHtml(staffBadge.title || staffBadge.label || 'Staff');
+    return `<span class="staff-role-badge staff-role-badge--${variant} ${sizeClass}" title="${title}" aria-label="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span class="staff-role-badge__text">${label}</span></span>`;
 }
 
 function escapeHtml(text) {

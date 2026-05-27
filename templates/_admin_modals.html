@@ -181,6 +181,53 @@
     </div>
 </div>
 
+<!-- User Roles Modal -->
+<div class="modal fade" id="userRolesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-surface border border-secondary text-white admin-user-roles-modal">
+            <div class="modal-header border-secondary">
+                <div>
+                    <h5 class="modal-title">Editar roles</h5>
+                    <div class="small text-secondary" id="userRolesSubtitle">Selecciona permisos especiales.</div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="admin-user-roles-note">
+                    <i class="fas fa-circle-info" aria-hidden="true"></i>
+                    <span>Sin roles seleccionados, la cuenta queda como usuaria normal. Los roles especiales pueden publicar con controles avanzados, pero sus posts no son visibles completos para cuentas no verificadas.</span>
+                </div>
+                <div class="admin-user-roles-list">
+                    {% for role in staff_role_options %}
+                    <label class="admin-user-role-option">
+                        <input type="checkbox" class="form-check-input staff-role-checkbox" value="{{ role.key }}">
+                        <span class="admin-user-role-option__badge">
+                            {% if role.key == 'super_admin' %}
+                            <span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>
+                            {% else %}
+                            <span class="staff-role-badge staff-role-badge--{{ role.badge_variant }} staff-role-badge--xs" title="{{ role.label }}" aria-label="{{ role.label }}">
+                                <i class="fas {{ role.badge_icon }}" aria-hidden="true"></i>
+                                <span class="staff-role-badge__text">{{ role.badge_label }}</span>
+                            </span>
+                            {% endif %}
+                        </span>
+                        <span class="admin-user-role-option__copy">
+                            <strong>{{ role.label }}</strong>
+                            <small>{{ role.description }}</small>
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
+                <div class="alert alert-danger d-none mt-3 mb-0" id="userRolesError"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="saveUserRolesBtn" onclick="saveUserRoles()">Guardar roles</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Assisted Password Reset Modal -->
 <div class="modal fade" id="assistedPasswordResetModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">

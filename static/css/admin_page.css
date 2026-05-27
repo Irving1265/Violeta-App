@@ -3902,6 +3902,81 @@
         background: rgba(91, 33, 182, 0.24);
     }
 
+    .admin-icon-action.is-role {
+        color: #bae6fd;
+        border-color: rgba(56, 189, 248, 0.42);
+        background: rgba(14, 116, 144, 0.2);
+    }
+
+    .admin-user-roles-modal {
+        border-radius: 22px;
+        overflow: hidden;
+    }
+
+    .admin-user-roles-note {
+        display: flex;
+        gap: 0.7rem;
+        align-items: flex-start;
+        padding: 0.85rem 0.95rem;
+        border: 1px solid rgba(167, 139, 250, 0.18);
+        border-radius: 16px;
+        background: rgba(124, 58, 237, 0.08);
+        color: rgba(226, 232, 240, 0.82);
+        font-size: 0.85rem;
+        line-height: 1.45;
+    }
+
+    .admin-user-roles-note i {
+        color: #a78bfa;
+        margin-top: 0.12rem;
+    }
+
+    .admin-user-roles-list {
+        display: grid;
+        gap: 0.7rem;
+        margin-top: 1rem;
+    }
+
+    .admin-user-role-option {
+        display: grid;
+        grid-template-columns: auto minmax(86px, auto) 1fr;
+        gap: 0.75rem;
+        align-items: center;
+        padding: 0.88rem;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.035);
+        cursor: pointer;
+        transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    }
+
+    .admin-user-role-option:hover {
+        border-color: rgba(167, 139, 250, 0.4);
+        background: rgba(124, 58, 237, 0.08);
+        transform: translateY(-1px);
+    }
+
+    .admin-user-role-option__badge {
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .admin-user-role-option__copy {
+        display: grid;
+        gap: 0.2rem;
+        min-width: 0;
+    }
+
+    .admin-user-role-option__copy strong {
+        color: #fff;
+        font-size: 0.9rem;
+    }
+
+    .admin-user-role-option__copy small {
+        color: rgba(148, 163, 184, 0.9);
+        line-height: 1.35;
+    }
+
     .admin-table-footer {
         padding: 0.9rem 1.25rem 1.05rem;
         border-top: 1px solid rgba(45, 36, 56, 0.72);

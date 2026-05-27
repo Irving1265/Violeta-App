@@ -174,6 +174,31 @@
     height: 15px;
 }
 
+.post-avatar-badge--role {
+    color: #f8fafc;
+    border-color: #1e1b2e;
+}
+
+.post-avatar-badge--role i {
+    font-size: 0.68rem;
+}
+
+.post-avatar-badge--verification {
+    background: linear-gradient(135deg, #0ea5e9, #0369a1);
+}
+
+.post-avatar-badge--moderation {
+    background: linear-gradient(135deg, #f43f5e, #9f1239);
+}
+
+.post-avatar-badge--safety {
+    background: linear-gradient(135deg, #10b981, #047857);
+}
+
+.post-avatar-badge--support {
+    background: linear-gradient(135deg, #f59e0b, #92400e);
+}
+
 .post-author-meta {
     flex: 1 1 auto;
     min-width: 0;

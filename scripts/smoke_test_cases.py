@@ -971,7 +971,7 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertIn('mini-map-widget', feed_html)
         self.assertIn('mini-map-widget__map', feed_html)
         self.assertNotIn('style="background: linear-gradient(145deg, #1e1b2e, #2a2436);', feed_html)
-        self.assertIn('20260526-admin-caption-modal-v2', feed_html)
+        self.assertIn('20260526-staff-roles-v1', feed_html)
 
         style_css = (PROJECT_ROOT / 'static' / 'css' / 'style.css').read_text()
         index_css = (PROJECT_ROOT / 'static' / 'css' / 'index_page.css').read_text()
@@ -1040,7 +1040,7 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertIn("count.classList.toggle('is-warning'", app_js)
 
         post_html = client.get(f'/post/{post_id}').get_data(as_text=True)
-        self.assertIn('20260526-admin-caption-modal-v2', post_html)
+        self.assertIn('20260526-staff-roles-v1', post_html)
         self.assertIn('id="reportPostModal"', post_html)
         self.assertIn('id="reportCommentModal"', post_html)
         self.assertIn('/static/js/app.js?', post_html)
@@ -3078,6 +3078,86 @@ class VioletaSmokeTests(unittest.TestCase):
         no_safety_access = moderation_client.get('/staff/safety')
         self.assertEqual(no_safety_access.status_code, 302)
 
+    def test_special_roles_get_badges_publish_tools_and_keep_unverified_protection(self):
+        super_admin_id = self.create_user('admin')
+        special_user_id = self.create_user('staff_publicadora', verified=False)
+        unverified_viewer_id = self.create_user('viewer_staff_no_verificada', verified=False)
+        verified_viewer_id = self.create_user('viewer_staff_verificada')
+
+        super_admin_client = self.client_for(super_admin_id)
+        shell_response = super_admin_client.get('/admin')
+        self.assertEqual(shell_response.status_code, 200)
+        shell_html = shell_response.get_data(as_text=True)
+        self.assertIn('id="userRolesModal"', shell_html)
+        self.assertIn('staff-role-badge--moderation', shell_html)
+        self.assertIn('Editar roles', shell_html)
+
+        users_response = super_admin_client.get('/admin/content?tab=users&user_q=staff_publicadora')
+        self.assertEqual(users_response.status_code, 200)
+        users_html = users_response.get_data(as_text=True)
+        self.assertIn('openUserRolesModal', users_html)
+        self.assertIn('staff_publicadora', users_html)
+
+        assign_roles = super_admin_client.post(
+            f'/admin/user/{special_user_id}/roles',
+            json={'roles': ['moderation_reviewer']},
+        )
+        self.assertEqual(assign_roles.status_code, 200)
+        assign_payload = assign_roles.get_json() or {}
+        self.assertTrue(assign_payload.get('success'))
+        self.assertEqual(assign_payload.get('roles'), ['moderation_reviewer'])
+
+        with app.app_context():
+            special_user = db.session.get(User, special_user_id)
+            self.assertIsNotNone(special_user)
+            self.assertTrue(app_module.user_has_staff_badge(special_user))
+            self.assertTrue(app_module.user_has_permission(special_user, 'content.unrestricted'))
+            self.assertTrue(app_module.user_has_permission(special_user, 'posts.manage'))
+            self.assertTrue(app_module.is_user_verified(special_user))
+            staff_badge = app_module.staff_badge_for_user(special_user)
+            self.assertEqual(staff_badge.get('variant'), 'moderation')
+            self.assertFalse(app_module.user_is_super_admin(special_user))
+
+        special_client = self.client_for(special_user_id)
+        special_home = special_client.get('/')
+        self.assertEqual(special_home.status_code, 200)
+        special_html = special_home.get_data(as_text=True)
+        self.assertIn('data-role="admin"', special_html)
+        self.assertIn('name="pcPublishMode"', special_html)
+
+        special_post_id = self.create_public_post(
+            special_user_id,
+            caption='Reporte especial protegido smoke',
+            location_name='Ubicación especial protegida',
+        )
+        with app.app_context():
+            special_post = db.session.get(Post, special_post_id)
+            self.assertIsNotNone(special_post)
+            self.assertFalse(app_module.is_admin_post(special_post))
+
+        unverified_client = self.client_for(unverified_viewer_id)
+        protected_payload = self.fetch_feed_post(unverified_client, special_post_id)
+        self.assertIsNotNone(protected_payload)
+        self.assertTrue(protected_payload.get('protected'))
+        self.assertEqual(protected_payload.get('username'), '********************')
+        self.assertEqual(protected_payload.get('caption'), 'Reporte protegido. Verifica tu cuenta para ver los detalles completos.')
+        self.assertNotIn('staff_badge', protected_payload)
+
+        profile_response = unverified_client.get('/user/staff_publicadora', follow_redirects=False)
+        self.assertEqual(profile_response.status_code, 302)
+        self.assertIn('/verify', profile_response.headers.get('Location', ''))
+
+        verified_client = self.client_for(verified_viewer_id)
+        public_payload = self.fetch_feed_post(verified_client, special_post_id)
+        self.assertIsNotNone(public_payload)
+        self.assertFalse(public_payload.get('protected'))
+        self.assertEqual(public_payload.get('username'), 'staff_publicadora')
+        self.assertEqual((public_payload.get('staff_badge') or {}).get('variant'), 'moderation')
+
+        verified_html = verified_client.get('/').get_data(as_text=True)
+        self.assertIn('staff-role-badge--moderation', verified_html)
+        self.assertIn('Moderación', verified_html)
+
     def test_safety_routes_are_owner_only_and_hidden_from_admin(self):
         owner_id = self.create_user('route_owner')
         other_id = self.create_user('route_other')
@@ -3233,8 +3313,9 @@ class VioletaSmokeTests(unittest.TestCase):
             self.assertIsNotNone(panic_log)
             self.assertEqual(panic_log.target_user_id, target_user_id)
 
-    def test_only_admin_can_correct_post_caption_from_feed(self):
+    def test_admin_and_special_staff_can_correct_post_caption_from_feed(self):
         admin_id = self.create_user('admin')
+        moderation_staff_id = self.create_user('caption_moderator', roles=['moderation_reviewer'])
         author_id = self.create_user('caption_author')
         viewer_id = self.create_user('caption_viewer')
         post_id = self.create_public_post(author_id, caption='Texto original con error')
@@ -3259,13 +3340,27 @@ class VioletaSmokeTests(unittest.TestCase):
         self.assertIn('Auditado', admin_html)
         self.assertIn('Texto original con error', admin_html)
 
+        staff_client = self.client_for(moderation_staff_id)
+        staff_html = staff_client.get('/').get_data(as_text=True)
+        self.assertIn(f'data-post-caption-edit="{post_id}"', staff_html)
+        self.assertIn('id="adminCaptionModal"', staff_html)
+
+        staff_update = staff_client.post(
+            f'/admin/post/{post_id}/caption',
+            json={'caption': 'Texto corregido por staff'},
+            headers={'Accept': 'application/json'},
+        )
+        self.assertEqual(staff_update.status_code, 200)
+        self.assertTrue((staff_update.get_json() or {}).get('success'))
+        self.assertEqual(self.get_post(post_id).caption, 'Texto corregido por staff')
+
         too_long = admin_client.post(
             f'/admin/post/{post_id}/caption',
             json={'caption': 'x' * 501},
             headers={'Accept': 'application/json'},
         )
         self.assertEqual(too_long.status_code, 400)
-        self.assertEqual(self.get_post(post_id).caption, 'Texto original con error')
+        self.assertEqual(self.get_post(post_id).caption, 'Texto corregido por staff')
 
         update = admin_client.post(
             f'/admin/post/{post_id}/caption',

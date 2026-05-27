@@ -1,0 +1,11 @@
+{% if staff_badge %}
+{% if staff_badge.is_admin %}
+<span class="post-avatar-badge" title="Admin verificada" aria-label="Admin verificada">
+    <img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin">
+</span>
+{% else %}
+<span class="post-avatar-badge post-avatar-badge--role post-avatar-badge--{{ staff_badge.variant }}" title="{{ staff_badge.title }}" aria-label="{{ staff_badge.title }}">
+    <i class="fas {{ staff_badge.icon }}" aria-hidden="true"></i>
+</span>
+{% endif %}
+{% endif %}

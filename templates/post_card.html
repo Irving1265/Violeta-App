@@ -7,7 +7,7 @@
     {% set display_author_avatar = avatar_url_for_user(post.author) if not protected_post else url_for('static', filename='images/default_avatar.jpg') %}
     {% set safe_loc = public_location_for_post(post, current_user) %}
     {% set post_author_level = moderation_badge_level(post.author) if not protected_post else 0 %}
-    {% set post_author_is_staff = user_has_staff_badge(post.author) and not protected_post %}
+    {% set post_author_staff_badge = staff_badge_for_user(post.author) if not protected_post else none %}
     {% set current_user_can_edit_post_caption = current_user.is_authenticated and user_has_permission(current_user, 'posts.manage') %}
     {% set month_names = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'] %}
     {% set post_date_label = 'Reporte comunitario' if protected_post else (post.created_at.strftime('%d') ~ ' ' ~ month_names[post.created_at.month - 1] ~ ' ' ~ post.created_at.strftime('%Y') if post.created_at else '') %}
@@ -43,11 +43,8 @@
                         src="{{ display_author_avatar }}"
                         alt="{{ display_author_name }}"
                         onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
-                    {% if post_author_is_staff %}
-                    <span class="post-avatar-badge" title="Admin verificada" aria-label="Admin verificada">
-                        <img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin">
-                    </span>
-                    {% endif %}
+                    {% set staff_badge = post_author_staff_badge %}
+                    {% include '_staff_avatar_badge.html' %}
                 </a>
                 <div class="post-author-meta">
                     <div class="post-author-title-row">
@@ -246,7 +243,9 @@
         <i class="fas fa-triangle-exclamation"></i>
     </span>
     {% endif %}
-    {% if post_author_is_staff %}<span class="admin-badge admin-badge--sm" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+    {% set staff_badge = post_author_staff_badge %}
+    {% set staff_badge_size = 'sm' %}
+    {% include '_staff_badge.html' %}
     <span data-post-caption="{{ post.id }}" class="{{ 'post-caption-empty' if not post.caption else '' }}">{{ post.caption or 'Sin descripción.' }}</span>
 </div>
 {% endif %}
@@ -263,6 +262,7 @@
                 {% if preload_comments %}
                 {% for comment in post.comments if not comment.is_hidden %}
                 {% set comment_level = moderation_badge_level(comment.author) %}
+                {% set comment_staff_badge = staff_badge_for_user(comment.author) %}
                 <div class="violet-comment" data-comment-id="{{ comment.id }}">
                     <a href="{{ url_for('user_profile', username=comment.author.username) }}">
                         <img src="{{ avatar_url_for_user(comment.author) }}" loading="lazy" decoding="async"
@@ -283,7 +283,9 @@
                                     <i class="fas fa-triangle-exclamation"></i>
                                 </span>
                                 {% endif %}
-                                {% if user_has_staff_badge(comment.author) %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+                                {% set staff_badge = comment_staff_badge %}
+                                {% set staff_badge_size = 'xs' %}
+                                {% include '_staff_badge.html' %}
                             </a>
                             <span class="violet-comment-text">{{ comment.content }}</span>
                         </div>
@@ -300,6 +302,7 @@
                     {% if preload_comments %}
                     {% for comment in hidden_comments %}
                     {% set comment_level = moderation_badge_level(comment.author) %}
+                    {% set comment_staff_badge = staff_badge_for_user(comment.author) %}
                     <div class="violet-comment violet-comment--hidden" data-comment-id="{{ comment.id }}">
                         <a href="{{ url_for('user_profile', username=comment.author.username) }}">
                             <img src="{{ avatar_url_for_user(comment.author) }}" loading="lazy" decoding="async"
@@ -315,7 +318,9 @@
                                         <i class="fas fa-triangle-exclamation"></i>
                                     </span>
                                     {% endif %}
-                                    {% if user_has_staff_badge(comment.author) %}<span class="admin-badge admin-badge--xs" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>{% endif %}
+                                    {% set staff_badge = comment_staff_badge %}
+                                    {% set staff_badge_size = 'xs' %}
+                                    {% include '_staff_badge.html' %}
                                 </a>
                                 <span class="violet-comment-text violet-comment-text--hidden">Este comentario fue ocultado por moderación.</span>
                             </div>

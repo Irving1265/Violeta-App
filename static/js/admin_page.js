@@ -8,6 +8,8 @@
     let changePhotoCropModal = null;
     let changePhotoCropUrl = null;
     let assistedPasswordResetModal = null;
+    let currentRoleUserId = null;
+    let userRolesModal = null;
     const ADMIN_REPORT_PALETTE = ['#8b5cf6', '#a78bfa', '#f43f5e', '#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#14b8a6'];
     const ADMIN_REPORT_COLOR_BY_REASON = {
         'Poca iluminación': '#f59e0b',
@@ -709,6 +711,77 @@
                 console.error('Error:', error);
                 alert('Error al cambiar username');
             });
+    }
+
+    function openUserRolesModal(userId, username, roles) {
+        currentRoleUserId = userId;
+        const modalEl = document.getElementById('userRolesModal');
+        const subtitle = document.getElementById('userRolesSubtitle');
+        const errorBox = document.getElementById('userRolesError');
+        if (!modalEl) return;
+
+        const selectedRoles = new Set(Array.isArray(roles) ? roles.map((role) => String(role || '').trim().toLowerCase()) : []);
+        modalEl.querySelectorAll('.staff-role-checkbox').forEach((input) => {
+            input.checked = selectedRoles.has(String(input.value || '').toLowerCase());
+        });
+        if (subtitle) {
+            subtitle.textContent = `Roles de @${username || 'usuaria'}`;
+        }
+        if (errorBox) {
+            errorBox.classList.add('d-none');
+            errorBox.textContent = '';
+        }
+
+        userRolesModal = userRolesModal || new bootstrap.Modal(modalEl);
+        userRolesModal.show();
+    }
+
+    async function saveUserRoles() {
+        if (!currentRoleUserId) return;
+        const modalEl = document.getElementById('userRolesModal');
+        const errorBox = document.getElementById('userRolesError');
+        const saveBtn = document.getElementById('saveUserRolesBtn');
+        const roles = Array.from(modalEl?.querySelectorAll('.staff-role-checkbox:checked') || [])
+            .map((input) => String(input.value || '').trim())
+            .filter(Boolean);
+
+        if (errorBox) {
+            errorBox.classList.add('d-none');
+            errorBox.textContent = '';
+        }
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Guardando...';
+        }
+
+        try {
+            const response = await fetch(`/admin/user/${currentRoleUserId}/roles`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': ADMIN_CSRF_TOKEN,
+                },
+                body: JSON.stringify({ roles }),
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || !payload.success) {
+                throw new Error(payload.error || 'No se pudieron guardar los roles.');
+            }
+            location.reload();
+        } catch (error) {
+            if (errorBox) {
+                errorBox.textContent = error.message || 'No se pudieron guardar los roles.';
+                errorBox.classList.remove('d-none');
+            } else {
+                alert(error.message || 'No se pudieron guardar los roles.');
+            }
+        } finally {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Guardar roles';
+            }
+        }
     }
 
     function changePhoto(userId, photoUrl, userBio) {
@@ -1757,6 +1830,8 @@
     }
 
     window.initAdminPageEnhancements = initAdminPageEnhancements;
+    window.openUserRolesModal = openUserRolesModal;
+    window.saveUserRoles = saveUserRoles;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initAdminPageEnhancements, { once: true });

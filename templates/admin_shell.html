@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_page.css') }}?v=20260523-admin-dead-ui-prune-v1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_page.css') }}?v=20260526-staff-roles-v1">
 <style>
     .deferred-shell-skeleton .placeholder {
         border-radius: 999px;
@@ -130,7 +130,7 @@ window.DEFERRED_PAGE_CONFIG = {
       contentUrl: {{ url_for('admin_panel_tab_content', tab=active_admin_tab, reports_subtab=active_reports_subtab, page=active_page_number|default(1), user_q=request.args.get('user_q', ''), user_status=request.args.get('user_status', 'all'), user_strikes=request.args.get('user_strikes', 'all'), user_reports=request.args.get('user_reports', 'all'), report_q=request.args.get('report_q', ''), report_status=request.args.get('report_status', 'active'), report_reason=request.args.get('report_reason', 'all'), report_since=request.args.get('report_since', 'all'))|tojson }}
     }
   ],
-  scriptSrc: {{ (url_for('static', filename='js/admin_page.js') ~ '?v=20260523-admin-dead-ui-prune-v1')|tojson }},
+  scriptSrc: {{ (url_for('static', filename='js/admin_page.js') ~ '?v=20260526-staff-roles-v1')|tojson }},
   initFn: 'initAdminPageEnhancements'
 };
 </script>

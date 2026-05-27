@@ -1,0 +1,11 @@
+{% if staff_badge %}
+{% set staff_badge_size = staff_badge_size|default('xs') %}
+{% if staff_badge.is_admin %}
+<span class="admin-badge admin-badge--{{ staff_badge_size }}" title="Admin verificada" aria-label="Admin verificada"><img src="{{ url_for('static', filename='images/admin_badge.svg') }}" alt="Admin"></span>
+{% else %}
+<span class="staff-role-badge staff-role-badge--{{ staff_badge.variant }} staff-role-badge--{{ staff_badge_size }}" title="{{ staff_badge.title }}" aria-label="{{ staff_badge.title }}">
+    <i class="fas {{ staff_badge.icon }}" aria-hidden="true"></i>
+    <span class="staff-role-badge__text">{{ staff_badge.label }}</span>
+</span>
+{% endif %}
+{% endif %}

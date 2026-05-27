@@ -440,6 +440,66 @@ body {
     height: 15px;
 }
 
+.staff-role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.24rem;
+    margin-left: 0.12rem;
+    padding: 0.15rem 0.42rem;
+    border-radius: 999px;
+    border: 1px solid rgba(167, 139, 250, 0.42);
+    background: rgba(91, 33, 182, 0.22);
+    color: #ddd6fe;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    line-height: 1;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.staff-role-badge i {
+    font-size: 0.72em;
+}
+
+.staff-role-badge--profile {
+    padding: 0.22rem 0.52rem;
+    font-size: 0.74rem;
+}
+
+.staff-role-badge--sm {
+    font-size: 0.68rem;
+}
+
+.staff-role-badge--xs {
+    font-size: 0.62rem;
+    padding: 0.12rem 0.34rem;
+}
+
+.staff-role-badge--verification {
+    border-color: rgba(56, 189, 248, 0.45);
+    background: rgba(14, 116, 144, 0.24);
+    color: #bae6fd;
+}
+
+.staff-role-badge--moderation {
+    border-color: rgba(251, 113, 133, 0.48);
+    background: rgba(136, 19, 55, 0.24);
+    color: #fecdd3;
+}
+
+.staff-role-badge--safety {
+    border-color: rgba(52, 211, 153, 0.44);
+    background: rgba(6, 95, 70, 0.22);
+    color: #bbf7d0;
+}
+
+.staff-role-badge--support {
+    border-color: rgba(251, 191, 36, 0.42);
+    background: rgba(146, 64, 14, 0.24);
+    color: #fde68a;
+}
+
 body.change-photo-open .modal-backdrop {
     background: rgba(0, 0, 0, 0.82) !important;
 }

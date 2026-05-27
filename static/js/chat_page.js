@@ -849,7 +849,7 @@
                     <div class="room-info">
                         <div class="room-name">${escapeHtml(room.name)}</div>
                         <div class="room-last-message">
-                            ${lastMessage ? `${escapeHtml(lastMessage.username)}${renderModerationBadge(lastMessage.moderation_level)}${renderAdminBadge(lastMessage.is_super_admin, 'admin-badge--xs')}: ${lastMessageText}` : 'Sin mensajes'}
+                            ${lastMessage ? `${escapeHtml(lastMessage.username)}${renderModerationBadge(lastMessage.moderation_level)}${renderStaffBadge(lastMessage.staff_badge, lastMessage.is_super_admin)}: ${lastMessageText}` : 'Sin mensajes'}
                         </div>
                     </div>
                     <div class="room-meta">
@@ -1154,7 +1154,7 @@
         const avatar = message.user_avatar || '/static/images/default_avatar.jpg';
         const metaHtml = message.is_deleted ? '' : `
             <div class="chat-message-meta ${isOwn ? 'own' : ''}">
-                <div class="chat-username">${escapeHtml(message.username)}${renderModerationBadge(message.moderation_level)}${renderAdminBadge(message.is_super_admin)}</div>
+                <div class="chat-username">${escapeHtml(message.username)}${renderModerationBadge(message.moderation_level)}${renderStaffBadge(message.staff_badge, message.is_super_admin)}</div>
             </div>
         `;
 
@@ -2066,6 +2066,20 @@
         if (!isSuperAdmin) return '';
         const cls = sizeClass ? ` ${sizeClass}` : '';
         return `<span class="admin-badge${cls}" title="Admin verificada" aria-label="Admin verificada"><img src="/static/images/admin_badge.svg" alt="Admin"></span>`;
+    }
+
+    function renderStaffBadge(staffBadge, isSuperAdmin = false, sizeClass = 'staff-role-badge--xs') {
+        if (!staffBadge) {
+            return renderAdminBadge(isSuperAdmin, sizeClass.replace('staff-role-badge', 'admin-badge'));
+        }
+        if (staffBadge.is_admin) {
+            return renderAdminBadge(true, sizeClass.replace('staff-role-badge', 'admin-badge'));
+        }
+        const variant = String(staffBadge.variant || 'support').replace(/[^a-z0-9_-]/gi, '');
+        const icon = String(staffBadge.icon || 'fa-shield-halved').replace(/[^a-z0-9_-]/gi, '');
+        const label = escapeHtml(staffBadge.label || 'Staff');
+        const title = escapeHtml(staffBadge.title || staffBadge.label || 'Staff');
+        return `<span class="staff-role-badge staff-role-badge--${variant} ${sizeClass}" title="${title}" aria-label="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span class="staff-role-badge__text">${label}</span></span>`;
     }
 
     function escapeHtml(text) {
