@@ -4,15 +4,16 @@
 <div class="container-fluid px-0 px-md-3 px-xl-4 pb-5 admin-ops-page">
     <section class="admin-ops-topbar">
         <div class="admin-ops-topbar__title">
-            <h1>Panel de Operaciones</h1>
+            <h1>{{ ops_panel_title|default('Panel de Operaciones') }}</h1>
         </div>
     </section>
 
+    {% if show_admin_overview|default(false) %}
     <section class="admin-overview-grid">
         <div class="admin-overview-left">
             <article class="admin-welcome-card">
                 <h2>Hola, Admin</h2>
-                <p>Resumen de actividad en tiempo real.</p>
+                <p>{{ ops_panel_subtitle|default('Resumen de actividad en tiempo real.') }}</p>
                 <a href="{{ url_for('index') }}" class="admin-welcome-link"><i class="fas fa-arrow-left"></i> Volver al
                     inicio</a>
             </article>
@@ -65,25 +66,39 @@
             <div class="admin-activity-updated" id="adminActivityUpdatedAt"></div>
         </article>
     </section>
+    {% endif %}
 
+    {% set visible_admin_tabs = available_admin_tabs if available_admin_tabs is defined else ['users', 'posts', 'reportes', 'chats', 'verificaciones'] %}
+    {% if visible_admin_tabs %}
     <section class="admin-tabs-panel">
         <div class="admin-tabs-scroll" id="adminTabs">
+            {% if 'users' in visible_admin_tabs %}
             <button class="tab-btn{% if active_tab == 'users' %} active{% endif %}" onclick="switchTab('users')" id="tab-users" type="button">
                 {% if has_admin_users_attention %}<span class="tab-dot"></span>{% endif %} Usuarias
             </button>
+            {% endif %}
+            {% if 'posts' in visible_admin_tabs %}
             <button class="tab-btn{% if active_tab == 'posts' %} active{% endif %}" onclick="switchTab('posts')" id="tab-posts" type="button">
                 Publicaciones
             </button>
+            {% endif %}
+            {% if 'reportes' in visible_admin_tabs %}
             <button class="tab-btn{% if active_tab == 'reportes' %} active{% endif %}" onclick="switchTab('reportes')" id="tab-reportes" type="button">
                 {% if has_admin_reports_attention %}<span class="tab-dot"></span>{% endif %} Reportes
             </button>
+            {% endif %}
+            {% if 'chats' in visible_admin_tabs %}
             <button class="tab-btn{% if active_tab == 'chats' %} active{% endif %}" onclick="switchTab('chats')" id="tab-chats" type="button">
                 {% if has_admin_chats_attention %}<span class="tab-dot"></span>{% endif %} Chats
             </button>
+            {% endif %}
+            {% if 'verificaciones' in visible_admin_tabs %}
             <button class="tab-btn{% if active_tab == 'verificaciones' %} active{% endif %}" onclick="switchTab('verificaciones')" id="tab-verificaciones" type="button">
                 {% if has_admin_verifications_attention %}<span class="tab-dot"></span>{% endif %} Verificaciones
             </button>
+            {% endif %}
         </div>
+        {% if visible_admin_tabs|length > 1 %}
         <div class="admin-tabs-tools">
             <label class="admin-filter-box" for="adminGlobalFilter">
                 <i class="fas fa-filter"></i>
@@ -93,7 +108,9 @@
                 <i class="fas fa-rotate-right"></i>
             </button>
         </div>
+        {% endif %}
     </section>
+    {% endif %}
 {% endif %}
 
     {% if active_tab == 'safety' %}

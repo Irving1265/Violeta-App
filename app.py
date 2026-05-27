@@ -9893,6 +9893,7 @@ def create_app():
             'verifications': verifications,
             'pending_verifications': [v for v in verifications if getattr(v, 'status', '') == 'pending'],
             'available_admin_tabs': ['verificaciones'],
+            'active_admin_tab': 'verificaciones',
             'initial_admin_tab': 'verificaciones',
             'ops_panel_title': 'Centro de Verificación',
             'ops_panel_subtitle': 'Revisión de identidad y elegibilidad.',
@@ -9941,6 +9942,7 @@ def create_app():
             'chat_message_reports': chat_message_reports,
             'comment_reports': comment_reports,
             'available_admin_tabs': ['reportes'],
+            'active_admin_tab': 'reportes',
             'initial_admin_tab': 'reportes',
             'ops_panel_title': 'Centro de Moderación',
             'ops_panel_subtitle': 'Revisión de reportes, restauraciones y strikes.',
@@ -10325,7 +10327,7 @@ def create_app():
             summary='Abrió el centro de verificación.',
             details={'available_tabs': context.get('available_admin_tabs') or []},
         )
-        return render_template('admin.html', **context)
+        return render_template('staff_workspace.html', **context)
 
     @app.route('/staff/moderacion')
     @login_required
@@ -10339,7 +10341,7 @@ def create_app():
             summary='Abrió el centro de moderación.',
             details={'available_tabs': context.get('available_admin_tabs') or []},
         )
-        return render_template('admin.html', **context)
+        return render_template('staff_workspace.html', **context)
 
     @app.route('/staff/safety')
     @login_required
@@ -10353,7 +10355,7 @@ def create_app():
             summary='Abrió el centro de safety.',
             details={'available_tabs': context.get('available_admin_tabs') or []},
         )
-        return render_template('admin.html', **context)
+        return render_template('staff_workspace.html', **context)
 
     @app.route('/admin/reports_timeseries')
     @login_required

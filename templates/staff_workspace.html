@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_page.css') }}?v=20260527-staff-shell-v1">
+{% endblock %}
+
+{% block content %}
+{% include 'admin.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.ADMIN_PAGE_CONFIG = {
+  csrfToken: {{ csrf_token()|tojson }},
+  activeReportsSubtab: {{ active_reports_subtab|default('reportados')|tojson }},
+  disableAdminActivity: true,
+  disableAttentionPolling: true,
+  attentionState: {
+    reportsTotal: {{ admin_reports_total_count|default(0)|tojson }},
+    postReports: {{ post_reports_count|default(0)|tojson }},
+    reportedPosts: {{ reported_posts_count|default(0)|tojson }},
+    chatReports: {{ chat_message_reports_count|default(0)|tojson }},
+    commentReports: {{ comment_reports_count|default(0)|tojson }},
+    latestReportCreatedAt: {{ latest_admin_report_created_at|default(none)|tojson }}
+  }
+};
+</script>
+<script defer src="{{ url_for('static', filename='js/admin_page.js') }}?v=20260527-staff-shell-v1"></script>
+{% endblock %}

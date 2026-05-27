@@ -196,6 +196,9 @@
     }
 
     function fetchAdminAttentionState(options = {}) {
+        if (ADMIN_PAGE_CONFIG.disableAttentionPolling) {
+            return Promise.resolve();
+        }
         const silent = !!options.silent;
         const suppressToast = !!options.suppressToast;
         const reqId = ++ADMIN_ATTENTION_STATE.requestId;
@@ -237,6 +240,9 @@
     }
 
     function startAdminAttentionPolling() {
+        if (ADMIN_PAGE_CONFIG.disableAttentionPolling) {
+            return;
+        }
         if (ADMIN_ATTENTION_STATE.timer) {
             clearInterval(ADMIN_ATTENTION_STATE.timer);
         }
@@ -335,7 +341,9 @@
         if (reportedCount === 0 && reportedChatCount === 0 && reportedCommentCount === 0) {
             removeTabDot('#tab-reportes');
         }
-        fetchAdminAttentionState({ silent: true, suppressToast: true });
+        if (!ADMIN_PAGE_CONFIG.disableAttentionPolling) {
+            fetchAdminAttentionState({ silent: true, suppressToast: true });
+        }
     }
 
     function ensureReportedGridEmptyState(gridId, itemSelector, message) {
@@ -509,6 +517,9 @@
     }
 
     function startAdminActivityAutoRefresh() {
+        if (ADMIN_PAGE_CONFIG.disableAdminActivity || !document.getElementById('adminActivityChart')) {
+            return;
+        }
         if (ADMIN_ACTIVITY_STATE.timer) {
             clearInterval(ADMIN_ACTIVITY_STATE.timer);
         }
@@ -1633,8 +1644,10 @@
                         ADMIN_ATTENTION_STATE.timer = null;
                     }
                 } else {
-                    fetchAdminActivity(ADMIN_ACTIVITY_STATE.days, { animate: false, silent: true });
-                    startAdminActivityAutoRefresh();
+                    if (!ADMIN_PAGE_CONFIG.disableAdminActivity && document.getElementById('adminActivityChart')) {
+                        fetchAdminActivity(ADMIN_ACTIVITY_STATE.days, { animate: false, silent: true });
+                        startAdminActivityAutoRefresh();
+                    }
                     startAdminAttentionPolling();
                 }
             });
@@ -1672,10 +1685,12 @@
         }
         window.__adminPageEnhancementsInitialized = true;
 
-        wireAdminActivityControls();
+        if (!ADMIN_PAGE_CONFIG.disableAdminActivity && document.getElementById('adminActivityChart')) {
+            wireAdminActivityControls();
+            fetchAdminActivity(ADMIN_ACTIVITY_STATE.days, { animate: true });
+            startAdminActivityAutoRefresh();
+        }
         bindAdminStaticControls();
-        fetchAdminActivity(ADMIN_ACTIVITY_STATE.days, { animate: true });
-        startAdminActivityAutoRefresh();
         startAdminAttentionPolling();
     }
 
