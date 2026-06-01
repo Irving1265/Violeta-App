@@ -33,7 +33,7 @@
     {% if load_leaflet_assets %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260601-compact-chat-v1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260601-compact-sidebar-v1">
     {% if request.endpoint in auth_shell_endpoints %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/auth_page.css') }}?v=20260507-auth-split-v1">
     {% endif %}
@@ -132,7 +132,7 @@
                 </a>
                 {% endif %}
             </nav>
-            <div class="mt-auto d-grid gap-2">
+            <div class="sidebar-actions mt-auto d-grid gap-2">
                 <a href="{{ url_for('support_page') }}" class="sidebar-support-link" data-no-prefetch="1">
                     <i class="fa-solid fa-life-ring"></i> Reportar problema
                 </a>
