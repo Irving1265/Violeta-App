@@ -2637,6 +2637,44 @@ def create_app():
         bucket = (app.config.get('SUPABASE_STORAGE_BUCKET') or '').strip()
         return f"{base_url}/storage/v1/object/public/{quote(bucket, safe='')}/{quote(storage_path, safe='/')}"
 
+    def direct_public_upload_urls_enabled() -> bool:
+        return public_upload_storage_enabled() and bool(app.config.get('PUBLIC_UPLOAD_DIRECT_URLS'))
+
+    def fetch_public_upload_from_storage(filename: str | None) -> tuple[bytes, str] | None:
+        storage_path = public_upload_storage_path(filename)
+        if not storage_path or not public_upload_storage_enabled():
+            return None
+
+        api_key = (app.config.get('SUPABASE_SERVICE_ROLE_KEY') or '').strip()
+        base_url = (app.config.get('SUPABASE_URL') or '').rstrip('/')
+        bucket = (app.config.get('SUPABASE_STORAGE_BUCKET') or '').strip()
+        req = Request(
+            f"{base_url}/storage/v1/object/{quote(bucket, safe='')}/{quote(storage_path, safe='/')}",
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'apikey': api_key,
+            },
+            method='GET',
+        )
+        try:
+            with urlopen(req, timeout=20) as resp:  # nosec B310
+                status = getattr(resp, 'status', None) or resp.getcode()
+                if status != 200:
+                    return None
+                payload = resp.read()
+                mime_type = resp.headers.get('Content-Type') or mimetypes.guess_type(storage_path)[0] or 'application/octet-stream'
+                return payload, mime_type
+        except HTTPError as exc:
+            if exc.code != 404:
+                app.logger.warning('supabase_upload_fetch_http_error path=%s status=%s', storage_path, exc.code)
+            return None
+        except URLError as exc:
+            app.logger.warning('supabase_upload_fetch_url_error path=%s error=%s', storage_path, exc)
+            return None
+        except Exception as exc:
+            app.logger.warning('supabase_upload_fetch_failed path=%s error=%s', storage_path, exc)
+            return None
+
     def local_public_upload_url(filename: str | None) -> str | None:
         storage_path = public_upload_storage_path(filename)
         if not storage_path:
@@ -6135,9 +6173,16 @@ def create_app():
         if not is_optimizable_upload(normalized):
             return uploaded_file(normalized)
 
-        external_url = public_upload_storage_url(normalized)
+        if direct_public_upload_urls_enabled():
+            external_url = public_upload_storage_url(normalized)
+        else:
+            external_url = None
         if external_url:
             return redirect(external_url, code=302)
+        if public_upload_storage_enabled():
+            response = uploaded_file(normalized)
+            response.headers['X-Violeta-Optimized-Fallback'] = '1'
+            return response
 
         upload_folder = ensure_upload_folder()
         source_path = os.path.abspath(os.path.join(upload_folder, normalized))
@@ -6178,9 +6223,20 @@ def create_app():
         if normalized.startswith('verify/'):
             abort(403)
 
-        external_url = public_upload_storage_url(normalized)
+        if direct_public_upload_urls_enabled():
+            external_url = public_upload_storage_url(normalized)
+        else:
+            external_url = None
         if external_url:
             return redirect(external_url, code=302)
+        storage_payload = fetch_public_upload_from_storage(normalized)
+        if storage_payload:
+            payload, mime_type = storage_payload
+            response = make_response(payload)
+            response.mimetype = mime_type
+            response.headers['Content-Length'] = str(len(payload))
+            response.headers['X-Violeta-Storage-Proxy'] = 'supabase'
+            return response
 
         folder = ensure_upload_folder()
         return send_from_directory(folder, normalized)
@@ -6203,9 +6259,12 @@ def create_app():
     def media_url(filename: str | None, fallback_static: str | None = None) -> str:
         normalized = (filename or '').strip()
         if normalized:
-            external = public_upload_storage_url(normalized)
-            if external:
-                return external
+            if direct_public_upload_urls_enabled():
+                external = public_upload_storage_url(normalized)
+                if external:
+                    return external
+            if public_upload_storage_enabled():
+                return url_for('uploaded_file', filename=normalized)
             local_public = local_public_upload_url(normalized)
             if local_public:
                 return local_public
@@ -6217,9 +6276,12 @@ def create_app():
     def optimized_media_url(filename: str | None, width: int = 720, fallback_static: str | None = None) -> str:
         normalized = normalize_upload_filename(filename)
         if normalized and width in OPTIMIZED_UPLOAD_WIDTHS and is_optimizable_upload(normalized):
-            external = public_upload_storage_url(normalized)
-            if external:
-                return external
+            if direct_public_upload_urls_enabled():
+                external = public_upload_storage_url(normalized)
+                if external:
+                    return external
+            if public_upload_storage_enabled():
+                return url_for('uploaded_file', filename=normalized)
             return url_for('uploaded_optimized_file', width=width, filename=normalized)
         return media_url(normalized, fallback_static=fallback_static)
 

@@ -2278,6 +2278,7 @@ class VioletaSmokeTests(unittest.TestCase):
                 'SUPABASE_URL',
                 'SUPABASE_SERVICE_ROLE_KEY',
                 'SUPABASE_STORAGE_BUCKET',
+                'PUBLIC_UPLOAD_DIRECT_URLS',
             )
         }
         self.addCleanup(lambda: app.config.update(original_config))
@@ -2286,12 +2287,46 @@ class VioletaSmokeTests(unittest.TestCase):
             SUPABASE_URL='https://example.supabase.co',
             SUPABASE_SERVICE_ROLE_KEY='service-role',
             SUPABASE_STORAGE_BUCKET='uploads',
+            PUBLIC_UPLOAD_DIRECT_URLS=False,
         )
         external_html = client.get(f'/post/{large_post_id}').get_data(as_text=True)
-        self.assertIn('https://example.supabase.co/storage/v1/object/public/uploads/large-srcset.jpg', external_html)
+        self.assertIn('/uploads/large-srcset.jpg', external_html)
+        self.assertIn('post_image_unavailable.svg', external_html)
+        self.assertNotIn('https://example.supabase.co/storage/v1/object/public/uploads/large-srcset.jpg', external_html)
         self.assertNotIn(' 360w', external_html)
         self.assertNotIn(' 720w', external_html)
         self.assertNotIn(' 1080w', external_html)
+
+        class FakeStorageResponse:
+            status = 200
+            headers = {'Content-Type': 'image/jpeg'}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def getcode(self):
+                return 200
+
+            def read(self):
+                return b'proxied-image'
+
+        with mock.patch.object(app_module, 'urlopen', return_value=FakeStorageResponse()) as mocked_urlopen:
+            proxied_image = client.get(f'/uploads/{large_filename}')
+
+        self.assertEqual(proxied_image.status_code, 200)
+        self.assertEqual(proxied_image.data, b'proxied-image')
+        self.assertEqual(proxied_image.headers.get('X-Violeta-Storage-Proxy'), 'supabase')
+        self.assertIn('image/jpeg', proxied_image.headers.get('Content-Type', ''))
+        request_arg = mocked_urlopen.call_args.args[0]
+        self.assertIn('/storage/v1/object/uploads/large-srcset.jpg', request_arg.full_url)
+        self.assertEqual(request_arg.headers.get('Authorization'), 'Bearer service-role')
+
+        app.config['PUBLIC_UPLOAD_DIRECT_URLS'] = True
+        direct_html = client.get(f'/post/{large_post_id}').get_data(as_text=True)
+        self.assertIn('https://example.supabase.co/storage/v1/object/public/uploads/large-srcset.jpg', direct_html)
 
     def test_pwa_manifest_service_worker_and_offline_shell(self):
         user_id = self.create_user('pwa_smoke')

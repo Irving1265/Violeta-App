@@ -79,6 +79,7 @@ class Config:
     SUPABASE_URL = (os.environ.get('SUPABASE_URL') or '').strip().rstrip('/')
     SUPABASE_SERVICE_ROLE_KEY = (os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or '').strip()
     SUPABASE_STORAGE_BUCKET = (os.environ.get('SUPABASE_STORAGE_BUCKET') or 'uploads').strip()
+    PUBLIC_UPLOAD_DIRECT_URLS = _env_bool('PUBLIC_UPLOAD_DIRECT_URLS', False)
 
     # Configuración de sesión
     PERMANENT_SESSION_LIFETIME = timedelta(days=7)

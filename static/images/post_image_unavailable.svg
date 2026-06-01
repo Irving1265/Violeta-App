@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+  <title id="title">Imagen no disponible</title>
+  <desc id="desc">Placeholder para publicaciones cuya imagen no pudo cargarse.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#241936"/>
+      <stop offset="0.58" stop-color="#171020"/>
+      <stop offset="1" stop-color="#33204f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="52%" cy="40%" r="52%">
+      <stop offset="0" stop-color="#8b5cf6" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="900" fill="url(#bg)"/>
+  <circle cx="620" cy="345" r="430" fill="url(#glow)"/>
+  <g transform="translate(472 238)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="0" y="0" width="256" height="196" rx="34" stroke="#a78bfa" stroke-width="18" opacity="0.88"/>
+    <path d="M38 152l58-58 46 46 28-28 48 48" stroke="#f5f3ff" stroke-width="18" opacity="0.9"/>
+    <circle cx="184" cy="58" r="22" fill="#f472b6" opacity="0.95" stroke="none"/>
+  </g>
+  <text x="600" y="555" text-anchor="middle" fill="#f5f3ff" font-family="Arial, sans-serif" font-size="56" font-weight="800">Imagen no disponible</text>
+  <text x="600" y="620" text-anchor="middle" fill="#c4b5fd" font-family="Arial, sans-serif" font-size="30" font-weight="700">Intenta actualizar la pantalla en unos segundos</text>
+</svg>
