@@ -1102,69 +1102,63 @@ p {
     color: var(--primary-color);
 }
 
-/* Desktop zoom/short-window typography scale. Keep container dimensions stable. */
-@media (min-width: 768px) and (max-width: 1240px),
-       (min-width: 768px) and (max-height: 820px) {
-    .brand-logo {
-        font-size: 1.55rem;
-    }
-
-    .brand-logo__meta {
-        font-size: 0.62rem;
-        letter-spacing: 0.1em;
-    }
-
-    .sidebar-link {
-        font-size: 0.88rem;
-        line-height: 1.18;
-    }
-
-    .sidebar-link i {
-        font-size: 1rem;
-    }
-
-    .sidebar-support-link,
-    .sidebar .btn-danger {
-        font-size: 0.78rem;
-        line-height: 1.15;
-    }
-
-    .sidebar-support-link i,
-    .sidebar .btn-danger i {
-        font-size: 0.86rem;
-    }
+/* Desktop zoom typography scale. Default sidebar dimensions/icons stay untouched. */
+html.desktop-zoom-compact .brand-logo {
+    font-size: 1.55rem;
 }
 
-@media (min-width: 768px) and (max-width: 980px),
-       (min-width: 768px) and (max-height: 700px) {
-    .brand-logo {
-        font-size: 1.18rem;
-    }
+html.desktop-zoom-compact .brand-logo__meta {
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+}
 
-    .brand-logo__meta {
-        font-size: 0.52rem;
-        letter-spacing: 0.08em;
-    }
+html.desktop-zoom-compact .sidebar-link {
+    font-size: 0.88rem;
+    line-height: 1.18;
+}
 
-    .sidebar-link {
-        font-size: 0.72rem;
-        line-height: 1.12;
-    }
+html.desktop-zoom-compact .sidebar-link i {
+    font-size: 1rem;
+}
 
-    .sidebar-link i {
-        font-size: 0.82rem;
-    }
+html.desktop-zoom-compact .sidebar-support-link,
+html.desktop-zoom-compact .sidebar .btn-danger {
+    font-size: 0.78rem;
+    line-height: 1.15;
+}
 
-    .sidebar-support-link,
-    .sidebar .btn-danger {
-        font-size: 0.66rem;
-        line-height: 1.1;
-    }
+html.desktop-zoom-compact .sidebar-support-link i,
+html.desktop-zoom-compact .sidebar .btn-danger i {
+    font-size: 0.86rem;
+}
 
-    .sidebar-support-link i,
-    .sidebar .btn-danger i {
-        font-size: 0.72rem;
-    }
+html.desktop-zoom-tight .brand-logo {
+    font-size: 1.18rem;
+}
+
+html.desktop-zoom-tight .brand-logo__meta {
+    font-size: 0.52rem;
+    letter-spacing: 0.08em;
+}
+
+html.desktop-zoom-tight .sidebar-link {
+    font-size: 0.72rem;
+    line-height: 1.12;
+}
+
+html.desktop-zoom-tight .sidebar-link i {
+    font-size: 0.82rem;
+}
+
+html.desktop-zoom-tight .sidebar-support-link,
+html.desktop-zoom-tight .sidebar .btn-danger {
+    font-size: 0.66rem;
+    line-height: 1.1;
+}
+
+html.desktop-zoom-tight .sidebar-support-link i,
+html.desktop-zoom-tight .sidebar .btn-danger i {
+    font-size: 0.72rem;
 }
 
 /* Cards */

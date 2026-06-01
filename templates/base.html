@@ -33,7 +33,36 @@
     {% if load_leaflet_assets %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260601-sidebar-text-scale-v1">
+    <script>
+        (function () {
+            var root = document.documentElement;
+            var compactClass = 'desktop-zoom-compact';
+            var tightClass = 'desktop-zoom-tight';
+
+            function nativeDprGuess(dpr) {
+                return dpr >= 1.75 ? 2 : 1;
+            }
+
+            function updateDesktopZoomClasses() {
+                var isDesktop = window.matchMedia && window.matchMedia('(min-width: 768px) and (hover: hover)').matches;
+                var dpr = window.devicePixelRatio || 1;
+                var visualScale = window.visualViewport && window.visualViewport.scale ? window.visualViewport.scale : 1;
+                var zoomRatio = Math.max(visualScale, dpr / nativeDprGuess(dpr));
+                var compact = isDesktop && zoomRatio >= 1.18;
+                var tight = isDesktop && zoomRatio >= 1.45;
+
+                root.classList.toggle(compactClass, compact);
+                root.classList.toggle(tightClass, tight);
+            }
+
+            updateDesktopZoomClasses();
+            window.addEventListener('resize', updateDesktopZoomClasses);
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', updateDesktopZoomClasses);
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260601-sidebar-zoom-scale-v1">
     {% if request.endpoint in auth_shell_endpoints %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/auth_page.css') }}?v=20260507-auth-split-v1">
     {% endif %}
