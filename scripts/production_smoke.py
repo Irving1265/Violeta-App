@@ -22,7 +22,7 @@ CHECKS = (
     SmokeCheck('/healthz', must_contain='"status":"ok"', expects_health_ok=True),
     SmokeCheck('/privacy', must_contain='Política de privacidad'),
     SmokeCheck('/account/delete', must_contain='Eliminar cuenta'),
-    SmokeCheck('/beta', must_contain='Beta v1.0'),
+    SmokeCheck('/beta', must_contain='Beta v1.1'),
     SmokeCheck('/support', must_contain='Reportar problema'),
     SmokeCheck('/terms', must_contain='Términos de uso'),
 )

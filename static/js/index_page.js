@@ -5,7 +5,7 @@
         if (!modal) return;
         if (document.body.classList.contains('has-limited-access-popup')) return;
 
-        const rawKey = modal.dataset.betaKey || 'Beta v1.0';
+        const rawKey = modal.dataset.betaKey || 'Beta v1.1';
         const storageKey = `violeta.betaPublicModal.dismissed.${rawKey}`;
         const dismissButtons = modal.querySelectorAll('[data-beta-public-dismiss]');
         const learnMoreLink = modal.querySelector('.beta-public-modal__link');

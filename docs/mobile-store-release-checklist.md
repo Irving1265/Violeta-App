@@ -19,7 +19,7 @@ Usa esta checklist cuando `npm run doctor` no tenga errores y antes de crear bui
 - `/healthz` responde sano antes de compilar.
 - `/privacy` abre publicamente y explica datos reales de Violeta.
 - `/account/delete` abre publicamente y permite iniciar o explicar claramente el borrado de cuenta.
-- `/beta` abre publicamente y explica que Violeta esta en Beta v1.0.
+- `/beta` abre publicamente y explica que Violeta esta en Beta v1.1.
 - `/support` abre publicamente para reportar problemas de la beta.
 - `/terms` abre publicamente con condiciones de uso.
 - El borrado de cuenta tambien esta accesible dentro de la app.

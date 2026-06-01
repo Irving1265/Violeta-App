@@ -84,9 +84,9 @@ Los datos anteriores no deben usarse para tracking publicitario. Si se agrega un
 - Terms of Use: https://violeta-app.onrender.com/terms
 - Beta Notice / Support: https://violeta-app.onrender.com/beta y https://violeta-app.onrender.com/support
 
-## Beta v1.0 notes
+## Beta v1.1 notes
 
-La app puede describirse como Beta v1.0 mientras este abierta a usuarias reales y todavia se ajusten funciones. La metadata no debe prometer seguridad garantizada, respuesta oficial de emergencias ni verificacion infalible.
+La app puede describirse como Beta v1.1 mientras este abierta a usuarias reales y todavia se ajusten funciones. La metadata no debe prometer seguridad garantizada, respuesta oficial de emergencias ni verificacion infalible.
 
 La evidencia visual de verificacion debe explicarse como revision humana autorizada para reducir riesgo comunitario, no como reconocimiento facial automatico ni clasificacion de genero.
 

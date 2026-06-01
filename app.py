@@ -2191,7 +2191,7 @@ def create_app():
     def inject_public_launch_info():
         support_email = (app.config.get('SUPPORT_EMAIL') or 'violetaapp38@gmail.com').strip()
         return {
-            'public_beta_label': app.config.get('PUBLIC_BETA_VERSION') or 'Beta v1.0',
+            'public_beta_label': app.config.get('PUBLIC_BETA_VERSION') or 'Beta v1.1',
             'support_email': support_email,
             'support_mailto': f'mailto:{support_email}?subject=Soporte%20Violeta%20Beta',
         }

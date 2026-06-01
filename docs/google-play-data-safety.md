@@ -13,9 +13,9 @@ Violeta ofrece borrado de cuenta dentro de la app y por web.
 
 La ruta web debe cargar sin pedir reinstalar la app y debe mencionar Violeta de forma clara.
 
-## Beta v1.0
+## Beta v1.1
 
-Si se publica como Beta v1.0, la ficha debe explicar que es una beta publica funcional y que seguiremos mejorando seguridad, rendimiento y experiencia. Evita frases que sugieran servicio oficial de emergencia, seguridad garantizada o verificacion automatica infalible.
+Si se publica como Beta v1.1, la ficha debe explicar que es una beta publica funcional y que seguiremos mejorando seguridad, rendimiento y experiencia. Evita frases que sugieran servicio oficial de emergencia, seguridad garantizada o verificacion automatica infalible.
 
 ## Data collection
 

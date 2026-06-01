@@ -1,10 +1,10 @@
-# Checklist De Lanzamiento Beta v1.0
+# Checklist De Lanzamiento Beta v1.1
 
 Usa esta lista antes y despues de abrir Violeta al publico. La meta es lanzar con riesgos controlados, no congelar el producto.
 
 ## Estado Publico
 
-- Nombre recomendado: `Violeta Beta v1.0`.
+- Nombre recomendado: `Violeta Beta v1.1`.
 - Mensaje publico: Violeta esta en beta publica; la app ya puede usarse, pero seguiremos mejorando funciones, seguridad y rendimiento.
 - Ruta informativa: `/beta`.
 - Soporte publico: `/support`.
@@ -63,7 +63,7 @@ Antes de invitar usuarias reales:
 
 ## Mensaje Sugerido Para Usuarias
 
-> Violeta esta en Beta v1.0. Ya puedes usar la app, pero seguiremos ajustando funciones, seguridad y rendimiento. Si encuentras un problema, reportalo desde Soporte.
+> Violeta esta en Beta v1.1. Ya puedes usar la app, pero seguiremos ajustando funciones, seguridad y rendimiento. Si encuentras un problema, reportalo desde Soporte.
 
 ## Criterio Para Pausar El Lanzamiento
 

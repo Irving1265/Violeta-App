@@ -92,11 +92,11 @@ Smoke publico automatizado:
 
 Este smoke confirma que produccion expone health, privacidad, borrado de cuenta, aviso beta, soporte y terminos.
 
-## Lanzamiento Beta v1.0
+## Lanzamiento Beta v1.1
 
 Antes de abrir Violeta a publico:
 
-- confirma que el banner `Beta v1.0` aparece en la app;
+- confirma que el banner `Beta v1.1` aparece en la app;
 - confirma que `/beta`, `/support`, `/terms`, `/privacy` y `/account/delete` abren sin iniciar sesion;
 - ejecuta `scripts/production_smoke.py` contra produccion;
 - genera backup de PostgreSQL y confirma acceso al storage de Supabase;
