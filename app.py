@@ -65,7 +65,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from werkzeug.middleware.proxy_fix import ProxyFix
-from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.exceptions import HTTPException, InternalServerError, NotFound, RequestEntityTooLarge
 
 VERIFY_REQUIRED_MSG = 'Por favor verifica tu cuenta para identificarte y realizar más acciones dentro de la aplicación.'
 PUBLISH_VERIFY_REQUIRED_MSG = 'Para publicar reportes ciudadanos, primero necesitamos verificar tu cuenta.'
@@ -2137,6 +2137,41 @@ def create_app():
             return jsonify({'ok': False, 'success': False, 'error': message}), 413
         flash(message, 'error')
         return redirect(request.referrer or url_for('index'))
+
+    def _wants_json():
+        """Detecta peticiones AJAX/API para responder JSON en lugar de HTML."""
+        return (
+            request.path.startswith('/api/')
+            or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            or 'application/json' in (request.headers.get('Accept') or '')
+        )
+
+    @app.errorhandler(404)
+    def handle_not_found(error):
+        message = 'La página que buscas no existe o fue movida.'
+        if _wants_json():
+            return jsonify({'ok': False, 'error': message}), 404
+        return render_template('404.html'), 404
+
+    @app.errorhandler(500)
+    def handle_internal_server_error(error):
+        app.logger.exception('Error 500 en %s %s', request.method, request.path)
+        message = 'Algo salió mal. Intenta de nuevo en unos minutos.'
+        if _wants_json():
+            return jsonify({'ok': False, 'error': message}), 500
+        return render_template('500.html'), 500
+
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(error):
+        """Fallback para el resto de errores HTTP (403, 405, etc.)."""
+        if error.code in (404, 500):
+            # Ya tienen handler dedicado; dejar que Flask los enrute.
+            return error
+        message = error.description or 'No se pudo completar la solicitud.'
+        if _wants_json():
+            return jsonify({'ok': False, 'error': message}), error.code
+        # Reutiliza la plantilla genérica con código dinámico.
+        return render_template('error.html', code=error.code, message=message), error.code
 
     # Initialize SocketIO for real-time chat (same-origin by default).
     socketio_cors_allowed_origins = app.config.get('SOCKETIO_CORS_ALLOWED_ORIGINS')

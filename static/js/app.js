@@ -630,6 +630,24 @@ function renderCommentsState(postId, data) {
     updateCommentsCount(postId, comments.length + hiddenComments.length);
 }
 
+function showCommentsError(postId, message) {
+    const structure = ensureCommentsStructure(postId);
+    if (!structure) return;
+    structure.visibleWrap.innerHTML = `
+        <div class="violet-comments-error" role="alert">
+            <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+            <span>${message}</span>
+            <button type="button" class="violet-comments-error__retry" data-retry-comments="${postId}">
+                Reintentar
+            </button>
+        </div>`;
+    structure.root.dataset.loaded = 'false';
+    const commentsSection = document.getElementById(`comments-${postId}`);
+    if (commentsSection) {
+        commentsSection.dataset.commentsLoaded = 'false';
+    }
+}
+
 async function loadComments(postId, force = false) {
     const commentsSection = document.getElementById(`comments-${postId}`);
     if (!force && commentsSection && commentsSection.dataset.commentsLoaded === 'true') {
@@ -647,6 +665,7 @@ async function loadComments(postId, force = false) {
 
             if (!response.ok) {
                 console.error('Error loading comments: ', await response.text());
+                showCommentsError(postId, 'No se pudieron cargar los comentarios.');
                 return;
             }
 
@@ -654,6 +673,7 @@ async function loadComments(postId, force = false) {
             renderCommentsState(postId, data);
         } catch (error) {
             console.error('Error loading comments:', error);
+            showCommentsError(postId, 'Sin conexión. Revisa tu red e inténtalo de nuevo.');
         } finally {
             commentLoadPromises.delete(requestKey);
         }
@@ -1022,6 +1042,17 @@ function prefetchPostDetailComments() {
 }
 
 document.addEventListener('DOMContentLoaded', prefetchPostDetailComments);
+
+// Delegated handler for the "Reintentar" button shown when comments fail to load.
+document.addEventListener('click', function (event) {
+    const retryBtn = event.target.closest('[data-retry-comments]');
+    if (!retryBtn) return;
+    event.preventDefault();
+    const retryPostId = retryBtn.getAttribute('data-retry-comments');
+    if (retryPostId) {
+        loadComments(retryPostId, true);
+    }
+});
 
 function renderAdminBadge(isSuperAdmin, sizeClass = 'admin-badge--xs') {
     if (!isSuperAdmin) return '';

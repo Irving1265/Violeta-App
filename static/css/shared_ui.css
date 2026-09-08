@@ -1,0 +1,296 @@
+/* Shared control foundation from design.md. Page compositions remain independent.
+   ui-* tokens cannot be overwritten by legacy page-level :root variables. */
+:root {
+    --ui-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --ui-text: #e9e3ef;
+    --ui-muted: #948b9c;
+    --ui-on-action: #ffffff;
+    --ui-canvas: #13111c;
+    --ui-surface: #1e1b2e;
+    --ui-raised: #282236;
+    --ui-divider: #2d2438;
+    --ui-boundary: #766b82;
+    --ui-brand: #8b5cf6;
+    --ui-action: #7c3aed;
+    --ui-action-hover: #6d28d9;
+    --ui-focus: #a78bfa;
+    --ui-success: #22c55e;
+    --ui-warning: #f59e0b;
+    --ui-danger: #ef4444;
+    --ui-info: #60a5fa;
+    --ui-text-page: 1.75rem;
+    --ui-text-section: 1.25rem;
+    --ui-text-title: 1.125rem;
+    --ui-text-body: 1rem;
+    --ui-text-control: 0.9375rem;
+    --ui-text-small: 0.875rem;
+    --ui-text-meta: 0.8125rem;
+    --ui-weight-body: 400;
+    --ui-weight-label: 600;
+    --ui-weight-title: 700;
+    --ui-leading-body: 1.5;
+    --ui-leading-title: 1.3;
+    --ui-space-1: 0.25rem;
+    --ui-space-2: 0.5rem;
+    --ui-space-3: 0.75rem;
+    --ui-space-4: 1rem;
+    --ui-space-6: 1.5rem;
+    --ui-space-8: 2rem;
+    --ui-space-12: 3rem;
+    --ui-radius-control: 8px;
+    --ui-radius-card: 12px;
+    --ui-radius-dialog: 16px;
+    --ui-shadow-low: 0 2px 8px rgba(0, 0, 0, 0.16);
+    --ui-shadow-dialog: 0 12px 32px rgba(0, 0, 0, 0.32);
+    --ui-feedback: 150ms ease;
+}
+
+/* Do not replace page-specific headings, captions, badges, or navigation sizing. */
+body.violeta-theme {
+    font-family: var(--ui-font);
+    font-size: var(--ui-text-body);
+    line-height: var(--ui-leading-body);
+}
+
+.violeta-theme :where(.form-label, .form-check-label) {
+    color: var(--ui-text);
+    font-size: var(--ui-text-small);
+    font-weight: var(--ui-weight-label);
+    line-height: var(--ui-leading-body);
+}
+
+.violeta-theme .form-label {
+    margin-bottom: var(--ui-space-2);
+}
+
+.violeta-theme :is(.form-text, .invalid-feedback, .violet-error) {
+    font-size: var(--ui-text-small);
+    line-height: var(--ui-leading-body);
+    margin-top: var(--ui-space-2);
+}
+
+.violeta-theme .form-text {
+    color: var(--ui-muted);
+}
+
+.violeta-theme :is(.invalid-feedback, .violet-error) {
+    color: var(--ui-text);
+    border-left: 2px solid var(--ui-danger);
+    padding-left: var(--ui-space-2);
+}
+
+.violeta-theme :is(.btn, .violet-btn-primary, .btn-outline-sm) {
+    font-family: var(--ui-font);
+    font-size: var(--ui-text-control);
+    font-weight: var(--ui-weight-label);
+    line-height: var(--ui-leading-body);
+    letter-spacing: normal;
+    min-height: 44px;
+    padding: var(--ui-space-3) var(--ui-space-6);
+    gap: var(--ui-space-2);
+    border-radius: var(--ui-radius-control);
+    box-shadow: none;
+    transition: background-color var(--ui-feedback), color var(--ui-feedback), border-color var(--ui-feedback);
+}
+
+.violeta-theme :is(.btn, .violet-btn-primary, .btn-outline-sm):is(:hover, :active) {
+    transform: none;
+    box-shadow: none;
+}
+
+.violeta-theme :is(.btn-primary, .violet-btn-primary) {
+    --bs-btn-active-bg: var(--ui-action-hover);
+    --bs-btn-active-color: var(--ui-on-action);
+    background: var(--ui-action);
+    border: 1px solid transparent;
+    color: var(--ui-on-action);
+    min-height: 48px;
+}
+
+.violeta-theme .violet-btn-primary::before {
+    content: none;
+}
+
+.violeta-theme :is(.btn-primary, .violet-btn-primary):is(:hover, :active):not(:disabled):not(.disabled) {
+    background: var(--ui-action-hover);
+    color: var(--ui-on-action);
+}
+
+.violeta-theme :is(.btn-secondary, .btn-outline-secondary, .btn-outline-light, .btn-outline-sm) {
+    background: transparent;
+    border: 1px solid var(--ui-boundary);
+    color: var(--ui-text);
+}
+
+.violeta-theme :is(.btn-secondary, .btn-outline-secondary, .btn-outline-light, .btn-outline-sm):is(:hover, :active):not(:disabled):not(.disabled) {
+    background: var(--ui-raised);
+    color: var(--ui-on-action);
+    border-color: var(--ui-muted);
+}
+
+.violeta-theme .btn-ghost {
+    background: transparent;
+    color: var(--ui-muted);
+}
+
+.violeta-theme .btn-ghost:is(:hover, :active):not(:disabled) {
+    background: var(--ui-raised);
+    color: var(--ui-text);
+}
+
+/* Dark text maintains contrast on the existing semantic status colors. */
+.violeta-theme .btn-danger {
+    --ui-status-action: var(--ui-danger);
+    background: var(--ui-status-action);
+    color: var(--ui-canvas);
+}
+
+.violeta-theme .btn-success {
+    --ui-status-action: var(--ui-success);
+    background: var(--ui-status-action);
+    color: var(--ui-canvas);
+}
+
+.violeta-theme .btn-warning {
+    --ui-status-action: var(--ui-warning);
+    background: var(--ui-status-action);
+    color: var(--ui-canvas);
+}
+
+.violeta-theme .btn-info {
+    --ui-status-action: var(--ui-info);
+    background: var(--ui-status-action);
+    color: var(--ui-canvas);
+}
+
+.violeta-theme :is(.btn-danger, .btn-success, .btn-warning, .btn-info):is(:hover, :active):not(:disabled):not(.disabled) {
+    background: var(--ui-status-action);
+    color: var(--ui-canvas);
+    box-shadow: inset 0 0 0 2px currentColor;
+}
+
+.violeta-theme :is(.btn, .violet-btn-primary, .btn-outline-sm):is(:disabled, .disabled) {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.violeta-theme :is(.btn, .violet-btn-primary)[aria-busy="true"] {
+    cursor: progress;
+}
+
+.violeta-theme :is(.btn, .violet-btn-primary) > :is(i, .spinner-border) {
+    font-size: 1em;
+    flex-shrink: 0;
+}
+
+.violeta-theme :is(.btn.circle-icon-btn, .btn.rounded-circle) {
+    min-width: 44px;
+    width: 44px;
+    height: 44px;
+    padding: var(--ui-space-2);
+    border-radius: 50%;
+}
+
+.violeta-theme :is(.form-control, .form-select, .violet-input) {
+    font-family: var(--ui-font);
+    font-size: var(--ui-text-body);
+    line-height: var(--ui-leading-body);
+    color: var(--ui-text);
+    background-color: var(--ui-surface);
+    border: 1px solid var(--ui-boundary);
+    border-radius: var(--ui-radius-control);
+    min-height: 50px;
+    padding-top: var(--ui-space-3);
+    padding-bottom: var(--ui-space-3);
+    /* Preserve horizontal padding for existing icons and password toggles. */
+    box-shadow: none;
+    transition: border-color var(--ui-feedback), background-color var(--ui-feedback);
+}
+
+.violeta-theme :is(.form-control, .violet-input)::placeholder {
+    color: var(--ui-muted);
+    opacity: 1;
+}
+
+.violeta-theme :is(.form-control, .form-select, .violet-input):focus {
+    color: var(--ui-text);
+    background-color: var(--ui-surface);
+    border-color: var(--ui-focus);
+    outline: 2px solid var(--ui-focus);
+    outline-offset: 2px;
+    box-shadow: none;
+}
+
+.violeta-theme :is(.form-control, .form-select, .violet-input):is(:disabled, [readonly]) {
+    background-color: var(--ui-raised);
+    color: var(--ui-muted);
+    opacity: 1;
+}
+
+.violeta-theme :is(.form-control, .form-select, .violet-input):is(.error, .is-invalid, [aria-invalid="true"]) {
+    /* Existing validation classes use !important; retain their error priority. */
+    border-color: var(--ui-danger) !important;
+    box-shadow: none !important;
+}
+
+.violeta-theme :is(.form-control, .form-select).is-valid {
+    border-color: var(--ui-success);
+}
+
+.violeta-theme :is(input[type="checkbox"], input[type="radio"]) {
+    accent-color: var(--ui-action);
+}
+
+.violeta-theme :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--ui-focus);
+    outline-offset: 2px;
+}
+
+.violeta-theme .password-input-wrap .password-toggle-btn,
+.violeta-theme .input-icon-wrapper .pwd-toggle {
+    min-width: 44px;
+    min-height: 44px;
+    right: var(--ui-space-2);
+    background: transparent;
+    color: var(--ui-muted);
+    border-radius: var(--ui-radius-control);
+    box-shadow: none;
+}
+
+.violeta-theme .password-input-wrap .password-toggle-btn:is(:hover, :focus-visible),
+.violeta-theme .input-icon-wrapper .pwd-toggle:is(:hover, :focus-visible) {
+    background: var(--ui-raised);
+    color: var(--ui-text);
+    outline: 2px solid var(--ui-focus);
+    outline-offset: 0;
+}
+
+.violeta-theme .modal-content.bg-surface {
+    border-radius: var(--ui-radius-dialog);
+    box-shadow: var(--ui-shadow-dialog);
+}
+
+.violeta-theme .modal-content.bg-surface .modal-title {
+    font-size: var(--ui-text-title);
+    font-weight: var(--ui-weight-title);
+    line-height: var(--ui-leading-title);
+}
+
+.violeta-theme .modal-header .btn-close {
+    box-sizing: border-box;
+    min-width: 44px;
+    min-height: 44px;
+}
+
+.violeta-theme .flash-popups .alert {
+    box-shadow: var(--ui-shadow-low);
+    border-radius: var(--ui-radius-card);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .violeta-theme :is(.btn, .violet-btn-primary, .btn-outline-sm, .form-control, .form-select, .violet-input, .password-toggle-btn, .pwd-toggle) {
+        transition: none;
+    }
+}

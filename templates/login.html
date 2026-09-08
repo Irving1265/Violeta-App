@@ -289,13 +289,13 @@
                         {{ form.hidden_tag() }}
 
                         <div class="input-icon-wrapper">
-                            <i class="fas fa-user input-icon"></i>
-                            <input type="text" name="login" class="violet-input" placeholder="Usuaria o correo" required>
+                            <i class="fas fa-user input-icon" aria-hidden="true"></i>
+                            <input type="text" name="login" class="violet-input" placeholder="Usuaria o correo" aria-label="Usuaria o correo" autocomplete="username" required>
                         </div>
 
                         <div class="input-icon-wrapper password-input-wrap">
-                            <i class="fas fa-lock input-icon"></i>
-                            <input type="password" name="password" class="violet-input" placeholder="Contraseña" required>
+                            <i class="fas fa-lock input-icon" aria-hidden="true"></i>
+                            <input type="password" name="password" class="violet-input" placeholder="Contraseña" aria-label="Contraseña" autocomplete="current-password" required>
                             <button type="button" class="password-toggle-btn" data-password-toggle aria-label="Mostrar contraseña" aria-pressed="false">
                                 <i class="fas fa-eye"></i>
                             </button>

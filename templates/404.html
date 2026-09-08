@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="error-state" role="alert" aria-live="polite">
+    <div class="error-state__inner">
+        <div class="error-state__code" aria-hidden="true">404</div>
+        <i class="fas fa-compass error-state__icon" aria-hidden="true"></i>
+        <h1 class="error-state__title">Página no encontrada</h1>
+        <p class="error-state__message">
+            La página que buscas no existe o fue movida. Quizá el enlace caducó
+            o la publicación ya no está disponible.
+        </p>
+        <div class="error-state__actions">
+            <a href="{{ url_for('index') }}" class="btn btn-primary">
+                <i class="fas fa-house" aria-hidden="true"></i>
+                <span>Volver al inicio</span>
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

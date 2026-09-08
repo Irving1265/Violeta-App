@@ -852,6 +852,44 @@
     display: none;
 }
 
+/* Mensaje de error al cargar comentarios (con botón Reintentar) */
+.violet-comments-error {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.85rem 1rem;
+    margin: 0.5rem 0;
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--danger);
+    border-radius: var(--radius-sm, 8px);
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.violet-comments-error i {
+    color: var(--danger);
+    font-size: 0.95rem;
+}
+
+.violet-comments-error__retry {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    border-radius: var(--radius-sm, 8px);
+    padding: 0.3rem 0.7rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: var(--transition-fast, 0.2s ease);
+}
+
+.violet-comments-error__retry:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-light);
+}
+
 .post-comments-panel .violet-comment {
     gap: 0.85rem;
     margin-bottom: 1rem;

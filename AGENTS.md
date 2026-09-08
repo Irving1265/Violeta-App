@@ -42,27 +42,23 @@ Admin/super_admin posts are the exception and may be shown fully.
 
 ## UX/UI rules
 
-Violeta should feel modern, protective, social, trustworthy, and mobile-first. It should not feel governmental, generic, or bureaucratic.
+[design.md](design.md) is the visual and interaction source of truth for this repository. It governs public pages, authentication, verification, staff tools, and offline/error screens. Do not maintain a separate competing palette or component specification here. Visual rules do not override security, privacy, or authorization requirements.
 
-Use:
-- Background: #13111C
-- Cards/surfaces: #1E1B2E
-- Primary violet: #8B5CF6
-- Secondary violet: #A78BFA
-- Text primary: #FFFFFF
-- Text secondary: #9CA3AF
-- Risk/alert: #EF4444
-- Safe/location: #22C55E
-
-When changing UI:
-- Avoid clutter.
-- Keep primary actions obvious.
-- Ensure no horizontal overflow.
-- Ensure modals are usable on mobile.
-- Ensure tap targets are comfortable.
-- Ensure bottom navigation and floating buttons do not overlap content.
-- Use subtle, fast animations only when helpful.
-- Respect accessibility and reduced motion where possible.
+1. Always read `design.md` before modifying frontend UI.
+2. Preserve existing working functionality, including permissions, form validation, navigation, and data handling. Do not remove behavior to simplify a layout.
+3. Reuse existing components, templates, styles, and interaction patterns instead of creating unnecessary duplicates. Inspect reusable implementations before adding another variant.
+4. Follow the design tokens and visual rules in `design.md`. Map its semantic roles to existing styles; do not assume every documented token already exists in code.
+5. Prioritize UX, task completion, and information hierarchy over decoration. Keep primary actions obvious and secondary details subordinate.
+6. Avoid generic AI-generated UI patterns. Follow the entire "Avoid AI-looking UI" section in `design.md`, including its restrictions on gradients, cards, pills, shadows, glassmorphism, and generic SaaS layouts.
+7. Never introduce arbitrary colors, spacing, shadows, or border radii. Use the documented system; document a justified, task-relevant system extension in `design.md` rather than silently adding one-off values.
+8. Every new screen must work on mobile and desktop. Existing screens must retain responsive behavior when changed. Prevent horizontal overflow and overlap from fixed navigation or floating buttons; keep dialogs usable on small and short viewports.
+9. Maintain accessibility and semantic HTML. Follow the accessibility standards in `design.md`, including keyboard operation, visible focus, labels, contrast, accessible names, readable zoom, and reduced motion. Never shrink text to cancel the user's zoom preference.
+10. Include hover, focus, active, loading, empty, and error states when relevant. Also handle disabled and success states where needed, with clear feedback and recovery actions rather than decorative placeholders.
+11. Before implementing a major visual change, inspect the existing templates, styles, scripts, shared components, and affected user flows. Inspect the rendered interface when available; identify what works and preserve it instead of redesigning from assumptions.
+12. After implementing UI changes, visually review the finished interface at mobile and desktop sizes, including relevant interaction states, zoom, and overflow. Automated checks supplement rather than replace this review.
+13. Fix visual inconsistencies before considering the task complete. Check typography, alignment, spacing, colors, component states, and consistency with adjacent screens. If visual review cannot be performed, explicitly report the limitation and remaining verification; do not claim visual approval.
+14. Do not change backend functionality unless the task requires it. A visual task is not authorization to change permissions, privacy policies, data models, or API behavior.
+15. Keep the UI simple, intentional, and professional. Preserve Violeta's protective, trustworthy, community-oriented identity and clear Spanish copy; avoid clutter and unnecessary animation.
 
 ## Verification flow rules
 

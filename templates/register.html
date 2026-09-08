@@ -110,7 +110,7 @@
                 <h3 class="step-heading">Crear cuenta</h3>
 
                 <div class="mb-3" id="emailContainer">
-                    {{ form.email(class="violet-input", placeholder="nombre@ejemplo.com", id="email") }}
+                    {{ form.email(class="violet-input", placeholder="nombre@ejemplo.com", id="email", autocomplete="email", **{"aria-label": "Correo electrónico"}) }}
                     {% if form.email.errors %}
                     <div class="text-danger mt-2 small">
                         {% for error in form.email.errors %}
@@ -145,7 +145,7 @@
             <div class="register-step" id="step2">
                 <h3 class="step-heading">Crear Contraseña</h3>
                 <div class="mb-3 password-input-wrap">
-                    {{ form.password(class="violet-input", placeholder="Contraseña", id="password") }}
+                    {{ form.password(class="violet-input", placeholder="Contraseña", id="password", autocomplete="new-password", **{"aria-label": "Contraseña"}) }}
                     <button type="button" class="password-toggle-btn" data-password-toggle data-password-target="password" aria-label="Mostrar contraseña" aria-pressed="false">
                         <i class="fas fa-eye"></i>
                     </button>
@@ -158,7 +158,7 @@
                     {% endif %}
                 </div>
                 <div class="mb-4 password-input-wrap">
-                    {{ form.password2(class="violet-input", placeholder="Repetir Contraseña", id="password2") }}
+                    {{ form.password2(class="violet-input", placeholder="Repetir Contraseña", id="password2", autocomplete="new-password", **{"aria-label": "Repetir contraseña"}) }}
                     <button type="button" class="password-toggle-btn" data-password-toggle data-password-target="password2" aria-label="Mostrar contraseña" aria-pressed="false">
                         <i class="fas fa-eye"></i>
                     </button>
@@ -194,7 +194,7 @@
                     Este será tu identificador único en la plataforma.
                 </p>
                 <div class="mb-4" id="usernameContainer">
-                    {{ form.username(class="violet-input", placeholder="@usuaria", id="username") }}
+                    {{ form.username(class="violet-input", placeholder="@usuaria", id="username", autocomplete="username", **{"aria-label": "Nombre de usuaria"}) }}
                     {% if form.username.errors %}
                     <div class="text-danger mt-2 small">
                         {% for error in form.username.errors %}

@@ -86,6 +86,7 @@
     <link rel="prefetch" as="document" href="{{ url_for('user_profile', username=current_user.username) }}">
     {% endif %}
     {% block styles %}{% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/shared_ui.css') }}?v=20260907-phase1">
 </head>
 
 <body class="violeta-theme {% if show_limited_access_popup %}user-unverified has-limited-access-popup{% endif %} {% if request.endpoint == 'chat' %}chat-page{% endif %}">

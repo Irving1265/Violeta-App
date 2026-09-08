@@ -2843,3 +2843,73 @@ body.post-create-modal-open .floating-create-btn {
     outline: 2px solid rgba(255, 255, 255, 0.85);
     outline-offset: 2px;
 }
+
+/* ===== Estados de error (404 / 500 / genérico) ===== */
+.error-state {
+    min-height: calc(100vh - var(--header-height) - var(--bottom-nav-height));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-md, 24px) var(--space-sm, 16px);
+    text-align: center;
+}
+
+.error-state__inner {
+    max-width: 460px;
+    width: 100%;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 48px 28px 40px;
+}
+
+.error-state__code {
+    font-size: clamp(3.5rem, 12vw, 5.5rem);
+    font-weight: 800;
+    line-height: 1;
+    color: var(--primary-color);
+    letter-spacing: -0.03em;
+    margin-bottom: 12px;
+}
+
+.error-state__icon {
+    font-size: 2rem;
+    color: var(--primary-light);
+    margin-bottom: 16px;
+}
+
+.error-state__title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin: 0 0 8px;
+}
+
+.error-state__message {
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0 0 28px;
+    font-size: 0.975rem;
+}
+
+.error-state__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+.error-state__actions .btn {
+    min-width: 160px;
+}
+
+@media (max-width: 576px) {
+    .error-state__inner {
+        padding: 36px 20px 28px;
+    }
+
+    .error-state__actions .btn {
+        min-width: 100%;
+    }
+}

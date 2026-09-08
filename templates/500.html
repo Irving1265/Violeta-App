@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="error-state" role="alert" aria-live="polite">
+    <div class="error-state__inner">
+        <div class="error-state__code" aria-hidden="true">500</div>
+        <i class="fas fa-triangle-exclamation error-state__icon" aria-hidden="true"></i>
+        <h1 class="error-state__title">Algo salió mal</h1>
+        <p class="error-state__message">
+            Ocurrió un error inesperado en el servidor. Ya fuimos notificados;
+            por favor intenta de nuevo en unos minutos.
+        </p>
+        <div class="error-state__actions">
+            <a href="{{ url_for('index') }}" class="btn btn-primary">
+                <i class="fas fa-house" aria-hidden="true"></i>
+                <span>Volver al inicio</span>
+            </a>
+            <a href="{{ url_for('support_page') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-life-ring" aria-hidden="true"></i>
+                <span>Reportar problema</span>
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}
