@@ -37,6 +37,7 @@ from sqlalchemy import or_, and_, text, func, inspect, insert, case
 from sqlalchemy.orm import selectinload, noload, load_only, make_transient_to_detached
 from config import Config
 from forms import LoginForm, RegisterForm, PostForm, CommentForm, ShareForm
+from google_auth import init_google_auth, link_pending_google
 from datetime import datetime, timedelta, timezone
 from collections import Counter, defaultdict, deque
 from zoneinfo import ZoneInfo
@@ -5611,6 +5612,19 @@ def create_app():
             'strike_id': strike.id,
         })
 
+    def finish_google_login(user, remember):
+        session.clear()
+        login_user(user, remember=remember)
+        _store_user_snapshot(user)
+        if bool(getattr(user, 'force_password_change', False)):
+            return redirect(url_for('force_password_reset'))
+        if user_restriction_state(user, auto_clear=True):
+            return redirect(url_for('account_restricted'))
+        return redirect(url_for('index'))
+
+    init_google_auth(app, finish_google_login, lambda: is_rate_limited(
+        f'google_login:{get_request_ip()}', limit=12, window_seconds=300))
+
     @app.route('/login', methods=['GET', 'POST'])
     def login():
         if current_user.is_authenticated:
@@ -5633,6 +5647,7 @@ def create_app():
                 user = User.query.filter_by(email=login_input).first()
 
             if user and user.check_password(password):
+                google_link_notice = link_pending_google(user)
                 # Recordarme opcional (checkbox)
                 remember_raw = (request.form.get('remember') or '').lower()
                 remember = remember_raw in ('1', 'true', 'on', 'yes')
@@ -5640,6 +5655,8 @@ def create_app():
                 session.clear()
                 login_user(user, remember=remember)
                 _store_user_snapshot(user)
+                if google_link_notice:
+                    flash(*google_link_notice)
                 if bool(getattr(user, 'force_password_change', False)):
                     flash('Tu cuenta tiene una contraseña temporal. Debes cambiarla antes de continuar.', 'warning')
                     return redirect(url_for('force_password_reset'))

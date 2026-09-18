@@ -532,11 +532,15 @@ class VioletaSmokeTests(unittest.TestCase):
             app.config['MAX_CONTENT_LENGTH'] = original_content_limit
 
     def test_password_toggle_buttons_anchor_to_input_row_with_errors(self):
-        auth_templates = ('login.html', 'register.html', 'reset_password.html')
+        auth_templates = ('register.html', 'reset_password.html')
         for template_name in auth_templates:
             template_html = (PROJECT_ROOT / 'templates' / template_name).read_text(encoding='utf-8')
             self.assertIn('--password-input-height: 50px;', template_html)
             self.assertIn('top: calc(var(--password-input-height) / 2);', template_html)
+
+        login_css = (PROJECT_ROOT / 'static' / 'css' / 'login_page.css').read_text(encoding='utf-8')
+        self.assertIn('--password-input-height: 52px;', login_css)
+        self.assertIn('top: calc(var(--password-input-height) / 2);', login_css)
 
         landing_html = (PROJECT_ROOT / 'templates' / 'landing.html').read_text(encoding='utf-8')
         self.assertIn('--password-input-height: 50px;', landing_html)

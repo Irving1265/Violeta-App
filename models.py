@@ -40,6 +40,7 @@ class User(UserMixin, db.Model):
     permanent_ban_reason = db.Column(db.String(255))
 
     # Relaciones
+    google_identity = db.relationship('GoogleIdentity', back_populates='user', uselist=False, cascade='all, delete-orphan')
     posts = db.relationship('Post', back_populates='author', lazy=True, cascade='all, delete-orphan')
     comments = db.relationship('Comment', back_populates='author', lazy=True, cascade='all, delete-orphan')
     likes = db.relationship('Like', back_populates='user', lazy=True, cascade='all, delete-orphan')
@@ -88,6 +89,15 @@ class User(UserMixin, db.Model):
 
     def __repr__(self):
         return f'<User {self.username}>'
+
+
+class GoogleIdentity(db.Model):
+    """Stable Google subject; never store provider tokens or use email as identity."""
+    id = db.Column(db.Integer, primary_key=True)
+    subject = db.Column(db.String(255), unique=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    user = db.relationship('User', back_populates='google_identity')
 
 
 class Post(db.Model):

@@ -31,6 +31,7 @@ def main() -> int:
             'app.py',
             'config.py',
             'forms.py',
+            'google_auth.py',
             'models.py',
             'scripts/perf_home_check.py',
             'scripts/smoke_test_cases.py',
@@ -47,6 +48,7 @@ def main() -> int:
             'models.py',
             'config.py',
             'forms.py',
+            'google_auth.py',
             'scripts',
             '-x',
             'scripts/smoke_test_cases.py,scripts/ui_browser_smoke.py',
@@ -54,6 +56,7 @@ def main() -> int:
         ],
     )
     run_step('Smoke tests criticos', [python, 'scripts/smoke_test_cases.py'])
+    run_step('Google authentication tests', [python, 'scripts/test_google_auth.py'])
     run_step(
         'Preflight no estricto',
         [

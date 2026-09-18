@@ -124,6 +124,7 @@
 
     function initVioletFormValidation() {
         document.querySelectorAll('.violet-input').forEach((input) => {
+            if (input.closest('[data-validation="native"]')) return;
             input.addEventListener('blur', function () {
                 validateInput(this);
             });
@@ -351,6 +352,7 @@
         });
 
         document.addEventListener('click', function (e) {
+            if (!(e.target instanceof Element)) return;
             const target = e.target.closest('a, button');
             if (!target || target.dataset?.noAnim === '1') return;
             if (target.tagName !== 'A') return;
@@ -368,6 +370,8 @@
 
         ['pointerenter', 'focusin', 'touchstart'].forEach((eventName) => {
             document.addEventListener(eventName, function (event) {
+                // Captured pointer events may target Document rather than an element.
+                if (!(event.target instanceof Element)) return;
                 const link = event.target.closest('a[href]');
                 if (!shouldPrefetchLink(link)) return;
                 warmNavigationTarget(link.href);

@@ -291,6 +291,16 @@ Any exception must document the user benefit, affected component, and accessibil
 
 ## Applying This Source of Truth
 
+### Approved Login Reference
+
+The user-supplied September 2026 login reference is a scoped exception, implemented in `login_page.css` and `login.html`, not a new global theme. Preserve its 440px desktop auth column (410px below 1200px), dark `#12101C` canvas, `#1A1825` panel, `#211D30` inputs, 24px panel radius (22px mobile), 14px control radius and system font. The revised compact header uses the Violeta wordmark and Beta v1.2 inside the form panel instead of the circular illustration and duplicate exterior logo. Supporting text uses `#A9A1B3`; inputs retain the shared accessible boundary and 16px text instead of the reference's smaller size.
+
+Use 8px form gaps, 4px label gaps, 16px header separation and 24px panel padding (20px vertical/16px horizontal on small phones). Remove the unused bottom-navigation clearance on login only. Fit the normal form into portrait phone and desktop viewports; allow scrolling for short landscape screens, errors, keyboard access and enlarged text rather than clipping content or suppressing zoom.
+
+Desktop retains the reference's light map, dark text, geographic landmark card and bottom category filters. White/light-violet map controls, their category icon colors and the two map-edge fades are localized reference treatments, not permission to add gradients or light panels elsewhere. They preserve readable text over map tiles. On mobile/touch screens the existing map exclusion remains: only the scrollable login form is loaded. Keep 44px touch targets, keyboard focus and fixed input-row password toggle alignment when error copy expands.
+
+Use real authentication, CSRF, registration/recovery routes and authorized hotspot data. Never copy the reference's fake login toasts or demonstration reports into production. Google is enabled only when server-side OAuth credentials and callback URL are configured; otherwise show its unavailable state. New Google accounts must complete the same eligibility declaration as local registration and remain unverified. Existing accounts require password confirmation before linking. Do not promise absolute location privacy through unverified marketing copy. Landmark changes are user-controlled, not an auto-advancing carousel. No navigation/menu changes are authorized by this login work.
+
 When a UI change is requested, use existing components first and align touched components with these rules. Explicit task requirements and privacy/permission rules remain authoritative. Update this document when a deliberate design-system decision changes; do not silently create a parallel system in page-specific CSS.
 
 Review the relevant loading, empty, error, restricted, and success states alongside the main state. Validate the changed flow at mobile and desktop sizes, with zoom and keyboard navigation. Record any exception or remaining verification gap.

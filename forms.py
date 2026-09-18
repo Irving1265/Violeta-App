@@ -26,6 +26,13 @@ class RegisterForm(FlaskForm):
     eligibility_attestation = BooleanField('Declaro que soy mujer y que no estoy suplantando identidad.', validators=[DataRequired()])
     submit = SubmitField('Registrarse')
 
+class GoogleRegistrationForm(FlaskForm):
+    eligibility_attestation = BooleanField(
+        'Declaro que soy mujer y que no estoy suplantando identidad.',
+        validators=[DataRequired(message='Debes aceptar la declaración para continuar.')],
+    )
+
+
 class PostForm(FlaskForm):
     caption = TextAreaField('Descripción', validators=[Length(max=500)])
     image = FileField('Imagen', validators=[

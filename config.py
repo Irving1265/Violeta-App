@@ -53,6 +53,9 @@ class Config:
     PREFERRED_URL_SCHEME = os.environ.get('PREFERRED_URL_SCHEME') or ('https' if not DEBUG else 'http')
     PUBLIC_BETA_VERSION = (os.environ.get('PUBLIC_BETA_VERSION') or 'Beta v1.1').strip()
     SUPPORT_EMAIL = (os.environ.get('SUPPORT_EMAIL') or 'violetaapp38@gmail.com').strip()
+    GOOGLE_CLIENT_ID = (os.environ.get('GOOGLE_CLIENT_ID') or '').strip()
+    GOOGLE_CLIENT_SECRET = (os.environ.get('GOOGLE_CLIENT_SECRET') or '').strip()
+    GOOGLE_REDIRECT_URI = (os.environ.get('GOOGLE_REDIRECT_URI') or '').strip()
 
     # Zona horaria "de negocio" para cálculos de "hoy" (p. ej. reportes del día).
     # Se usa para convertir límites locales -> UTC naive (created_at se guarda en UTC naive).

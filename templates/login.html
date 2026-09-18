@@ -1,350 +1,115 @@
 {% extends 'base.html' %}
 
 {% block styles %}
-<style>
-    .password-input-wrap {
-        position: relative;
-        --password-input-height: 50px;
-    }
-
-    .password-input-wrap .violet-input {
-        padding-right: 3.35rem;
-    }
-
-    .password-toggle-btn {
-        position: absolute;
-        top: calc(var(--password-input-height) / 2);
-        right: 0.9rem;
-        transform: translateY(-50%);
-        border: 0;
-        background: rgba(255, 255, 255, 0.08);
-        color: rgba(255, 255, 255, 0.92);
-        width: 2rem;
-        height: 2rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 999px;
-        transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .password-input-wrap .violet-input:-webkit-autofill ~ .password-toggle-btn {
-        background: rgba(124, 58, 237, 0.10);
-        color: var(--primary-dark);
-    }
-
-    .password-toggle-btn:hover,
-    .password-toggle-btn:focus-visible {
-        color: #fff;
-        background: rgba(255, 255, 255, 0.14);
-        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
-        outline: none;
-    }
-
-    .password-input-wrap .violet-input:-webkit-autofill ~ .password-toggle-btn:hover,
-    .password-input-wrap .violet-input:-webkit-autofill ~ .password-toggle-btn:focus-visible {
-        color: var(--primary-light);
-        background: rgba(124, 58, 237, 0.20);
-        box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.24);
-    }
-
-    .login-page {
-        height: 100vh;
-        width: 100vw;
-        overflow: hidden;
-        background: var(--bg-body);
-        --fade-gradient: linear-gradient(to right, rgba(26, 26, 46, 1.00) 0%, rgba(26, 26, 46, 0.99) 1%, rgba(26, 26, 46, 0.98) 2%, rgba(26, 26, 46, 0.97) 3%, rgba(26, 26, 46, 0.96) 4%, rgba(26, 26, 46, 0.95) 5%, rgba(26, 26, 46, 0.94) 6%, rgba(26, 26, 46, 0.93) 7%, rgba(26, 26, 46, 0.92) 8%, rgba(26, 26, 46, 0.91) 9%, rgba(26, 26, 46, 0.90) 10%, rgba(26, 26, 46, 0.89) 11%, rgba(26, 26, 46, 0.88) 12%, rgba(26, 26, 46, 0.87) 13%, rgba(26, 26, 46, 0.86) 14%, rgba(26, 26, 46, 0.85) 15%, rgba(26, 26, 46, 0.84) 16%, rgba(26, 26, 46, 0.83) 17%, rgba(26, 26, 46, 0.82) 18%, rgba(26, 26, 46, 0.81) 19%, rgba(26, 26, 46, 0.80) 20%, rgba(26, 26, 46, 0.79) 21%, rgba(26, 26, 46, 0.78) 22%, rgba(26, 26, 46, 0.77) 23%, rgba(26, 26, 46, 0.76) 24%, rgba(26, 26, 46, 0.75) 25%, rgba(26, 26, 46, 0.74) 26%, rgba(26, 26, 46, 0.73) 27%, rgba(26, 26, 46, 0.72) 28%, rgba(26, 26, 46, 0.71) 29%, rgba(26, 26, 46, 0.70) 30%, rgba(26, 26, 46, 0.69) 31%, rgba(26, 26, 46, 0.68) 32%, rgba(26, 26, 46, 0.67) 33%, rgba(26, 26, 46, 0.66) 34%, rgba(26, 26, 46, 0.65) 35%, rgba(26, 26, 46, 0.64) 36%, rgba(26, 26, 46, 0.63) 37%, rgba(26, 26, 46, 0.62) 38%, rgba(26, 26, 46, 0.61) 39%, rgba(26, 26, 46, 0.60) 40%, rgba(26, 26, 46, 0.59) 41%, rgba(26, 26, 46, 0.58) 42%, rgba(26, 26, 46, 0.57) 43%, rgba(26, 26, 46, 0.56) 44%, rgba(26, 26, 46, 0.55) 45%, rgba(26, 26, 46, 0.54) 46%, rgba(26, 26, 46, 0.53) 47%, rgba(26, 26, 46, 0.52) 48%, rgba(26, 26, 46, 0.51) 49%, rgba(26, 26, 46, 0.50) 50%, rgba(26, 26, 46, 0.49) 51%, rgba(26, 26, 46, 0.48) 52%, rgba(26, 26, 46, 0.47) 53%, rgba(26, 26, 46, 0.46) 54%, rgba(26, 26, 46, 0.45) 55%, rgba(26, 26, 46, 0.44) 56%, rgba(26, 26, 46, 0.43) 57%, rgba(26, 26, 46, 0.42) 58%, rgba(26, 26, 46, 0.41) 59%, rgba(26, 26, 46, 0.40) 60%, rgba(26, 26, 46, 0.39) 61%, rgba(26, 26, 46, 0.38) 62%, rgba(26, 26, 46, 0.37) 63%, rgba(26, 26, 46, 0.36) 64%, rgba(26, 26, 46, 0.35) 65%, rgba(26, 26, 46, 0.34) 66%, rgba(26, 26, 46, 0.33) 67%, rgba(26, 26, 46, 0.32) 68%, rgba(26, 26, 46, 0.31) 69%, rgba(26, 26, 46, 0.30) 70%, rgba(26, 26, 46, 0.29) 71%, rgba(26, 26, 46, 0.28) 72%, rgba(26, 26, 46, 0.27) 73%, rgba(26, 26, 46, 0.26) 74%, rgba(26, 26, 46, 0.25) 75%, rgba(26, 26, 46, 0.24) 76%, rgba(26, 26, 46, 0.23) 77%, rgba(26, 26, 46, 0.22) 78%, rgba(26, 26, 46, 0.21) 79%, rgba(26, 26, 46, 0.20) 80%, rgba(26, 26, 46, 0.19) 81%, rgba(26, 26, 46, 0.18) 82%, rgba(26, 26, 46, 0.17) 83%, rgba(26, 26, 46, 0.16) 84%, rgba(26, 26, 46, 0.15) 85%, rgba(26, 26, 46, 0.14) 86%, rgba(26, 26, 46, 0.13) 87%, rgba(26, 26, 46, 0.12) 88%, rgba(26, 26, 46, 0.11) 89%, rgba(26, 26, 46, 0.10) 90%, rgba(26, 26, 46, 0.09) 91%, rgba(26, 26, 46, 0.08) 92%, rgba(26, 26, 46, 0.07) 93%, rgba(26, 26, 46, 0.06) 94%, rgba(26, 26, 46, 0.05) 95%, rgba(26, 26, 46, 0.04) 96%, rgba(26, 26, 46, 0.03) 97%, rgba(26, 26, 46, 0.02) 98%, rgba(26, 26, 46, 0.01) 99%, rgba(26, 26, 46, 0.00) 100%);
-    }
-
-    .login-split {
-        display: flex;
-        height: 100%;
-        width: 100%;
-    }
-
-    .login-auth {
-        width: 420px;
-        min-width: 320px;
-        height: 100%;
-        background: var(--bg-body);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 2rem 1.5rem;
-        position: relative;
-        z-index: 10;
-        box-shadow: 6px 0 18px rgba(0, 0, 0, 0.25);
-    }
-
-    .login-auth::after {
-        content: none;
-    }
-
-    .login-map-section {
-        display: none;
-        flex: 1;
-        position: relative;
-        overflow: hidden;
-        background: #1a1a2e;
-        isolation: isolate;
-    }
-
-    .login-map-section.is-enabled {
-        display: block;
-    }
-
-    .login-map-section[hidden] {
-        display: none !important;
-    }
-
-    .login-map-section::before {
-        content: none;
-    }
-
-    #loginMap {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        z-index: 1;
-    }
-
-    .map-overlay-gradient {
-        position: absolute;
-        top: 0;
-        left: 0;
-        bottom: 0;
-        width: 10%;
-        background: var(--fade-gradient);
-        pointer-events: none;
-        z-index: 2;
-    }
-
-    .map-controls-overlay {
-        position: absolute;
-        left: 0;
-        right: 0;
-        top: 0;
-        z-index: 2000;
-        width: 100%;
-        padding: 26px clamp(12px, 2vw, 24px) 24px;
-        display: flex;
-        justify-content: center;
-        pointer-events: none;
-    }
-
-    .violet-btn-grid {
-        display: flex;
-        flex-wrap: nowrap;
-        gap: clamp(6px, 0.8vw, 12px);
-        justify-content: center;
-        width: 100%;
-        max-width: 1040px;
-        overflow-x: auto;
-        padding-bottom: 8px;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-        pointer-events: auto;
-    }
-
-    .violet-btn-grid::-webkit-scrollbar {
-        display: none;
-    }
-
-    .violet-big-btn {
-        display: flex;
-        align-items: center;
-        flex: 0 0 auto;
-        gap: clamp(6px, 0.7vw, 10px);
-        padding: 12px clamp(10px, 1.15vw, 20px);
-        border: 1px solid rgba(255, 255, 255, 0.5);
-        border-radius: 50px;
-        background: rgba(255, 255, 255, 0.85);
-        color: #4b5563;
-        font-size: clamp(0.74rem, 0.82vw, 0.95rem);
-        font-weight: 600;
-        cursor: pointer;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        outline: none;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .violet-big-btn i {
-        color: #8b5cf6;
-        font-size: clamp(0.92rem, 0.95vw, 1.1rem);
-        transition: all 0.3s ease;
-    }
-
-    .violet-big-btn span {
-        white-space: nowrap;
-    }
-
-    .violet-big-btn:hover {
-        transform: translateY(-3px);
-        background: rgba(255, 255, 255, 1);
-        border-color: rgba(139, 92, 246, 0.3);
-        color: #1f2937;
-        box-shadow: 0 8px 25px rgba(139, 92, 246, 0.25);
-    }
-
-    .violet-big-btn:hover i {
-        transform: scale(1.15);
-    }
-
-    .violet-big-btn:active {
-        transform: translateY(1px) scale(0.98);
-    }
-
-    .violet-big-btn.active {
-        background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
-        border-color: transparent;
-        color: white;
-        box-shadow: 0 8px 20px rgba(109, 40, 217, 0.4);
-    }
-
-    .violet-big-btn.active i {
-        color: #ffffff;
-    }
-
-    @media (max-width: 992px) {
-        .login-split {
-            flex-direction: column;
-        }
-
-        .login-auth {
-            width: 100%;
-            height: auto;
-            box-shadow: none;
-        }
-
-        .login-map-section {
-            height: 50vh;
-        }
-
-        .map-controls-overlay {
-            padding: 16px;
-        }
-
-        .violet-btn-grid {
-            gap: 8px;
-            width: 100%;
-            max-width: none;
-        }
-
-        .violet-big-btn {
-            padding: 10px 16px;
-            font-size: 0.9rem;
-        }
-    }
-
-    @media (max-width: 992px), (hover: none) and (pointer: coarse) {
-        .login-page {
-            min-height: 100dvh;
-            height: auto;
-            overflow: hidden auto;
-        }
-
-        .login-split {
-            min-height: 100dvh;
-            height: auto;
-        }
-
-        .login-auth {
-            width: 100%;
-            min-height: 100dvh;
-            padding: max(1.25rem, env(safe-area-inset-top)) 1rem max(1.25rem, env(safe-area-inset-bottom));
-        }
-
-        .login-map-section {
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-            min-height: 0 !important;
-            overflow: hidden !important;
-            visibility: hidden;
-        }
-    }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/login_page.css') }}?v=20260917-login-compact">
 {% endblock %}
 
 {% block content %}
 <div class="login-page">
     <div class="login-split" data-login-split>
-        <div class="login-auth">
+        <section class="login-auth" aria-labelledby="loginTitle">
             <div class="auth-container">
-                <div class="brand-logo">
-                    <span class="brand-logo__word" style="font-size: 2.8rem;">Violeta</span>
-                    <span class="brand-logo__meta">{{ public_beta_label }}</span>
-                </div>
-
                 <div class="glass-panel">
                     <div class="auth-header">
-                        <img class="avatar-ilu" style="border: none; padding: 0; width: 90px; height: 90px;" src="{{ url_for('static', filename='images/favicon.png') }}" alt="Avatar">
-                        <h2>Bienvenida</h2>
+                        <div class="brand-logo">
+                            <span class="brand-logo__word">Violeta</span>
+                            <span class="brand-logo__meta">Beta v1.2</span>
+                        </div>
+                        <h1 id="loginTitle">Bienvenida</h1>
                     </div>
-
-                    <form method="POST" action="{{ url_for('login') }}" class="auth-form">
+                    <form method="POST" action="{{ url_for('login') }}" class="auth-form" data-validation="native" id="loginForm">
                         {{ form.hidden_tag() }}
-
-                        <div class="input-icon-wrapper">
-                            <i class="fas fa-user input-icon" aria-hidden="true"></i>
-                            <input type="text" name="login" class="violet-input" placeholder="Usuaria o correo" aria-label="Usuaria o correo" autocomplete="username" required>
+                        <div class="auth-field">
+                            <label for="login" class="auth-field__label">Usuaria o correo</label>
+                            <div class="input-icon-wrapper">
+                                <i class="fas fa-user input-icon" aria-hidden="true"></i>
+                                <input id="login" type="text" name="login" class="violet-input" placeholder="Usuaria o correo"
+                                       value="{{ request.form.get('login', '') }}" autocomplete="username" autocapitalize="none"
+                                       spellcheck="false" required aria-describedby="loginError">
+                                <div id="loginError" class="violet-error" aria-live="polite" hidden></div>
+                            </div>
                         </div>
-
-                        <div class="input-icon-wrapper password-input-wrap">
-                            <i class="fas fa-lock input-icon" aria-hidden="true"></i>
-                            <input type="password" name="password" class="violet-input" placeholder="Contraseña" aria-label="Contraseña" autocomplete="current-password" required>
-                            <button type="button" class="password-toggle-btn" data-password-toggle aria-label="Mostrar contraseña" aria-pressed="false">
-                                <i class="fas fa-eye"></i>
-                            </button>
+                        <div class="auth-field">
+                            <label for="password" class="auth-field__label">Contraseña</label>
+                            <div class="input-icon-wrapper password-input-wrap">
+                                <i class="fas fa-lock input-icon" aria-hidden="true"></i>
+                                <input id="password" type="password" name="password" class="violet-input" placeholder="Contraseña"
+                                       autocomplete="current-password" required aria-describedby="passwordError">
+                                <button type="button" class="password-toggle-btn" data-password-toggle aria-label="Mostrar contraseña" aria-pressed="false" aria-controls="password">
+                                    <i class="fas fa-eye" aria-hidden="true"></i>
+                                </button>
+                                <div id="passwordError" class="violet-error" aria-live="polite" hidden></div>
+                            </div>
                         </div>
-
                         <div class="form-options">
                             <label class="remember-me">
-                                <input type="checkbox" name="remember" value="1" checked>
+                                <input type="checkbox" name="remember" value="1" {% if request.method != 'POST' or request.form.get('remember') %}checked{% endif %}>
                                 <span>Recordarme</span>
                             </label>
                             <a class="link-muted" href="{{ url_for('forgot_password') }}">¿Olvidaste tu contraseña?</a>
                         </div>
-
-                        <button type="submit" class="violet-btn-primary btn-lg w-100">Iniciar Sesión</button>
+                        <button type="submit" class="violet-btn-primary">
+                            <span data-login-submit-label>Iniciar sesión</span><i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                        </button>
+                        <div class="auth-divider"><span>o continúa con</span></div>
+                        <div class="google-auth">
+                            <button type="submit" class="google-auth-btn" form="googleLoginForm" {% if not google_login_enabled %}disabled aria-describedby="googleUnavailable"{% endif %}>
+                                <svg class="google-auth-btn__logo" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.92h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.9-1.75 2.98-4.33 2.98-7.38z"/>
+                                    <path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.63-2.39l-3.24-2.51c-.9.6-2.05.96-3.39.96-2.61 0-4.82-1.76-5.61-4.13H3.04v2.6A10 10 0 0 0 12 22z"/>
+                                    <path fill="#FBBC05" d="M6.39 13.93A6 6 0 0 1 6.08 12c0-.67.11-1.32.31-1.93v-2.6H3.04A10 10 0 0 0 2 12c0 1.61.38 3.13 1.04 4.53l3.35-2.6z"/>
+                                    <path fill="#EA4335" d="M12 5.94c1.47 0 2.79.51 3.83 1.5l2.87-2.87A9.63 9.63 0 0 0 12 2a10 10 0 0 0-8.96 5.47l3.35 2.6C7.18 7.7 9.39 5.94 12 5.94z"/>
+                                </svg>
+                                <span>Continuar con Google</span>
+                            </button>
+                            {% if not google_login_enabled %}<p id="googleUnavailable">Google aún no está disponible.</p>{% endif %}
+                        </div>
                     </form>
-
+                    <form id="googleLoginForm" method="POST" action="{{ url_for('google_login') }}" data-no-prefetch="1">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="remember" value="0">
+                    </form>
                     <div class="auth-footer">
                         <p>¿No tienes cuenta?</p>
                         <a class="btn-outline-sm" href="{{ url_for('register') }}">Crear cuenta nueva</a>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        {% if render_login_map %}
-        <template id="loginMapTemplate">
-            <div class="login-map-section" data-login-map-section aria-hidden="true">
-                <div id="loginMap"></div>
-                <div class="map-overlay-gradient"></div>
-                <div class="map-controls-overlay">
-                    <div class="violet-btn-grid">
-                        <button class="violet-big-btn active" data-cat="">
-                            <i class="fa-solid fa-layer-group"></i><span>Todos</span>
-                        </button>
-                        <button class="violet-big-btn" data-cat="Poca iluminación">
-                            <i class="fa-regular fa-lightbulb"></i><span>Poca iluminación</span>
-                        </button>
-                        <button class="violet-big-btn" data-cat="Banquetas en mal estado">
-                            <i class="fa-solid fa-shoe-prints"></i><span>Banquetas en mal estado</span>
-                        </button>
-                        <button class="violet-big-btn" data-cat="Zona insegura">
-                            <i class="fa-solid fa-shield-halved"></i><span>Zona insegura</span>
-                        </button>
-                        <button class="violet-big-btn" data-cat="Terrenos baldíos">
-                            <i class="fa-solid fa-tree"></i><span>Terrenos baldíos</span>
-                        </button>
+                    <div class="login-privacy-note">
+                        <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                        <span>Conoce cómo cuidamos tus datos en nuestra <a href="{{ url_for('privacy_policy') }}">política de privacidad</a>.</span>
                     </div>
                 </div>
             </div>
+        </section>
+        {% if render_login_map %}
+        <template id="loginMapTemplate">
+            <section class="login-map-section" data-login-map-section aria-hidden="true" aria-label="Reportes en el mapa">
+                <div id="loginMap" aria-label="Mapa de reportes de la comunidad"></div>
+                <div class="map-side-fade" aria-hidden="true"></div>
+                <div class="map-top-gradient" aria-hidden="true"></div>
+                <div class="map-intro">
+                    <div class="map-location"><i class="fa-solid fa-location-dot" aria-hidden="true"></i><span>Monterrey, N.L.</span></div>
+                    <h2>Una comunidad más segura</h2>
+                    <p>Explora reportes, comparte lo que ves y ayuda a otras personas a tomar decisiones mejor informadas.</p>
+                </div>
+                <aside class="landmark-card" aria-label="Lugares de Monterrey">
+                    <img id="landmarkImage" class="landmark-image" alt="" referrerpolicy="no-referrer">
+                    <div class="landmark-copy" aria-live="polite">
+                        <strong id="landmarkTitle" class="landmark-title">Cerro de la Silla</strong>
+                        <p id="landmarkDescription" class="landmark-description">Uno de los símbolos más reconocibles de Monterrey.</p>
+                    </div>
+                    <button type="button" id="landmarkNext" class="landmark-next" aria-label="Siguiente lugar"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+                </aside>
+                <div class="login-map-status" id="loginMapStatus" role="status">Cargando reportes…</div>
+                <div class="map-controls-overlay">
+                    <div class="violet-btn-grid" role="group" aria-label="Filtrar reportes">
+                        {% for category, label, icon in [('', 'Todos', 'fa-solid fa-layer-group'), ('Poca iluminación', 'Iluminación', 'fa-regular fa-lightbulb'), ('Banquetas en mal estado', 'Banquetas', 'fa-solid fa-person-walking'), ('Zona insegura', 'Zona insegura', 'fa-solid fa-triangle-exclamation'), ('Terrenos baldíos', 'Terrenos', 'fa-solid fa-leaf')] %}
+                        <button type="button" class="violet-big-btn{{ ' active' if not category else '' }}" data-cat="{{ category }}" aria-pressed="{{ 'false' if category else 'true' }}">
+                            <i class="{{ icon }}" aria-hidden="true"></i><span>{{ label }}</span>
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
         </template>
         {% endif %}
     </div>
@@ -354,6 +119,40 @@
 {% block scripts %}
 <script>
     (function () {
+        const form = document.getElementById('loginForm');
+        document.getElementById('googleLoginForm').addEventListener('submit', function () {
+            this.elements.remember.value = form.elements.remember.checked ? '1' : '0';
+        });
+        const submit = form.querySelector('[type="submit"]');
+        function validateField(input) {
+            const invalid = !input.validity.valid;
+            const error = document.getElementById(input.getAttribute('aria-describedby'));
+            input.classList.toggle('error', invalid);
+            input.setAttribute('aria-invalid', String(invalid));
+            error.textContent = invalid ? 'Este campo es obligatorio.' : '';
+            error.hidden = !invalid;
+        }
+        form.querySelectorAll('.violet-input').forEach(input => {
+            input.addEventListener('blur', event => {
+                // Do not move the eye button between pointer-down and click.
+                if (event.relatedTarget?.matches('[data-password-toggle]')) return;
+                validateField(input);
+            });
+            input.addEventListener('invalid', () => validateField(input));
+            input.addEventListener('input', () => {
+                if (input.getAttribute('aria-invalid') === 'true') validateField(input);
+            });
+        });
+        form.addEventListener('submit', () => {
+            submit.disabled = true;
+            form.setAttribute('aria-busy', 'true');
+            form.querySelector('[data-login-submit-label]').textContent = 'Iniciando sesión…';
+        });
+        window.addEventListener('pageshow', () => {
+            submit.disabled = false;
+            form.removeAttribute('aria-busy');
+            form.querySelector('[data-login-submit-label]').textContent = 'Iniciar sesión';
+        });
         document.querySelectorAll('[data-password-toggle]').forEach((toggleBtn) => {
             const wrapper = toggleBtn.closest('.password-input-wrap');
             const input = wrapper?.querySelector('input');
@@ -383,6 +182,36 @@
         mapTemplate.remove();
         mapSection.removeAttribute('aria-hidden');
         mapSection.classList.add('is-enabled');
+
+        const status = document.getElementById('loginMapStatus');
+        const landmarkImage = document.getElementById('landmarkImage');
+        const landmarks = [
+            ['Cerro de la Silla', 'Uno de los símbolos más reconocibles de Monterrey.', 'Cerro_de_la_Silla.jpg'],
+            ['Parque Fundidora', 'Historia industrial convertida en un espacio para la comunidad.', 'Parque_Fundidora,_Monterrey.jpg'],
+            ['Macroplaza', 'Un espacio público emblemático del centro de Monterrey.', 'Macroplaza.jpg'],
+            ['Estadio BBVA', 'Un punto de encuentro del paisaje metropolitano.', 'Estadio_BBVA_Bancomer_(1).jpg']
+        ];
+        let landmarkIndex = 0;
+        function showLandmark() {
+            const [title, description, filename] = landmarks[landmarkIndex];
+            document.getElementById('landmarkTitle').textContent = title;
+            document.getElementById('landmarkDescription').textContent = description;
+            // Do not show the previous place's photo while the new one loads.
+            landmarkImage.style.visibility = 'hidden';
+            landmarkImage.onload = () => { landmarkImage.style.visibility = 'visible'; };
+            landmarkImage.onerror = () => {
+                landmarkImage.onerror = null;
+                landmarkImage.src = "{{ url_for('static', filename='images/favicon.png') }}";
+                landmarkImage.alt = 'Violeta: fotografía del lugar no disponible';
+            };
+            landmarkImage.alt = title;
+            landmarkImage.src = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(filename);
+        }
+        document.getElementById('landmarkNext').addEventListener('click', () => {
+            landmarkIndex = (landmarkIndex + 1) % landmarks.length;
+            showLandmark();
+        });
+        showLandmark();
 
         const leafletCssUrl = "{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}";
         const leafletJsUrl = "{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}";
@@ -419,23 +248,26 @@
 
         Promise.all([loadStylesheet(leafletCssUrl), loadScript(leafletJsUrl)])
             .then(initLoginMap)
-            .catch((error) => console.log('Info: no se pudo cargar el mapa de login.', error.message));
+            .catch(() => {
+                status.textContent = 'No pudimos cargar el mapa. Puedes iniciar sesión o recargar la página.';
+                mapSection.querySelectorAll('.violet-big-btn').forEach(button => { button.disabled = true; });
+            });
 
         function initLoginMap() {
         if (!window.L) return;
 
         const center = [25.6866, -100.3161];
-        const map = L.map('loginMap', { attributionControl: false, zoomControl: false }).setView(center, 13);
+        const map = L.map('loginMap', { zoomControl: false }).setView(center, 12);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
 
         function resizeMap() { map.invalidateSize(); }
         setTimeout(resizeMap, 100);
         setTimeout(resizeMap, 500);
         window.addEventListener('resize', resizeMap);
 
-        function colorForCount(c) { if (c >= 10) return '#d90429'; if (c >= 5) return '#f77f00'; if (c >= 2) return '#ffba08'; return '#3a86ff'; }
-        function sizeForCount(c) { return Math.min(60, 12 + c * 6); }
         function precisionForZoom(z) {
             if (z >= 15) return 4;   // ~11m
             if (z >= 13) return 3;   // ~110m
@@ -452,140 +284,31 @@
             if (z >= 11) return 18;
             return 35;
         }
-        function targetRadiusFor(count, z) {
-            const base = sizeForCount(count) / 2.5;
-            if (isMexicoOverviewZoom(z)) return Math.max(7, base);
-            if (z <= 10) return Math.max(6, base);
-            return base;
-        }
-        function hotspotKey(h) {
-            return `${h.lat.toFixed(6)}|${h.lng.toFixed(6)}`;
-        }
-        function animateMarker(marker, cfg) {
-            const fromR = Number(cfg.fromR ?? marker.getRadius() ?? 1);
-            const toR = Number(cfg.toR ?? fromR);
-            const fromFill = Number(cfg.fromFill ?? 0.25);
-            const toFill = Number(cfg.toFill ?? 0.4);
-            const fromOpacity = Number(cfg.fromOpacity ?? 0.9);
-            const toOpacity = Number(cfg.toOpacity ?? 1.0);
-            const duration = Number(cfg.duration ?? 360);
-            const done = typeof cfg.done === 'function' ? cfg.done : null;
-            const start = performance.now();
-
-            function frame(now) {
-                const t = Math.min(1, (now - start) / duration);
-                const ease = 1 - Math.pow(1 - t, 3); // easeOutCubic
-                const r = fromR + (toR - fromR) * ease;
-                const fo = fromFill + (toFill - fromFill) * ease;
-                const op = fromOpacity + (toOpacity - fromOpacity) * ease;
-                marker.setRadius(r);
-                marker.setStyle({ fillOpacity: fo, opacity: op });
-                if (t < 1) {
-                    requestAnimationFrame(frame);
-                } else if (done) {
-                    done();
-                }
-            }
-            requestAnimationFrame(frame);
-        }
-
         const hotspotsLayer = L.layerGroup().addTo(map);
-        const hotspotMarkers = new Map();
         let activeCategory = '';
         let latestRequestId = 0;
         let refreshTimer = null;
         const REFRESH_MS = 20000;
 
         function renderHotspots(hotspots) {
-            const z = map.getZoom();
-            const seen = new Set();
-            (hotspots || []).forEach(h => {
-                const color = colorForCount(h.count);
-                const targetRadius = targetRadiusFor(h.count, z);
-                const key = hotspotKey(h);
-                seen.add(key);
-
-                const existing = hotspotMarkers.get(key);
-                if (existing) {
-                    const previousCount = existing.count || 0;
-                    existing.count = h.count;
-                    existing.marker.setLatLng([h.lat, h.lng]);
-                    existing.marker.setStyle({
-                        color: color,
-                        fillColor: color,
-                        weight: 2
-                    });
-                    existing.marker.setTooltipContent(`<b>${h.count}</b> reportes`);
-
-                    // Si sube el conteo (acumulación), marcar visualmente esa fusión.
-                    const countIncreased = h.count > previousCount;
-                    animateMarker(existing.marker, {
-                        fromR: countIncreased ? Math.max(1, existing.marker.getRadius() * 0.88) : existing.marker.getRadius(),
-                        toR: countIncreased ? targetRadius * 1.12 : targetRadius,
-                        fromFill: existing.marker.options.fillOpacity ?? 0.3,
-                        toFill: countIncreased ? 0.56 : 0.42,
-                        fromOpacity: existing.marker.options.opacity ?? 0.9,
-                        toOpacity: 1,
-                        duration: countIncreased ? 460 : 380,
-                        done: countIncreased ? () => {
-                            animateMarker(existing.marker, {
-                                fromR: existing.marker.getRadius(),
-                                toR: targetRadius,
-                                fromFill: existing.marker.options.fillOpacity ?? 0.56,
-                                toFill: 0.42,
-                                fromOpacity: existing.marker.options.opacity ?? 1,
-                                toOpacity: 1,
-                                duration: 180
-                            });
-                        } : null
-                    });
-                    return;
-                }
-
-                const circle = L.circleMarker([h.lat, h.lng], {
-                    radius: Math.max(1, targetRadius * 0.35),
-                    color: color,
-                    weight: 2,
-                    fillColor: color,
-                    fillOpacity: 0.12,
-                    opacity: 0.65
+            hotspotsLayer.clearLayers();
+            const valid = hotspots.filter(h => Number.isFinite(h.lat) && Number.isFinite(h.lng) && Number.isSafeInteger(h.count) && h.count > 0);
+            valid.forEach(h => {
+                const size = h.count === 1 ? 14 : h.count >= 10 ? 54 : h.count >= 7 ? 48 : h.count >= 4 ? 42 : 36;
+                const marker = L.marker([h.lat, h.lng], {
+                    icon: L.divIcon({
+                        className: 'login-hotspot',
+                        html: '<div class="hotspot-dot' + (h.count === 1 ? ' small' : '') + '">' + (h.count === 1 ? '' : h.count) + '</div>',
+                        iconSize: [size, size],
+                        iconAnchor: [size / 2, size / 2]
+                    }),
+                    title: h.count + (h.count === 1 ? ' reporte' : ' reportes')
                 }).addTo(hotspotsLayer);
-                circle.bindTooltip(`<b>${h.count}</b> reportes`, {
-                    permanent: false,
-                    direction: 'top',
-                    className: 'violet-tooltip'
-                });
-                hotspotMarkers.set(key, { marker: circle, count: h.count });
-
-                animateMarker(circle, {
-                    fromR: Math.max(1, targetRadius * 0.35),
-                    toR: targetRadius,
-                    fromFill: 0.12,
-                    toFill: 0.42,
-                    fromOpacity: 0.65,
-                    toOpacity: 1,
-                    duration: 480
-                });
+                const tooltip = document.createElement('span');
+                tooltip.textContent = h.count + (h.count === 1 ? ' reporte' : ' reportes');
+                marker.bindTooltip(tooltip, { direction: 'top' });
             });
-
-            // Fade out markers that no longer exist after regrouping by zoom/precision.
-            for (const [key, item] of hotspotMarkers.entries()) {
-                if (seen.has(key)) continue;
-                const marker = item.marker;
-                animateMarker(marker, {
-                    fromR: marker.getRadius(),
-                    toR: Math.max(1, marker.getRadius() * 0.45),
-                    fromFill: marker.options.fillOpacity ?? 0.35,
-                    toFill: 0.02,
-                    fromOpacity: marker.options.opacity ?? 0.9,
-                    toOpacity: 0.0,
-                    duration: 220,
-                    done: () => {
-                        hotspotsLayer.removeLayer(marker);
-                        hotspotMarkers.delete(key);
-                    }
-                });
-            }
+            status.textContent = valid.length ? '' : 'No hay reportes disponibles en esta vista.';
         }
 
         function loadHotspots(category = activeCategory, opts = {}) {
@@ -607,9 +330,12 @@
                 .then(r => { if (!r.ok) throw new Error('API Not found'); return r.json(); })
                 .then(data => {
                     if (reqId !== latestRequestId) return;
-                    renderHotspots(data.hotspots || []);
+                    renderHotspots(Array.isArray(data.hotspots) ? data.hotspots : []);
                 })
                 .catch(e => {
+                    if (reqId !== latestRequestId) return;
+                    hotspotsLayer.clearLayers();
+                    status.textContent = 'No pudimos cargar los reportes. Intenta de nuevo seleccionando un filtro.';
                     if (!opts.silent) {
                         console.log("Info: API de hotspots no disponible.", e.message);
                     }
@@ -649,8 +375,13 @@
 
         document.querySelectorAll('.violet-big-btn[data-cat]').forEach(btn => {
             btn.addEventListener('click', function () {
-                document.querySelectorAll('.violet-big-btn[data-cat]').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.violet-big-btn[data-cat]').forEach(b => {
+                    b.classList.remove('active');
+                    b.setAttribute('aria-pressed', 'false');
+                });
                 this.classList.add('active');
+                this.setAttribute('aria-pressed', 'true');
+                status.textContent = 'Cargando reportes…';
                 loadHotspots(this.dataset.cat || '');
             });
         });

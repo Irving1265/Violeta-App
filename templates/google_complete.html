@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/login_page.css') }}?v=20260917-google-login">
+{% endblock %}
+{% block content %}
+<div class="login-page">
+    <section class="login-auth" aria-labelledby="googleRegistrationTitle">
+        <div class="auth-container glass-panel">
+            <div class="auth-header">
+                <div class="brand-logo">
+                    <span class="brand-logo__word">Violeta</span>
+                    <span class="brand-logo__meta">Beta v1.2</span>
+                </div>
+                <h1 id="googleRegistrationTitle">Completa tu registro</h1>
+            </div>
+            <p>Google confirmó tu correo. Tu cuenta tendrá acceso limitado hasta completar la verificación de Violeta.</p>
+            <form method="post" class="auth-form">
+                {{ form.hidden_tag() }}
+                <label class="google-eligibility" for="eligibility_attestation">
+                    {{ form.eligibility_attestation(required=true, aria_describedby='eligibilityError') }}
+                    <span>{{ form.eligibility_attestation.label.text }}</span>
+                </label>
+                <div id="eligibilityError" class="violet-error" role="alert" {% if not form.eligibility_attestation.errors %}hidden{% endif %}>
+                    {% for error in form.eligibility_attestation.errors %}{{ error }}{% endfor %}
+                </div>
+                <button type="submit" class="violet-btn-primary">Crear mi cuenta</button>
+            </form>
+            <div class="auth-footer"><a class="btn-outline-sm" href="{{ url_for('login') }}">Volver al inicio de sesión</a></div>
+            <div class="login-privacy-note"><span>Consulta nuestra <a href="{{ url_for('privacy_policy') }}">política de privacidad</a>.</span></div>
+        </div>
+    </section>
+</div>
+{% endblock %}
