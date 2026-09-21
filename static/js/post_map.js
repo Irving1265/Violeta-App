@@ -103,6 +103,9 @@ function toggleMap(postId, lat, lng, btn) {
         const label = isFlipped ? 'Ver imagen' : 'Ver mapa';
         btn.title = label;
         btn.setAttribute('aria-label', label);
+        btn.setAttribute('aria-pressed', String(isFlipped));
+        const visibleLabel = btn.querySelector('[data-post-map-label]');
+        if (visibleLabel) visibleLabel.textContent = label;
     }
 
     // Initialize map if flipping to back and not already initialized

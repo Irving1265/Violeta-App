@@ -1,138 +1,165 @@
 {% set viewer_is_self = is_self if is_self is defined else (current_user.is_authenticated and user.id == current_user.id) %}
 {% set profile_level = moderation_badge_level(user) %}
 {% set profile_staff_badge = staff_badge_for_user(user) %}
-<div class="container px-0 profile-page-shell">
-  <section class="profile-header profile-hero-card">
-    <div class="profile-cover" aria-hidden="true"></div>
-    <div class="profile-card-body">
-      <div class="profile-info">
-        <div class="profile-avatar-wrap">
-          <img
-            src="{{ url_for('uploaded_file', filename=user.profile_pic) if user.profile_pic and user.profile_pic != 'default.jpg' else url_for('static', filename='images/default_avatar.jpg') }}"
-            class="profile-avatar-lg" alt="Profile"
-            onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/default_avatar.jpg') }}';">
-          <span class="profile-presence-dot" aria-hidden="true"></span>
-        </div>
+<div class="profile-page">
+<section class="profile-hero" aria-label="Perfil de {{ user.username }}">
+<div class="cover-scene" aria-hidden="true">
 
-        <div class="profile-identity-row">
-          <div class="profile-details">
-            <h2 class="profile-username">
-              <span class="profile-username-main">
-                <span class="profile-username-text">@{{ user.username }}</span>
-                {% set staff_badge = profile_staff_badge %}
-                {% set staff_badge_size = 'profile' %}
-                {% include '_staff_badge.html' %}
-                {% if viewer_is_self and not user_is_verified %}<span class="unverified-account-badge" title="Acceso limitado" aria-label="Acceso limitado"><i class="fas fa-user-clock"></i> No verificada</span>{% endif %}
-              </span>
-              {% if profile_level > 0 %}
-              <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if profile_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if profile_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if profile_level >= 2 else 'Usuaria con un strike' }}">
-                <i class="fas fa-triangle-exclamation"></i>
-                <span class="moderation-strike-badge__text">{{ profile_level }} {{ 'strikes' if profile_level >= 2 else 'strike' }}</span>
-              </span>
-              {% endif %}
-            </h2>
-            <p class="profile-member-since">
-              {% if user.created_at %}Usuaria desde {{ user.created_at.strftime('%d/%m/%Y') }}{% else %}Usuaria de Violeta{% endif %}
-            </p>
-            {% if user.bio %}
-            <p class="profile-bio">{{ user.bio }}</p>
-            {% endif %}
-          </div>
+                    <svg
+                        viewBox="0 0 1200 260"
+                        preserveAspectRatio="xMidYMid slice"
+                        aria-label="Ilustración de Monterrey al atardecer"
+                    >
 
-          <div class="profile-stats">
-            <div class="stat-item">
-              <span class="stat-value">{{ report_count }}</span>
-              <span class="stat-label">Reportes</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-value">{{ total_likes }}</span>
-              <span class="stat-label">Likes</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-value">{{ total_comments }}</span>
-              <span class="stat-label">Comentarios</span>
-            </div>
-          </div>
+                        <defs>
 
-          <div class="profile-actions{% if viewer_is_self %} profile-actions--self{% endif %}">
-            {% if viewer_is_self %}
-            <a href="{{ url_for('edit_profile') }}" class="btn btn-secondary btn-sm">
-              <i class="fas fa-edit"></i> <span class="profile-action-label">Editar perfil</span>
-            </a>
-            <a href="{{ url_for('safety_center') }}" class="btn btn-outline-light btn-sm" data-no-prefetch="1">
-              <i class="fas fa-shield-heart"></i> <span class="profile-action-label">Centro de seguridad</span>
-            </a>
-            <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm mobile-only">
-              <i class="fas fa-sign-out-alt"></i> <span class="profile-action-label">Cerrar sesión</span>
-            </a>
-            {% elif current_user.is_authenticated and not user_is_protected_staff(user) %}
-            <div class="profile-moderation-actions">
-              {% if is_blocked_user(user.id) %}
-              <button class="btn btn-outline-light btn-sm" type="button" onclick="toggleBlockUser({{ user.id }}, false, this)">
-                <i class="fas fa-user-check"></i> Desbloquear
-              </button>
-              {% else %}
-              <button class="btn btn-outline-danger btn-sm" type="button" onclick="toggleBlockUser({{ user.id }}, true, this)">
-                <i class="fas fa-user-slash"></i> Bloquear
-              </button>
-              {% endif %}
-              {% if is_muted_user(user.id) %}
-              <button class="btn btn-outline-light btn-sm" type="button" onclick="toggleMuteUser({{ user.id }}, false, this)">
-                <i class="fas fa-volume-up"></i> Activar
-              </button>
-              {% else %}
-              <button class="btn btn-outline-warning btn-sm" type="button" onclick="toggleMuteUser({{ user.id }}, true, this)">
-                <i class="fas fa-volume-mute"></i> Silenciar
-              </button>
-              {% endif %}
-            </div>
-            {% endif %}
-          </div>
-        </div>
+                            <linearGradient
+                                id="skyGradient"
+                                x1="0"
+                                y1="0"
+                                x2="0"
+                                y2="1"
+                            >
 
-        {% if user.bio %}
-        <div class="profile-mobile-bio-card">
-          <p class="profile-mobile-bio">{{ user.bio }}</p>
-        </div>
-        {% endif %}
-      </div>
-    </div>
-  </section>
+                                <stop offset="0%" stop-color="#6F4A95" />
+                                <stop offset="35%" stop-color="#B564A0" />
+                                <stop offset="67%" stop-color="#F28A97" />
+                                <stop offset="100%" stop-color="#F0A36F" />
 
-  <div class="profile-content-layout">
-    <aside class="profile-side-stack" aria-label="Contexto del perfil">
-      {% if viewer_is_self and not user_is_verified %}
-      <section class="profile-trust-card profile-trust-card--limited">
-        <div class="profile-trust-card__icon">
-          <i class="fas fa-user-clock"></i>
-        </div>
-        <div>
-          <h3>Cuenta no verificada</h3>
-          <p>Tu acceso es limitado para proteger a la comunidad. Verifica tu cuenta para ver reportes completos, publicar, comentar y usar el chat.</p>
-          <a href="{{ url_for('verify_identity') }}" class="btn btn-primary btn-sm mt-2">Verificar mi cuenta</a>
-        </div>
-      </section>
-      {% else %}
-      <section class="profile-trust-card">
-        <div class="profile-trust-card__icon">
-          <i class="fas {{ 'fa-triangle-exclamation' if profile_level > 0 else 'fa-shield-heart' }}"></i>
-        </div>
-        <div>
-          <h3>{{ 'Estado con advertencia' if profile_level > 0 else 'Nivel de confianza' }}</h3>
-          <p>{{ 'Esta cuenta tiene señales de moderación activas.' if profile_level > 0 else ('Tu cuenta está en buen estado dentro de la comunidad.' if viewer_is_self else 'Esta cuenta está en buen estado dentro de la comunidad.') }}</p>
-        </div>
-      </section>
-      {% endif %}
-    </aside>
+                            </linearGradient>
 
-    <section class="profile-feed-panel" aria-label="Publicaciones">
-      <div class="profile-section-header">
-        <div>
-          <p class="profile-kicker">Actividad</p>
-          <h3>Publicaciones</h3>
-        </div>
-      </div>
+                            <linearGradient
+                                id="mountainGradient"
+                                x1="0"
+                                y1="0"
+                                x2="0"
+                                y2="1"
+                            >
 
+                                <stop offset="0%" stop-color="#27305C" />
+                                <stop offset="100%" stop-color="#181D3C" />
+
+                            </linearGradient>
+
+                        </defs>
+
+                        <rect
+                            width="1200"
+                            height="260"
+                            fill="url(#skyGradient)"
+                        />
+
+                        <path
+                            d="
+                                M0 70
+                                C110 50 180 83 290 62
+                                C390 42 483 66 596 55
+                                C720 43 799 63 910 49
+                                C1017 36 1110 58 1200 40
+                            "
+                            fill="none"
+                            stroke="#EAA0C5"
+                            stroke-width="22"
+                            stroke-opacity=".22"
+                        />
+
+                        <path
+                            d="
+                                M0 191
+                                L92 181
+                                L151 161
+                                L202 175
+                                L264 146
+                                L315 162
+                                L370 144
+                                L411 151
+                                L454 131
+                                L487 141
+                                L533 106
+                                L560 119
+                                L584 96
+                                L615 120
+                                L642 102
+                                L674 127
+                                L708 114
+                                L757 146
+                                L807 140
+                                L857 164
+                                L914 151
+                                L962 177
+                                L1022 168
+                                L1078 187
+                                L1132 177
+                                L1200 189
+                                L1200 260
+                                L0 260
+                                Z
+                            "
+                            fill="url(#mountainGradient)"
+                        />
+
+                        <rect
+                            y="205"
+                            width="1200"
+                            height="55"
+                            fill="#171629"
+                        />
+
+                        <g fill="#28233A">
+
+                            <rect x="40" y="197" width="25" height="63" />
+                            <rect x="111" y="188" width="31" height="72" />
+                            <rect x="211" y="193" width="37" height="67" />
+                            <rect x="333" y="182" width="34" height="78" />
+                            <rect x="474" y="187" width="41" height="73" />
+                            <rect x="618" y="192" width="33" height="68" />
+                            <rect x="774" y="183" width="35" height="77" />
+                            <rect x="916" y="188" width="38" height="72" />
+                            <rect x="1056" y="172" width="22" height="88" />
+
+                        </g>
+
+                    </svg>
+
+                </div>
+
+                <div class="cover-quote">
+                    Cuidar de ti<br>
+                    también es avanzar.
+                </div>
+
+                <span class="cover-quote-heart">
+                    ♡
+                </span>
+
+{% if viewer_is_self %}<a class="change-cover" href="{{ url_for('edit_profile') }}"><i class="fas fa-pen" aria-hidden="true"></i> Editar perfil</a>{% endif %}
+<div class="profile-identity">
+<div class="profile-avatar-wrap">
+<img class="profile-avatar" src="{{ avatar_url_for_user(user) }}" alt="Foto de {{ user.username }}">
+{% if viewer_is_self %}<a class="avatar-camera" href="{{ url_for('edit_profile') }}" aria-label="Cambiar foto de perfil"><i class="fas fa-camera" aria-hidden="true"></i></a>{% endif %}
+</div>
+<div class="profile-data">
+<div class="profile-name-row"><h1 class="profile-name">{{ user.username }}</h1>
+{% set staff_badge = profile_staff_badge %}{% set staff_badge_size = 'profile' %}{% include '_staff_badge.html' %}
+{% if viewer_is_self and not user_is_verified %}<span class="unverified-account-badge">No verificada</span>{% endif %}
+{% if profile_level > 0 %}<span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if profile_level >= 2 else 'yellow' }}">{{ profile_level }} {{ 'strikes' if profile_level >= 2 else 'strike' }}</span>{% endif %}
+</div>
+<p class="member-date">{% if user.created_at %}Miembro desde {{ user.created_at.strftime('%d/%m/%Y') }}{% else %}Miembro de Violeta{% endif %}</p>
+{% if user.bio %}<p class="profile-bio">{{ user.bio }}</p>{% endif %}
+<a class="privacy-pill" href="{{ url_for('privacy_policy') }}"><i class="fas fa-lock" aria-hidden="true"></i> Conoce cómo protegemos tu información</a>
+</div>
+</div>
+</section>
+<section class="profile-activity is-open" id="profileActivity">
+<button type="button" class="activity-toggle" id="activityToggle" aria-expanded="true" aria-controls="activityPanel"><span class="activity-toggle-copy"><span class="activity-toggle-title">{{ 'Tu actividad' if viewer_is_self else 'Actividad' }}</span><span class="activity-toggle-summary">{{ report_count }} publicaciones · {{ total_likes }} reacciones</span></span><span class="activity-toggle-chevron" aria-hidden="true"><i class="fas fa-chevron-down"></i></span></button>
+<div class="activity-panel" id="activityPanel"><div class="activity-panel-inner"><div class="metrics"><div class="metrics-primary"><article class="metric location"><div class="metric-value-row"><i class="metric-icon fas fa-location-dot" aria-hidden="true"></i><p class="metric-number">{{ report_count }}</p></div><div class="metric-copy"><p class="metric-label">Publicaciones</p><p class="metric-description">Experiencias que ayudan a otras personas.</p></div></article>
+<article class="metric reaction"><div class="metric-value-row"><i class="metric-icon fas fa-heart" aria-hidden="true"></i><p class="metric-number">{{ total_likes }}</p></div><div class="metric-copy"><p class="metric-label">Reacciones</p><p class="metric-description">Apoyo recibido en las publicaciones.</p></div></article>
+<article class="metric comment"><div class="metric-value-row"><i class="metric-icon fas fa-comment" aria-hidden="true"></i><p class="metric-number">{{ total_comments }}</p></div><div class="metric-copy"><p class="metric-label">Comentarios</p><p class="metric-description">Conversaciones que suman y acompañan.</p></div></article>
+<article class="metric community"><div class="metric-value-row"><i class="metric-icon fas fa-user-group" aria-hidden="true"></i><p class="metric-number">1</p></div><div class="metric-copy"><p class="metric-label">Comunidad</p><p class="metric-description">Formas parte de Violeta.</p></div></article></div>
+<article class="metric impact"><div class="metric-value-row"><i class="metric-icon fas fa-leaf" aria-hidden="true"></i><p class="metric-number">—</p></div><div class="metric-copy"><div class="impact-title-row"><p class="metric-label">Impacto mensual</p><span class="impact-info" title="Esta métrica todavía no se calcula">i</span></div><p class="metric-description">Medición no disponible.</p></div></article>
+</div></div></div></section>
+<div class="profile-lower-grid">
+<section class="recent-posts" aria-label="Publicaciones"><header class="section-heading"><h2>Publicaciones recientes</h2></header>
       {% if posts %}
       <div class="profile-grid">
         {% for p in posts %}
@@ -156,8 +183,9 @@
             {% set grid_image_srcset = optimized_media_srcset(p.image_filename, [360, 720]) %}
             <img src="{{ optimized_media_url(p.image_filename, 360) }}"
               {% if grid_image_srcset %}srcset="{{ grid_image_srcset }}"{% endif %}
-              sizes="(max-width: 768px) 33vw, 220px"
-              alt="Post" loading="lazy" decoding="async">
+              sizes="(max-width: 600px) 50vw, (max-width: 900px) 33vw, 220px"
+              alt="Foto del reporte" loading="lazy" decoding="async">
+            <div class="profile-report-copy"><p class="post-description">{{ p.caption or "Sin descripción." }}</p></div>
             {% if p.is_pending %}
             <div class="grid-pending-overlay"
               title="Se publicará cuando pasen {{ safety_publish_policy.min_delay_minutes }} min y te alejes {{ safety_publish_policy.distance_meters }} m, o en máximo {{ safety_publish_policy.fallback_minutes }} min."
@@ -198,8 +226,451 @@
         <p>Aún no hay publicaciones.</p>
       </div>
       {% endif %}
-    </section>
-  </div>
+</section>
+<aside class="profile-side">
+<section class="wellbeing-card">
+
+                        <div class="wellbeing-illustration">
+
+                            <svg
+                                viewBox="0 0 320 250"
+                                aria-label="Ilustración de bienestar"
+                            >
+
+                                <defs>
+
+                                    <radialGradient
+                                        id="wellBg"
+                                        cx=".5"
+                                        cy=".35"
+                                        r=".75"
+                                    >
+
+                                        <stop
+                                            offset="0%"
+                                            stop-color="#72489A"
+                                        />
+
+                                        <stop
+                                            offset="100%"
+                                            stop-color="#362447"
+                                        />
+
+                                    </radialGradient>
+
+                                    <linearGradient
+                                        id="wellHair"
+                                        x1="0"
+                                        y1="0"
+                                        x2="1"
+                                        y2="1"
+                                    >
+
+                                        <stop
+                                            offset="0%"
+                                            stop-color="#592533"
+                                        />
+
+                                        <stop
+                                            offset="100%"
+                                            stop-color="#1F1019"
+                                        />
+
+                                    </linearGradient>
+
+                                    <linearGradient
+                                        id="wellShirt"
+                                        x1="0"
+                                        y1="0"
+                                        x2="1"
+                                        y2="1"
+                                    >
+
+                                        <stop
+                                            offset="0%"
+                                            stop-color="#BE84E9"
+                                        />
+
+                                        <stop
+                                            offset="100%"
+                                            stop-color="#7449A1"
+                                        />
+
+                                    </linearGradient>
+
+                                </defs>
+
+                                <rect
+                                    width="320"
+                                    height="250"
+                                    fill="url(#wellBg)"
+                                />
+
+                                <g
+                                    fill="#A967E0"
+                                    opacity=".9"
+                                >
+
+                                    <ellipse
+                                        cx="45"
+                                        cy="135"
+                                        rx="8"
+                                        ry="25"
+                                        transform="rotate(-33 45 135)"
+                                    />
+
+                                    <ellipse
+                                        cx="54"
+                                        cy="103"
+                                        rx="7"
+                                        ry="20"
+                                        transform="rotate(-45 54 103)"
+                                    />
+
+                                    <ellipse
+                                        cx="70"
+                                        cy="78"
+                                        rx="7"
+                                        ry="17"
+                                        transform="rotate(37 70 78)"
+                                    />
+
+                                    <ellipse
+                                        cx="264"
+                                        cy="137"
+                                        rx="8"
+                                        ry="25"
+                                        transform="rotate(32 264 137)"
+                                    />
+
+                                    <ellipse
+                                        cx="271"
+                                        cy="103"
+                                        rx="7"
+                                        ry="20"
+                                        transform="rotate(45 271 103)"
+                                    />
+
+                                    <ellipse
+                                        cx="251"
+                                        cy="78"
+                                        rx="7"
+                                        ry="17"
+                                        transform="rotate(-37 251 78)"
+                                    />
+
+                                </g>
+
+                                <g fill="#B76AE8">
+
+                                    <path
+                                        d="
+                                            M49 46
+                                            C36 28 15 41 23 59
+                                            C31 73 49 81 49 81
+                                            C49 81 66 72 75 58
+                                            C85 39 61 29 49 46Z
+                                        "
+                                    />
+
+                                    <path
+                                        d="
+                                            M269 56
+                                            C260 44 246 52 250 64
+                                            C255 74 269 80 269 80
+                                            C269 80 281 73 286 63
+                                            C292 49 278 45 269 56Z
+                                        "
+                                    />
+
+                                </g>
+
+                                <ellipse
+                                    cx="160"
+                                    cy="260"
+                                    rx="80"
+                                    ry="83"
+                                    fill="url(#wellShirt)"
+                                />
+
+                                <path
+                                    d="
+                                        M108 122
+                                        C102 54 130 28 161 28
+                                        C204 27 222 61 213 127
+                                        C207 173 225 202 202 221
+                                        C180 240 128 233 109 218
+                                        C84 198 112 169 108 122
+                                        Z
+                                    "
+                                    fill="url(#wellHair)"
+                                />
+
+                                <ellipse
+                                    cx="162"
+                                    cy="108"
+                                    rx="43"
+                                    ry="53"
+                                    fill="#F5B39E"
+                                />
+
+                                <path
+                                    d="
+                                        M120 94
+                                        C123 49 141 40 162 39
+                                        C187 39 207 59 207 93
+                                        C193 84 178 71 160 68
+                                        C145 75 132 86 120 94
+                                        Z
+                                    "
+                                    fill="#34171F"
+                                />
+
+                                <path
+                                    d="M138 109 Q146 118 154 109"
+                                    fill="none"
+                                    stroke="#432029"
+                                    stroke-width="3"
+                                    stroke-linecap="round"
+                                />
+
+                                <path
+                                    d="M169 109 Q178 118 186 109"
+                                    fill="none"
+                                    stroke="#432029"
+                                    stroke-width="3"
+                                    stroke-linecap="round"
+                                />
+
+                                <path
+                                    d="M151 134 Q163 144 176 133"
+                                    fill="none"
+                                    stroke="#B45162"
+                                    stroke-width="3"
+                                    stroke-linecap="round"
+                                />
+
+                                <path
+                                    d="
+                                        M113 195
+                                        Q147 169 180 193
+                                        L168 218
+                                        Q144 201 117 220
+                                        Z
+                                    "
+                                    fill="#8A58B7"
+                                />
+
+                                <path
+                                    d="
+                                        M210 194
+                                        Q183 169 148 193
+                                        L157 218
+                                        Q183 201 205 219
+                                        Z
+                                    "
+                                    fill="#9B64C7"
+                                />
+
+                                <ellipse
+                                    cx="169"
+                                    cy="202"
+                                    rx="13"
+                                    ry="8"
+                                    fill="#ECA591"
+                                    transform="rotate(-18 169 202)"
+                                />
+
+                                <ellipse
+                                    cx="151"
+                                    cy="204"
+                                    rx="13"
+                                    ry="8"
+                                    fill="#ECA591"
+                                    transform="rotate(19 151 204)"
+                                />
+
+                            </svg>
+
+                        </div>
+
+                        <div class="wellbeing-copy">
+
+                            <h2>
+                                Tu bienestar<br>
+                                importa
+                            </h2>
+
+                            <p>
+                                Gracias por ser parte<br>
+                                de esta comunidad.
+                            </p>
+
+                        </div>
+
+                    </section>
+{% if viewer_is_self %}<button type="button" class="publish-button" onclick="window.PostCreateModal.open()"><span class="publish-icon"><i class="fas fa-plus" aria-hidden="true"></i></span> Publicar algo nuevo</button>{% endif %}
+      {% if viewer_is_self and not user_is_verified %}
+      <section class="profile-trust-card profile-trust-card--limited">
+        <div class="profile-trust-card__icon">
+          <i class="fas fa-user-clock"></i>
+        </div>
+        <div>
+          <h3>Cuenta no verificada</h3>
+          <p>Tu acceso es limitado para proteger a la comunidad. Verifica tu cuenta para ver reportes completos, publicar, comentar y usar el chat.</p>
+          <a href="{{ url_for('verify_identity') }}" class="btn btn-primary btn-sm mt-2">Verificar mi cuenta</a>
+        </div>
+      </section>
+      {% elif profile_level > 0 %}
+      <section class="profile-trust-card">
+        <div class="profile-trust-card__icon">
+          <i class="fas {{ 'fa-triangle-exclamation' if profile_level > 0 else 'fa-shield-heart' }}"></i>
+        </div>
+        <div>
+          <h3>{{ 'Estado con advertencia' if profile_level > 0 else 'Nivel de confianza' }}</h3>
+          <p>{{ 'Esta cuenta tiene señales de moderación activas.' if profile_level > 0 else ('Tu cuenta está en buen estado dentro de la comunidad.' if viewer_is_self else 'Esta cuenta está en buen estado dentro de la comunidad.') }}</p>
+        </div>
+      </section>
+      {% endif %}
+          <div class="profile-actions{% if viewer_is_self %} profile-actions--self{% endif %}">
+            {% if viewer_is_self %}
+            <a href="{{ url_for('edit_profile') }}" class="btn btn-secondary btn-sm">
+              <i class="fas fa-edit"></i> <span class="profile-action-label">Editar perfil</span>
+            </a>
+            <a href="{{ url_for('safety_center') }}" class="btn btn-outline-light btn-sm" data-no-prefetch="1">
+              <i class="fas fa-shield-heart"></i> <span class="profile-action-label">Centro de seguridad</span>
+            </a>
+            <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm mobile-only">
+              <i class="fas fa-sign-out-alt"></i> <span class="profile-action-label">Cerrar sesión</span>
+            </a>
+            {% elif current_user.is_authenticated and not user_is_protected_staff(user) %}
+            <div class="profile-moderation-actions">
+              {% if is_blocked_user(user.id) %}
+              <button class="btn btn-outline-light btn-sm" type="button" onclick="toggleBlockUser({{ user.id }}, false, this)">
+                <i class="fas fa-user-check"></i> Desbloquear
+              </button>
+              {% else %}
+              <button class="btn btn-outline-danger btn-sm" type="button" onclick="toggleBlockUser({{ user.id }}, true, this)">
+                <i class="fas fa-user-slash"></i> Bloquear
+              </button>
+              {% endif %}
+              {% if is_muted_user(user.id) %}
+              <button class="btn btn-outline-light btn-sm" type="button" onclick="toggleMuteUser({{ user.id }}, false, this)">
+                <i class="fas fa-volume-up"></i> Activar
+              </button>
+              {% else %}
+              <button class="btn btn-outline-warning btn-sm" type="button" onclick="toggleMuteUser({{ user.id }}, true, this)">
+                <i class="fas fa-volume-mute"></i> Silenciar
+              </button>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+</aside></div>
+<div class="bottom-decoration">
+
+                <svg
+                    class="bottom-wave"
+                    viewBox="0 0 1400 180"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                >
+
+                    <path
+                        d="
+                            M0 139
+                            C180 151 315 148 490 126
+                            C693 99 850 122 1024 103
+                            C1190 84 1275 32 1400 44
+                            L1400 180
+                            L0 180
+                            Z
+                        "
+                        fill="#1C1628"
+                    />
+
+                    <path
+                        d="
+                            M0 163
+                            C220 153 361 133 554 119
+                            C738 106 878 140 1036 117
+                            C1202 93 1295 50 1400 62
+                            L1400 180
+                            L0 180
+                            Z
+                        "
+                        fill="#281A3A"
+                        opacity=".78"
+                    />
+
+                    <path
+                        d="
+                            M700 180
+                            C860 145 984 148 1102 120
+                            C1218 92 1303 71 1400 77
+                            L1400 180
+                            Z
+                        "
+                        fill="#312047"
+                        opacity=".55"
+                    />
+
+                </svg>
+
+                <svg
+                    class="bottom-plant"
+                    viewBox="0 0 60 80"
+                    aria-hidden="true"
+                >
+
+                    <path
+                        d="M29 78 C30 52 31 30 34 9"
+                        stroke="#B569EB"
+                        stroke-width="3"
+                        fill="none"
+                    />
+
+                    <path
+                        d="
+                            M31 53
+                            C9 49 7 29 8 21
+                            C26 25 33 38 31 53Z
+                        "
+                        fill="#9A55D1"
+                    />
+
+                    <path
+                        d="
+                            M33 40
+                            C54 34 57 16 55 9
+                            C39 15 32 27 33 40Z
+                        "
+                        fill="#C47AF0"
+                    />
+
+                    <path
+                        d="
+                            M30 67
+                            C15 64 12 55 12 48
+                            C23 50 29 57 30 67Z
+                        "
+                        fill="#7944AD"
+                    />
+
+                </svg>
+
+                <div class="bottom-message">
+
+                    Pequeñas acciones,<br>
+                    grandes cambios
+
+                    <span class="bottom-message-heart">
+                        ♡
+                    </span>
+
+                </div>
+
+            </div>
 
   {% if viewer_is_self %}
   <div class="profile-delete-modal" id="profileDeleteModal" hidden aria-hidden="true">
@@ -233,4 +704,5 @@
     </section>
   </div>
   {% endif %}
+
 </div>

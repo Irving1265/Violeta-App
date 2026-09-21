@@ -7,7 +7,10 @@
 {% block content %}
 <header class="violeta-header" id="mainHeader">
     <div class="violeta-header-top">
-        <h1 class="violeta-title">Explorar</h1>
+        <div>
+            <h1 class="violeta-title">Explorar</h1>
+            <p class="violeta-subtitle">Lo que sucede cerca de ti, compartido por la comunidad.</p>
+        </div>
         {% if current_user.is_authenticated and current_user_can_access_admin_panel %}
         <a href="{{ url_for('admin_panel') }}" class="violeta-admin-mobile-btn" aria-label="Abrir panel de admin" title="Panel de admin">
             <i class="fa-solid fa-user-shield"></i>
@@ -80,11 +83,14 @@
             <div class="mini-map-widget__footer">
                 <div class="mini-map-widget__summary">
                     <span><span id="nearbyCount">--</span> reportes cerca</span>
-                    <span class="mini-map-widget__current"><i class="fas fa-circle mini-map-widget__legend-dot mini-map-widget__legend-dot--user" aria-hidden="true"></i> Tu ubicación</span>
                 </div>
                 <div class="mini-map-widget__legend">
+                    <span class="mini-map-widget__current"><i class="fas fa-circle mini-map-widget__legend-dot mini-map-widget__legend-dot--user" aria-hidden="true"></i> Tu ubicación</span>
+                    <span aria-hidden="true">·</span>
                     <span><i class="fas fa-circle mini-map-widget__legend-dot mini-map-widget__legend-dot--near" aria-hidden="true"></i> Cerca</span>
+                    <span aria-hidden="true">·</span>
                     <span><i class="fas fa-circle mini-map-widget__legend-dot mini-map-widget__legend-dot--medium" aria-hidden="true"></i> Medio</span>
+                    <span aria-hidden="true">·</span>
                     <span><i class="fas fa-circle mini-map-widget__legend-dot mini-map-widget__legend-dot--far" aria-hidden="true"></i> Lejos</span>
                 </div>
             </div>
@@ -93,34 +99,28 @@
 
         <!-- Weather Widget -->
         <div class="weather-card" aria-live="polite">
-            <div class="weather-top">
+            <div class="home-weather-copy">
                 <div class="weather-city">
                     <span id="weatherCity">Monterrey</span>
                     <i class="fas fa-location-arrow"></i>
                 </div>
-                <div class="weather-temp-big" id="weatherTemp">--°</div>
-            </div>
-            <div class="weather-bottom">
-                <div class="weather-icon-stack">
+                <div class="home-weather-status">
                     <i class="fas fa-cloud-sun" id="weatherIcon"></i>
+                    <span id="weatherStatus">Cargando...</span>
                 </div>
-                <div class="weather-desc">
-                    <div class="weather-status" id="weatherStatus">Cargando...</div>
-                    <div class="weather-range-text">
+            </div>
+            <div class="home-weather-temp">
+                <strong id="weatherTemp">--°</strong>
+                    <div class="home-weather-range">
                         <span id="weatherMin">L: --°</span>
                         <span id="weatherMax">H: --°</span>
                     </div>
-                </div>
             </div>
         </div>
 
         <div class="widget-card trends-widget">
             <div class="widget-header">
-                <h3 id="reportsWidgetTitle">Reportes generados</h3>
-                <button type="button" class="widget-icon widget-icon-btn" id="reportsToggleBtn"
-                    aria-pressed="false" title="Ver reportes de hoy" aria-label="Ver reportes de hoy">
-                    <i id="reportsToggleIcon" class="fa-solid fa-calendar-day" aria-hidden="true"></i>
-                </button>
+                <h3><i class="fa-solid fa-bolt" aria-hidden="true"></i> <span id="reportsWidgetTitle">Actividad en tu comunidad</span></h3>
             </div>
             <div class="widget-body">
                 <div id="reportsByCategory">
@@ -144,6 +144,11 @@
                         </li>
                     </ul>
                 </div>
+            </div>
+            <div class="activity-footer">
+                <button type="button" id="reportsToggleBtn" aria-pressed="false" title="Ver reportes de hoy" aria-label="Ver reportes de hoy">
+                    <span id="reportsToggleLabel">Ver reportes de hoy</span> <i id="reportsToggleIcon" class="fa-solid fa-calendar-day" aria-hidden="true"></i>
+                </button>
             </div>
         </div>
 
@@ -261,5 +266,5 @@
         }
     };
 </script>
-<script src="{{ url_for('static', filename='js/index_page.js') }}?v=20260525-beta-public-modal-v1" defer></script>
+<script src="{{ url_for('static', filename='js/index_page.js') }}?v=20260918-home-reference" defer></script>
 {% endblock %}

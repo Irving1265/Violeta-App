@@ -1,4 +1,5 @@
 <div class="card post-card violet-post-card" data-post-id="{{ post.id }}" data-post-date="{{ post.created_at.strftime('%Y-%m-%d') if post.created_at else '' }}">
+    {% set home_card = request.endpoint in ['index', 'feed'] %}
     {% set categories_list = post.categories | from_json if post.categories else [] %}
     {% set protected_post = not can_view_sensitive_post_data(current_user, post) %}
     {% set protected_location = not can_view_real_location(current_user, post) %}
@@ -75,20 +76,25 @@
                     <i class="fas fa-pen"></i>
                 </button>
                 {% endif %}
+                {% set post_map_control %}
                 {% if protected_location and current_user.is_authenticated %}
                 <button class="post-top-action post-map-toggle post-map-reveal" type="button"
                     title="Revelar ubicación de prueba" aria-label="Revelar ubicación de prueba"
                     data-location-reveal-btn="{{ post.id }}"
                     onclick="revealProtectedLocation({{ post.id }}, this)">
                     <i class="fas fa-location-dot"></i>
+                    {% if home_card %}<span data-post-map-label>Revelar ubicación</span>{% endif %}
                 </button>
                 {% else %}
                 <button class="post-top-action post-map-toggle" type="button" title="{{ 'Verifica tu cuenta para consultar ubicaciones reales' if protected_location else 'Ver mapa' }}" aria-label="Ver mapa"
                     {% if protected_location %}disabled data-require-verified="1"{% endif %}
                     onclick="toggleMap({{ post.id }}, {{ '%.6f'|format(safe_loc.lat) if safe_loc.lat is not none else 'null' }}, {{ '%.6f'|format(safe_loc.lng) if safe_loc.lng is not none else 'null' }}, this)">
                     <i class="fas fa-map-marked-alt"></i>
+                    {% if home_card %}<span data-post-map-label>Ver mapa</span>{% endif %}
                 </button>
                 {% endif %}
+                {% endset %}
+                {% if not home_card %}{{ post_map_control }}{% endif %}
                 {% if current_user.is_authenticated %}
                 <button class="post-top-action report-btn" type="button" title="Reportar publicación"
                     aria-label="Reportar publicación" onclick="openReportModal({{ post.id }})">
@@ -103,6 +109,8 @@
             </div>
         </div>
     </div>
+
+    {% if home_card %}{% include '_post_caption.html' %}{% endif %}
 
     {% if categories_list %}
     <div class="post-category-strip">
@@ -150,6 +158,7 @@
         <div class="post-map-wrapper face-back" id="map-wrapper-{{ post.id }}">
             <div id="map-{{ post.id }}" style="height: 100%; width: 100%;"></div>
         </div>
+        {% if home_card %}{{ post_map_control }}{% endif %}
     </div>
 
 {% set can_like = can_user_interact_post(post, current_user, 'like') %}
@@ -232,24 +241,7 @@
 </div>
 {% endif %}
 
-{% if protected_post %}
-<div class="post-caption-block post-caption-block--protected">
-    <span>Reporte protegido. Verifica tu cuenta para ver los detalles completos.</span>
-</div>
-{% elif post.caption or current_user_can_edit_post_caption %}
-<div class="post-caption-block">
-    <span class="post-caption-author">{{ display_author_name }}</span>
-    {% if post_author_level > 0 %}
-    <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if post_author_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if post_author_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if post_author_level >= 2 else 'Usuaria con un strike' }}">
-        <i class="fas fa-triangle-exclamation"></i>
-    </span>
-    {% endif %}
-    {% set staff_badge = post_author_staff_badge %}
-    {% set staff_badge_size = 'sm' %}
-    {% include '_staff_badge.html' %}
-    <span data-post-caption="{{ post.id }}" class="{{ 'post-caption-empty' if not post.caption else '' }}">{{ post.caption or 'Sin descripción.' }}</span>
-</div>
-{% endif %}
+{% if not home_card %}{% include '_post_caption.html' %}{% endif %}
 
     <!-- Comments Section -->
     {% if protected_post %}

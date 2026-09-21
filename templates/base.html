@@ -75,7 +75,7 @@
     {% if load_security_overlay_styles %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/security_overlays.css') }}?v=20260507-security-overlays-v1">
     {% endif %}
-    {% if request.endpoint == 'index' %}
+    {% if request.endpoint in ['index', 'user_profile'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/post_create.css') }}?v=20260403-post-modal-motion-v17">
     {% endif %}
     {% if current_user.is_authenticated and request.endpoint not in auth_shell_endpoints %}
@@ -87,9 +87,17 @@
     {% endif %}
     {% block styles %}{% endblock %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/shared_ui.css') }}?v=20260907-phase1">
+    {% if request.endpoint == 'index' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/home_reference.css') }}?v=20260920-exact-reference">
+    {% endif %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/sidebar.css') }}?v=20260920-shared-menu">
+    {% if request.endpoint == 'user_profile' %}
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/profile_reference.css') }}?v=20260920-profile-reference">
+    {% endif %}
 </head>
 
-<body class="violeta-theme {% if show_limited_access_popup %}user-unverified has-limited-access-popup{% endif %} {% if request.endpoint == 'chat' %}chat-page{% endif %}">
+<body class="violeta-theme {% if request.endpoint == 'user_profile' %}profile-reference{% endif %} {% if request.endpoint == 'index' %}home-page{% endif %} {% if show_limited_access_popup %}user-unverified has-limited-access-popup{% endif %} {% if request.endpoint == 'chat' %}chat-page{% endif %}">
 
     <div class="app-layout">
         <!-- Sidebar (Desktop) -->
@@ -151,7 +159,8 @@
                 {% if current_user.is_authenticated %}
                 <a href="{{ url_for('user_profile', username=current_user.username) }}"
                     class="sidebar-link {{ 'active' if request.endpoint in ['user_profile','profile','edit_profile'] else '' }}">
-                    <i class="fa-solid fa-user"></i> Perfil
+                    <img class="home-sidebar-avatar" src="{{ avatar_url_for_user(current_user) }}" alt="" width="24" height="24">
+                    Perfil
                 </a>
                 <a href="{{ url_for('logout') }}" class="sidebar-link" data-no-prefetch="1">
                     <i class="fa-solid fa-right-from-bracket"></i> Cerrar sesión
@@ -359,6 +368,9 @@
         title="Nueva Publicación">
         <i class="fas fa-plus"></i>
     </a>
+    {% include 'post_create_modal.html' %}
+    {% endif %}
+    {% if current_user.is_authenticated and request.endpoint == 'user_profile' and is_self %}
     {% include 'post_create_modal.html' %}
     {% endif %}
 
@@ -855,11 +867,11 @@
     {% if current_user.is_authenticated and not current_user_can_override_content_controls %}
     <script src="{{ url_for('static', filename='js/pending_post_release.js') }}?v=20260523-pending-timer-hhmmss-v1"></script>
     {% endif %}
-    {% if request.endpoint == 'index' %}
+    {% if request.endpoint in ['index', 'user_profile'] %}
     <script src="{{ url_for('static', filename='js/post_create.js') }}?v=20260523-ios-camera-capture-v1"></script>
     {% endif %}
     {% if request.endpoint in ['index', 'post_detail'] %}
-    <script src="{{ url_for('static', filename='js/post_map.js') }}?v=20260425-post-card-redesign-v2"></script>
+    <script src="{{ url_for('static', filename='js/post_map.js') }}?v=20260918-home-map-label"></script>
     {% endif %}
     <script>
         // Auto-cerrar cualquier alerta de flash después de 5s

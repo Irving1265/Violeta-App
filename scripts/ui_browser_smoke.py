@@ -137,6 +137,7 @@ def create_user(
         user = User(username=username, email=f'{username}@example.com')
         user.set_password(password)
         user.is_verified = verified
+        user.verification_status = 'verified' if verified else 'unverified'
         if roles:
             user.set_roles(roles)
         db.session.add(user)
@@ -220,7 +221,7 @@ def login(page, username: str, password: str) -> None:
     page.goto('/login', wait_until='domcontentloaded')
     page.locator('input[name="login"]').fill(username)
     page.locator('input[name="password"]').fill(password)
-    page.locator('form.auth-form button[type="submit"]').click()
+    page.get_by_role('button', name='Iniciar sesión', exact=True).click()
     page.wait_for_url('**/')
     expect(page.locator('.floating-create-btn')).to_be_visible(timeout=10000)
 
@@ -229,7 +230,7 @@ def login_for_layout(page, username: str, password: str) -> None:
     page.goto('/login', wait_until='domcontentloaded')
     page.locator('input[name="login"]').fill(username)
     page.locator('input[name="password"]').fill(password)
-    page.locator('form.auth-form button[type="submit"]').click()
+    page.get_by_role('button', name='Iniciar sesión', exact=True).click()
     page.wait_for_url('**/', timeout=10000)
     expect(page.locator('body')).to_be_visible(timeout=10000)
 
@@ -306,6 +307,12 @@ def check_layout_route(page, path: str, selectors: list[str], label: str) -> Non
     page.goto(path, wait_until='domcontentloaded')
     assert_visible_any(page, selectors, label)
     assert_no_horizontal_overflow(page, label)
+    sidebar = page.locator('.app-layout > .sidebar')
+    if page.viewport_size['width'] >= 768 and sidebar.count():
+        expect(sidebar).to_have_css('width', '220px')
+        expect(sidebar).to_have_css('background-color', 'rgb(15, 13, 23)')
+        expect(sidebar.locator('.home-sidebar-avatar')).to_be_visible()
+        expect(sidebar.locator('.sidebar-link').first).to_have_css('font-size', '14.08px')
 
 
 def run_responsive_layout_checks(
@@ -334,7 +341,7 @@ def run_responsive_layout_checks(
 
     user_routes = [
         ('/', ['.violeta-header', '.post-card', '#posts-container'], 'feed'),
-        (f'/user/{username}', ['.profile-header', '.profile-hero-card', '.profile-avatar-lg'], 'perfil'),
+        (f'/user/{username}', ['.profile-hero', '.profile-header', '.profile-hero-card', '.profile-avatar-lg'], 'perfil'),
         ('/safety', ['body'], 'centro de seguridad'),
         ('/chat', ['body'], 'chat'),
     ]
@@ -393,7 +400,11 @@ def maybe_click_crop_apply(page) -> None:
 
 
 def run_publish_flow(page, user_id: int) -> None:
-    page.locator('.floating-create-btn').click(force=True)
+    page.wait_for_function('Boolean(window.PostCreateModal)')
+    notice = page.get_by_role('button', name='Entendido', exact=True)
+    if notice.is_visible():
+        notice.click()
+    page.locator('.floating-create-btn').click()
     expect(page.locator('#postCreateModal')).to_be_visible(timeout=10000)
 
     page.evaluate('window.Cropper = undefined;')

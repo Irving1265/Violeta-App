@@ -1,0 +1,30 @@
+/* Shared desktop menu, using the approved home reference. */
+body.violeta-theme { --sidebar-width: 220px; }
+.violeta-theme .sidebar { --home-sidebar: #0f0d17; --home-border: rgba(255,255,255,.085); --home-secondary: #aba3b5; --home-muted: #81798d; --home-danger: #e54861; --home-surface: #1a1825; --ui-action: #7c3aed; --ui-focus: #a78bfa; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+.violeta-theme .sidebar { width: var(--sidebar-width); padding: 30px 18px 20px; background: var(--home-sidebar); border-right: 1px solid var(--home-border); overflow-y: auto; }
+.violeta-theme .sidebar .brand-logo { margin: 0 12px 38px; padding: 0; align-items: flex-start; }
+.violeta-theme .sidebar .brand-logo__word { font-size: 2rem; line-height: 1; letter-spacing: -.045em; }
+.violeta-theme .sidebar .brand-logo__meta { margin-top: 7px; font-size: .8125rem; color: var(--home-muted); letter-spacing: .18em; }
+.violeta-theme .sidebar-nav { gap: 4px; }
+.violeta-theme .sidebar .sidebar-link { min-height: 46px; padding: 0 14px; gap: 13px; font-size: .9375rem; font-weight: 500; color: var(--home-secondary); border-radius: 12px; }
+.violeta-theme .sidebar .sidebar-link i { width: 20px; font-size: 1.125rem; color: var(--home-muted); text-align: center; }
+.violeta-theme .sidebar .sidebar-link:hover, .violeta-theme .sidebar .sidebar-link.active { background: rgba(124,58,237,.16); color: white; }
+.violeta-theme .sidebar .sidebar-link.active i { color: var(--ui-focus); }
+.violeta-theme .sidebar .sidebar-link.active::before { content: ''; position: absolute; left: -18px; top: 10px; bottom: 10px; width: 3px; background: var(--ui-action); }
+.violeta-theme .sidebar .sidebar-support-link { min-height: 44px; font-size: .875rem; padding: 0 12px; background: transparent; border: 0; color: var(--home-muted); }
+.violeta-theme .sidebar .btn-danger { min-height: 46px; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: .9375rem; background: var(--home-danger); border: 0; border-radius: 13px; box-shadow: none; }
+.violeta-theme .home-sidebar-avatar { width: 24px; height: 24px; object-fit: cover; border-radius: 50%; }
+.violeta-theme .sidebar-limited-pill { margin-bottom: 12px; }
+.violeta-theme .sidebar .brand-logo { gap: 7px; }
+.violeta-theme .sidebar .brand-logo__word { font-weight: 760; color: #fff; }
+.violeta-theme .sidebar .brand-logo__meta { margin: 0; font-size: .64rem; }
+.violeta-theme .sidebar .sidebar-link { font-size: .88rem; }
+.violeta-theme .sidebar .sidebar-link > i { width: 18px; font-size: inherit; color: #9389a1; }
+.violeta-theme .sidebar .sidebar-link.active { font-weight: 640; }
+.violeta-theme .sidebar .sidebar-link.active > i { color: #c4b5fd; }
+.violeta-theme .sidebar .home-sidebar-avatar { width: 22px; height: 22px; border: 1px solid rgba(255,255,255,.17); }
+.violeta-theme .sidebar > .mt-auto { gap: 7px !important; padding-top: 20px; border-top: 1px solid var(--home-border); }
+.violeta-theme .sidebar .sidebar-support-link { justify-content: flex-start; gap: 10px; min-height: 42px; padding: 0 13px; font-size: .78rem; }
+.violeta-theme .sidebar .btn-danger { font-size: .83rem; font-weight: 650; color: #fff; }
+.violeta-theme .sidebar .btn-danger:hover { background: #d93d57; color: #fff; }
+.violeta-theme .sidebar a:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; }

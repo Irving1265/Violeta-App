@@ -66,7 +66,7 @@ window.DEFERRED_PAGE_CONFIG = {
   errorId: 'deferredPageError',
   contentUrl: {{ url_for('user_profile_content', username=user.username, page=page)|tojson }},
   scriptSrcs: [
-    {{ (url_for('static', filename='js/user_profile_page.js') ~ '?v=20260418-delete-confirm-v1')|tojson }}
+    {{ (url_for('static', filename='js/user_profile_page.js') ~ '?v=20260920-profile-reference')|tojson }}
   ],
   initFn: 'initUserProfileEnhancements'
 };

@@ -99,11 +99,33 @@ function initProfileDeleteConfirm(root) {
     }
 }
 
+function initProfileActivity() {
+    const root = document.getElementById('profileActivity');
+    if (!root || root.dataset.ready) return;
+    root.dataset.ready = 'true';
+    const button = root.querySelector('#activityToggle');
+    const panel = root.querySelector('#activityPanel');
+    const mobile = window.matchMedia('(max-width: 600px)');
+    let expanded = false;
+    const render = () => {
+        const open = !mobile.matches || expanded;
+        root.classList.toggle('is-open', open);
+        button.setAttribute('aria-expanded', String(open));
+        panel.setAttribute('aria-hidden', String(!open));
+        panel.inert = !open;
+        panel.style.height = open ? 'auto' : '0px';
+    };
+    button.addEventListener('click', () => { expanded = !expanded; render(); });
+    mobile.addEventListener('change', render);
+    render();
+}
+
 window.initUserProfileEnhancements = function initUserProfileEnhancements() {
     if (typeof window.refreshPendingPostReleaseUI === 'function') {
         window.refreshPendingPostReleaseUI(true);
     }
     initProfileDeleteConfirm(document);
+    initProfileActivity();
 };
 
 if (document.readyState === 'loading') {

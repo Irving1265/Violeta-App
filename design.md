@@ -291,6 +291,60 @@ Any exception must document the user benefit, affected component, and accessibil
 
 ## Applying This Source of Truth
 
+### Approved Home Reference (September 18, 2026)
+
+The supplied HTML is the visual target for home only, scoped with `.home-page` and
+`home_reference.css`. Use its flat #12101C canvas, #0F0D17 sidebar, #1A1825 cards,
+#211D30 raised controls, 220px desktop navigation, 300px right rail (270px below
+1150px), 1070px content limit and 26px column gap. The rail hides below 1001px;
+the existing mobile navigation destinations remain unchanged below 768px.
+Home retains the reference's "Explorar" heading as an explicit user exception.
+
+Reports place their privacy-safe description before category labels and inset 4:3
+media, followed by compact social actions. Use 18px desktop card corners, 15px
+media corners and 14px mobile gutters; mobile posts are separated without outer
+rounded cards. Reuse the existing caption, map, comments and protected-content
+logic. Do not copy demonstration counts, coordinates, photos or fake interactions.
+The real camera composer and its permissions must remain unchanged.
+
+The supplied red create button and category colors are scoped reference exceptions:
+#E54861 create/emergency controls, #F7BD56 lighting, #8EB9FF sidewalk, #FF8E9E
+unsafe and #5BDEB1 vacant categories on their matching 13% tints. Nearby-map
+distance colors use violet for the labeled current position, green/amber/red for
+distance, never a safety score. No marker may call a fallback position the user's
+location. The September 20 follow-up explicitly requests the reference's exact
+visual sizing, colors, widgets and menus, including mobile navigation styling.
+Use the supplied compact type scale (.58rem map legend, .65rem activity counts,
+.71rem activity names, .89rem captions), #81798D muted text, 35/38px filters,
+56px mobile emergency control and reference header blur. These are home-only
+exceptions; smaller text and muted contrast are known accessibility tradeoffs,
+not an accessibility compliance claim. Retain keyboard focus, reduced motion,
+browser zoom, semantic labels and real permission checks. The weather is a
+two-column compact row; activity uses category icons and count pills rather than
+full sentences. These exceptions are not global tokens.
+
+### Shared Desktop Menu
+
+The September 20 shared-menu follow-up promotes the home desktop sidebar to all
+pages using base.html, via sidebar.css: 220px width, reference typography,
+colors and spacing, profile avatar, support and emergency actions. Preserve role
+conditions, limited-access status and the configured version label. Authentication
+pages without a sidebar remain unchanged; this change does not restyle mobile
+navigation. Other home reference styles remain scoped to home.
+
+### Approved Profile Reference
+
+The supplied September 20 profile HTML governs profile content only. Preserve
+the shared desktop and mobile menus. Reuse its exact cover/wellbeing SVG assets,
+Caveat quotes, Inter typography, #10101A canvas, #171624 surfaces, 304px hero,
+124px avatar (84px on phones), four-column report cards and 272px wellbeing rail.
+At 600px, activity collapses into an accessible disclosure and reports use two
+columns. Keep real identity, moderation, verification, pagination, delete and
+camera publication behavior. Do not claim the profile is private or invent
+monthly impact. Until supported, show impact as unavailable and replace the
+unsupported cover editor with the real profile editor. Compact type and the
+reference gradients are explicit user-directed exceptions, not global tokens.
+
 ### Approved Login Reference
 
 The user-supplied September 2026 login reference is a scoped exception, implemented in `login_page.css` and `login.html`, not a new global theme. Preserve its 440px desktop auth column (410px below 1200px), dark `#12101C` canvas, `#1A1825` panel, `#211D30` inputs, 24px panel radius (22px mobile), 14px control radius and system font. The revised compact header uses the Violeta wordmark and Beta v1.2 inside the form panel instead of the circular illustration and duplicate exterior logo. Supporting text uses `#A9A1B3`; inputs retain the shared accessible boundary and 16px text instead of the reference's smaller size.

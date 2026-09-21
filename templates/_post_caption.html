@@ -1,0 +1,18 @@
+{% if protected_post %}
+<div class="post-caption-block post-caption-block--protected">
+    <span>Reporte protegido. Verifica tu cuenta para ver los detalles completos.</span>
+</div>
+{% elif post.caption or current_user_can_edit_post_caption %}
+<div class="post-caption-block">
+    <span class="post-caption-author">{{ display_author_name }}</span>
+    {% if post_author_level > 0 %}
+    <span class="moderation-strike-badge moderation-strike-badge--{{ 'red' if post_author_level >= 2 else 'yellow' }}" title="{{ 'Usuaria con dos strikes o más' if post_author_level >= 2 else 'Usuaria con un strike' }}" aria-label="{{ 'Usuaria con dos strikes o más' if post_author_level >= 2 else 'Usuaria con un strike' }}">
+        <i class="fas fa-triangle-exclamation"></i>
+    </span>
+    {% endif %}
+    {% set staff_badge = post_author_staff_badge %}
+    {% set staff_badge_size = 'sm' %}
+    {% include '_staff_badge.html' %}
+    <span data-post-caption="{{ post.id }}" class="{{ 'post-caption-empty' if not post.caption else '' }}">{{ post.caption or 'Sin descripción.' }}</span>
+</div>
+{% endif %}

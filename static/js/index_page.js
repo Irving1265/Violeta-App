@@ -72,7 +72,7 @@
 
         const defaultLat = 25.6866, defaultLng = -100.3161;
 
-        function init(lat, lng) {
+        function init(lat, lng, currentLocation = true) {
             const map = L.map('miniMap', {
                 zoomControl: false, dragging: false, scrollWheelZoom: false,
                 doubleClickZoom: false, touchZoom: false
@@ -83,7 +83,7 @@
             }).addTo(map);
 
             // User marker
-            L.marker([lat, lng], {
+            if (currentLocation) L.marker([lat, lng], {
                 icon: L.divIcon({
                     html: '<div class="mini-map-marker mini-map-marker--user"></div>',
                     className: 'mini-map-marker-host',
@@ -91,6 +91,10 @@
                     iconAnchor: [9, 9]
                 })
             }).addTo(map);
+            if (!currentLocation) {
+                const locationLabel = document.querySelector('.mini-map-widget__current');
+                if (locationLabel) locationLabel.textContent = 'Vista de Monterrey';
+            }
 
             // Fetch hotspots already filtered near the current location.
             fetch(`/api/hotspots?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&radius_km=8&limit=30`).then(r => r.json()).then(data => {
@@ -138,7 +142,7 @@
                 function (error) {
                     // ERROR: Fall back to Monterrey center
                     console.warn('Geolocation error:', error.message);
-                    init(defaultLat, defaultLng);
+                    init(defaultLat, defaultLng, false);
                 },
                 {
                     enableHighAccuracy: true,  // Request GPS accuracy
@@ -147,7 +151,7 @@
                 }
             );
         } else {
-            init(defaultLat, defaultLng);
+            init(defaultLat, defaultLng, false);
         }
     })();
 
@@ -566,14 +570,24 @@
                 `;
                 return;
             }
-            listEl.innerHTML = items.map((item) => `
+            const categoryStyles = {
+                'Alumbrado deficiente': ['lighting', 'fa-lightbulb'],
+                'Poca iluminación': ['lighting', 'fa-lightbulb'],
+                'Terrenos baldíos': ['vacant', 'fa-tree'],
+                'Zona insegura': ['unsafe', 'fa-triangle-exclamation'],
+                'Banquetas en mal estado': ['sidewalk', 'fa-shoe-prints']
+            };
+            listEl.innerHTML = items.map((item) => {
+                const [tone, icon] = categoryStyles[item.category] || ['other', 'fa-location-dot'];
+                return `
                 <li>
                     <div class="trend-info">
-                        <h4 class="trend-title">${escapeHtml(item.category || 'Sin categoría')}</h4>
-                        <span class="trend-stats">${Number(item.count || 0)} reporte${Number(item.count || 0) !== 1 ? 's' : ''}</span>
+                        <h4 class="trend-title activity-name--${tone}"><i class="fas ${icon}" aria-hidden="true"></i>${escapeHtml(item.category || 'Sin categoría')}</h4>
+                        <span class="trend-stats activity-count" aria-label="${Number(item.count || 0)} reportes">${Number(item.count || 0)}</span>
                     </div>
                 </li>
-            `).join('');
+            `;
+            }).join('');
         }
 
         function loadSidebarSummary() {
@@ -651,10 +665,12 @@
             const isToday = mode === 'today';
             byCategory.style.display = isToday ? 'none' : 'block';
             today.style.display = isToday ? 'block' : 'none';
-            title.textContent = isToday ? 'Reportes de hoy' : 'Reportes generados';
+            title.textContent = isToday ? 'Reportes de hoy' : 'Actividad en tu comunidad';
             btn.setAttribute('aria-pressed', isToday ? 'true' : 'false');
             btn.title = isToday ? 'Ver por categoria' : 'Ver reportes de hoy';
             btn.setAttribute('aria-label', btn.title);
+            const toggleLabel = document.getElementById('reportsToggleLabel');
+            if (toggleLabel) toggleLabel.textContent = btn.title;
             icon.className = isToday ? 'fa-solid fa-list' : 'fa-solid fa-calendar-day';
             if (animate) {
                 animateModeChange(isToday ? today : byCategory);
